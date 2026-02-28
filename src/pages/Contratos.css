@@ -1,0 +1,500 @@
+.ct-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    height: calc(100vh - var(--topbar-height) - 3rem);
+    /* 100vh minus topbar and page-wrapper padding */
+}
+
+.ct-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.ct-title {
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.04em;
+    margin: 0 0 0.25rem 0;
+}
+
+.ct-subtitle {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    font-weight: 400;
+    margin: 0;
+}
+
+.ct-primary-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--color-primary);
+    color: white;
+    padding: 0 1.25rem;
+    height: 40px;
+    border-radius: 12px;
+    /* Padronizado com botão Nova OF */
+    font-weight: 500;
+    font-size: 0.875rem;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.1s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    /* Sutil elevação */
+}
+
+.ct-primary-btn:hover {
+    background: var(--color-secondary);
+}
+
+.ct-primary-btn:active {
+    transform: scale(0.98);
+}
+
+/* Main Unified Card Layer */
+.main-content-card {
+    background: #ffffff;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-light);
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+    /* 24px */
+    flex: 1;
+    /* Take remaining space */
+    min-height: 0;
+    /* Important for nested flex scroll */
+}
+
+/* Filters Bar (SaaS Toolbar) */
+.filters-toolbar {
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.filters-row {
+    display: flex;
+    gap: 0.875rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-search {
+    flex: 1;
+    min-width: 300px;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.filter-search svg {
+    position: absolute;
+    left: 0.75rem;
+    color: var(--text-muted);
+}
+
+.filter-search input {
+    width: 100%;
+    height: 44px;
+    padding: 0 1rem 0 2.5rem;
+    border: 1px solid #cbd5e1;
+    /* Borda visivelmente preenchida */
+    border-radius: 12px;
+    /* Compatível com Dashboard Nova OF */
+    background: #f8fafc;
+    /* Fundo suave cinza contrastante com branco */
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.filter-search input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(10, 37, 64, 0.08);
+    /* Highlight no focus */
+}
+
+.filter-select {
+    height: 44px;
+    padding: 0 2.25rem 0 1rem;
+    /* Space for native dropdown arrow */
+    border: 1px solid #cbd5e1;
+    /* Borda demarcada */
+    border-radius: 12px;
+    /* Compatível com Dashboard Nova OF */
+    background: #f8fafc;
+    /* Fundo leve para o seletor dar destaque */
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    min-width: 180px;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s ease;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1.2em;
+}
+
+.filter-select:hover {
+    border-color: #64748b;
+    /* Escurece mais no hover */
+}
+
+.filter-select:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(10, 37, 64, 0.08);
+}
+
+/* Data Table Card */
+.table-section {
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+}
+
+.data-table-wrapper {
+    position: relative;
+    overflow-y: auto;
+    overflow-x: auto;
+    flex: 1;
+    scrollbar-width: thin;
+    /* Firefox */
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.data-table-wrapper::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.data-table-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.data-table-wrapper::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 10px;
+}
+
+/* Optional premium fade shadow at the bottom is achieved via the footer's shadow */
+
+.data-table {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: collapse;
+    text-align: left;
+    table-layout: fixed;
+    /* Tabela agora não deforma independente do tamanho das células */
+}
+
+.data-table th {
+    background: #f5f7f9;
+    color: var(--text-primary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    /* Clearer separation */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Hard locking the column sizes */
+.data-table th:nth-child(1) {
+    width: 17% !important;
+}
+
+.data-table th:nth-child(2) {
+    width: 25% !important;
+}
+
+.data-table th:nth-child(3) {
+    width: 22% !important;
+}
+
+.data-table th:nth-child(4) {
+    width: 18% !important;
+}
+
+.data-table th:nth-child(5) {
+    width: 10% !important;
+}
+
+.data-table th:nth-child(6) {
+    width: 8% !important;
+    text-align: right;
+}
+
+.data-table td {
+    padding: 0.875rem 1rem;
+    /* Respiro vertical menor */
+    border-bottom: 1px solid #f1f5f9;
+    /* Linha ultra sutil */
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    vertical-align: middle;
+    transition: background-color 0.15s ease;
+}
+
+.data-table tbody tr:hover td {
+    background-color: #f8fafc;
+    /* Hover super leve neutro */
+}
+
+.data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Table Specific Cell Styles */
+.td-number {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.td-title {
+    max-width: 250px;
+}
+
+.title-text {
+    display: block;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.supplier-text {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.td-dates {
+    font-size: 0.8125rem;
+}
+
+.td-dates>div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    /* Mais junto */
+}
+
+.date-end {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.date-start {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--text-muted);
+}
+
+/* Values */
+.td-values {
+    white-space: nowrap;
+}
+
+.val-total {
+    display: block;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.val-balance {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Badges */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.status-badge.ativo {
+    background: #e6f6ec;
+    /* subtle green */
+    color: #0f8b4d;
+}
+
+.status-badge.vencendo {
+    background: #fff4e5;
+    /* subtle orange/yellow */
+    color: #b75c00;
+}
+
+.status-badge.vencido {
+    background: #fcebeb;
+    /* subtle red */
+    color: #d92d20;
+}
+
+.status-badge.suspenso,
+.status-badge.cancelado {
+    background: var(--surface-secondary);
+    color: var(--text-muted);
+}
+
+/* Empenhos Badges */
+.status-badge.empenhado {
+    background: #e0f2fe;
+    /* Light blue neutral */
+    color: #0369a1;
+    /* Dark blue text */
+}
+
+.status-badge.liquidado {
+    background: #fff7ed;
+    /* Soft orange/yellow */
+    color: #c2410c;
+    /* Dark orange text */
+}
+
+.status-badge.pago {
+    background: #dcfce7;
+    /* Soft green */
+    color: #15803d;
+    /* Dark green text */
+}
+
+/* Actions Menu */
+.action-cell-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 0.375rem;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.action-cell-btn:hover {
+    background: var(--border-light);
+    color: var(--text-primary);
+}
+
+.empty-state,
+.loading-state {
+    height: 100%;
+    color: var(--text-muted);
+}
+
+.empty-state-content,
+.loading-state-content {
+    position: absolute;
+    top: 45px;
+    /* Altura média do head da tabela */
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: #ffffff;
+    z-index: 5;
+}
+
+.empty-state svg,
+.loading-state svg {
+    color: var(--border-light);
+    margin: 0 auto 1rem auto;
+    display: block;
+}
+
+.empty-state h3 {
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+    font-size: 1.125rem;
+}
+
+.clear-filters-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #e2e8f0;
+    /* Cinza mais escuro para destaque */
+    color: var(--text-primary);
+    border: none;
+    /* Removing outline */
+    border-radius: 12px;
+    padding: 0.6rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 1.25rem;
+}
+
+.clear-filters-btn:hover {
+    background: #cbd5e1;
+    /* Cinza ainda mais escuro no hover */
+}
+
+/* Table Footer */
+.table-footer {
+    padding: 1rem 0 0 0;
+    border-top: 1px solid var(--border-light);
+    background: #ffffff;
+    text-align: right;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    box-shadow: 0 -10px 15px -3px rgba(0, 0, 0, 0.03);
+    /* Premium fade indicating scrollable area above */
+    z-index: 10;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .filters-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-search {
+        min-width: 100%;
+    }
+}

@@ -1,0 +1,446 @@
+.sidebar {
+    position: fixed;
+    top: var(--topbar-height);
+    left: 0;
+    bottom: 0;
+    width: 72px;
+    background-color: var(--color-primary-hover);
+    /* Fundo mais escuro no compacto */
+    color: var(--text-inverse);
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    /* super subtle institutional edge */
+    z-index: 40;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.08);
+    /* Sombra separadora elegante */
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar.pinned {
+    width: 260px;
+    background: linear-gradient(180deg, var(--color-primary) 0%, #09403A 100%);
+    /* Fundo expandido com gradiente vertical ultra sutil */
+}
+
+.sidebar-header {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    /* divider sutil topo */
+    /* background-color: rgba(0, 0, 0, 0.04); */
+    /* tom super leve para destacar o header */
+    transition: background-color 0.25s ease;
+    flex-shrink: 0;
+}
+
+.sidebar.compact .sidebar-header {
+    justify-content: center;
+    padding: 0;
+}
+
+.sidebar.pinned .sidebar-header {
+    background-color: rgba(0, 0, 0, 0.03);
+    /* micro contraste na área do botão */
+}
+
+.pin-toggle-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: all 0.25s ease;
+}
+
+.pin-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    transform: scale(1.03);
+    /* Premium hover sutil */
+}
+
+.sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1.5rem 0 1rem 0;
+    /* Reduced bottom padding as footer handles it */
+    width: 100%;
+}
+
+/* Scrollbar premium customizada - visível e discreta */
+.sidebar::-webkit-scrollbar,
+.sidebar-content::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+.sidebar::-webkit-scrollbar-track,
+.sidebar-content::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    /* Trilha super sutil para marcação visual */
+    border-radius: 4px;
+}
+
+.sidebar::-webkit-scrollbar-thumb,
+.sidebar-content::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.25);
+    /* Fundo branco semi-visível contra o verde */
+    border-radius: 4px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover,
+.sidebar-content::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.45);
+    /* Destaque leve ao passar o mouse */
+}
+
+.sidebar::-webkit-scrollbar-corner,
+.sidebar-content::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+.sidebar-section {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    /* Divisão mais clara */
+}
+
+.sidebar-section:last-child {
+    margin-bottom: 0;
+    border-bottom: none;
+}
+
+.sidebar-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: rgba(255, 255, 255, 0.4);
+    /* opacidade baixa, elegância */
+    margin: 0.5rem 1rem 0.5rem 1.25rem;
+    /* Margem superior radicalmente reduzida */
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    white-space: nowrap;
+}
+
+.sidebar.compact .sidebar-section-title {
+    display: none;
+}
+
+.sidebar.pinned .sidebar-section-title {
+    opacity: 1;
+    display: block;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1.25rem;
+    /* 12px 20px */
+    min-height: 48px;
+    color: rgba(255, 255, 255, 0.75);
+    text-decoration: none;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 0.95rem;
+    position: relative;
+    border-left: 3px solid transparent;
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    /* Hover visibility supersofisticada */
+    color: #fff;
+    border-left-color: rgba(255, 255, 255, 0.15);
+    /* Feedback visual na borda no inativo em hover */
+}
+
+.nav-item.active {
+    background-color: rgba(255, 255, 255, 0.15);
+    /* Fundo visualmente mais claro */
+    color: #fff;
+    border-left: 4px solid rgba(255, 255, 255, 0.85);
+    /* Borda lateral clara (branca translucida forte) */
+    box-shadow: inset 8px 0 16px -8px rgba(255, 255, 255, 0.2);
+    /* Sutil glow claro */
+    font-weight: 600;
+}
+
+.nav-item.active:hover {
+    background-color: rgba(255, 255, 255, 0.14);
+    border-left-color: var(--color-secondary);
+}
+
+/* Removido o nav-label font-weight do jsx dinâmico, o nav-item cuida da grossura geral ou nav-label */
+.nav-item.active .nav-label {
+    font-weight: 600;
+}
+
+.nav-icon {
+    flex-shrink: 0;
+    margin-right: 12px;
+    display: flex;
+    justify-content: center;
+    transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), stroke-width 0.25s ease;
+}
+
+/* Em compact mode, os ícones precisam ficar alinhados exatamente no centro do rail de 72px */
+.sidebar.compact .nav-item {
+    padding-left: 0;
+    border-left: 3px solid transparent;
+    justify-content: center;
+    width: 72px;
+}
+
+.sidebar.compact .nav-item.active {
+    border-left: 4px solid rgba(255, 255, 255, 0.85);
+    /* Sincronizar borda clara */
+}
+
+.sidebar.compact .nav-icon {
+    margin-right: 0;
+    /* remove gap when collapsed */
+    margin-left: -3px;
+    /* compense border for true centering */
+    display: flex !important;
+}
+
+.sidebar.compact .nav-label {
+    display: none;
+}
+
+/* Pinned mode */
+.sidebar.pinned .nav-item {
+    padding-left: calc(1.25rem - 3px);
+    /* 17px pra compensar borda e alinhar a 20px total visual e os outros icones */
+    justify-content: flex-start;
+    width: 260px;
+}
+
+.sidebar.pinned .nav-icon {
+    margin-left: 0;
+    margin-right: 12px;
+}
+
+.sidebar.pinned .nav-label {
+    display: block;
+    opacity: 1;
+}
+
+/* --- FLYOUT OVERLAY (Compact Hover) --- */
+.flyout {
+    position: absolute;
+    left: calc(100% + 12px);
+    /* spacing from sidebar */
+    top: 50%;
+    transform: translateY(-50%) translateX(-10px);
+    /* Initial transform */
+    background-color: var(--bg);
+    padding: 12px 16px;
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    min-width: 180px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+    /* Do not intersect mouse */
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Show flyout only on hover in compact mode */
+.nav-item.has-flyout:hover .flyout {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) translateX(0);
+}
+
+.flyout-section {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-primary);
+    /* cor da prefeitura no titulo */
+    margin-bottom: 6px;
+}
+
+.flyout-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* --- SIDEBAR FOOTER (NOVO) --- */
+.sidebar-footer {
+    flex-shrink: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    /* Borda superior sutil */
+    background-color: rgba(0, 0, 0, 0.05);
+    /* Fundo levemente mais escuro para diferenciar do menu */
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    z-index: 41;
+    /* Acima do scroll area */
+}
+
+/* Expanded state (default spacing) */
+.sidebar.pinned .sidebar-footer {
+    padding: 1.25rem;
+}
+
+.sidebar.pinned .footer-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.footer-btn {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.footer-btn-label {
+    opacity: 1;
+    transition: opacity 0.2s ease;
+}
+
+.footer-icon {
+    flex-shrink: 0;
+    margin-right: 0.75rem;
+}
+
+.footer-btn.btn-primary {
+    background-color: var(--color-secondary);
+    color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.footer-btn.btn-primary:hover {
+    background-color: #008f75;
+    /* Slightly darker secondary for hover */
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+.footer-btn.btn-secondary {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.footer-btn.btn-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+.footer-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 0.75rem;
+}
+
+.footer-info-text {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    /* Discrete info text */
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.footer-help-link {
+    display: flex;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.6);
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: color 0.2s ease;
+    white-space: nowrap;
+}
+
+.footer-help-link .help-icon {
+    margin-right: 0.5rem;
+}
+
+.footer-help-link:hover {
+    color: white;
+}
+
+/* Compact state adjustments */
+.sidebar.compact .sidebar-footer {
+    padding: 1rem 0;
+    /* Vertical padding only, center content horizontally */
+    align-items: center;
+}
+
+.sidebar.compact .footer-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    align-items: center;
+}
+
+.sidebar.compact .footer-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 8px;
+    justify-content: center;
+}
+
+.sidebar.compact .footer-icon {
+    margin-right: 0;
+}
+
+.sidebar.compact .footer-btn-label,
+.sidebar.compact .footer-info,
+.sidebar.compact .footer-help-label {
+    display: none;
+    /* Hide texts completely */
+    opacity: 0;
+}
+
+.sidebar.compact .footer-help-link {
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    display: flex;
+}
+
+.sidebar.compact .footer-help-link .help-icon {
+    margin-right: 0;
+}
