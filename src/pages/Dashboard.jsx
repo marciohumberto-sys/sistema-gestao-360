@@ -17,6 +17,8 @@ import {
     ShieldAlert
 } from 'lucide-react';
 import { contractsService } from '../services/api/contracts.service';
+import { supabase } from '../lib/supabase';
+import { useTenant } from '../context/TenantContext';
 import './Dashboard.css';
 
 const AnimatedCounter = ({ value, isFloat = false, prefix = '', suffix = '', duration = 300 }) => {
@@ -54,6 +56,7 @@ const AnimatedCounter = ({ value, isFloat = false, prefix = '', suffix = '', dur
 };
 
 const Dashboard = () => {
+    const { tenantId } = useTenant();
     const [metrics, setMetrics] = useState({
         totalContracts: 0,
         expiringContracts: 0,
@@ -66,22 +69,45 @@ const Dashboard = () => {
         nfsExpiringThisWeek: 0
     });
     const [queueContracts, setQueueContracts] = useState([]);
+    const [contracts, setContracts] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (!tenantId) return;
+
+        async function testContracts() {
+            try {
+                const data = await contractsService.list(tenantId);
+                console.log("Tenant ID:", tenantId);
+                console.log("Contracts:", data);
+                setContracts(data);
+            } catch (error) {
+                console.error("Error fetching contracts:", error);
+            }
+        }
+
+        testContracts();
+    }, [tenantId]);
 
     useEffect(() => {
         let isMounted = true;
 
         const loadMetrics = async () => {
+            if (!tenantId) return;
             try {
                 const [data, contractsList] = await Promise.all([
-                    contractsService.getDashboardMetrics(),
-                    contractsService.list()
+                    contractsService.getDashboardMetrics(tenantId),
+                    contractsService.list(tenantId)
                 ]);
                 if (isMounted) {
                     setMetrics(data);
                     // Get 5 expiring or recently expired 
-                    const priorityContracts = contractsList
-                        .sort((a, b) => new Date(a.dateRange.endDate).getTime() - new Date(b.dateRange.endDate).getTime())
+                    const priorityContracts = (contractsList || [])
+                        .sort((a, b) => {
+                            const dateA = a.dateRange?.endDate ? new Date(a.dateRange.endDate).getTime() : 0;
+                            const dateB = b.dateRange?.endDate ? new Date(b.dateRange.endDate).getTime() : 0;
+                            return dateA - dateB;
+                        })
                         .slice(0, 5);
                     setQueueContracts(priorityContracts);
                 }
@@ -99,7 +125,7 @@ const Dashboard = () => {
         return () => {
             isMounted = false;
         };
-    }, []);
+    }, [tenantId]);
 
     return (
         <div className="dashboard-container">
@@ -145,7 +171,7 @@ const Dashboard = () => {
                         </div>
                     </div>
                     <div className="metric-value">
-                        {!isLoading && <AnimatedCounter value={metrics.totalContracts || 0} />}
+                        {!isLoading && <AnimatedCounter value={contracts.length} />}
                     </div>
                     <div className="metric-footer positive">
                         <TrendingUp size={16} />

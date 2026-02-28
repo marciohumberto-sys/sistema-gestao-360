@@ -45,6 +45,7 @@ export interface DashboardMetrics {
     // UI specific mock extras required to not break dashboard static layout yet:
     ofsThisMonth: number;
     ofsChangePercentage: number;
+    pendingNfs: number;
     nfsExpiringThisWeek: number;
 }
 
