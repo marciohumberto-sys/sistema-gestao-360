@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
+import { TenantProvider, useTenant } from './context/TenantContext';
 
 import Dashboard from './pages/Dashboard';
 import OrdensFornecimento from './pages/OrdensFornecimento';
@@ -14,24 +15,38 @@ import Cadastros from './pages/Cadastros';
 import Configuracoes from './pages/Configuracoes';
 import ContractDetails from './pages/ContractDetails';
 
+const AppContent = () => {
+  const { loading } = useTenant();
+
+  if (loading) {
+    return <div>Carregando...</div>;
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<MainLayout />}>
+        <Route index element={<Dashboard />} />
+        <Route path="ordens-fornecimento" element={<OrdensFornecimento />} />
+        <Route path="notas-fiscais" element={<NotasFiscais />} />
+        <Route path="contratos" element={<Contratos />} />
+        <Route path="empenhos" element={<Empenhos />} />
+        <Route path="aditivos" element={<Aditivos />} />
+        <Route path="relatorios" element={<Relatorios />} />
+        <Route path="alertas" element={<Alertas />} />
+        <Route path="cadastros" element={<Cadastros />} />
+        <Route path="configuracoes" element={<Configuracoes />} />
+        <Route path="contratos/:id" element={<ContractDetails />} />
+      </Route>
+    </Routes>
+  );
+};
+
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<MainLayout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="ordens-fornecimento" element={<OrdensFornecimento />} />
-          <Route path="notas-fiscais" element={<NotasFiscais />} />
-          <Route path="contratos" element={<Contratos />} />
-          <Route path="empenhos" element={<Empenhos />} />
-          <Route path="aditivos" element={<Aditivos />} />
-          <Route path="relatorios" element={<Relatorios />} />
-          <Route path="alertas" element={<Alertas />} />
-          <Route path="cadastros" element={<Cadastros />} />
-          <Route path="configuracoes" element={<Configuracoes />} />
-          <Route path="contratos/:id" element={<ContractDetails />} />
-        </Route>
-      </Routes>
+      <TenantProvider>
+        <AppContent />
+      </TenantProvider>
     </BrowserRouter>
   );
 }

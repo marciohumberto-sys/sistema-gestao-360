@@ -23,14 +23,19 @@ export interface Supplier {
 export interface Contract {
     id: string;
     number: string;
+    code?: string;
     title: string;
     supplierName: string;
-    supplierId?: string; // Optional agora, dado que temos supplierName direto
+    supplierId?: string;
     status: ContractStatus;
     totalValue: number;
     committedValue: number;
     balanceValue: number;
     dateRange: DateRange;
+    responsibleUnit?: string;
+    biddingProcess?: string;
+    electronicAuction?: string;
+    notes?: string;
     createdAt: string;
     updatedAt: string;
 }

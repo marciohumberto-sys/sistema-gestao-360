@@ -652,3 +652,66 @@
         background-position: -200% 0;
     }
 }
+
+/* Contract Details Specific Data Table (Isolated from Contratos.css rules) */
+.cd-data-table-wrapper {
+    position: relative;
+    overflow-y: auto;
+    overflow-x: auto;
+    flex: 1;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.cd-data-table-wrapper::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.cd-data-table-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.cd-data-table-wrapper::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 10px;
+}
+
+.cd-data-table {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: collapse;
+    text-align: left;
+    table-layout: fixed;
+}
+
+.cd-data-table th {
+    background: #f5f7f9;
+    color: var(--text-primary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cd-data-table td {
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    vertical-align: middle;
+    transition: background-color 0.15s ease;
+}
+
+.cd-data-table tbody tr:hover td {
+    background-color: #f8fafc;
+}
+
+.cd-data-table tbody tr:last-child td {
+    border-bottom: none;
+}
