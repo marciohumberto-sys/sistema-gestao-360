@@ -38,6 +38,9 @@ export interface Contract {
     notes?: string;
     createdAt: string;
     updatedAt: string;
+    // Pendency Indicator (Items Check)
+    isPending?: boolean;
+    pendingIssues?: string[];
 }
 
 export interface DashboardMetrics {
@@ -52,6 +55,7 @@ export interface DashboardMetrics {
     ofsChangePercentage: number;
     pendingNfs: number;
     nfsExpiringThisWeek: number;
+    totalPendingContracts: number;
 }
 
 export type EmpenhoStatus = 'EMPENHADO' | 'LIQUIDADO' | 'PAGO';

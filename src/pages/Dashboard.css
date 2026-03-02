@@ -660,8 +660,8 @@
 .queue-list {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    /* Distribui os itens para preencher vazios */
+    justify-content: flex-start;
+    /* Alinha itens no topo, sem espaçar automaticamente */
     flex: 1;
     /* Ocupar o restante do card */
     gap: 8px;
@@ -777,6 +777,23 @@
     color: #0F172A;
 }
 
+
+.pendency-icon-small {
+    color: #EF4444;
+    flex-shrink: 0;
+}
+
+.pendency-badge-mini {
+    background: #FEE2E2;
+    color: #EF4444;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
 
 .chart-placeholder {
     flex: 1;

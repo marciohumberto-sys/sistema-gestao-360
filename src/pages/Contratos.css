@@ -811,3 +811,17 @@
         width: 100%;
     }
 }
+
+/* Pendency Indicators */
+.pendency-icon {
+    color: #ef4444;
+}
+
+.pendency-subtext {
+    display: block;
+    font-size: 0.725rem;
+    color: #f87171;
+    font-weight: 400;
+    margin-top: -0.125rem;
+    line-height: 1;
+}

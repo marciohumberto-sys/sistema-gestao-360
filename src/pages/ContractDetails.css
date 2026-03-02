@@ -715,3 +715,75 @@
 .cd-data-table tbody tr:last-child td {
     border-bottom: none;
 }
+
+/* Pendency Banner */
+.cd-pendency-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #FEF2F2;
+    border: 1px solid #FCA5A5;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    color: #991B1B;
+    animation: slideDown 0.4s ease-out;
+}
+
+.cd-pendency-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.cd-pendency-banner-content div {
+    display: flex;
+    flex-direction: column;
+}
+
+.cd-pendency-banner-content strong {
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.cd-pendency-banner-content span {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.cd-pendency-banner-action {
+    background: #EF4444;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cd-pendency-banner-action:hover {
+    background: #DC2626;
+    transform: translateY(-1px);
+}
+
+/* Blocked Action State */
+.cd-btn-primary.is-blocked {
+    background: #F3F4F6 !important;
+    color: #9CA3AF !important;
+    border: 1px solid #E5E7EB !important;
+    cursor: not-allowed !important;
+    opacity: 0.7;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 class ContractsService {
     private enrichContract(dbContract: any): Contract {
         // Map snake_case from DB to camelCase for UI
-        return {
+        const enriched = {
             id: dbContract.id,
             number: dbContract.number,
             code: dbContract.code,
@@ -25,14 +25,36 @@ class ContractsService {
             electronicAuction: dbContract.electronic_auction,
             notes: dbContract.notes,
             createdAt: dbContract.created_at,
-            updatedAt: dbContract.updated_at
+            updatedAt: dbContract.updated_at,
+            isPending: false,
+            pendingIssues: []
         } as Contract;
+
+        // Dynamic status calculation (from previous step)
+        if (enriched.status === 'ATIVO' && enriched.dateRange.endDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const endDate = new Date(enriched.dateRange.endDate);
+            endDate.setHours(23, 59, 59, 999);
+            const diffDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays < 0) enriched.status = 'VENCIDO';
+            else if (diffDays <= 30) enriched.status = 'VENCENDO';
+        }
+
+        // Rule 1: ATIVO and zero items
+        const itemCount = dbContract.contract_items?.[0]?.count ?? dbContract.item_count ?? 0;
+        if (enriched.status === 'ATIVO' && itemCount === 0) {
+            enriched.isPending = true;
+            enriched.pendingIssues = ["Sem itens"];
+        }
+
+        return enriched;
     }
 
     async list(tenantId?: string): Promise<Contract[]> {
         let query = supabase
             .from("contracts")
-            .select("*")
+            .select("*, contract_items(count)")
             .order('created_at', { ascending: false });
 
         if (tenantId) {
@@ -47,7 +69,7 @@ class ContractsService {
     async getById(id: string): Promise<Contract> {
         const { data, error } = await supabase
             .from("contracts")
-            .select("*")
+            .select("*, contract_items(count)")
             .eq("id", id)
             .single();
 
@@ -136,6 +158,7 @@ class ContractsService {
         let expiredCount = 0;
         let totalValSum = 0;
         let balanceValSum = 0;
+        let totalPending = 0;
 
         contracts.forEach(c => {
             totalValSum += c.totalValue;
@@ -144,6 +167,7 @@ class ContractsService {
             if (c.status === 'ATIVO') activeCount++;
             if (c.status === 'VENCENDO') expiringCount++;
             if (c.status === 'VENCIDO') expiredCount++;
+            if (c.isPending) totalPending++;
         });
 
         return {
@@ -152,6 +176,7 @@ class ContractsService {
             expiredContracts: expiredCount,
             totalValueSum: totalValSum,
             balanceValueSum: balanceValSum,
+            totalPendingContracts: totalPending,
             ofsThisMonth: 0,
             ofsChangePercentage: 0,
             pendingNfs: 0,

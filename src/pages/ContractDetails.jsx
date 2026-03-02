@@ -14,7 +14,9 @@ import {
     Landmark,
     Trash2,
     Plus,
-    Edit2
+    Edit2,
+    ShieldAlert,
+    AlertTriangle
 } from 'lucide-react';
 import { contractsService } from '../services/api/contracts.service';
 import { empenhosService } from '../services/api/empenhos.service';
@@ -380,6 +382,13 @@ const ContractDetails = () => {
         }
     };
 
+    const handleQuickAddItem = () => {
+        setActiveTab('itens');
+        setItemFormData({ item_number: '', description: '', unit: '', unit_price: '', total_quantity: '' });
+        setEditingItemId(null);
+        setIsItemModalOpen(true);
+    };
+
     const handleCurrencyInput = (e) => {
         let value = e.target.value.replace(/\D/g, ""); // Keep only digits
 
@@ -531,6 +540,25 @@ const ContractDetails = () => {
                 <span className="cd-crumb-current">{contract.number}</span>
             </nav>
 
+            {/* Alerta de Pendência Operacional */}
+            {contract.isPending && (
+                <div className="cd-pendency-banner">
+                    <div className="cd-pendency-banner-content">
+                        <ShieldAlert size={20} />
+                        <div>
+                            <strong>Pendência Operacional Identificada:</strong>
+                            <span>Este contrato está ATIVO mas não possui itens cadastrados.</span>
+                        </div>
+                    </div>
+                    <button
+                        className="cd-pendency-banner-action"
+                        onClick={handleQuickAddItem}
+                    >
+                        Adicionar itens agora
+                    </button>
+                </div>
+            )}
+
             {/* Header Section */}
             <header className="cd-header">
                 <div className="cd-header-main">
@@ -546,7 +574,13 @@ const ContractDetails = () => {
 
                     <div className="cd-header-actions">
                         <button className="cd-btn-secondary" onClick={handleEditContract}>Editar</button>
-                        <button className="cd-btn-primary">Gerar OF</button>
+                        <button
+                            className={`cd-btn-primary ${contract.isPending ? 'is-blocked' : ''}`}
+                            disabled={contract.isPending}
+                            title={contract.isPending ? "Para gerar OF, cadastre pelo menos 1 item." : "Gerar Ordem de Fornecimento"}
+                        >
+                            Gerar OF
+                        </button>
                         <button className="cd-action-icon-btn">
                             <MoreVertical size={20} />
                         </button>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Edit2, Trash2, Calendar, TrendingUp, AlertCircle, FileText } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Search, Plus, Edit2, Trash2, Calendar, TrendingUp, AlertCircle, FileText, AlertTriangle } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { contractsService } from '../services/api/contracts.service';
 import { secretariatsService } from '../services/api/secretariats.service';
 import { useTenant } from '../context/TenantContext';
@@ -8,6 +8,7 @@ import './Contratos.css';
 
 const Contratos = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { tenantId } = useTenant();
     const [contracts, setContracts] = useState([]);
     const [secretariats, setSecretariats] = useState([]);
@@ -67,10 +68,16 @@ const Contratos = () => {
         loadContracts();
         loadSecretariats();
 
+        // Check for pending filter in URL
+        const params = new URLSearchParams(location.search);
+        if (params.get('pending') === '1') {
+            setStatusFilter('PENDENTE');
+        }
+
         return () => {
             document.body.style.overflow = 'unset'; // Restore scroll
         };
-    }, [tenantId]);
+    }, [tenantId, location.search]);
 
     // Helper formatting
     const formatCurrency = (value) => {
@@ -105,7 +112,11 @@ const Contratos = () => {
 
         // 2. Status filter
         if (statusFilter !== 'ALL') {
-            result = result.filter(c => c.status === statusFilter);
+            if (statusFilter === 'PENDENTE') {
+                result = result.filter(c => c.isPending);
+            } else {
+                result = result.filter(c => c.status === statusFilter);
+            }
         }
 
         // 3. Sorting
@@ -275,6 +286,7 @@ const Contratos = () => {
                         >
                             <option value="ALL">Todos os Status</option>
                             <option value="ATIVO">Ativos</option>
+                            <option value="PENDENTE">Pendentes (Operacional)</option>
                             <option value="VENCENDO">Vencendo</option>
                             <option value="VENCIDO">Vencidos</option>
                             <option value="SUSPENSO">Suspensos</option>
@@ -349,8 +361,16 @@ const Contratos = () => {
                                             className="clickable-row"
                                         >
                                             <td>
-                                                <span className="td-number">{contract.number}</span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span className="td-number">{contract.number}</span>
+                                                    {(contract.status === 'VENCIDO' || contract.status === 'VENCENDO' || contract.isPending) && (
+                                                        <AlertTriangle size={16} className="pendency-icon" />
+                                                    )}
+                                                </div>
                                                 <span className="title-text" title={contract.title}>{contract.title}</span>
+                                                {contract.isPending && (
+                                                    <span className="pendency-subtext">Sem itens cadastrados</span>
+                                                )}
                                             </td>
                                             <td>
                                                 <span className="td-title">{contract.supplierName}</span>

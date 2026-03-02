@@ -16,6 +16,7 @@ import {
     Maximize2,
     ShieldAlert
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { contractsService } from '../services/api/contracts.service';
 import { supabase } from '../lib/supabase';
 import { useTenant } from '../context/TenantContext';
@@ -56,6 +57,7 @@ const AnimatedCounter = ({ value, isFloat = false, prefix = '', suffix = '', dur
 };
 
 const Dashboard = () => {
+    const navigate = useNavigate();
     const { tenantId } = useTenant();
     const [metrics, setMetrics] = useState({
         totalContracts: 0,
@@ -66,7 +68,8 @@ const Dashboard = () => {
         ofsThisMonth: 0,
         ofsChangePercentage: 0,
         pendingNfs: 0,
-        nfsExpiringThisWeek: 0
+        nfsExpiringThisWeek: 0,
+        totalPendingContracts: 0
     });
     const [queueContracts, setQueueContracts] = useState([]);
     const [contracts, setContracts] = useState([]);
@@ -104,8 +107,19 @@ const Dashboard = () => {
                     // Get 5 expiring or recently expired 
                     const priorityContracts = (contractsList || [])
                         .sort((a, b) => {
-                            const dateA = a.dateRange?.endDate ? new Date(a.dateRange.endDate).getTime() : 0;
-                            const dateB = b.dateRange?.endDate ? new Date(b.dateRange.endDate).getTime() : 0;
+                            const getScore = (c) => {
+                                if (c.isPending) return 1;
+                                if (c.status === 'VENCENDO') return 2;
+                                return 3;
+                            };
+
+                            const scoreA = getScore(a);
+                            const scoreB = getScore(b);
+
+                            if (scoreA !== scoreB) return scoreA - scoreB;
+
+                            const dateA = a.dateRange?.endDate ? new Date(a.dateRange.endDate).getTime() : 1e15;
+                            const dateB = b.dateRange?.endDate ? new Date(b.dateRange.endDate).getTime() : 1e15;
                             return dateA - dateB;
                         })
                         .slice(0, 5);
@@ -143,14 +157,21 @@ const Dashboard = () => {
                     <span>Atenção Sugerida:</span>
                 </div>
                 <div className="alerts-chips">
-                    <button className="alert-chip warning">
-                        <AlertTriangle size={14} />
-                        12 Contratos vencendo (30 dias)
-                    </button>
-                    <button className="alert-chip danger">
-                        <AlertCircle size={14} />
-                        3 Empenhos sem saldo
-                    </button>
+                    {metrics.expiringContracts > 0 && (
+                        <button className="alert-chip warning">
+                            <AlertTriangle size={14} />
+                            {metrics.expiringContracts} Contratos vencendo (30 dias)
+                        </button>
+                    )}
+                    {metrics.totalPendingContracts > 0 && (
+                        <button
+                            className="alert-chip danger"
+                            onClick={() => navigate('/contratos?pending=1')}
+                        >
+                            <AlertCircle size={14} />
+                            {metrics.totalPendingContracts} Contratos com pendência (Sem itens)
+                        </button>
+                    )}
                     <button className="alert-chip info">
                         <AlertCircle size={14} />
                         Saúde excedeu 85% da cota
@@ -306,7 +327,7 @@ const Dashboard = () => {
                                 <div className="summary-item-header">
                                     <ShieldAlert size={16} className="summary-icon alert" />
                                 </div>
-                                <span className="summary-number">3</span>
+                                <span className="summary-number">{metrics.expiringContracts + metrics.expiredContracts}</span>
                                 <span className="summary-label">Pendências</span>
                             </div>
                         </div>
@@ -337,10 +358,21 @@ const Dashboard = () => {
                                     <div key={contract.id} className={`queue-item ${statusClass}`}>
                                         <div className="queue-status-indicator"></div>
                                         <div className="queue-content">
-                                            <h4 title={contract.title}>{contract.number} - {contract.title.substring(0, 24)}{contract.title.length > 24 ? '...' : ''}</h4>
-                                            <p>{contract.supplierName} ({contract.status})</p>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <h4 title={contract.title}>{contract.number} - {contract.title.substring(0, 24)}{contract.title.length > 24 ? '...' : ''}</h4>
+                                                {(contract.status === 'VENCIDO' || contract.status === 'VENCENDO' || contract.isPending) && (
+                                                    <AlertTriangle size={14} className="pendency-icon-small" />
+                                                )}
+                                            </div>
+                                            <p>
+                                                {contract.supplierName} ({contract.status})
+                                                {contract.isPending && <span style={{ color: '#EF4444', marginLeft: '4px' }}>• {contract.pendingIssues?.join(', ')}</span>}
+                                            </p>
                                         </div>
-                                        <button className="queue-action">
+                                        <button
+                                            className="queue-action"
+                                            onClick={() => navigate(`/contratos/${contract.id}`)}
+                                        >
                                             {contract.status === 'VENCIDO' ? 'Urgente' : 'Analisar'}
                                         </button>
                                     </div>
