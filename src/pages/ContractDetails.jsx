@@ -679,7 +679,7 @@ const ContractDetails = () => {
                                 <span>{formatDate(contract.dateRange?.startDate)} até {formatDate(contract.dateRange?.endDate)}</span>
                             </div>
                             <div className="cd-detail-group">
-                                <label>Unidade Responsável</label>
+                                <label>Secretaria Responsável</label>
                                 <span>{contract.responsibleUnit || 'Não informada'}</span>
                             </div>
                             <div className="cd-detail-group">
