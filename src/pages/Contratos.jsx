@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Edit2, Trash2, Calendar, TrendingUp, AlertCircle, FileText, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Calendar, TrendingUp, AlertCircle, FileText, AlertTriangle, UploadCloud, Link as LinkIcon, ExternalLink, Download } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { contractsService } from '../services/api/contracts.service';
 import { secretariatsService } from '../services/api/secretariats.service';
+import { filesService } from '../services/api/files.service';
 import { useTenant } from '../context/TenantContext';
+import { formatLocalDate, getTodayLocalDateString } from '../utils/dateUtils';
 import './Contratos.css';
 
 const Contratos = () => {
@@ -26,11 +28,39 @@ const Contratos = () => {
         totalValue: '',
         startDate: '',
         endDate: '',
-        responsibleUnit: '',
+        secretariat_id: '',
         biddingProcess: '',
         electronicAuction: '',
-        notes: ''
+        notes: '',
+        contract_object: '',
+        cnpj: '',
+        address: '',
+        managerName: '',
+        manager_registration: '',
+        technical_fiscal_name: '',
+        technical_fiscal_registration: '',
+        administrative_fiscal_name: '',
+        administrative_fiscal_registration: '',
+        contract_pdf_url: '',
+        rescinded_at: '',
+        rescission_notes: '',
+        rescission_pdf_url: ''
     });
+
+    const [contractFile, setContractFile] = useState(null);
+    const [rescissionFile, setRescissionFile] = useState(null);
+    const [isRescissionActive, setIsRescissionActive] = useState(false);
+    const [isPdfSectionExpanded, setIsPdfSectionExpanded] = useState(false);
+
+    const formatCnpj = (value) => {
+        const digits = value.replace(/\D/g, '');
+        return digits
+            .replace(/^(\d{2})(\d)/, '$1.$2')
+            .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+            .replace(/\.(\d{3})(\d)/, '.$1/$2')
+            .replace(/(\d{4})(\d)/, '$1-$2')
+            .substring(0, 18);
+    };
 
     const loadContracts = async () => {
         if (!tenantId) return;
@@ -85,8 +115,7 @@ const Contratos = () => {
     };
 
     const formatDate = (isoString) => {
-        if (!isoString) return '-';
-        return new Intl.DateTimeFormat('pt-BR').format(new Date(isoString));
+        return formatLocalDate(isoString);
     };
 
     const getBalanceColor = (balance, total) => {
@@ -94,6 +123,31 @@ const Contratos = () => {
         const pct = (balance / total) * 100;
         if (pct <= 30) return 'var(--warning-color-dark, #b75c00)'; // Orange
         return 'var(--success-color-dark, #0f8b4d)'; // Green
+    };
+
+    const sanitizeFilename = (name) => {
+        if (!name) return "";
+        return name
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .replace(/\s+/g, "-") // Espaços por hífen
+            .replace(/[^a-z0-9._-]/g, "") // Mantém alphanumeric, ponto, underscore, hífen
+            .replace(/-+/g, "-") // Remove hífens consecutivos
+            .replace(/^-+|-+$/g, ""); // Remove hífens no início/fim
+    };
+
+    const getFilenameFromUrl = (url) => {
+        if (!url) return "";
+        try {
+            // Extrai a última parte da URL
+            const parts = url.split('/');
+            const lastPart = decodeURIComponent(parts[parts.length - 1]);
+            // Remove o timestamp (ex: 123456789_nome.pdf -> nome.pdf)
+            return lastPart.replace(/^\d+_/, "");
+        } catch (e) {
+            return "documento.pdf";
+        }
     };
 
     // Filter and Sort Engine
@@ -137,11 +191,46 @@ const Contratos = () => {
     // UI Handlers
     const handleNewContract = () => {
         setEditingContract(null);
+        setContractFile(null);
+        setRescissionFile(null);
+        setIsRescissionActive(false);
+        setIsPdfSectionExpanded(false);
+        setFormData({
+            number: '',
+            code: '',
+            title: '',
+            supplierName: '',
+            totalValue: '',
+            startDate: '',
+            endDate: '',
+            secretariat_id: '',
+            biddingProcess: '',
+            electronicAuction: '',
+            notes: '',
+            contract_object: '',
+            cnpj: '',
+            address: '',
+            managerName: '',
+            manager_registration: '',
+            technical_fiscal_name: '',
+            technical_fiscal_registration: '',
+            administrative_fiscal_name: '',
+            administrative_fiscal_registration: '',
+            contract_pdf_url: '',
+            rescinded_at: '',
+            rescission_notes: '',
+            rescission_pdf_url: ''
+        });
         setIsModalOpen(true);
     };
 
     const handleEditContract = (contract) => {
         setEditingContract(contract);
+        setIsPdfSectionExpanded(false);
+
+        // Se a rescisão estiver sendo ativada agora e não tiver data, sugerir a data de hoje
+        const today = getTodayLocalDateString();
+
         setFormData({
             number: contract.number,
             code: contract.code || '',
@@ -151,11 +240,28 @@ const Contratos = () => {
             startDate: contract.dateRange.startDate || '',
             endDate: contract.dateRange.endDate || '',
             status: contract.status,
-            responsibleUnit: contract.responsibleUnit || '',
+            secretariat_id: contract.secretariat_id || '',
             biddingProcess: contract.biddingProcess || '',
             electronicAuction: contract.electronicAuction || '',
-            notes: contract.notes || ''
+            notes: contract.notes || '',
+            contract_object: contract.contract_object || '',
+            cnpj: contract.cnpj || '',
+            address: contract.address || '',
+            managerName: contract.managerName || '',
+            manager_registration: contract.manager_registration || '',
+            technical_fiscal_name: contract.technical_fiscal_name || '',
+            technical_fiscal_registration: contract.technical_fiscal_registration || '',
+            administrative_fiscal_name: contract.administrative_fiscal_name || '',
+            administrative_fiscal_registration: contract.administrative_fiscal_registration || '',
+            contract_pdf_url: contract.contract_pdf_url || '',
+            rescinded_at: contract.rescinded_at || today,
+            rescission_notes: contract.rescission_notes || '',
+            rescission_pdf_url: contract.rescission_pdf_url || ''
         });
+
+        setContractFile(null);
+        setRescissionFile(null);
+        setIsRescissionActive(!!contract.rescinded_at);
         setIsModalOpen(true);
     };
 
@@ -173,6 +279,10 @@ const Contratos = () => {
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setEditingContract(null);
+        setContractFile(null);
+        setRescissionFile(null);
+        setIsRescissionActive(false);
+        setIsPdfSectionExpanded(false);
         setFormData({
             number: '',
             code: '',
@@ -181,10 +291,23 @@ const Contratos = () => {
             totalValue: '',
             startDate: '',
             endDate: '',
-            responsibleUnit: '',
+            secretariat_id: '',
             biddingProcess: '',
             electronicAuction: '',
-            notes: ''
+            notes: '',
+            contract_object: '',
+            cnpj: '',
+            address: '',
+            managerName: '',
+            manager_registration: '',
+            technical_fiscal_name: '',
+            technical_fiscal_registration: '',
+            administrative_fiscal_name: '',
+            administrative_fiscal_registration: '',
+            contract_pdf_url: '',
+            rescinded_at: '',
+            rescission_notes: '',
+            rescission_pdf_url: ''
         });
     };
 
@@ -214,6 +337,26 @@ const Contratos = () => {
 
         setIsSubmitting(true);
         try {
+            let finalContract_pdf_url = formData.contract_pdf_url;
+            let finalRescission_pdf_url = formData.rescission_pdf_url;
+
+            // Handle file uploads
+            if (contractFile) {
+                const sanitizedName = sanitizeFilename(contractFile.name);
+                const path = `${tenantId}/${Date.now()}_${sanitizedName}`;
+                const { publicUrl, error: uploadError } = await filesService.uploadFile(contractFile, 'contracts_files', path);
+                if (uploadError) throw new Error("Erro no upload do arquivo do contrato.");
+                finalContract_pdf_url = publicUrl;
+            }
+
+            if (isRescissionActive && rescissionFile) {
+                const sanitizedName = sanitizeFilename(rescissionFile.name);
+                const path = `${tenantId}/${Date.now()}_${sanitizedName}`;
+                const { publicUrl, error: uploadError } = await filesService.uploadFile(rescissionFile, 'contracts_files', path);
+                if (uploadError) throw new Error("Erro no upload do arquivo de rescisão.");
+                finalRescission_pdf_url = publicUrl;
+            }
+
             const payload = {
                 number: formData.number,
                 code: formData.code,
@@ -224,11 +367,32 @@ const Contratos = () => {
                     startDate: formData.startDate,
                     endDate: formData.endDate
                 },
-                responsibleUnit: formData.responsibleUnit,
+                secretariat_id: formData.secretariat_id,
                 biddingProcess: formData.biddingProcess,
                 electronicAuction: formData.electronicAuction,
                 notes: formData.notes,
-                status: editingContract ? editingContract.status : 'ATIVO'
+                contract_object: formData.contract_object,
+                cnpj: formData.cnpj,
+                address: formData.address,
+                managerName: formData.managerName,
+                manager_registration: formData.manager_registration,
+                technical_fiscal_name: formData.technical_fiscal_name,
+                technical_fiscal_registration: formData.technical_fiscal_registration,
+                administrative_fiscal_name: formData.administrative_fiscal_name,
+                administrative_fiscal_registration: formData.administrative_fiscal_registration,
+                contract_pdf_url: finalContract_pdf_url,
+                status: isRescissionActive ? 'RESCINDIDO' : (editingContract && editingContract.status === 'RESCINDIDO' ? 'ATIVO' : (editingContract ? editingContract.status : 'ATIVO')),
+                // Optional conditional payload inclusion if applicable
+                ...(isRescissionActive && {
+                    rescinded_at: formData.rescinded_at,
+                    rescission_notes: formData.rescission_notes,
+                    rescission_pdf_url: finalRescission_pdf_url
+                }),
+                ...(!isRescissionActive && editingContract && {
+                    rescinded_at: null,
+                    rescission_notes: null,
+                    rescission_pdf_url: null
+                })
             };
 
             if (editingContract) {
@@ -291,6 +455,7 @@ const Contratos = () => {
                             <option value="VENCIDO">Vencidos</option>
                             <option value="SUSPENSO">Suspensos</option>
                             <option value="CANCELADO">Cancelados</option>
+                            <option value="RESCINDIDO">Rescindidos</option>
                         </select>
 
                         <select
@@ -364,7 +529,11 @@ const Contratos = () => {
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                     <span className="td-number">{contract.number}</span>
                                                     {(contract.status === 'VENCIDO' || contract.status === 'VENCENDO' || contract.isPending) && (
-                                                        <AlertTriangle size={16} className="pendency-icon" />
+                                                        <AlertTriangle
+                                                            size={16}
+                                                            className="pendency-icon"
+                                                            title={contract.isPending ? "Este contrato não possui itens cadastrados. Cadastre itens para permitir a geração de empenhos." : ""}
+                                                        />
                                                     )}
                                                 </div>
                                                 <span className="title-text" title={contract.title}>{contract.title}</span>
@@ -377,11 +546,11 @@ const Contratos = () => {
                                             </td>
                                             <td className="td-dates">
                                                 <div>
-                                                    <span className="date-end" style={{ color: contract.status === 'VENCIDO' ? 'var(--danger-color, #d92d20)' : 'inherit' }}>
-                                                        Vence: {formatDate(contract.dateRange.endDate)}
-                                                    </span>
                                                     <span className="date-start">
                                                         Início: {formatDate(contract.dateRange.startDate)}
+                                                    </span>
+                                                    <span className="date-end" style={{ color: contract.status === 'VENCIDO' ? 'var(--danger-color, #d92d20)' : 'inherit' }}>
+                                                        Vence: {formatDate(contract.dateRange.endDate)}
                                                     </span>
                                                 </div>
                                             </td>
@@ -439,7 +608,7 @@ const Contratos = () => {
                 <div className="modal-overlay" onClick={handleCloseModal}>
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2>{editingContract ? "Editar Contrato" : "Novo Contrato"}</h2>
+                            <h2>{editingContract ? "Editar Contrato" : "Cadastro de Contrato"}</h2>
                             <button className="close-btn" onClick={handleCloseModal}>×</button>
                         </div>
                         <div className="modal-body">
@@ -466,12 +635,12 @@ const Contratos = () => {
                                                 id="formUnit"
                                                 required
                                                 className="form-select"
-                                                value={formData.responsibleUnit}
-                                                onChange={e => setFormData({ ...formData, responsibleUnit: e.target.value })}
+                                                value={formData.secretariat_id}
+                                                onChange={e => setFormData({ ...formData, secretariat_id: e.target.value })}
                                             >
                                                 <option value="">Selecione uma secretaria</option>
                                                 {secretariats.map(s => (
-                                                    <option key={s.id} value={s.name}>{s.name}</option>
+                                                    <option key={s.id} value={s.id}>{s.name}</option>
                                                 ))}
                                             </select>
                                         </div>
@@ -484,8 +653,147 @@ const Contratos = () => {
                                             <input id="formAuction" type="text" placeholder="Ex: 005/2025" value={formData.electronicAuction} onChange={e => setFormData({ ...formData, electronicAuction: e.target.value })} />
                                         </div>
                                         <div className="form-group full-width">
-                                            <label htmlFor="formTitle">Objeto / Título *</label>
-                                            <input id="formTitle" required type="text" placeholder="Resumo do objeto contratado" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+                                            <label htmlFor="formTitle">Título *</label>
+                                            <input id="formTitle" required type="text" placeholder="Nome curto do contrato (Ex: Locação de Veículos)" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+                                        </div>
+                                        <div className="form-group full-width" style={{ marginTop: '1.25rem' }}>
+                                            <label htmlFor="formObject">Objeto do Contrato</label>
+                                            <input
+                                                id="formObject"
+                                                type="text"
+                                                placeholder="Descrição resumida do objeto do contrato"
+                                                value={formData.contract_object}
+                                                onChange={e => setFormData({ ...formData, contract_object: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label htmlFor="formCnpj">CNPJ</label>
+                                            <input
+                                                id="formCnpj"
+                                                type="text"
+                                                placeholder="00.000.000/0000-00"
+                                                value={formData.cnpj}
+                                                onChange={e => setFormData({ ...formData, cnpj: formatCnpj(e.target.value) })}
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label htmlFor="formAddress">Endereço</label>
+                                            <input id="formAddress" type="text" placeholder="Rua, Número, Bairro, Cidade" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
+                                        </div>
+                                        <div className="form-group full-width" style={{ marginTop: '0.5rem' }}>
+                                            <div
+                                                className={`collapsible-header ${isPdfSectionExpanded ? 'expanded' : ''}`}
+                                                onClick={() => setIsPdfSectionExpanded(!isPdfSectionExpanded)}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    padding: '10px 14px',
+                                                    background: '#f8fafc',
+                                                    border: '1px solid #e2e8f0',
+                                                    borderRadius: isPdfSectionExpanded ? '8px 8px 0 0' : '8px',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s ease',
+                                                    marginBottom: isPdfSectionExpanded ? '0' : '1rem'
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px' }}>
+                                                    <FileText size={18} style={{ color: 'var(--color-primary)' }} />
+                                                    Documento do Contrato (PDF)
+                                                </div>
+                                                <div style={{ color: '#64748b', fontSize: '10px' }}>
+                                                    {isPdfSectionExpanded ? '▼' : '▶'}
+                                                </div>
+                                            </div>
+
+                                            {isPdfSectionExpanded && (
+                                                <div className="collapsible-content" style={{ padding: '15px', border: '1px solid #e2e8f0', borderTop: 'none', borderRadius: '0 0 8px 8px', background: '#fff', marginBottom: '1rem' }}>
+                                                    <label htmlFor="contract-pdf-upload" className={`upload-card ${contractFile ? 'has-file' : ''}`}>
+                                                        <div className="upload-icon-wrapper">
+                                                            {contractFile ? <FileText size={24} /> : <UploadCloud size={24} />}
+                                                        </div>
+                                                        <div className="upload-info">
+                                                            <p className="upload-text-main">
+                                                                {contractFile ? 'Arquivo selecionado' : 'Clique para anexar o PDF do contrato'}
+                                                            </p>
+                                                            <p className="upload-text-sub">ou arraste o arquivo aqui</p>
+                                                        </div>
+
+                                                        {contractFile ? (
+                                                            <div className="file-name-display">
+                                                                <FileText size={14} /> {contractFile.name}
+                                                            </div>
+                                                        ) : formData.contract_pdf_url ? (
+                                                            <div className="existing-file-info" style={{ width: '100%', marginBottom: '10px' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #dcfce7', color: '#15803d', marginBottom: '12px' }}>
+                                                                    <FileText size={18} />
+                                                                    <span style={{ fontWeight: 500, fontSize: '13px' }}>{getFilenameFromUrl(formData.contract_pdf_url)}</span>
+                                                                </div>
+                                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(formData.contract_pdf_url, '_blank'); }}
+                                                                        className="btn-action-small"
+                                                                        style={{ padding: '6px 12px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', height: '32px' }}
+                                                                    >
+                                                                        <ExternalLink size={14} /> Visualizar
+                                                                    </button>
+                                                                    <a
+                                                                        href={formData.contract_pdf_url}
+                                                                        download={getFilenameFromUrl(formData.contract_pdf_url)}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        style={{ padding: '6px 12px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none', color: 'inherit', height: '32px' }}
+                                                                    >
+                                                                        <Download size={14} /> Baixar
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                        ) : null}
+
+                                                        <div className="upload-btn-styled" style={formData.contract_pdf_url && !contractFile ? { marginTop: '8px', background: '#f8fafc', color: '#64748b', border: '1px solid #e2e8f0', height: '32px', padding: '0 12px', fontSize: '12px' } : {}}>
+                                                            {contractFile || formData.contract_pdf_url ? 'Substituir PDF' : 'Selecionar PDF'}
+                                                        </div>
+
+                                                        <input
+                                                            id="contract-pdf-upload"
+                                                            type="file"
+                                                            accept="application/pdf"
+                                                            onChange={e => setContractFile(e.target.files[0])}
+                                                            style={{ display: 'none' }}
+                                                        />
+                                                    </label>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Responsáveis */}
+                                <div className="contract-form-section">
+                                    <div className="section-title">Responsáveis pelo contrato</div>
+                                    <div className="contract-form-grid" style={{ gap: '0.75rem' }}>
+                                        <div className="form-group full-width" style={{ marginBottom: '0.25rem' }}>
+                                            <label>Gestor do Contrato</label>
+                                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                                <input style={{ flex: 3 }} type="text" placeholder="Nome" value={formData.managerName} onChange={e => setFormData({ ...formData, managerName: e.target.value })} />
+                                                <input style={{ flex: 1 }} type="text" placeholder="Ex: 123456" value={formData.manager_registration} onChange={e => setFormData({ ...formData, manager_registration: e.target.value })} />
+                                            </div>
+                                        </div>
+
+                                        <div className="form-group full-width" style={{ marginBottom: '0.25rem' }}>
+                                            <label>Fiscal Técnico</label>
+                                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                                <input style={{ flex: 3 }} type="text" placeholder="Nome" value={formData.technical_fiscal_name} onChange={e => setFormData({ ...formData, technical_fiscal_name: e.target.value })} />
+                                                <input style={{ flex: 1 }} type="text" placeholder="Ex: 123456" value={formData.technical_fiscal_registration} onChange={e => setFormData({ ...formData, technical_fiscal_registration: e.target.value })} />
+                                            </div>
+                                        </div>
+
+                                        <div className="form-group full-width" style={{ marginBottom: '0.25rem' }}>
+                                            <label>Fiscal Administrativo</label>
+                                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                                <input style={{ flex: 3 }} type="text" placeholder="Nome" value={formData.administrative_fiscal_name} onChange={e => setFormData({ ...formData, administrative_fiscal_name: e.target.value })} />
+                                                <input style={{ flex: 1 }} type="text" placeholder="Ex: 123456" value={formData.administrative_fiscal_registration} onChange={e => setFormData({ ...formData, administrative_fiscal_registration: e.target.value })} />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -513,7 +821,6 @@ const Contratos = () => {
                                                 placeholder="Notas adicionais sobre o contrato..."
                                                 value={formData.notes}
                                                 onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', fontFamily: 'inherit' }}
                                             />
                                         </div>
                                     </div>
@@ -533,6 +840,99 @@ const Contratos = () => {
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Bloco de Rescisão - Somente em Edição */}
+                                {editingContract && (
+                                    <div className="contract-form-section" style={{ background: isRescissionActive ? '#fff1f2' : 'transparent', border: isRescissionActive ? '1px solid #fecdd3' : '1px solid var(--border-light)', transition: 'all 0.3s', borderRadius: '8px', padding: '1.5rem', marginTop: '1rem' }}>
+                                        <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: 0 }}>
+                                            <input
+                                                type="checkbox"
+                                                id="chkRescisao"
+                                                checked={isRescissionActive}
+                                                onChange={e => setIsRescissionActive(e.target.checked)}
+                                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                            />
+                                            <label htmlFor="chkRescisao" style={{ cursor: 'pointer', color: 'var(--danger-color, #d92d20)', fontWeight: 600, margin: 0 }}>Rescisão do contrato</label>
+                                        </div>
+
+                                        {isRescissionActive && (
+                                            <div className="contract-form-grid" style={{ marginTop: '1.5rem' }}>
+                                                <div className="form-group">
+                                                    <label htmlFor="formRescDate">Data da rescisão *</label>
+                                                    <input id="formRescDate" required={isRescissionActive} type="date" value={formData.rescinded_at} onChange={e => setFormData({ ...formData, rescinded_at: e.target.value })} />
+                                                </div>
+                                                <div className="form-group full-width">
+                                                    <label htmlFor="formRescNotes">Observação</label>
+                                                    <textarea
+                                                        id="formRescNotes"
+                                                        rows="2"
+                                                        placeholder="Motivos ou observações sobre a rescisão..."
+                                                        value={formData.rescission_notes}
+                                                        onChange={e => setFormData({ ...formData, rescission_notes: e.target.value })}
+                                                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #fecdd3', fontFamily: 'inherit' }}
+                                                    />
+                                                </div>
+                                                <div className="form-group full-width">
+                                                    <label>PDF da rescisão</label>
+                                                    <label htmlFor="rescission-pdf-upload" className={`upload-card ${rescissionFile ? 'has-file' : ''}`} style={{ borderColor: isRescissionActive ? '#fecdd3' : '#cbd5e1' }}>
+                                                        <div className="upload-icon-wrapper" style={{ color: '#d92d20', background: '#fef2f2' }}>
+                                                            {rescissionFile ? <FileText size={24} /> : <UploadCloud size={24} />}
+                                                        </div>
+                                                        <div className="upload-info">
+                                                            <p className="upload-text-main">
+                                                                {rescissionFile ? 'Arquivo selecionado' : 'Clique para anexar o PDF da rescisão'}
+                                                            </p>
+                                                            <p className="upload-text-sub">ou arraste o arquivo aqui</p>
+                                                        </div>
+
+                                                        {rescissionFile ? (
+                                                            <div className="file-name-display" style={{ background: '#fecdd3', color: '#991b1b' }}>
+                                                                <FileText size={14} /> {rescissionFile.name}
+                                                            </div>
+                                                        ) : formData.rescission_pdf_url ? (
+                                                            <div className="existing-file-info" style={{ width: '100%', marginBottom: '10px' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px', background: '#fff1f2', borderRadius: '8px', border: '1px solid #fecdd3', color: '#d92d20', marginBottom: '12px' }}>
+                                                                    <FileText size={18} />
+                                                                    <span style={{ fontWeight: 500, fontSize: '13px' }}>{getFilenameFromUrl(formData.rescission_pdf_url)}</span>
+                                                                </div>
+                                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(formData.rescission_pdf_url, '_blank'); }}
+                                                                        className="btn-action-small"
+                                                                        style={{ padding: '6px 12px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', height: '32px' }}
+                                                                    >
+                                                                        <ExternalLink size={14} /> Visualizar
+                                                                    </button>
+                                                                    <a
+                                                                        href={formData.rescission_pdf_url}
+                                                                        download={getFilenameFromUrl(formData.rescission_pdf_url)}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        style={{ padding: '6px 12px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none', color: 'inherit', height: '32px' }}
+                                                                    >
+                                                                        <Download size={14} /> Baixar
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                        ) : null}
+
+                                                        <div className="upload-btn-styled" style={formData.rescission_pdf_url && !rescissionFile ? { marginTop: '8px', background: '#fff1f2', color: '#d92d20', border: '1px solid #fecdd3', height: '32px', padding: '0 12px', fontSize: '12px' } : {}}>
+                                                            {rescissionFile || formData.rescission_pdf_url ? 'Substituir PDF' : 'Selecionar PDF'}
+                                                        </div>
+
+                                                        <input
+                                                            id="rescission-pdf-upload"
+                                                            type="file"
+                                                            accept="application/pdf"
+                                                            onChange={e => setRescissionFile(e.target.files[0])}
+                                                            style={{ display: 'none' }}
+                                                        />
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </form>
                         </div>
                         <div className="modal-footer">

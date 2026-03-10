@@ -32,10 +32,26 @@ export interface Contract {
     committedValue: number;
     balanceValue: number;
     dateRange: DateRange;
-    responsibleUnit?: string;
+    secretariat_id?: string;
     biddingProcess?: string;
     electronicAuction?: string;
     notes?: string;
+
+    // New Fields Added
+    contract_object?: string;
+    cnpj?: string;
+    address?: string;
+    managerName?: string;
+    manager_registration?: string;
+    technical_fiscal_name?: string;
+    technical_fiscal_registration?: string;
+    administrative_fiscal_name?: string;
+    administrative_fiscal_registration?: string;
+    contract_pdf_url?: string;
+    rescinded_at?: string;
+    rescission_notes?: string;
+    rescission_pdf_url?: string;
+
     createdAt: string;
     updatedAt: string;
     // Pendency Indicator (Items Check)
@@ -69,4 +85,16 @@ export interface Empenho {
     status: EmpenhoStatus;
     issueDate: string; // ISO DB string
     paymentDate?: string; // ISO DB string (optional)
+}
+export interface ContractHistory {
+    id: string;
+    tenant_id: string;
+    contract_id: string;
+    event_type: string;
+    event_title: string;
+    event_description?: string;
+    old_value?: number;
+    new_value?: number;
+    event_date: string; // ISO string
+    created_at: string; // ISO string
 }

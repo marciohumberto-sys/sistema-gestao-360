@@ -16,14 +16,19 @@ import {
     Plus,
     Edit2,
     ShieldAlert,
-    AlertTriangle
+    AlertTriangle,
+    UploadCloud,
+    ExternalLink,
+    Download
 } from 'lucide-react';
 import { contractsService } from '../services/api/contracts.service';
 import { empenhosService } from '../services/api/empenhos.service';
 import { contractItemsService } from '../services/api/contractItems.service';
 import { secretariatsService } from '../services/api/secretariats.service';
 import { allocationsService } from '../services/api/allocations.service';
+import { filesService } from '../services/api/files.service';
 import { useTenant } from '../context/TenantContext';
+import { formatLocalDate, getDaysDiffFromToday, parseLocalDate, getTodayLocalDateString } from '../utils/dateUtils';
 import './ContractDetails.css';
 
 const ContractDetails = () => {
@@ -33,8 +38,10 @@ const ContractDetails = () => {
 
     const [contract, setContract] = useState(null);
     const [empenhos, setEmpenhos] = useState([]);
+    const [contractHistory, setContractHistory] = useState([]);
     const [isLoadingContract, setIsLoadingContract] = useState(true);
     const [isLoadingEmpenhos, setIsLoadingEmpenhos] = useState(true);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const [error, setError] = useState(false);
 
     const [activeTab, setActiveTab] = useState('geral');
@@ -76,10 +83,23 @@ const ContractDetails = () => {
         totalValue: '',
         startDate: '',
         endDate: '',
-        responsibleUnit: '',
+        secretariat_id: '',
         biddingProcess: '',
         electronicAuction: '',
-        notes: ''
+        notes: '',
+        contract_object: '',
+        cnpj: '',
+        address: '',
+        managerName: '',
+        manager_registration: '',
+        technical_fiscal_name: '',
+        technical_fiscal_registration: '',
+        administrative_fiscal_name: '',
+        administrative_fiscal_registration: '',
+        contract_pdf_url: '',
+        rescinded_at: '',
+        rescission_notes: '',
+        rescission_pdf_url: ''
     });
 
     // Toast State
@@ -98,6 +118,185 @@ const ContractDetails = () => {
     }, []);
 
     const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+    const [isRescissionActive, setIsRescissionActive] = useState(false);
+    const [isPdfSectionExpanded, setIsPdfSectionExpanded] = useState(false);
+    const [contractFile, setContractFile] = useState(null);
+    const [rescissionFile, setRescissionFile] = useState(null);
+
+    const formatCnpj = (val) => {
+        const v = val.replace(/\D/g, '').slice(0, 14);
+        if (v.length <= 2) return v;
+        if (v.length <= 5) return v.replace(/^(\d{2})(\d)/, '$1.$2');
+        if (v.length <= 8) return v.replace(/^(\d{2})(\d{3})(\d)/, '$1.$2.$3');
+        if (v.length <= 12) return v.replace(/^(\d{2})(\d{3})(\d{3})(\d)/, '$1.$2.$3/$4');
+        return v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d)/, '$1.$2.$3/$4-$5');
+    };
+
+    const sanitizeFilename = (name) => {
+        if (!name) return '';
+        const ext = name.split('.').pop();
+        const base = name.substring(0, name.lastIndexOf('.'));
+        const clean = base
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, "-")
+            .replace(/-+/g, "-")
+            .replace(/^-|-$/g, "");
+        return `${clean}.${ext}`;
+    };
+
+    const getFilenameFromUrl = (url) => {
+        if (!url) return '';
+        try {
+            const decoded = decodeURIComponent(url);
+            const parts = decoded.split('/');
+            const lastPart = parts[parts.length - 1];
+            return lastPart.includes('_') ? lastPart.split('_').slice(1).join('_') : lastPart;
+        } catch (e) {
+            return 'arquivo_pdf';
+        }
+    };
+
+    const handleUpdateContract = async (e) => {
+        e.preventDefault();
+        if (!tenantId) return;
+
+        setIsSubmittingEdit(true);
+        try {
+            let finalContract_pdf_url = contractFormData.contract_pdf_url;
+            let finalRescission_pdf_url = contractFormData.rescission_pdf_url;
+
+            // Handle file uploads
+            if (contractFile) {
+                const sanitizedName = sanitizeFilename(contractFile.name);
+                const path = `${tenantId}/${Date.now()}_${sanitizedName}`;
+                const { publicUrl, error: uploadError } = await filesService.uploadFile(contractFile, 'contracts_files', path);
+                if (uploadError) throw new Error("Erro no upload do arquivo do contrato.");
+                finalContract_pdf_url = publicUrl;
+            }
+
+            if (isRescissionActive && rescissionFile) {
+                const sanitizedName = sanitizeFilename(rescissionFile.name);
+                const path = `${tenantId}/${Date.now()}_${sanitizedName}`;
+                const { publicUrl, error: uploadError } = await filesService.uploadFile(rescissionFile, 'contracts_files', path);
+                if (uploadError) throw new Error("Erro no upload do arquivo de rescisão.");
+                finalRescission_pdf_url = publicUrl;
+            }
+
+            const payload = {
+                number: contractFormData.number,
+                code: contractFormData.code,
+                title: contractFormData.title,
+                supplierName: contractFormData.supplierName,
+                totalValue: parseFloat(contractFormData.totalValue) || 0,
+                dateRange: {
+                    startDate: contractFormData.startDate,
+                    endDate: contractFormData.endDate
+                },
+                secretariat_id: contractFormData.secretariat_id,
+                biddingProcess: contractFormData.biddingProcess,
+                electronicAuction: contractFormData.electronicAuction,
+                notes: contractFormData.notes,
+                contract_object: contractFormData.contract_object,
+                cnpj: contractFormData.cnpj,
+                address: contractFormData.address,
+                managerName: contractFormData.managerName,
+                manager_registration: contractFormData.manager_registration,
+                technical_fiscal_name: contractFormData.technical_fiscal_name,
+                technical_fiscal_registration: contractFormData.technical_fiscal_registration,
+                administrative_fiscal_name: contractFormData.administrative_fiscal_name,
+                administrative_fiscal_registration: contractFormData.administrative_fiscal_registration,
+                contract_pdf_url: finalContract_pdf_url,
+                status: isRescissionActive ? 'RESCINDIDO' : (contract.status === 'RESCINDIDO' ? 'ATIVO' : contract.status),
+                ...(isRescissionActive && {
+                    rescinded_at: contractFormData.rescinded_at,
+                    rescission_notes: contractFormData.rescission_notes,
+                    rescission_pdf_url: finalRescission_pdf_url
+                }),
+                ...(!isRescissionActive && contract.rescinded_at && {
+                    rescinded_at: null,
+                    rescission_notes: null,
+                    rescission_pdf_url: null
+                })
+            };
+
+            await contractsService.update(id, payload);
+            showToast("Contrato atualizado com sucesso!");
+            setIsEditModalOpen(false);
+
+            // Reload contract data
+            const updated = await contractsService.getById(id);
+            setContract(updated);
+
+            // Reload history
+            await fetchHistory();
+
+        } catch (error) {
+            console.error("Erro ao atualizar contrato:", error);
+            showToast("Erro ao atualizar contrato: " + error.message, 'error');
+        } finally {
+            setIsSubmittingEdit(false);
+        }
+    };
+
+    const handleEditClick = () => {
+        if (!contract) return;
+
+        // Se a rescisão estiver sendo ativada agora e não tiver data, sugerir a data de hoje
+        const today = getTodayLocalDateString();
+
+        setContractFormData({
+            number: contract.number || '',
+            code: contract.code || '',
+            title: contract.title || '',
+            supplierName: contract.supplierName || '',
+            totalValue: contract.totalValue || '',
+            startDate: contract.dateRange?.startDate || '',
+            endDate: contract.dateRange?.endDate || '',
+            secretariat_id: contract.secretariat_id || '',
+            biddingProcess: contract.biddingProcess || '',
+            electronicAuction: contract.electronicAuction || '',
+            notes: contract.notes || '',
+            contract_object: contract.contract_object || '',
+            cnpj: contract.cnpj || '',
+            address: contract.address || '',
+            managerName: contract.managerName || '',
+            manager_registration: contract.manager_registration || '',
+            technical_fiscal_name: contract.technical_fiscal_name || '',
+            technical_fiscal_registration: contract.technical_fiscal_registration || '',
+            administrative_fiscal_name: contract.administrative_fiscal_name || '',
+            administrative_fiscal_registration: contract.administrative_fiscal_registration || '',
+            contract_pdf_url: contract.contract_pdf_url || '',
+            rescinded_at: contract.rescinded_at || today,
+            rescission_notes: contract.rescission_notes || '',
+            rescission_pdf_url: contract.rescission_pdf_url || ''
+        });
+        setIsRescissionActive(!!contract.rescinded_at);
+        setContractFile(null);
+        setRescissionFile(null);
+        setIsEditModalOpen(true);
+    };
+
+    const handleContractCurrencyInput = (e) => {
+        let value = e.target.value.replace(/\D/g, "");
+        if (value === "") {
+            setContractFormData({ ...contractFormData, totalValue: "" });
+            return;
+        }
+        const floatValue = parseInt(value, 10) / 100;
+        setContractFormData({ ...contractFormData, totalValue: floatValue });
+    };
+
+    const getMaskedContractCurrencyValue = (numValue) => {
+        if (numValue === "" || numValue === undefined || numValue === null) return "";
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(numValue);
+    };
 
     const loadSecretariats = async () => {
         if (!tenantId) return;
@@ -106,6 +305,18 @@ const ContractDetails = () => {
             setSecretariats(data);
         } catch (error) {
             console.error("Erro ao carregar secretarias:", error);
+        }
+    };
+
+    const fetchHistory = async () => {
+        try {
+            setIsLoadingHistory(true);
+            const hst = await contractsService.getHistory(id);
+            setContractHistory(hst);
+        } catch (err) {
+            console.error("Erro ao carregar histórico do contrato:", err);
+        } finally {
+            setIsLoadingHistory(false);
         }
     };
 
@@ -154,6 +365,7 @@ const ContractDetails = () => {
         if (id) {
             fetchContract();
             fetchEmpenhos();
+            fetchHistory();
             loadSecretariats();
             fetchItemsCount();
         }
@@ -191,75 +403,6 @@ const ContractDetails = () => {
         }
     };
 
-    const handleEditContract = () => {
-        if (!contract) return;
-        setContractFormData({
-            number: contract.number,
-            code: contract.code || '',
-            title: contract.title,
-            supplierName: contract.supplierName,
-            totalValue: contract.totalValue,
-            startDate: contract.dateRange.startDate || '',
-            endDate: contract.dateRange.endDate || '',
-            responsibleUnit: contract.responsibleUnit || '',
-            biddingProcess: contract.biddingProcess || '',
-            electronicAuction: contract.electronicAuction || '',
-            notes: contract.notes || ''
-        });
-        setIsEditModalOpen(true);
-    };
-
-    const handleUpdateContract = async (e) => {
-        e.preventDefault();
-        try {
-            setIsSubmittingEdit(true);
-            const payload = {
-                number: contractFormData.number,
-                code: contractFormData.code,
-                title: contractFormData.title,
-                supplierName: contractFormData.supplierName,
-                totalValue: parseFloat(contractFormData.totalValue) || 0,
-                dateRange: {
-                    startDate: contractFormData.startDate,
-                    endDate: contractFormData.endDate
-                },
-                responsibleUnit: contractFormData.responsibleUnit,
-                biddingProcess: contractFormData.biddingProcess,
-                electronicAuction: contractFormData.electronicAuction,
-                notes: contractFormData.notes
-            };
-
-            const updated = await contractsService.update(id, payload);
-            setContract(updated);
-            setIsEditModalOpen(false);
-            showToast("Contrato atualizado com sucesso!");
-        } catch (err) {
-            console.error("Erro ao atualizar contrato:", err);
-            showToast("Erro ao atualizar contrato.", "error");
-        } finally {
-            setIsSubmittingEdit(false);
-        }
-    };
-
-    const handleContractCurrencyInput = (e) => {
-        let value = e.target.value.replace(/\D/g, ""); // Keep only digits
-        if (value === "") {
-            setContractFormData({ ...contractFormData, totalValue: "" });
-            return;
-        }
-        const floatValue = parseInt(value, 10) / 100;
-        setContractFormData({ ...contractFormData, totalValue: floatValue });
-    };
-
-    const getMaskedContractCurrencyValue = (numValue) => {
-        if (numValue === "" || numValue === undefined || numValue === null) return "";
-        return new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL',
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(numValue);
-    };
 
     useEffect(() => {
         fetchItemsTab();
@@ -445,15 +588,11 @@ const ContractDetails = () => {
     };
 
     const formatDate = (isoString) => {
-        if (!isoString) return '-';
-        return new Intl.DateTimeFormat('pt-BR').format(new Date(isoString));
+        return formatLocalDate(isoString);
     };
 
     const getDaysLeft = (endDateISO) => {
-        if (!endDateISO) return null;
-        const diffTime = new Date(endDateISO) - new Date();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays;
+        return getDaysDiffFromToday(endDateISO);
     };
 
     // Calculate specific stats based on rules
@@ -573,14 +712,18 @@ const ContractDetails = () => {
                     </div>
 
                     <div className="cd-header-actions">
-                        <button className="cd-btn-secondary" onClick={handleEditContract}>Editar</button>
-                        <button
-                            className={`cd-btn-primary ${contract.isPending ? 'is-blocked' : ''}`}
-                            disabled={contract.isPending}
-                            title={contract.isPending ? "Para gerar OF, cadastre pelo menos 1 item." : "Gerar Ordem de Fornecimento"}
-                        >
-                            Gerar OF
-                        </button>
+                        <button className="cd-btn-secondary" onClick={handleEditClick}>Editar</button>
+
+                        <div className="cd-actions-dropdown-wrapper">
+                            <button
+                                className={`cd-btn-primary ${contract.isPending ? 'is-blocked' : ''}`}
+                                disabled={contract.isPending}
+                                title={contract.isPending ? "Para gerar OF, cadastre pelo menos 1 item." : "Gerar Ordem de Fornecimento"}
+                            >
+                                Gerar OF
+                            </button>
+                        </div>
+
                         <button className="cd-action-icon-btn">
                             <MoreVertical size={20} />
                         </button>
@@ -600,21 +743,21 @@ const ContractDetails = () => {
                 <div className={`cd-kpi-card ${activeTab === 'empenhos' ? 'is-highlighted' : ''}`}>
                     <div className="cd-kpi-icon warning"><FileText size={20} /></div>
                     <div className="cd-kpi-data">
-                        <span className="cd-kpi-label">Empenhado/Comprometido</span>
+                        <span className="cd-kpi-label">Empenhado</span>
                         <span className="cd-kpi-value warning">{formatCurrency(commitValue)}</span>
                     </div>
                 </div>
                 <div className="cd-kpi-card">
                     <div className="cd-kpi-icon success"><DollarSign size={20} /></div>
                     <div className="cd-kpi-data">
-                        <span className="cd-kpi-label">Saldo Disponível</span>
+                        <span className="cd-kpi-label">Saldo a empenhar</span>
                         <span className="cd-kpi-value success">{formatCurrency(balanceValue)}</span>
                     </div>
                 </div>
                 <div className={`cd-kpi-card ${isUrgent ? 'urgent' : ''}`}>
                     <div className={`cd-kpi-icon ${isUrgent ? 'urgent' : ''}`}><Clock size={20} /></div>
                     <div className="cd-kpi-data">
-                        <span className="cd-kpi-label">Vigência</span>
+                        <span className="cd-kpi-label">Vigência até</span>
                         <div className="cd-kpi-value-group">
                             <span className="cd-kpi-value date">{formatDate(contract.dateRange?.endDate)}</span>
                             {daysLeft !== null && (
@@ -663,16 +806,30 @@ const ContractDetails = () => {
                 </div>
 
                 <div className="cd-tabs-content">
-                    {/* VISION GERAL TAB */}
+                    {/* VISÃO GERAL TAB */}
                     {activeTab === 'geral' && (
                         <div className="cd-grid-details">
                             <div className="cd-detail-group full">
                                 <h3>Objeto do Contrato</h3>
                                 <p className="cd-detail-text">{contract.title}</p>
                             </div>
+                            {contract.contract_object && (
+                                <div className="cd-detail-group full">
+                                    <label>Objeto do Contrato</label>
+                                    <span style={{ whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>{contract.contract_object}</span>
+                                </div>
+                            )}
                             <div className="cd-detail-group">
                                 <label>Fornecedor (Razão Social)</label>
                                 <span>{contract.supplierName}</span>
+                            </div>
+                            <div className="cd-detail-group">
+                                <label>CNPJ</label>
+                                <span>{contract.cnpj || 'Não informado'}</span>
+                            </div>
+                            <div className="cd-detail-group full">
+                                <label>Endereço</label>
+                                <span>{contract.address || 'Não informado'}</span>
                             </div>
                             <div className="cd-detail-group">
                                 <label>Período de Vigência</label>
@@ -680,7 +837,7 @@ const ContractDetails = () => {
                             </div>
                             <div className="cd-detail-group">
                                 <label>Secretaria Responsável</label>
-                                <span>{contract.responsibleUnit || 'Não informada'}</span>
+                                <span>{secretariats.find(s => s.id === contract.secretariat_id)?.name || 'Não informada'}</span>
                             </div>
                             <div className="cd-detail-group">
                                 <label>Processo Licitatório</label>
@@ -694,8 +851,66 @@ const ContractDetails = () => {
                                 <label>Código / Ref</label>
                                 <span>{contract.code || 'Não informado'}</span>
                             </div>
-                            <div className="cd-detail-group full">
-                                <label>Observações</label>
+
+                            {contract.contract_pdf_url && (
+                                <div className="cd-detail-group full">
+                                    <label>Arquivo do Contrato</label>
+                                    <a href={contract.contract_pdf_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-primary)', fontWeight: 500, textDecoration: 'none', padding: '0.5rem 1rem', background: '#f1f5f9', borderRadius: '8px', width: 'fit-content' }}>
+                                        <FileText size={18} /> Acessar PDF do Contrato
+                                    </a>
+                                </div>
+                            )}
+
+                            <div className="cd-detail-group full" style={{ marginTop: '1rem' }}>
+                                <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)', fontSize: '1.05rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem' }}>Responsáveis pelo Contrato</h4>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
+                                    <div>
+                                        <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Gestor do Contrato</label>
+                                        <div style={{ fontWeight: 500, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{contract.managerName || 'Não informado'}</div>
+                                        {contract.manager_registration && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Matrícula: {contract.manager_registration}</div>}
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Fiscal Técnico</label>
+                                        <div style={{ fontWeight: 500, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{contract.technical_fiscal_name || 'Não informado'}</div>
+                                        {contract.technical_fiscal_registration && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Matrícula: {contract.technical_fiscal_registration}</div>}
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Fiscal Administrativo</label>
+                                        <div style={{ fontWeight: 500, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{contract.administrative_fiscal_name || 'Não informado'}</div>
+                                        {contract.administrative_fiscal_registration && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Matrícula: {contract.administrative_fiscal_registration}</div>}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {contract.rescinded_at && (
+                                <div className="cd-detail-group full" style={{ marginTop: '0.75rem', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '8px', padding: '1rem' }}>
+                                    <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--danger-color, #d92d20)', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <AlertTriangle size={18} /> Rescisão de Contrato
+                                    </h4>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                                        <div>
+                                            <label style={{ fontSize: '0.8rem', color: '#9f1239', textTransform: 'uppercase', fontWeight: 600 }}>Data da Rescisão</label>
+                                            <div style={{ fontWeight: 700, color: '#881337', marginTop: '0.125rem' }}>{formatDate(contract.rescinded_at)}</div>
+                                        </div>
+                                        {contract.rescission_notes && (
+                                            <div>
+                                                <label style={{ fontSize: '0.8rem', color: '#9f1239', textTransform: 'uppercase', fontWeight: 600 }}>Observação</label>
+                                                <div style={{ color: '#881337', marginTop: '0.125rem', fontSize: '0.9rem', lineHeight: '1.4' }}>{contract.rescission_notes}</div>
+                                            </div>
+                                        )}
+                                        {contract.rescission_pdf_url && (
+                                            <div style={{ gridColumn: '1 / -1', marginTop: '0.25rem' }}>
+                                                <a href={contract.rescission_pdf_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: '#fff', backgroundColor: '#e11d48', fontWeight: 500, textDecoration: 'none', padding: '0.4rem 0.875rem', borderRadius: '6px', fontSize: '0.875rem' }}>
+                                                    <FileText size={16} /> Visualizar Termo de Rescisão
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="cd-detail-group full" style={{ marginTop: '1rem' }}>
+                                <label>Observações Gerais</label>
                                 {contract.notes ? (
                                     <span style={{ whiteSpace: 'pre-wrap' }}>{contract.notes}</span>
                                 ) : (
@@ -797,23 +1012,78 @@ const ContractDetails = () => {
                         </div>
                     )}
 
-                    {/* HISTORICO TAB (Placeholder Timeline) */}
+                    {/* HISTORICO TAB (Real Timeline) */}
                     {activeTab === 'historico' && (
-                        <div className="cd-timeline">
-                            <div className="cd-timeline-item">
-                                <div className="indicator active"></div>
-                                <div className="info">
-                                    <span className="time">{formatDate(contract.updatedAt)}</span>
-                                    <p>Status atualizado para <strong>{contract.status}</strong></p>
-                                </div>
-                            </div>
-                            <div className="cd-timeline-item">
-                                <div className="indicator"></div>
-                                <div className="info">
-                                    <span className="time">{formatDate(contract.createdAt)}</span>
-                                    <p>Contrato cadastrado no sistema</p>
-                                </div>
-                            </div>
+                        <div className="cd-timeline-wrapper">
+                            {isLoadingHistory ? (
+                                <div className="cd-timeline-loading">Carregando histórico...</div>
+                            ) : (() => {
+                                // Ordenar eventos vindos do banco
+                                let allEvents = [...contractHistory]
+                                    .sort((a, b) => new Date(b.event_date || b.created_at) - new Date(a.event_date || a.created_at));
+
+                                // Se o contrato estiver rescindido, ocultar o evento de 'vigency_end'
+                                if (contract.status === 'RESCINDIDO') {
+                                    allEvents = allEvents.filter(evt => evt.event_type !== 'vigency_end');
+                                }
+
+                                if (allEvents.length === 0) {
+                                    return (
+                                        <div className="cd-timeline-empty">
+                                            <Clock size={32} />
+                                            <p>Nenhum histórico registrado para este contrato.</p>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div className="cd-timeline">
+                                        {allEvents.map((evt, idx) => (
+                                            <div className={`cd-timeline-item ${evt.event_type}`} key={evt.id}>
+                                                <div className="cd-timeline-marker">
+                                                    <div className="cd-timeline-bullet"></div>
+                                                    {idx !== allEvents.length - 1 && <div className="cd-timeline-line"></div>}
+                                                </div>
+                                                <div className="cd-timeline-content">
+                                                    <div className="cd-timeline-header">
+                                                        <span className="cd-timeline-title">{evt.event_title}</span>
+                                                        <span className="cd-timeline-date">{formatDate(evt.event_date || evt.created_at)}</span>
+                                                    </div>
+
+                                                    {evt.event_type === 'value_changed' && (
+                                                        <div className="cd-timeline-detail value-change">
+                                                            <div className="cd-value-comparison">
+                                                                <div className="cd-value-node">
+                                                                    <span className="label">Anterior</span>
+                                                                    <span className="amount old">{formatCurrency(evt.old_value)}</span>
+                                                                </div>
+                                                                <div className="cd-value-arrow">→</div>
+                                                                <div className="cd-value-node">
+                                                                    <span className="label">Novo Valor</span>
+                                                                    <span className="amount new">{formatCurrency(evt.new_value)}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {evt.event_type === 'rescinded' && (
+                                                        <div className="cd-timeline-detail rescission">
+                                                            <div className="cd-rescission-notes">
+                                                                <AlertTriangle size={14} style={{ marginRight: '6px', color: '#e11d48' }} />
+                                                                {evt.event_description || 'Contrato rescindido.'}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {evt.event_type !== 'value_changed' && evt.event_type !== 'rescinded' && evt.event_description && (
+                                                        <p className="cd-timeline-description">{evt.event_description}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
                         </div>
                     )}
 
@@ -1317,170 +1587,339 @@ const ContractDetails = () => {
                 )
             }
 
-            {/* Modal Editar Contrato */}
-            {
-                isEditModalOpen && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10,37,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setIsEditModalOpen(false)}>
-                        <div style={{ background: '#fff', padding: '2rem', borderRadius: '16px', width: '100%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <Edit2 size={20} style={{ color: 'var(--color-primary)' }} />
-                                    Editar Contrato
-                                </h3>
-                                <button
-                                    onClick={() => setIsEditModalOpen(false)}
-                                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.5rem', display: 'flex' }}
-                                >
-                                    ×
-                                </button>
-                            </div>
-
-                            <form onSubmit={handleUpdateContract} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Número do Contrato *</label>
-                                        <input
-                                            style={{ width: '100%', height: '44px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '10px' }}
-                                            required
-                                            type="text"
-                                            value={contractFormData.number}
-                                            onChange={e => setContractFormData({ ...contractFormData, number: e.target.value })}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Código / Ref</label>
-                                        <input
-                                            style={{ width: '100%', height: '44px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '10px' }}
-                                            type="text"
-                                            value={contractFormData.code}
-                                            onChange={e => setContractFormData({ ...contractFormData, code: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Secretaria Responsável *</label>
-                                        <select
-                                            style={{
-                                                width: '100%',
-                                                height: '44px',
-                                                padding: '0 1rem',
-                                                border: '1px solid #cbd5e1',
-                                                borderRadius: '10px',
-                                                backgroundColor: '#fff',
-                                                cursor: 'pointer'
-                                            }}
-                                            required
-                                            value={contractFormData.responsibleUnit}
-                                            onChange={e => setContractFormData({ ...contractFormData, responsibleUnit: e.target.value })}
-                                        >
-                                            <option value="">Selecione uma secretaria</option>
-                                            {secretariats.map(s => (
-                                                <option key={s.id} value={s.name}>{s.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Fornecedor *</label>
-                                        <input
-                                            style={{ width: '100%', height: '44px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '10px' }}
-                                            required
-                                            type="text"
-                                            value={contractFormData.supplierName}
-                                            onChange={e => setContractFormData({ ...contractFormData, supplierName: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Processo Licitatório</label>
-                                        <input
-                                            style={{ width: '100%', height: '44px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '10px' }}
-                                            type="text"
-                                            value={contractFormData.biddingProcess}
-                                            onChange={e => setContractFormData({ ...contractFormData, biddingProcess: e.target.value })}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Pregão Eletrônico</label>
-                                        <input
-                                            style={{ width: '100%', height: '44px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '10px' }}
-                                            type="text"
-                                            value={contractFormData.electronicAuction}
-                                            onChange={e => setContractFormData({ ...contractFormData, electronicAuction: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Objeto / Título *</label>
-                                    <input
-                                        style={{ width: '100%', height: '44px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '10px' }}
-                                        required
-                                        type="text"
-                                        value={contractFormData.title}
-                                        onChange={e => setContractFormData({ ...contractFormData, title: e.target.value })}
-                                    />
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Valor Total (R$) *</label>
-                                        <input
-                                            style={{ width: '100%', height: '44px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '10px' }}
-                                            required
-                                            type="text"
-                                            placeholder="R$ 0,00"
-                                            value={getMaskedContractCurrencyValue(contractFormData.totalValue)}
-                                            onChange={handleContractCurrencyInput}
-                                        />
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '1rem' }}>
-                                        <div style={{ flex: 1 }}>
-                                            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Data Início</label>
+            {isEditModalOpen && (
+                <div className="modal-overlay" onClick={() => setIsEditModalOpen(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '720px' }}>
+                        <div className="modal-header">
+                            <h2>Editar Contrato</h2>
+                            <button className="close-btn" onClick={() => setIsEditModalOpen(false)}>×</button>
+                        </div>
+                        <div className="modal-body">
+                            <form id="editContractForm" onSubmit={handleUpdateContract}>
+                                {/* Identificação */}
+                                <div className="contract-form-section">
+                                    <div className="section-title">Identificação</div>
+                                    <div className="contract-form-grid">
+                                        <div className="form-group">
+                                            <label>Número do Contrato *</label>
+                                            <input required type="text" placeholder="Ex: 001/2026" value={contractFormData.number} onChange={e => setContractFormData({ ...contractFormData, number: e.target.value })} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Código / Ref</label>
+                                            <input type="text" placeholder="Ex: CT-001" value={contractFormData.code} onChange={e => setContractFormData({ ...contractFormData, code: e.target.value })} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Fornecedor *</label>
+                                            <input required type="text" placeholder="Nome da empresa" value={contractFormData.supplierName} onChange={e => setContractFormData({ ...contractFormData, supplierName: e.target.value })} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Secretaria Responsável *</label>
+                                            <select
+                                                required
+                                                className="form-select"
+                                                value={contractFormData.secretariat_id}
+                                                onChange={e => setContractFormData({ ...contractFormData, secretariat_id: e.target.value })}
+                                            >
+                                                <option value="">Selecione uma secretaria</option>
+                                                {secretariats.map(s => (
+                                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Processo Licitatório</label>
+                                            <input type="text" placeholder="Ex: 010/2025" value={contractFormData.biddingProcess} onChange={e => setContractFormData({ ...contractFormData, biddingProcess: e.target.value })} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Pregão Eletrônico</label>
+                                            <input type="text" placeholder="Ex: 005/2025" value={contractFormData.electronicAuction} onChange={e => setContractFormData({ ...contractFormData, electronicAuction: e.target.value })} />
+                                        </div>
+                                        <div className="form-group full-width">
+                                            <label>Título *</label>
+                                            <input required type="text" placeholder="Nome curto do contrato" value={contractFormData.title} onChange={e => setContractFormData({ ...contractFormData, title: e.target.value })} />
+                                        </div>
+                                        <div className="form-group full-width" style={{ marginTop: '1.25rem' }}>
+                                            <label>Objeto do Contrato</label>
                                             <input
-                                                style={{ width: '100%', height: '44px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '10px' }}
-                                                type="date"
-                                                value={contractFormData.startDate}
-                                                onChange={e => setContractFormData({ ...contractFormData, startDate: e.target.value })}
+                                                type="text"
+                                                placeholder="Descrição resumida do objeto do contrato"
+                                                value={contractFormData.contract_object}
+                                                onChange={e => setContractFormData({ ...contractFormData, contract_object: e.target.value })}
                                             />
                                         </div>
-                                        <div style={{ flex: 1 }}>
-                                            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Vencimento</label>
+                                        <div className="form-group">
+                                            <label>CNPJ</label>
                                             <input
-                                                style={{ width: '100%', height: '44px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '10px' }}
-                                                type="date"
-                                                value={contractFormData.endDate}
-                                                onChange={e => setContractFormData({ ...contractFormData, endDate: e.target.value })}
+                                                type="text"
+                                                placeholder="00.000.000/0000-00"
+                                                value={contractFormData.cnpj}
+                                                onChange={e => setContractFormData({ ...contractFormData, cnpj: formatCnpj(e.target.value) })}
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Endereço</label>
+                                            <input type="text" placeholder="Rua, Número, Bairro, Cidade" value={contractFormData.address} onChange={e => setContractFormData({ ...contractFormData, address: e.target.value })} />
+                                        </div>
+
+                                        {/* PDF Section */}
+                                        <div className="form-group full-width" style={{ marginTop: '0.5rem' }}>
+                                            <div
+                                                className={`collapsible-header ${isPdfSectionExpanded ? 'expanded' : ''}`}
+                                                onClick={() => setIsPdfSectionExpanded(!isPdfSectionExpanded)}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    padding: '10px 14px',
+                                                    background: '#f8fafc',
+                                                    border: '1px solid #e2e8f0',
+                                                    borderRadius: isPdfSectionExpanded ? '8px 8px 0 0' : '8px',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s ease',
+                                                    marginBottom: isPdfSectionExpanded ? '0' : '1rem'
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px' }}>
+                                                    <FileText size={18} style={{ color: 'var(--color-primary)' }} />
+                                                    Documento do Contrato (PDF)
+                                                </div>
+                                                <div style={{ color: '#64748b', fontSize: '10px' }}>
+                                                    {isPdfSectionExpanded ? '▼' : '▶'}
+                                                </div>
+                                            </div>
+
+                                            {isPdfSectionExpanded && (
+                                                <div className="collapsible-content" style={{ padding: '15px', border: '1px solid #e2e8f0', borderTop: 'none', borderRadius: '0 0 8px 8px', background: '#fff', marginBottom: '1rem' }}>
+                                                    <label htmlFor="contract-pdf-upload-edit" className={`upload-card ${contractFile ? 'has-file' : ''}`}>
+                                                        <div className="upload-icon-wrapper">
+                                                            {contractFile ? <FileText size={24} /> : <UploadCloud size={24} />}
+                                                        </div>
+                                                        <div className="upload-info">
+                                                            <p className="upload-text-main">
+                                                                {contractFile ? 'Arquivo selecionado' : 'Clique para anexar o PDF do contrato'}
+                                                            </p>
+                                                            <p className="upload-text-sub">ou arraste o arquivo aqui</p>
+                                                        </div>
+
+                                                        {contractFile ? (
+                                                            <div className="file-name-display">
+                                                                <FileText size={14} /> {contractFile.name}
+                                                            </div>
+                                                        ) : contractFormData.contract_pdf_url ? (
+                                                            <div className="existing-file-info" style={{ width: '100%', marginBottom: '10px' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #dcfce7', color: '#15803d', marginBottom: '12px' }}>
+                                                                    <FileText size={18} />
+                                                                    <span style={{ fontWeight: 500, fontSize: '13px' }}>{getFilenameFromUrl(contractFormData.contract_pdf_url)}</span>
+                                                                </div>
+                                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(contractFormData.contract_pdf_url, '_blank'); }}
+                                                                        className="btn-action-small"
+                                                                        style={{ padding: '6px 12px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', height: '32px' }}
+                                                                    >
+                                                                        <ExternalLink size={14} /> Visualizar
+                                                                    </button>
+                                                                    <a
+                                                                        href={contractFormData.contract_pdf_url}
+                                                                        download={getFilenameFromUrl(contractFormData.contract_pdf_url)}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        style={{ padding: '6px 12px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none', color: 'inherit', height: '32px' }}
+                                                                    >
+                                                                        <Download size={14} /> Baixar
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                        ) : null}
+
+                                                        <div className="upload-btn-styled" style={contractFormData.contract_pdf_url && !contractFile ? { marginTop: '8px', background: '#f8fafc', color: '#64748b', border: '1px solid #e2e8f0', height: '32px', padding: '0 12px', fontSize: '12px' } : {}}>
+                                                            {contractFile || contractFormData.contract_pdf_url ? 'Substituir PDF' : 'Selecionar PDF'}
+                                                        </div>
+
+                                                        <input
+                                                            id="contract-pdf-upload-edit"
+                                                            type="file"
+                                                            accept="application/pdf"
+                                                            onChange={e => setContractFile(e.target.files[0])}
+                                                            style={{ display: 'none' }}
+                                                        />
+                                                    </label>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Responsáveis */}
+                                <div className="contract-form-section">
+                                    <div className="section-title">Responsáveis pelo contrato</div>
+                                    <div className="contract-form-grid" style={{ gap: '0.75rem' }}>
+                                        <div className="form-group full-width" style={{ marginBottom: '0.25rem' }}>
+                                            <label>Gestor do Contrato</label>
+                                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                                <input style={{ flex: 3 }} type="text" placeholder="Nome" value={contractFormData.managerName} onChange={e => setContractFormData({ ...contractFormData, managerName: e.target.value })} />
+                                                <input style={{ flex: 1 }} type="text" placeholder="Ex: 123456" value={contractFormData.manager_registration} onChange={e => setContractFormData({ ...contractFormData, manager_registration: e.target.value })} />
+                                            </div>
+                                        </div>
+                                        <div className="form-group full-width" style={{ marginBottom: '0.25rem' }}>
+                                            <label>Fiscal Técnico</label>
+                                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                                <input style={{ flex: 3 }} type="text" placeholder="Nome" value={contractFormData.technical_fiscal_name} onChange={e => setContractFormData({ ...contractFormData, technical_fiscal_name: e.target.value })} />
+                                                <input style={{ flex: 1 }} type="text" placeholder="Ex: 123456" value={contractFormData.technical_fiscal_registration} onChange={e => setContractFormData({ ...contractFormData, technical_fiscal_registration: e.target.value })} />
+                                            </div>
+                                        </div>
+                                        <div className="form-group full-width" style={{ marginBottom: '0.25rem' }}>
+                                            <label>Fiscal Administrativo</label>
+                                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                                <input style={{ flex: 3 }} type="text" placeholder="Nome" value={contractFormData.administrative_fiscal_name} onChange={e => setContractFormData({ ...contractFormData, administrative_fiscal_name: e.target.value })} />
+                                                <input style={{ flex: 1 }} type="text" placeholder="Ex: 123456" value={contractFormData.administrative_fiscal_registration} onChange={e => setContractFormData({ ...contractFormData, administrative_fiscal_registration: e.target.value })} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Valores */}
+                                <div className="contract-form-section">
+                                    <div className="section-title">Valores e Observações</div>
+                                    <div className="contract-form-grid">
+                                        <div className="form-group">
+                                            <label>Valor Total (R$) *</label>
+                                            <input
+                                                required
+                                                type="text"
+                                                placeholder="R$ 0,00"
+                                                value={getMaskedContractCurrencyValue(contractFormData.totalValue)}
+                                                onChange={handleContractCurrencyInput}
+                                            />
+                                        </div>
+                                        <div className="form-group full-width">
+                                            <label>Observações</label>
+                                            <textarea
+                                                rows="3"
+                                                placeholder="Notas adicionais sobre o contrato..."
+                                                value={contractFormData.notes}
+                                                onChange={e => setContractFormData({ ...contractFormData, notes: e.target.value })}
                                             />
                                         </div>
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Observações</label>
-                                    <textarea
-                                        style={{ width: '100%', minHeight: '80px', padding: '0.75rem 1rem', border: '1px solid #cbd5e1', borderRadius: '10px', fontFamily: 'inherit' }}
-                                        value={contractFormData.notes}
-                                        onChange={e => setContractFormData({ ...contractFormData, notes: e.target.value })}
-                                    />
+                                {/* Vigência */}
+                                <div className="contract-form-section">
+                                    <div className="section-title">Vigência</div>
+                                    <div className="contract-form-grid">
+                                        <div className="form-group">
+                                            <label>Data de Início</label>
+                                            <input required type="date" value={contractFormData.startDate} onChange={e => setContractFormData({ ...contractFormData, startDate: e.target.value })} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Data de Vencimento</label>
+                                            <input required type="date" value={contractFormData.endDate} onChange={e => setContractFormData({ ...contractFormData, endDate: e.target.value })} />
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                                    <button type="button" className="cd-btn-secondary" onClick={() => setIsEditModalOpen(false)} style={{ flex: 1, height: '48px', justifyContent: 'center' }}>
-                                        Cancelar
-                                    </button>
-                                    <button type="submit" className="cd-btn-primary" disabled={isSubmittingEdit} style={{ flex: 2, height: '48px' }}>
+                                {/* Rescisão */}
+                                <div className="contract-form-section" style={{ background: isRescissionActive ? '#fff1f2' : 'transparent', border: isRescissionActive ? '1px solid #fecdd3' : '1px solid var(--border-light)', transition: 'all 0.3s', borderRadius: '8px', padding: '1.5rem', marginTop: '1rem' }}>
+                                    <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: 0 }}>
+                                        <input
+                                            type="checkbox"
+                                            id="chkRescisaoEdit"
+                                            checked={isRescissionActive}
+                                            onChange={e => setIsRescissionActive(e.target.checked)}
+                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                        />
+                                        <label htmlFor="chkRescisaoEdit" style={{ cursor: 'pointer', color: 'var(--danger-color, #d92d20)', fontWeight: 600, margin: 0 }}>Rescisão do contrato</label>
+                                    </div>
+
+                                    {isRescissionActive && (
+                                        <div className="contract-form-grid" style={{ marginTop: '1.5rem' }}>
+                                            <div className="form-group">
+                                                <label>Data da rescisão *</label>
+                                                <input required={isRescissionActive} type="date" value={contractFormData.rescinded_at} onChange={e => setContractFormData({ ...contractFormData, rescinded_at: e.target.value })} />
+                                            </div>
+                                            <div className="form-group full-width">
+                                                <label>Observação</label>
+                                                <textarea
+                                                    rows="2"
+                                                    placeholder="Motivos ou observações sobre a rescisão..."
+                                                    value={contractFormData.rescission_notes}
+                                                    onChange={e => setContractFormData({ ...contractFormData, rescission_notes: e.target.value })}
+                                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #fecdd3', fontFamily: 'inherit' }}
+                                                />
+                                            </div>
+                                            <div className="form-group full-width">
+                                                <label>PDF da rescisão</label>
+                                                <label htmlFor="rescission-pdf-upload-edit" className={`upload-card ${rescissionFile ? 'has-file' : ''}`} style={{ borderColor: isRescissionActive ? '#fecdd3' : '#cbd5e1' }}>
+                                                    <div className="upload-icon-wrapper" style={{ color: '#d92d20', background: '#fef2f2' }}>
+                                                        {rescissionFile ? <FileText size={24} /> : <UploadCloud size={24} />}
+                                                    </div>
+                                                    <div className="upload-info">
+                                                        <p className="upload-text-main">
+                                                            {rescissionFile ? 'Arquivo selecionado' : 'Clique para anexar o PDF da rescisão'}
+                                                        </p>
+                                                        <p className="upload-text-sub">ou arraste o arquivo aqui</p>
+                                                    </div>
+
+                                                    {rescissionFile ? (
+                                                        <div className="file-name-display" style={{ background: '#fecdd3', color: '#991b1b' }}>
+                                                            <FileText size={14} /> {rescissionFile.name}
+                                                        </div>
+                                                    ) : contractFormData.rescission_pdf_url ? (
+                                                        <div className="existing-file-info" style={{ width: '100%', marginBottom: '10px' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px', background: '#fff1f2', borderRadius: '8px', border: '1px solid #fecdd3', color: '#d92d20', marginBottom: '12px' }}>
+                                                                <FileText size={18} />
+                                                                <span style={{ fontWeight: 500, fontSize: '13px' }}>{getFilenameFromUrl(contractFormData.rescission_pdf_url)}</span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(contractFormData.rescission_pdf_url, '_blank'); }}
+                                                                    className="btn-action-small"
+                                                                    style={{ padding: '6px 12px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', height: '32px' }}
+                                                                >
+                                                                    <ExternalLink size={14} /> Visualizar
+                                                                </button>
+                                                                <a
+                                                                    href={contractFormData.rescission_pdf_url}
+                                                                    download={getFilenameFromUrl(contractFormData.rescission_pdf_url)}
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    style={{ padding: '6px 12px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none', color: 'inherit', height: '32px' }}
+                                                                >
+                                                                    <Download size={14} /> Baixar
+                                                                </a>
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+
+                                                    <div className="upload-btn-styled" style={contractFormData.rescission_pdf_url && !rescissionFile ? { marginTop: '8px', background: '#fff1f2', color: '#d92d20', border: '1px solid #fecdd3', height: '32px', padding: '0 12px', fontSize: '12px' } : {}}>
+                                                        {rescissionFile || contractFormData.rescission_pdf_url ? 'Substituir PDF' : 'Selecionar PDF'}
+                                                    </div>
+
+                                                    <input
+                                                        id="rescission-pdf-upload-edit"
+                                                        type="file"
+                                                        accept="application/pdf"
+                                                        onChange={e => setRescissionFile(e.target.files[0])}
+                                                        style={{ display: 'none' }}
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="modal-footer" style={{ marginTop: '2rem' }}>
+                                    <button type="button" className="cd-btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancelar</button>
+                                    <button type="submit" className="cd-btn-primary" disabled={isSubmittingEdit}>
                                         {isSubmittingEdit ? 'Salvando...' : 'Salvar Alterações'}
                                     </button>
                                 </div>
                             </form>
                         </div>
                     </div>
-                )
-            }
+                </div>
+            )}
         </div >
     );
 };

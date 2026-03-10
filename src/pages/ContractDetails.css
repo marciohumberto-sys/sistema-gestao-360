@@ -115,6 +115,12 @@
     color: var(--text-muted);
 }
 
+.status-badge-lg.rescindido {
+    background: #fff1f2;
+    color: #e11d48;
+    border: 1px solid #fecdd3;
+}
+
 /* Table Pill Badges */
 .status-badge {
     display: inline-flex;
@@ -156,6 +162,11 @@
     /* Soft red */
     color: #b91c1c;
     /* Dark red text */
+}
+
+.status-badge.rescindido {
+    background: #fff1f2;
+    color: #e11d48;
 }
 
 /* Header Actions */
@@ -535,62 +546,200 @@
     font-size: 0.95rem;
 }
 
-/* Timeline Placeholder */
+/* Timeline Modernizada */
+.cd-timeline-wrapper {
+    padding: 1rem 0;
+}
+
 .cd-timeline {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-    margin-top: 1rem;
+    position: relative;
 }
 
 .cd-timeline-item {
     display: flex;
-    gap: 1rem;
+    gap: 1.5rem;
+    position: relative;
+    padding-bottom: 1.25rem;
+}
+
+.cd-timeline-item:last-child {
+    padding-bottom: 0;
+}
+
+.cd-timeline-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    width: 16px;
     position: relative;
 }
 
-.cd-timeline-item:not(:last-child)::before {
-    content: '';
-    position: absolute;
-    left: 7px;
-    top: 20px;
-    bottom: -20px;
-    width: 2px;
-    background: var(--border-light);
-}
-
-.indicator {
-    width: 16px;
-    height: 16px;
+.cd-timeline-bullet {
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
-    background: var(--border-light);
-    border: 3px solid #ffffff;
-    box-shadow: 0 0 0 1px var(--border-light);
+    background: #ffffff;
+    border: 2px solid #cbd5e1;
+    z-index: 2;
+    margin-top: 4px;
+    transition: all 0.2s ease;
+}
+
+.cd-timeline-item:hover .cd-timeline-bullet {
+    border-color: var(--color-primary);
+    transform: scale(1.2);
+}
+
+.cd-timeline-line {
+    position: absolute;
+    top: 20px;
+    bottom: -6px;
+    width: 2px;
+    background: #e2e8f0;
     z-index: 1;
-    margin-top: 2px;
 }
 
-.indicator.active {
-    background: var(--color-primary);
-    box-shadow: 0 0 0 1px var(--color-primary);
+.cd-timeline-item:last-child .cd-timeline-line {
+    display: none;
 }
 
-.cd-timeline-item .info {
+.cd-timeline-content {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.5rem;
 }
 
-.cd-timeline-item .time {
-    font-size: 0.75rem;
-    color: var(--text-muted);
+.cd-timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.cd-timeline-title {
+    font-size: 0.95rem;
     font-weight: 600;
+    color: var(--text-primary);
 }
 
-.cd-timeline-item p {
+.cd-timeline-date {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.cd-timeline-description {
     margin: 0;
-    font-size: 0.9rem;
-    color: var(--text-primary);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* Timeline Details */
+.cd-timeline-detail {
+    margin-top: 0.125rem;
+    padding: 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 8px;
+}
+
+.cd-timeline-detail.value-change {
+    background: #f0fdf4;
+    border-color: #dcfce7;
+}
+
+.cd-timeline-detail.rescission {
+    background: #fff1f2;
+    border-color: #fecdd3;
+    border-left: 3px solid #e11d48;
+    padding: 0.625rem 0.75rem;
+}
+
+.cd-value-comparison {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.cd-value-node {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.cd-value-node .label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.cd-value-node .amount {
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.cd-value-node .amount.old {
+    color: #64748b;
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.cd-value-node .amount.new {
+    color: #15803d;
+}
+
+.cd-value-arrow {
+    color: #94a3b8;
+    font-size: 1.25rem;
+}
+
+.cd-rescission-notes {
+    display: flex;
+    align-items: center;
+    font-size: 0.875rem;
+    color: #9f1239;
+    font-weight: 500;
+}
+
+/* Timeline Component Variants */
+.cd-timeline-item.contract_created .cd-timeline-bullet {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.cd-timeline-item.vigency_start .cd-timeline-bullet {
+    border-color: #10b981;
+}
+
+.cd-timeline-item.vigency_end .cd-timeline-bullet {
+    border-color: #f59e0b;
+}
+
+.cd-timeline-item.rescinded .cd-timeline-bullet {
+    background: #e11d48;
+    border-color: #e11d48;
+}
+
+.cd-timeline-loading,
+.cd-timeline-empty {
+    padding: 3rem;
+    text-align: center;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
 }
 
 /* Loading & Error States */
@@ -774,6 +923,278 @@
     border: 1px solid #E5E7EB !important;
     cursor: not-allowed !important;
     opacity: 0.7;
+}
+
+/* Contract Form & Modal Styles (Unified with Contratos.css) */
+.contract-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group.full-width {
+    grid-column: span 2;
+}
+
+.form-group label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    height: 48px;
+    padding: 0 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+    background: #fff;
+    transition: all 0.2s ease;
+}
+
+.form-group textarea {
+    height: auto;
+    padding: 0.75rem 1rem;
+    min-height: 100px;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(10, 37, 64, 0.1);
+    outline: none;
+}
+
+.contract-form-section {
+    padding: 1.5rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+}
+
+.contract-form-section .section-title {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Upload & Collapsible PDF */
+.collapsible-header:hover {
+    background: #f1f5f9 !important;
+}
+
+.upload-card {
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    text-align: center;
+}
+
+.upload-card:hover {
+    border-color: var(--color-primary);
+    background: #f8fafc;
+}
+
+.upload-card.has-file {
+    border-style: solid;
+    border-color: var(--color-primary);
+    background: #f0fdf4;
+}
+
+.upload-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    background: #f1f5f9;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary);
+    transition: all 0.2s ease;
+}
+
+.upload-card:hover .upload-icon-wrapper {
+    transform: scale(1.1);
+    background: #e0f2fe;
+}
+
+.upload-text-main {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.upload-text-sub {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.upload-btn-styled {
+    margin-top: 0.5rem;
+    background: #f1f5f9;
+    color: var(--text-primary);
+    padding: 0.5rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.upload-card:hover .upload-btn-styled {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+.file-name-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #e2e8f0;
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Modal Layout */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(10, 37, 64, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+    padding: 1.5rem;
+}
+
+.modal-content {
+    background: white;
+    width: 100%;
+    max-width: 800px;
+    max-height: 90vh;
+    border-radius: 20px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    animation: modalAppear 0.3s ease-out;
+}
+
+@keyframes modalAppear {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-header {
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.modal-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.modal-close-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.modal-close-btn:hover {
+    background: #f1f5f9;
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 2rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    padding: 1.25rem 2rem;
+    border-top: 1px solid #f1f5f9;
+    background: #f8fafc;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .contract-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-content {
+        max-height: 100%;
+        border-radius: 0;
+    }
+
+    .modal-overlay {
+        padding: 0;
+    }
 }
 
 @keyframes slideDown {

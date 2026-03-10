@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, FileText, CheckCircle, AlertTriangle, TrendingUp, MoreVertical } from 'lucide-react';
 import { empenhosService } from '../services/api/empenhos.service';
+import { formatLocalDate } from '../utils/dateUtils';
 import './Contratos.css'; // Reutilizando a arquitetura premium já criada
 
 const Empenhos = () => {
@@ -38,8 +39,7 @@ const Empenhos = () => {
     };
 
     const formatDate = (isoString) => {
-        if (!isoString) return '-';
-        return new Intl.DateTimeFormat('pt-BR').format(new Date(isoString));
+        return formatLocalDate(isoString);
     };
 
     // Filter and Sort Engine
