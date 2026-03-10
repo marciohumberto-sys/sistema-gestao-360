@@ -1,13 +1,18 @@
 .app-container {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
+    /* Prevent double scrollbars at root */
 }
 
 .main-content {
     margin-top: var(--topbar-height);
-    min-height: calc(100vh - var(--topbar-height));
+    height: calc(100vh - var(--topbar-height));
     background-color: var(--bg-muted);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -27,6 +32,11 @@
     max-width: 1280px;
     margin: 0 auto;
     width: 100%;
+    flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Allows legacy pages to scroll properly without breaking flex children */
 }

@@ -19,7 +19,9 @@ import {
     AlertTriangle,
     UploadCloud,
     ExternalLink,
-    Download
+    Download,
+    FileWarning,
+    X
 } from 'lucide-react';
 import { contractsService } from '../services/api/contracts.service';
 import { empenhosService } from '../services/api/empenhos.service';
@@ -45,6 +47,7 @@ const ContractDetails = () => {
     const [error, setError] = useState(false);
 
     const [activeTab, setActiveTab] = useState('geral');
+    const [showAlerts, setShowAlerts] = useState(true);
 
     // Itens & Rateio State
     const [items, setItems] = useState([]);
@@ -595,6 +598,37 @@ const ContractDetails = () => {
         return getDaysDiffFromToday(endDateISO);
     };
 
+    // Alert Logic for Details
+    const getContractAlerts = () => {
+        if (!contract) return [];
+        const alerts = [];
+        const daysDiff = getDaysDiffFromToday(contract.dateRange?.endDate);
+
+        if (contract.status === 'RESCINDIDO') {
+            alerts.push({ id: 'rescinded', type: 'danger', icon: <AlertCircle size={18} />, title: 'Contrato Rescindido', description: 'Este contrato foi rescindido e não admite novas operações.' });
+        } else if (daysDiff !== null) {
+            if (daysDiff < 0) {
+                alerts.push({ id: 'expired', type: 'danger', icon: <Clock size={18} />, title: 'Vigência Encerrada', description: `O contrato venceu há ${Math.abs(daysDiff)} dias (${formatDate(contract.dateRange?.endDate)}).` });
+            } else if (daysDiff <= 30) {
+                const expirationWarning = daysDiff === 0
+                    ? 'vence hoje'
+                    : (daysDiff === 1 ? 'vence em 1 dia' : `vence em ${daysDiff} dias`);
+                alerts.push({ id: 'expiring', type: 'warning', icon: <Clock size={18} />, title: 'Vigência Próxima do Fim', description: `Este contrato ${expirationWarning} (${formatDate(contract.dateRange?.endDate)}). Verifique a necessidade de aditivo.` });
+            }
+        }
+
+        if (!contract.contract_pdf_url) {
+            alerts.push({ id: 'no-pdf', type: 'info', icon: <FileWarning size={18} />, title: 'Documento Ausente', description: 'Não há uma cópia digital (PDF) do contrato vinculada a este registro.' });
+        }
+
+        // Check for incomplete critical data
+        if (!contract.managerName || !contract.technical_fiscal_name) {
+            alerts.push({ id: 'incomplete', type: 'info', icon: <AlertTriangle size={18} />, title: 'Dados Incompletos', description: 'Informações de responsáveis (Gestor ou Fiscal) não foram totalmente preenchidas.' });
+        }
+
+        return alerts;
+    };
+
     // Calculate specific stats based on rules
     let commitValue = 0;
     let balanceValue = 0;
@@ -698,17 +732,17 @@ const ContractDetails = () => {
                 </div>
             )}
 
-            {/* Header Section */}
+            {/* Header Section (Compact) */}
             <header className="cd-header">
-                <div className="cd-header-main">
+                <div className="cd-header-main" style={{ alignItems: 'center' }}>
                     <div>
-                        <div className="cd-title-group">
-                            <h1 className="cd-title">{contract.number} — {contract.title}</h1>
+                        <div className="cd-title-group" style={{ marginBottom: '0.25rem' }}>
+                            <h1 className="cd-title" style={{ fontSize: '1.5rem', fontWeight: 700 }}>{contract.number} — {contract.title}</h1>
                             <span className={`status-badge-lg ${contract.status.toLowerCase()}`}>
                                 {contract.status}
                             </span>
                         </div>
-                        <p className="cd-supplier-name">{contract.supplierName}</p>
+                        <p className="cd-supplier-name" style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{contract.supplierName}</p>
                     </div>
 
                     <div className="cd-header-actions">
@@ -724,19 +758,65 @@ const ContractDetails = () => {
                             </button>
                         </div>
 
-                        <button className="cd-action-icon-btn">
-                            <MoreVertical size={20} />
-                        </button>
+                        {/* Functional Alert Indicator Toggle with Premium Tooltip */}
+                        <div className="cd-alert-indicator-wrapper">
+                            <button
+                                className={`cd-alert-indicator ${showAlerts && getContractAlerts().length > 0 ? 'is-panel-open' : ''} ${getContractAlerts().length === 0 ? 'is-empty' : ''}`}
+                                onClick={() => getContractAlerts().length > 0 && setShowAlerts(!showAlerts)}
+                                style={{ cursor: getContractAlerts().length === 0 ? 'default' : 'pointer' }}
+                            >
+                                <AlertTriangle size={16} />
+                                {getContractAlerts().length > 0 && (
+                                    <span>{getContractAlerts().length}</span>
+                                )}
+                            </button>
+                            <span className="cd-alert-tooltip">
+                                {getContractAlerts().length === 0
+                                    ? 'Nenhum alerta ativo'
+                                    : `${getContractAlerts().length} alertas ativos no contrato. Clique para ${showAlerts ? 'fechar' : 'visualizar'}.`
+                                }
+                            </span>
+                        </div>
                     </div>
                 </div>
             </header>
+
+            {/* Unified Operational Alerts Panel */}
+            {showAlerts && getContractAlerts().length > 0 && (
+                <section className="cd-alerts-panel">
+                    <div className="cd-alerts-panel-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <AlertTriangle size={20} className="cd-alerts-main-icon" />
+                            <span>Alertas do Contrato</span>
+                        </div>
+                        <button
+                            className="cd-alerts-close-btn"
+                            onClick={() => setShowAlerts(false)}
+                            title="Ocultar alertas"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                    <div className="cd-alerts-panel-content">
+                        {getContractAlerts().map(alert => (
+                            <div key={alert.id} className={`cd-alert-list-item ${alert.type}`}>
+                                <span className="cd-alert-bullet">•</span>
+                                <div className="cd-alert-text">
+                                    <strong>{alert.title}:</strong> {alert.description}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+
 
             {/* KPI Row */}
             <section className="cd-kpi-grid">
                 <div className="cd-kpi-card">
                     <div className="cd-kpi-icon"><DollarSign size={20} /></div>
                     <div className="cd-kpi-data">
-                        <span className="cd-kpi-label">Valor Total</span>
+                        <span className="cd-kpi-label">Valor Global</span>
                         <span className="cd-kpi-value">{formatCurrency(contract.totalValue)}</span>
                     </div>
                 </div>
@@ -762,7 +842,10 @@ const ContractDetails = () => {
                             <span className="cd-kpi-value date">{formatDate(contract.dateRange?.endDate)}</span>
                             {daysLeft !== null && (
                                 <span className={`cd-kpi-badge ${isUrgent || daysLeft < 0 ? 'danger' : 'neutral'}`}>
-                                    {daysLeft < 0 ? `Vencido há ${Math.abs(daysLeft)} dias` : `Faltam ${daysLeft} dias`}
+                                    {daysLeft < 0
+                                        ? (daysLeft === -1 ? 'Vencido há 1 dia' : `Vencido há ${Math.abs(daysLeft)} dias`)
+                                        : (daysLeft === 0 ? 'Vence hoje' : (daysLeft === 1 ? 'Falta 1 dia' : `Faltam ${daysLeft} dias`))
+                                    }
                                 </span>
                             )}
                         </div>
@@ -809,99 +892,105 @@ const ContractDetails = () => {
                     {/* VISÃO GERAL TAB */}
                     {activeTab === 'geral' && (
                         <div className="cd-grid-details">
-                            <div className="cd-detail-group full">
-                                <h3>Objeto do Contrato</h3>
-                                <p className="cd-detail-text">{contract.title}</p>
-                            </div>
-                            {contract.contract_object && (
-                                <div className="cd-detail-group full">
-                                    <label>Objeto do Contrato</label>
-                                    <span style={{ whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>{contract.contract_object}</span>
+                            <div className="cd-detail-group full" style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginBottom: '0.5rem', display: 'block' }}>Objeto do Contrato</label>
+                                <div style={{ fontSize: '1.05rem', lineHeight: '1.6', color: 'var(--text-primary)', fontWeight: 500, whiteSpace: 'pre-wrap', background: '#f8fafc', padding: '1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                    {contract.contract_object || contract.title}
                                 </div>
-                            )}
+                            </div>
+
                             <div className="cd-detail-group">
                                 <label>Fornecedor (Razão Social)</label>
                                 <span>{contract.supplierName}</span>
                             </div>
+
                             <div className="cd-detail-group">
                                 <label>CNPJ</label>
                                 <span>{contract.cnpj || 'Não informado'}</span>
                             </div>
+
                             <div className="cd-detail-group full">
                                 <label>Endereço</label>
                                 <span>{contract.address || 'Não informado'}</span>
                             </div>
-                            <div className="cd-detail-group">
-                                <label>Período de Vigência</label>
-                                <span>{formatDate(contract.dateRange?.startDate)} até {formatDate(contract.dateRange?.endDate)}</span>
-                            </div>
+
                             <div className="cd-detail-group">
                                 <label>Secretaria Responsável</label>
                                 <span>{secretariats.find(s => s.id === contract.secretariat_id)?.name || 'Não informada'}</span>
                             </div>
+
+                            <div className="cd-detail-group">
+                                <label>Período de Vigência</label>
+                                <span>{formatDate(contract.dateRange?.startDate)} até {formatDate(contract.dateRange?.endDate)}</span>
+                            </div>
+
                             <div className="cd-detail-group">
                                 <label>Processo Licitatório</label>
                                 <span>{contract.biddingProcess || 'Não informado'}</span>
                             </div>
+
                             <div className="cd-detail-group">
                                 <label>Pregão Eletrônico</label>
                                 <span>{contract.electronicAuction || 'Não informado'}</span>
                             </div>
+
                             <div className="cd-detail-group">
-                                <label>Código / Ref</label>
+                                <label>Código / Referência</label>
                                 <span>{contract.code || 'Não informado'}</span>
                             </div>
 
                             {contract.contract_pdf_url && (
-                                <div className="cd-detail-group full">
+                                <div className="cd-detail-group full" style={{ margin: '1rem 0' }}>
                                     <label>Arquivo do Contrato</label>
-                                    <a href={contract.contract_pdf_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-primary)', fontWeight: 500, textDecoration: 'none', padding: '0.5rem 1rem', background: '#f1f5f9', borderRadius: '8px', width: 'fit-content' }}>
-                                        <FileText size={18} /> Acessar PDF do Contrato
-                                    </a>
+                                    <div style={{ marginTop: '0.5rem' }}>
+                                        <a href={contract.contract_pdf_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.75rem', color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'none', padding: '0.75rem 1.25rem', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', transition: 'all 0.2s' }}>
+                                            <FileText size={20} /> Visualizar Contrato (PDF)
+                                        </a>
+                                    </div>
                                 </div>
                             )}
 
-                            <div className="cd-detail-group full" style={{ marginTop: '1rem' }}>
-                                <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)', fontSize: '1.05rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem' }}>Responsáveis pelo Contrato</h4>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
+                            <div className="cd-detail-group full" style={{ marginTop: '0.5rem' }}>
+                                <h4 style={{ margin: '0 0 1.25rem 0', color: 'var(--text-primary)', fontSize: '1rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem', fontWeight: 600 }}>Responsáveis pelo Contrato</h4>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', padding: '1rem', background: '#ffffff', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
                                     <div>
-                                        <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Gestor do Contrato</label>
-                                        <div style={{ fontWeight: 500, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{contract.managerName || 'Não informado'}</div>
-                                        {contract.manager_registration && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Matrícula: {contract.manager_registration}</div>}
+                                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Gestor do Contrato</label>
+                                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.4rem', fontSize: '0.95rem' }}>{contract.managerName || 'Não informado'}</div>
+                                        {contract.manager_registration && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Matrícula: {contract.manager_registration}</div>}
                                     </div>
                                     <div>
-                                        <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Fiscal Técnico</label>
-                                        <div style={{ fontWeight: 500, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{contract.technical_fiscal_name || 'Não informado'}</div>
-                                        {contract.technical_fiscal_registration && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Matrícula: {contract.technical_fiscal_registration}</div>}
+                                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Fiscal Técnico</label>
+                                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.4rem', fontSize: '0.95rem' }}>{contract.technical_fiscal_name || 'Não informado'}</div>
+                                        {contract.technical_fiscal_registration && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Matrícula: {contract.technical_fiscal_registration}</div>}
                                     </div>
                                     <div>
-                                        <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Fiscal Administrativo</label>
-                                        <div style={{ fontWeight: 500, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{contract.administrative_fiscal_name || 'Não informado'}</div>
-                                        {contract.administrative_fiscal_registration && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Matrícula: {contract.administrative_fiscal_registration}</div>}
+                                        <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Fiscal Administrativo</label>
+                                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.4rem', fontSize: '0.95rem' }}>{contract.administrative_fiscal_name || 'Não informado'}</div>
+                                        {contract.administrative_fiscal_registration && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Matrícula: {contract.administrative_fiscal_registration}</div>}
                                     </div>
                                 </div>
                             </div>
 
                             {contract.rescinded_at && (
-                                <div className="cd-detail-group full" style={{ marginTop: '0.75rem', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '8px', padding: '1rem' }}>
-                                    <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--danger-color, #d92d20)', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <AlertTriangle size={18} /> Rescisão de Contrato
+                                <div className="cd-detail-group full" style={{ marginTop: '0.75rem', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '12px', padding: '1.25rem' }}>
+                                    <h4 style={{ margin: '0 0 1rem 0', color: 'var(--danger-color, #d92d20)', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+                                        <AlertTriangle size={18} /> CONTRATO RESCINDIDO
                                     </h4>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
                                         <div>
-                                            <label style={{ fontSize: '0.8rem', color: '#9f1239', textTransform: 'uppercase', fontWeight: 600 }}>Data da Rescisão</label>
-                                            <div style={{ fontWeight: 700, color: '#881337', marginTop: '0.125rem' }}>{formatDate(contract.rescinded_at)}</div>
+                                            <label style={{ fontSize: '0.75rem', color: '#9f1239', textTransform: 'uppercase', fontWeight: 700 }}>Data da Rescisão</label>
+                                            <div style={{ fontWeight: 700, color: '#881337', marginTop: '0.25rem' }}>{formatDate(contract.rescinded_at)}</div>
                                         </div>
                                         {contract.rescission_notes && (
                                             <div>
-                                                <label style={{ fontSize: '0.8rem', color: '#9f1239', textTransform: 'uppercase', fontWeight: 600 }}>Observação</label>
-                                                <div style={{ color: '#881337', marginTop: '0.125rem', fontSize: '0.9rem', lineHeight: '1.4' }}>{contract.rescission_notes}</div>
+                                                <label style={{ fontSize: '0.75rem', color: '#9f1239', textTransform: 'uppercase', fontWeight: 700 }}>Observação</label>
+                                                <div style={{ color: '#881337', marginTop: '0.25rem', fontSize: '0.9rem', lineHeight: '1.5' }}>{contract.rescission_notes}</div>
                                             </div>
                                         )}
                                         {contract.rescission_pdf_url && (
-                                            <div style={{ gridColumn: '1 / -1', marginTop: '0.25rem' }}>
-                                                <a href={contract.rescission_pdf_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: '#fff', backgroundColor: '#e11d48', fontWeight: 500, textDecoration: 'none', padding: '0.4rem 0.875rem', borderRadius: '6px', fontSize: '0.875rem' }}>
-                                                    <FileText size={16} /> Visualizar Termo de Rescisão
+                                            <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem' }}>
+                                                <a href={contract.rescission_pdf_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: '#fff', backgroundColor: '#e11d48', fontWeight: 600, textDecoration: 'none', padding: '0.6rem 1rem', borderRadius: '8px', fontSize: '0.875rem', boxShadow: '0 2px 4px rgba(225, 29, 72, 0.2)' }}>
+                                                    <FileText size={18} /> Visualizar Termo de Rescisão (PDF)
                                                 </a>
                                             </div>
                                         )}
@@ -910,12 +999,14 @@ const ContractDetails = () => {
                             )}
 
                             <div className="cd-detail-group full" style={{ marginTop: '1rem' }}>
-                                <label>Observações Gerais</label>
-                                {contract.notes ? (
-                                    <span style={{ whiteSpace: 'pre-wrap' }}>{contract.notes}</span>
-                                ) : (
-                                    <span className="empty-value">Nenhuma observação registrada neste contrato.</span>
-                                )}
+                                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.5rem', display: 'block' }}>Observações Gerais</label>
+                                <div style={{ background: '#ffffff', border: '1px solid var(--border-light)', padding: '1.25rem', borderRadius: '12px', minHeight: '80px' }}>
+                                    {contract.notes ? (
+                                        <span style={{ whiteSpace: 'pre-wrap', color: 'var(--text-primary)', lineHeight: '1.6' }}>{contract.notes}</span>
+                                    ) : (
+                                        <span className="empty-value" style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>Nenhuma observação informada.</span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -1592,7 +1683,7 @@ const ContractDetails = () => {
                     <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '720px' }}>
                         <div className="modal-header">
                             <h2>Editar Contrato</h2>
-                            <button className="close-btn" onClick={() => setIsEditModalOpen(false)}>×</button>
+                            <button className="modal-close-btn" onClick={() => setIsEditModalOpen(false)}>×</button>
                         </div>
                         <div className="modal-body">
                             <form id="editContractForm" onSubmit={handleUpdateContract}>
@@ -1626,21 +1717,22 @@ const ContractDetails = () => {
                                                 ))}
                                             </select>
                                         </div>
-                                        <div className="form-group">
+                                        <div className="form-group" style={{ height: '44px' }}>
                                             <label>Processo Licitatório</label>
-                                            <input type="text" placeholder="Ex: 010/2025" value={contractFormData.biddingProcess} onChange={e => setContractFormData({ ...contractFormData, biddingProcess: e.target.value })} />
+                                            <input style={{ height: '44px', borderRadius: '10px' }} type="text" placeholder="Ex: 010/2025" value={contractFormData.biddingProcess} onChange={e => setContractFormData({ ...contractFormData, biddingProcess: e.target.value })} />
                                         </div>
-                                        <div className="form-group">
+                                        <div className="form-group" style={{ height: '44px' }}>
                                             <label>Pregão Eletrônico</label>
-                                            <input type="text" placeholder="Ex: 005/2025" value={contractFormData.electronicAuction} onChange={e => setContractFormData({ ...contractFormData, electronicAuction: e.target.value })} />
+                                            <input style={{ height: '44px', borderRadius: '10px' }} type="text" placeholder="Ex: 005/2025" value={contractFormData.electronicAuction} onChange={e => setContractFormData({ ...contractFormData, electronicAuction: e.target.value })} />
                                         </div>
                                         <div className="form-group full-width">
                                             <label>Título *</label>
-                                            <input required type="text" placeholder="Nome curto do contrato" value={contractFormData.title} onChange={e => setContractFormData({ ...contractFormData, title: e.target.value })} />
+                                            <input required style={{ height: '44px', borderRadius: '10px' }} type="text" placeholder="Nome curto do contrato" value={contractFormData.title} onChange={e => setContractFormData({ ...contractFormData, title: e.target.value })} />
                                         </div>
                                         <div className="form-group full-width" style={{ marginTop: '1.25rem' }}>
                                             <label>Objeto do Contrato</label>
                                             <input
+                                                style={{ height: '44px', borderRadius: '10px' }}
                                                 type="text"
                                                 placeholder="Descrição resumida do objeto do contrato"
                                                 value={contractFormData.contract_object}
@@ -1650,6 +1742,7 @@ const ContractDetails = () => {
                                         <div className="form-group">
                                             <label>CNPJ</label>
                                             <input
+                                                style={{ height: '44px', borderRadius: '10px' }}
                                                 type="text"
                                                 placeholder="00.000.000/0000-00"
                                                 value={contractFormData.cnpj}
@@ -1658,7 +1751,7 @@ const ContractDetails = () => {
                                         </div>
                                         <div className="form-group">
                                             <label>Endereço</label>
-                                            <input type="text" placeholder="Rua, Número, Bairro, Cidade" value={contractFormData.address} onChange={e => setContractFormData({ ...contractFormData, address: e.target.value })} />
+                                            <input style={{ height: '44px', borderRadius: '10px' }} type="text" placeholder="Rua, Número, Bairro, Cidade" value={contractFormData.address} onChange={e => setContractFormData({ ...contractFormData, address: e.target.value })} />
                                         </div>
 
                                         {/* PDF Section */}
@@ -1684,7 +1777,7 @@ const ContractDetails = () => {
                                                     Documento do Contrato (PDF)
                                                 </div>
                                                 <div style={{ color: '#64748b', fontSize: '10px' }}>
-                                                    {isPdfSectionExpanded ? '▼' : '▶'}
+                                                    {isPdfSectionExpanded ? '▼' : '◀'}
                                                 </div>
                                             </div>
 
@@ -1728,6 +1821,42 @@ const ContractDetails = () => {
                                                                     >
                                                                         <Download size={14} /> Baixar
                                                                     </a>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={async (e) => {
+                                                                            e.preventDefault(); e.stopPropagation();
+                                                                            if (window.confirm("Tem certeza que deseja remover o documento PDF deste contrato? Esta ação é irreversível.")) {
+                                                                                try {
+                                                                                    // Extract path from URL
+                                                                                    const url = contractFormData.contract_pdf_url;
+                                                                                    const pathMatch = url.match(/\/storage\/v1\/object\/public\/contracts_files\/(.+)$/);
+                                                                                    const path = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+
+                                                                                    if (path) {
+                                                                                        await filesService.deleteFile('contracts_files', path);
+                                                                                    }
+
+                                                                                    await contractsService.update(id, { ...contract, contract_pdf_url: null });
+
+                                                                                    setContractFormData({ ...contractFormData, contract_pdf_url: null });
+                                                                                    setContractFile(null);
+
+                                                                                    // Refetch contract and history
+                                                                                    const updated = await contractsService.getById(id);
+                                                                                    setContract(updated);
+                                                                                    await fetchHistory();
+                                                                                    showToast("PDF removido com sucesso!");
+                                                                                } catch (err) {
+                                                                                    console.error("Erro ao remover PDF:", err);
+                                                                                    showToast("Erro ao remover arquivo: " + err.message, 'error');
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        className="btn-action-small"
+                                                                        style={{ padding: '6px 12px', background: '#fff', border: '1px solid #fecdd3', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', height: '32px', color: '#d92d20' }}
+                                                                    >
+                                                                        <Trash2 size={14} /> Remover
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         ) : null}
@@ -1757,22 +1886,22 @@ const ContractDetails = () => {
                                         <div className="form-group full-width" style={{ marginBottom: '0.25rem' }}>
                                             <label>Gestor do Contrato</label>
                                             <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                                <input style={{ flex: 3 }} type="text" placeholder="Nome" value={contractFormData.managerName} onChange={e => setContractFormData({ ...contractFormData, managerName: e.target.value })} />
-                                                <input style={{ flex: 1 }} type="text" placeholder="Ex: 123456" value={contractFormData.manager_registration} onChange={e => setContractFormData({ ...contractFormData, manager_registration: e.target.value })} />
+                                                <input style={{ flex: 3, height: '44px', borderRadius: '10px' }} type="text" placeholder="Nome" value={contractFormData.managerName} onChange={e => setContractFormData({ ...contractFormData, managerName: e.target.value })} />
+                                                <input style={{ flex: 1, height: '44px', borderRadius: '10px' }} type="text" placeholder="Ex: 123456" value={contractFormData.manager_registration} onChange={e => setContractFormData({ ...contractFormData, manager_registration: e.target.value })} />
                                             </div>
                                         </div>
                                         <div className="form-group full-width" style={{ marginBottom: '0.25rem' }}>
                                             <label>Fiscal Técnico</label>
                                             <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                                <input style={{ flex: 3 }} type="text" placeholder="Nome" value={contractFormData.technical_fiscal_name} onChange={e => setContractFormData({ ...contractFormData, technical_fiscal_name: e.target.value })} />
-                                                <input style={{ flex: 1 }} type="text" placeholder="Ex: 123456" value={contractFormData.technical_fiscal_registration} onChange={e => setContractFormData({ ...contractFormData, technical_fiscal_registration: e.target.value })} />
+                                                <input style={{ flex: 3, height: '44px', borderRadius: '10px' }} type="text" placeholder="Nome" value={contractFormData.technical_fiscal_name} onChange={e => setContractFormData({ ...contractFormData, technical_fiscal_name: e.target.value })} />
+                                                <input style={{ flex: 1, height: '44px', borderRadius: '10px' }} type="text" placeholder="Ex: 123456" value={contractFormData.technical_fiscal_registration} onChange={e => setContractFormData({ ...contractFormData, technical_fiscal_registration: e.target.value })} />
                                             </div>
                                         </div>
                                         <div className="form-group full-width" style={{ marginBottom: '0.25rem' }}>
                                             <label>Fiscal Administrativo</label>
                                             <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                                <input style={{ flex: 3 }} type="text" placeholder="Nome" value={contractFormData.administrative_fiscal_name} onChange={e => setContractFormData({ ...contractFormData, administrative_fiscal_name: e.target.value })} />
-                                                <input style={{ flex: 1 }} type="text" placeholder="Ex: 123456" value={contractFormData.administrative_fiscal_registration} onChange={e => setContractFormData({ ...contractFormData, administrative_fiscal_registration: e.target.value })} />
+                                                <input style={{ flex: 3, height: '44px', borderRadius: '10px' }} type="text" placeholder="Nome" value={contractFormData.administrative_fiscal_name} onChange={e => setContractFormData({ ...contractFormData, administrative_fiscal_name: e.target.value })} />
+                                                <input style={{ flex: 1, height: '44px', borderRadius: '10px' }} type="text" placeholder="Ex: 123456" value={contractFormData.administrative_fiscal_registration} onChange={e => setContractFormData({ ...contractFormData, administrative_fiscal_registration: e.target.value })} />
                                             </div>
                                         </div>
                                     </div>
@@ -1786,6 +1915,7 @@ const ContractDetails = () => {
                                             <label>Valor Total (R$) *</label>
                                             <input
                                                 required
+                                                style={{ height: '44px', borderRadius: '10px' }}
                                                 type="text"
                                                 placeholder="R$ 0,00"
                                                 value={getMaskedContractCurrencyValue(contractFormData.totalValue)}
@@ -1808,13 +1938,13 @@ const ContractDetails = () => {
                                 <div className="contract-form-section">
                                     <div className="section-title">Vigência</div>
                                     <div className="contract-form-grid">
-                                        <div className="form-group">
+                                        <div className="form-group" style={{ height: '44px' }}>
                                             <label>Data de Início</label>
-                                            <input required type="date" value={contractFormData.startDate} onChange={e => setContractFormData({ ...contractFormData, startDate: e.target.value })} />
+                                            <input required style={{ height: '44px', borderRadius: '10px' }} type="date" value={contractFormData.startDate} onChange={e => setContractFormData({ ...contractFormData, startDate: e.target.value })} />
                                         </div>
-                                        <div className="form-group">
+                                        <div className="form-group" style={{ height: '44px' }}>
                                             <label>Data de Vencimento</label>
-                                            <input required type="date" value={contractFormData.endDate} onChange={e => setContractFormData({ ...contractFormData, endDate: e.target.value })} />
+                                            <input required style={{ height: '44px', borderRadius: '10px' }} type="date" value={contractFormData.endDate} onChange={e => setContractFormData({ ...contractFormData, endDate: e.target.value })} />
                                         </div>
                                     </div>
                                 </div>
@@ -1834,9 +1964,9 @@ const ContractDetails = () => {
 
                                     {isRescissionActive && (
                                         <div className="contract-form-grid" style={{ marginTop: '1.5rem' }}>
-                                            <div className="form-group">
+                                            <div className="form-group" style={{ height: '44px' }}>
                                                 <label>Data da rescisão *</label>
-                                                <input required={isRescissionActive} type="date" value={contractFormData.rescinded_at} onChange={e => setContractFormData({ ...contractFormData, rescinded_at: e.target.value })} />
+                                                <input required={isRescissionActive} style={{ height: '44px', borderRadius: '10px' }} type="date" value={contractFormData.rescinded_at} onChange={e => setContractFormData({ ...contractFormData, rescinded_at: e.target.value })} />
                                             </div>
                                             <div className="form-group full-width">
                                                 <label>Observação</label>
@@ -1888,6 +2018,42 @@ const ContractDetails = () => {
                                                                 >
                                                                     <Download size={14} /> Baixar
                                                                 </a>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={async (e) => {
+                                                                        e.preventDefault(); e.stopPropagation();
+                                                                        if (window.confirm("Tem certeza que deseja remover o PDF da rescisão? Esta ação é irreversível.")) {
+                                                                            try {
+                                                                                // Extract path from URL
+                                                                                const url = contractFormData.rescission_pdf_url;
+                                                                                const pathMatch = url.match(/\/storage\/v1\/object\/public\/contracts_files\/(.+)$/);
+                                                                                const path = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+
+                                                                                if (path) {
+                                                                                    await filesService.deleteFile('contracts_files', path);
+                                                                                }
+
+                                                                                await contractsService.update(id, { ...contract, rescission_pdf_url: null });
+
+                                                                                setContractFormData({ ...contractFormData, rescission_pdf_url: null });
+                                                                                setRescissionFile(null);
+
+                                                                                // Refetch contract and history
+                                                                                const updated = await contractsService.getById(id);
+                                                                                setContract(updated);
+                                                                                await fetchHistory();
+                                                                                showToast("PDF da rescisão removido com sucesso!");
+                                                                            } catch (err) {
+                                                                                console.error("Erro ao remover PDF da rescisão:", err);
+                                                                                showToast("Erro ao remover arquivo: " + err.message, 'error');
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="btn-action-small"
+                                                                    style={{ padding: '6px 12px', background: '#fff', border: '1px solid #fecdd3', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', height: '32px', color: '#d92d20' }}
+                                                                >
+                                                                    <Trash2 size={14} /> Remover
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     ) : null}
@@ -1909,13 +2075,13 @@ const ContractDetails = () => {
                                     )}
                                 </div>
 
-                                <div className="modal-footer" style={{ marginTop: '2rem' }}>
-                                    <button type="button" className="cd-btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancelar</button>
-                                    <button type="submit" className="cd-btn-primary" disabled={isSubmittingEdit}>
-                                        {isSubmittingEdit ? 'Salvando...' : 'Salvar Alterações'}
-                                    </button>
-                                </div>
                             </form>
+                        </div>
+                        <div className="modal-footer" style={{ padding: '1.25rem 2rem', borderTop: '1px solid #f1f5f9', background: '#ffffff', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                            <button type="button" className="cd-btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancelar</button>
+                            <button type="submit" form="editContractForm" className="cd-btn-primary" disabled={isSubmittingEdit}>
+                                {isSubmittingEdit ? 'Salvando...' : 'Salvar Alterações'}
+                            </button>
                         </div>
                     </div>
                 </div>

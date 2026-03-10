@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Edit2, Trash2, Calendar, TrendingUp, AlertCircle, FileText, AlertTriangle, UploadCloud, Link as LinkIcon, ExternalLink, Download } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Calendar, TrendingUp, AlertCircle, FileText, AlertTriangle, UploadCloud, Link as LinkIcon, ExternalLink, Download, Clock, FileWarning } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { contractsService } from '../services/api/contracts.service';
 import { secretariatsService } from '../services/api/secretariats.service';
 import { filesService } from '../services/api/files.service';
 import { useTenant } from '../context/TenantContext';
-import { formatLocalDate, getTodayLocalDateString } from '../utils/dateUtils';
+import { formatLocalDate, getTodayLocalDateString, getDaysDiffFromToday } from '../utils/dateUtils';
 import './Contratos.css';
 
 const Contratos = () => {
@@ -135,6 +135,35 @@ const Contratos = () => {
             .replace(/[^a-z0-9._-]/g, "") // Mantém alphanumeric, ponto, underscore, hífen
             .replace(/-+/g, "-") // Remove hífens consecutivos
             .replace(/^-+|-+$/g, ""); // Remove hífens no início/fim
+    };
+
+    // Alert Logic
+    const getContractAlerts = (contract) => {
+        const alerts = [];
+        const daysDiff = getDaysDiffFromToday(contract.dateRange?.endDate);
+
+        if (contract.status === 'RESCINDIDO') {
+            alerts.push({ id: 'rescinded', icon: <AlertCircle size={14} color="#d92d20" />, label: 'Contrato Rescindido' });
+        } else if (daysDiff !== null) {
+            if (daysDiff < 0) {
+                alerts.push({ id: 'expired', icon: <Clock size={14} color="#d92d20" />, label: daysDiff === -1 ? 'Vencido há 1 dia' : `Vencido há ${Math.abs(daysDiff)} dias` });
+            } else if (daysDiff <= 30) {
+                const expirationWarning = daysDiff === 0
+                    ? 'Vence hoje'
+                    : (daysDiff === 1 ? 'Vencendo em 1 dia' : `Vencendo em ${daysDiff} dias`);
+                alerts.push({ id: 'expiring', icon: <Clock size={14} color="#f79009" />, label: expirationWarning });
+            }
+        }
+
+        if (!contract.contract_pdf_url) {
+            alerts.push({ id: 'no-pdf', icon: <FileWarning size={14} color="#667085" />, label: 'Sem PDF anexado' });
+        }
+
+        if (contract.isPending) {
+            alerts.push({ id: 'pending-items', icon: <AlertTriangle size={14} color="#eab308" />, label: 'Sem itens cadastrados' });
+        }
+
+        return alerts;
     };
 
     const getFilenameFromUrl = (url) => {
@@ -526,38 +555,38 @@ const Contratos = () => {
                                             className="clickable-row"
                                         >
                                             <td>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <span className="td-number">{contract.number}</span>
-                                                    {(contract.status === 'VENCIDO' || contract.status === 'VENCENDO' || contract.isPending) && (
-                                                        <AlertTriangle
-                                                            size={16}
-                                                            className="pendency-icon"
-                                                            title={contract.isPending ? "Este contrato não possui itens cadastrados. Cadastre itens para permitir a geração de empenhos." : ""}
-                                                        />
-                                                    )}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '300px' }}>
+                                                    <span className="td-number" style={{ whiteSpace: 'nowrap' }}>{contract.number}</span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span className="title-text" title={contract.title}>{contract.title}</span>
+                                                        {getContractAlerts(contract).length > 0 && (
+                                                            <div className="ct-alerts-list" style={{ marginLeft: 0 }}>
+                                                                {getContractAlerts(contract).map(alert => (
+                                                                    <div key={alert.id} className="ct-alert-icon">
+                                                                        {alert.icon}
+                                                                        <span className="premium-tooltip">{alert.label}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <span className="title-text" title={contract.title}>{contract.title}</span>
-                                                {contract.isPending && (
-                                                    <span className="pendency-subtext">Sem itens cadastrados</span>
-                                                )}
                                             </td>
                                             <td>
                                                 <span className="td-title">{contract.supplierName}</span>
                                             </td>
                                             <td className="td-dates">
-                                                <div>
-                                                    <span className="date-start">
-                                                        Início: {formatDate(contract.dateRange.startDate)}
-                                                    </span>
-                                                    <span className="date-end" style={{ color: contract.status === 'VENCIDO' ? 'var(--danger-color, #d92d20)' : 'inherit' }}>
-                                                        Vence: {formatDate(contract.dateRange.endDate)}
+                                                <div className="date-range-compact">
+                                                    <span>{formatDate(contract.dateRange.startDate)}</span>
+                                                    <span style={contract.status === 'VENCIDO' ? { color: 'var(--danger-color, #d92d20)', fontWeight: 700 } : undefined}>
+                                                        {formatDate(contract.dateRange.endDate)}
                                                     </span>
                                                 </div>
                                             </td>
                                             <td className="td-values">
                                                 <span className="val-total">{formatCurrency(contract.totalValue)}</span>
                                                 <span className="val-balance" style={{ color: getBalanceColor(contract.balanceValue, contract.totalValue) }}>
-                                                    Saldo: {formatCurrency(contract.balanceValue)}
+                                                    Saldo {formatCurrency(contract.balanceValue)}
                                                 </span>
                                             </td>
                                             <td>
@@ -702,7 +731,7 @@ const Contratos = () => {
                                                     Documento do Contrato (PDF)
                                                 </div>
                                                 <div style={{ color: '#64748b', fontSize: '10px' }}>
-                                                    {isPdfSectionExpanded ? '▼' : '▶'}
+                                                    {isPdfSectionExpanded ? '▼' : '◀'}
                                                 </div>
                                             </div>
 
@@ -746,6 +775,41 @@ const Contratos = () => {
                                                                     >
                                                                         <Download size={14} /> Baixar
                                                                     </a>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={async (e) => {
+                                                                            e.preventDefault(); e.stopPropagation();
+                                                                            if (window.confirm("Tem certeza que deseja remover o documento PDF deste contrato? Esta ação é irreversível.")) {
+                                                                                try {
+                                                                                    // Extract path from URL
+                                                                                    const url = formData.contract_pdf_url;
+                                                                                    const pathMatch = url.match(/\/storage\/v1\/object\/public\/contracts_files\/(.+)$/);
+                                                                                    const path = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+
+                                                                                    if (path) {
+                                                                                        await filesService.deleteFile('contracts_files', path);
+                                                                                    }
+
+                                                                                    if (editingContract) {
+                                                                                        await contractsService.update(editingContract.id, { ...editingContract, contract_pdf_url: null });
+                                                                                    }
+
+                                                                                    setFormData({ ...formData, contract_pdf_url: null });
+                                                                                    setContractFile(null);
+                                                                                    if (editingContract) {
+                                                                                        await loadContracts();
+                                                                                    }
+                                                                                } catch (err) {
+                                                                                    console.error("Erro ao remover PDF:", err);
+                                                                                    alert("Erro ao remover arquivo: " + err.message);
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        className="btn-action-small"
+                                                                        style={{ padding: '6px 12px', background: '#fff', border: '1px solid #fecdd3', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', height: '32px', color: '#d92d20' }}
+                                                                    >
+                                                                        <Trash2 size={14} /> Remover
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         ) : null}
@@ -912,6 +976,41 @@ const Contratos = () => {
                                                                     >
                                                                         <Download size={14} /> Baixar
                                                                     </a>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={async (e) => {
+                                                                            e.preventDefault(); e.stopPropagation();
+                                                                            if (window.confirm("Tem certeza que deseja remover o PDF da rescisão? Esta ação é irreversível.")) {
+                                                                                try {
+                                                                                    // Extract path from URL
+                                                                                    const url = formData.rescission_pdf_url;
+                                                                                    const pathMatch = url.match(/\/storage\/v1\/object\/public\/contracts_files\/(.+)$/);
+                                                                                    const path = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+
+                                                                                    if (path) {
+                                                                                        await filesService.deleteFile('contracts_files', path);
+                                                                                    }
+
+                                                                                    if (editingContract) {
+                                                                                        await contractsService.update(editingContract.id, { ...editingContract, rescission_pdf_url: null });
+                                                                                    }
+
+                                                                                    setFormData({ ...formData, rescission_pdf_url: null });
+                                                                                    setRescissionFile(null);
+                                                                                    if (editingContract) {
+                                                                                        await loadContracts();
+                                                                                    }
+                                                                                } catch (err) {
+                                                                                    console.error("Erro ao remover PDF da rescisão:", err);
+                                                                                    alert("Erro ao remover arquivo: " + err.message);
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        className="btn-action-small"
+                                                                        style={{ padding: '6px 12px', background: '#fff', border: '1px solid #fecdd3', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', height: '32px', color: '#d92d20' }}
+                                                                    >
+                                                                        <Trash2 size={14} /> Remover
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         ) : null}

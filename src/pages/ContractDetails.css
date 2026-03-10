@@ -2,6 +2,7 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    /* Standardized spacing between blocks */
     padding-bottom: 2rem;
     max-width: 1200px;
     margin: 0 auto;
@@ -50,6 +51,229 @@
     border-radius: var(--radius-lg);
     padding: 1.5rem;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+    /* Standardized internal bottom separation */
+    padding-bottom: 1.5rem;
+}
+
+/* Unified Alerts Panel */
+.cd-alerts-panel {
+    background: #fffbef;
+    /* Light warm yellow */
+    border: 1px solid #ffeeba;
+    border-left: 4px solid #f6ad55;
+    /* Highlight accent border */
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.cd-alerts-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #856404;
+    font-weight: 700;
+    font-size: 1rem;
+    border-bottom: 1px solid rgba(133, 100, 4, 0.15);
+    padding-bottom: 0.75rem;
+}
+
+.cd-alerts-main-icon {
+    color: #f6ad55;
+}
+
+.cd-alerts-close-btn {
+    background: none;
+    border: none;
+    color: #856404;
+    opacity: 0.6;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.cd-alerts-close-btn:hover {
+    background: rgba(133, 100, 4, 0.1);
+    opacity: 1;
+}
+
+.cd-alerts-panel-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.cd-alert-list-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.cd-alert-bullet {
+    font-weight: bold;
+    color: var(--text-muted);
+}
+
+.cd-alert-text {
+    flex: 1;
+    color: var(--text-secondary);
+}
+
+.cd-alert-list-item.danger .cd-alert-text strong {
+    color: #9f1239;
+}
+
+.cd-alert-list-item.warning .cd-alert-text strong {
+    color: #856404;
+}
+
+.cd-alert-list-item.info .cd-alert-text strong {
+    color: #0369a1;
+}
+
+.cd-alert-bullet {
+    color: #856404;
+    opacity: 0.5;
+}
+
+.cd-alert-card {
+    display: none;
+    /* Removed in favor of unified panel */
+}
+
+/* Alert Indicator in Header */
+@keyframes alertPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 6px rgba(225, 29, 72, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(225, 29, 72, 0);
+    }
+}
+
+.cd-alert-indicator-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.cd-alert-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    /* Tighter gap */
+    background: #fff1f2;
+    /* Rose-50 base */
+    border: 1px solid #fda4af;
+    /* Rose-300 */
+    color: #e11d48;
+    /* Rose-600 */
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0 0.75rem;
+    /* Tighter padding */
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    height: 44px;
+    /* Restored to match adjacent buttons */
+    /* Extremely subtle ghost shadow */
+    animation: alertPulse 2s infinite cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cd-alert-indicator:hover:not(.is-empty) {
+    background: #ffe4e6;
+    /* Rose-100 (Hover) */
+    transform: translateY(-1.5px);
+    box-shadow: 0 4px 12px rgba(225, 29, 72, 0.12);
+}
+
+.cd-alert-indicator:hover:not(.is-empty) svg {
+    color: #be123c;
+    /* Rose-700 on hover to match slightly darker intent */
+}
+
+.cd-alert-indicator svg {
+    color: #e11d48;
+    /* Rose-600 matches text initially */
+}
+
+.cd-alert-indicator.is-panel-open {
+    /* Soft filled block for "active" state */
+    background: #ffe4e6;
+    /* Rose-100 */
+    border-color: #fda4af;
+    /* Rose-300 */
+    color: #be123c;
+    /* Rose-700 */
+    animation: none;
+    transform: none;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.04);
+    /* Barely there inner shadow */
+}
+
+.cd-alert-indicator.is-panel-open svg {
+    color: #be123c;
+    /* Matches text */
+    animation: none;
+}
+
+.cd-alert-indicator.is-empty {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+    color: #94a3b8;
+    cursor: default;
+    /* Not clickable if you want, or just not-allowed if it shouldn't be clicked. Default is fine as it doesn't open anything */
+    box-shadow: none;
+}
+
+.cd-alert-indicator.is-empty svg {
+    color: #cbd5e1;
+    animation: none;
+}
+
+/* Premium Light Tooltip specifically for Header Indicator */
+.cd-alert-indicator-wrapper:hover .cd-alert-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.cd-alert-tooltip {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(5px);
+    background: #ffffff;
+    color: #334155;
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+    border: 1px solid #e2e8f0;
 }
 
 .cd-header-main {
@@ -121,6 +345,46 @@
     border: 1px solid #fecdd3;
 }
 
+/* Executive Summary Section */
+.cd-executive-summary {
+    background: #ffffff;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem 2rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem 1.5rem;
+}
+
+.cd-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.cd-summary-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    font-weight: 700;
+}
+
+.cd-summary-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cd-summary-value.highlight {
+    color: var(--color-primary);
+}
+
 /* Table Pill Badges */
 .status-badge {
     display: inline-flex;
@@ -181,9 +445,9 @@
     color: white;
     border: none;
     border-radius: 10px;
-    padding: 0 1.25rem;
-    height: 40px;
-    font-weight: 500;
+    padding: 0 1.5rem;
+    height: 44px;
+    font-weight: 600;
     font-size: 0.875rem;
     cursor: pointer;
     transition: all 0.2s;
@@ -202,9 +466,9 @@
     color: var(--text-primary);
     border: 1px solid #cbd5e1;
     border-radius: 10px;
-    padding: 0 1.25rem;
-    height: 40px;
-    font-weight: 500;
+    padding: 0 1.5rem;
+    height: 44px;
+    font-weight: 600;
     font-size: 0.875rem;
     cursor: pointer;
     transition: all 0.2s;
@@ -1111,10 +1375,10 @@
 .modal-content {
     background: white;
     width: 100%;
-    max-width: 800px;
+    max-width: 720px;
     max-height: 90vh;
     border-radius: 20px;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1153,30 +1417,38 @@
 }
 
 .modal-close-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
+    background: #f8fafc;
+    border: 1px solid transparent;
     cursor: pointer;
-    padding: 0.5rem;
-    border-radius: 8px;
-    transition: all 0.2s;
+    color: var(--text-muted);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    font-size: 1.25rem;
+    line-height: 1;
 }
 
 .modal-close-btn:hover {
     background: #f1f5f9;
     color: var(--text-primary);
+    border-color: #e2e8f0;
 }
 
 .modal-body {
-    padding: 2rem;
+    padding: 2rem 2rem 3.5rem 2rem;
     overflow-y: auto;
     flex: 1;
+    background: #fafbfc;
 }
 
 .modal-footer {
     padding: 1.25rem 2rem;
     border-top: 1px solid #f1f5f9;
-    background: #f8fafc;
+    background: #ffffff;
     display: flex;
     justify-content: flex-end;
     gap: 1rem;
