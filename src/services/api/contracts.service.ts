@@ -325,6 +325,27 @@ class ContractsService {
                     }
                 }
             }
+
+            // 5. Attachment Removal Update
+            if (oldContract.contract_pdf_url && result.contract_pdf_url === null) {
+                await supabase.from("contract_history").insert({
+                    contract_id: id,
+                    tenant_id: result.tenant_id,
+                    event_type: 'attachment_removed',
+                    event_title: 'Documento do contrato (PDF) removido',
+                    event_date: new Date().toISOString()
+                });
+            }
+
+            if (oldContract.rescission_pdf_url && result.rescission_pdf_url === null) {
+                await supabase.from("contract_history").insert({
+                    contract_id: id,
+                    tenant_id: result.tenant_id,
+                    event_type: 'attachment_removed',
+                    event_title: 'PDF da rescisão removido',
+                    event_date: new Date().toISOString()
+                });
+            }
         }
 
         return this.enrichContract(result);

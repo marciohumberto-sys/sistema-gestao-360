@@ -32,6 +32,30 @@ class FilesService {
             return { publicUrl: null, error };
         }
     }
+
+    /**
+     * Delete a file from Supabase Storage
+     * @param bucketName {string} Storage bucket name
+     * @param path {string} Path including filename
+     * @returns object with { error }
+     */
+    async deleteFile(bucketName: string, path: string): Promise<{ error: Error | null }> {
+        try {
+            const { error } = await supabase.storage
+                .from(bucketName)
+                .remove([path]);
+
+            if (error) {
+                console.error('Storage delete error:', error);
+                return { error };
+            }
+
+            return { error: null };
+        } catch (error: any) {
+            console.error('Delete exception:', error);
+            return { error };
+        }
+    }
 }
 
 export const filesService = new FilesService();
