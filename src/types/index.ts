@@ -76,6 +76,44 @@ export interface DashboardMetrics {
 
 export type EmpenhoStatus = 'EMPENHADO' | 'LIQUIDADO' | 'PAGO';
 
+export interface Commitment {
+    id: string;
+    tenant_id: string;
+    contract_id: string;
+    secretariat_id: string;
+    number: string;
+    issue_date: string;
+    initial_amount: number;
+    added_amount: number;
+    annulled_amount: number;
+    consumed_amount: number;
+    current_balance?: number; // Calculated on UI or returned by DB view
+    status: EmpenhoStatus;
+    notes?: string;
+    created_at: string;
+    updated_at: string;
+    
+    // Virtual fields (joined)
+    contract?: import('./index').Contract;
+    secretariat?: any;
+}
+
+export type MovementType = 'INITIAL' | 'ADDITION' | 'ANNULMENT' | 'CONSUMPTION' | 'REVERSAL';
+
+export interface CommitmentMovement {
+    id: string;
+    tenant_id: string;
+    commitment_id: string;
+    type: MovementType;
+    value: number;
+    previous_balance: number;
+    current_balance: number;
+    description: string;
+    date: string;
+    created_at: string;
+}
+
+// Keeping legacy Empenho for now until fully replaced
 export interface Empenho {
     id: string;
     number: string;
@@ -83,8 +121,8 @@ export interface Empenho {
     description: string;
     value: number;
     status: EmpenhoStatus;
-    issueDate: string; // ISO DB string
-    paymentDate?: string; // ISO DB string (optional)
+    issueDate: string; 
+    paymentDate?: string; 
 }
 export interface ContractHistory {
     id: string;

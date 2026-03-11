@@ -1,0 +1,239 @@
+/* Empenhos.css */
+
+.summary-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 0.25rem;
+}
+
+.summary-card {
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.02), 0 2px 4px -2px rgba(15, 23, 42, 0.02);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.04), 0 4px 6px -4px rgba(15, 23, 42, 0.02);
+    border-color: #cbd5e1;
+}
+
+.summary-card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.summary-card-icon.blue {
+    background: #eff6ff;
+    color: #3b82f6;
+}
+
+.summary-card-icon.green {
+    background: #f0fdf4;
+    color: #16a34a;
+}
+
+.summary-card-icon.amber {
+    background: #fffbeb;
+    color: #d97706;
+}
+
+.summary-card-icon.purple {
+    background: #faf5ff;
+    color: #9333ea;
+}
+
+.summary-card-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.summary-card-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 0.5rem;
+}
+
+.summary-card-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Compact Filters for Empenhos */
+.empenhos-compact-filters .filter-search input,
+.empenhos-compact-filters .filter-select {
+    height: 38px;
+    font-size: 0.8125rem;
+}
+
+.empenhos-compact-filters .filter-select {
+    min-width: 120px;
+    padding: 0 2rem 0 0.875rem;
+    flex: 1;
+}
+
+.empenhos-compact-filters .filter-search svg {
+    width: 16px;
+    height: 16px;
+    left: 0.75rem;
+}
+
+.empenhos-compact-filters .filter-search input {
+    padding-left: 2.25rem;
+}
+
+/* Table Format Overrides */
+.data-table.empenhos-table {
+    width: 100%;
+    min-width: 100%; /* Prevents unnecessary horizontal scroll */
+    table-layout: fixed; /* Força o navegador a respeitar os % de cada coluna, ignorando o tamanho do texto in-quebrável */
+}
+
+.data-table.empenhos-table th {
+    vertical-align: middle;
+}
+
+.data-table.empenhos-table td {
+    vertical-align: middle !important;
+}
+
+.data-table.empenhos-table th:nth-child(1) {
+    width: 25% !important;
+}
+
+.data-table.empenhos-table th:nth-child(2) {
+    width: 13% !important; /* -4% da Secretaria */
+}
+
+.data-table.empenhos-table th:nth-child(3) {
+    width: 15% !important; /* +3% no Valor Inicial */
+}
+
+.data-table.empenhos-table th:nth-child(4) {
+    width: 12% !important; /* Consumido mantido */
+}
+
+.data-table.empenhos-table th:nth-child(5) {
+    width: 10% !important; /* -2% do Saldo */
+}
+
+.data-table.empenhos-table th:nth-child(6) {
+    width: 10% !important; /* Status mantido */
+}
+
+.data-table.empenhos-table th:nth-child(7) {
+    width: 15% !important; /* +3% nas Ações */
+    text-align: center;
+}
+
+.data-table.empenhos-table .action-buttons-group {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+/* Premium Tooltip for Action Buttons */
+.action-btn {
+    position: relative;
+}
+
+.action-btn:hover .premium-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.emp-meta-text {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 0.15rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    line-height: 1.3;
+}
+
+.emp-contract-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.emp-contract-number {
+    font-weight: 600;
+    color: #0f172a;
+    font-size: 0.8125rem;
+}
+
+.emp-contract-type {
+    font-size: 0.65rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.emp-value-destaque {
+    font-weight: 600;
+    color: #00967D;
+    /* Primary brand color from index.css */
+}
+
+.emp-value-consumido {
+    color: #475569;
+}
+
+.emp-value-neutral {
+    color: #94a3b8;
+}
+
+.category-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.6rem;
+    background: #f8fafc;
+    color: #475569;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid #e2e8f0;
+}
+
+.category-tag.empty {
+    background: transparent;
+    border-color: transparent;
+    color: #cbd5e1;
+    font-weight: 400;
+}
+
+@media (max-width: 1280px) {
+    .summary-cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .summary-cards-grid {
+        grid-template-columns: 1fr;
+    }
+}

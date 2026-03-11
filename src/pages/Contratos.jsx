@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Edit2, Trash2, Calendar, TrendingUp, AlertCircle, FileText, AlertTriangle, UploadCloud, Link as LinkIcon, ExternalLink, Download, Clock, FileWarning } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Calendar, TrendingUp, AlertCircle, FileText, AlertTriangle, UploadCloud, Link as LinkIcon, ExternalLink, Download, Clock, FileWarning, FileCheck } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { contractsService } from '../services/api/contracts.service';
 import { secretariatsService } from '../services/api/secretariats.service';
@@ -20,6 +20,7 @@ const Contratos = () => {
     const [editingContract, setEditingContract] = useState(null);
     const [contractToDelete, setContractToDelete] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', message: '' }
     const [formData, setFormData] = useState({
         number: '',
         code: '',
@@ -426,10 +427,14 @@ const Contratos = () => {
 
             if (editingContract) {
                 await contractsService.update(editingContract.id, payload);
+                setFeedback({ type: 'success', message: 'Contrato atualizado com sucesso!' });
             } else {
                 const { error } = await contractsService.createContract(payload, tenantId);
                 if (error) throw error;
+                setFeedback({ type: 'success', message: 'Contrato criado com sucesso!' });
             }
+            
+            setTimeout(() => setFeedback(null), 3000);
 
             handleCloseModal();
             await loadContracts();
@@ -446,6 +451,54 @@ const Contratos = () => {
 
     return (
         <div className="ct-container">
+            {/* Feedback Message */}
+            {feedback && (
+                <div style={{
+                    position: 'fixed',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    padding: '20px 32px',
+                    borderRadius: '12px',
+                    background: feedback.type === 'success' ? '#0b7035' : '#7f1d1d',
+                    color: 'white',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '16px',
+                    fontWeight: 500,
+                    fontSize: '1.125rem'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {feedback.type === 'success' ? <FileCheck size={24} /> : <AlertCircle size={24} />}
+                        {feedback.message}
+                    </div>
+                    {feedback.type === 'error' && (
+                        <button 
+                            onClick={() => setFeedback(null)} 
+                            style={{ 
+                                background: 'transparent', 
+                                border: 'none', 
+                                color: 'rgba(255,255,255,0.8)', 
+                                cursor: 'pointer',
+                                padding: '4px',
+                                marginLeft: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '4px'
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.color = 'white'}
+                            onMouseOut={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.8)'}
+                            title="Fechar"
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    )}
+                </div>
+            )}
+            
             {/* Header */}
             <header className="ct-header">
                 <div>
@@ -598,23 +651,23 @@ const Contratos = () => {
                                                 <div className="action-buttons-group">
                                                     <button
                                                         className="action-btn edit"
-                                                        title="Editar"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             handleEditContract(contract);
                                                         }}
                                                     >
                                                         <Edit2 size={18} />
+                                                        <span className="premium-tooltip">Editar</span>
                                                     </button>
                                                     <button
                                                         className="action-btn delete"
-                                                        title="Excluir"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             setContractToDelete(contract);
                                                         }}
                                                     >
                                                         <Trash2 size={18} />
+                                                        <span className="premium-tooltip">Excluir</span>
                                                     </button>
                                                 </div>
                                             </td>

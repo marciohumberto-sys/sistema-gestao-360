@@ -8,6 +8,7 @@ import OrdensFornecimento from './pages/OrdensFornecimento';
 import NotasFiscais from './pages/NotasFiscais';
 import Contratos from './pages/Contratos';
 import Empenhos from './pages/Empenhos';
+import EmpenhoDetails from './pages/EmpenhoDetails';
 import Aditivos from './pages/Aditivos';
 import Relatorios from './pages/Relatorios';
 import Alertas from './pages/Alertas';
@@ -36,6 +37,7 @@ const AppContent = () => {
         <Route path="cadastros" element={<Cadastros />} />
         <Route path="configuracoes" element={<Configuracoes />} />
         <Route path="contratos/:id" element={<ContractDetails />} />
+        <Route path="empenhos/:id" element={<EmpenhoDetails />} />
       </Route>
     </Routes>
   );
