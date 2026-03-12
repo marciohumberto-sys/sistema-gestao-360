@@ -1,0 +1,28 @@
+/* OrdensFornecimento.css */
+@import './Empenhos.css';
+
+/* Específico para OFs (badges) */
+.status-badge.draft {
+    background-color: #f1f5f9;
+    color: #475569;
+}
+
+.status-badge.issued {
+    background-color: #f0fdf4;
+    color: #16a34a;
+}
+
+.status-badge.cancelled,
+.status-badge.canceled {
+    background-color: #fef2f2;
+    color: #ef4444;
+}
+
+/* Custom table format overrides for OFs */
+.data-table.ofs-table th:nth-child(1) { width: 15% !important; } /* OF Number */
+.data-table.ofs-table th:nth-child(2) { width: 25% !important; } /* Contract */
+.data-table.ofs-table th:nth-child(3) { width: 20% !important; } /* Secretaria */
+.data-table.ofs-table th:nth-child(4) { width: 12% !important; } /* Total Value */
+.data-table.ofs-table th:nth-child(5) { width: 10% !important; } /* Status */
+.data-table.ofs-table th:nth-child(6) { width: 10% !important; } /* Date */
+.data-table.ofs-table th:nth-child(7) { width: 8% !important; text-align: center; }  /* Actions */

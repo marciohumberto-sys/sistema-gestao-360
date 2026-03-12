@@ -1,0 +1,8 @@
+{
+  "add": {
+    "code": "PGRST202",
+    "details": "Searched for the function public.add_of_item with parameter p_tenant_id or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.",
+    "hint": null,
+    "message": "Could not find the function public.add_of_item(p_tenant_id) in the schema cache"
+  }
+}

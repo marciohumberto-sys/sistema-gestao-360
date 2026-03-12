@@ -45,7 +45,8 @@ class ContractsService {
         } as Contract;
 
         // Dynamic status calculation
-        if (enriched.status === 'ATIVO' && enriched.dateRange.endDate) {
+        const statusesToRecalibrate = ['ATIVO', 'VENCIDO', 'VENCENDO'];
+        if (statusesToRecalibrate.includes(enriched.status) && enriched.dateRange.endDate) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
@@ -57,6 +58,7 @@ class ContractsService {
 
                 if (diffDays < 0) enriched.status = 'VENCIDO';
                 else if (diffDays <= 30) enriched.status = 'VENCENDO';
+                else enriched.status = 'ATIVO'; // Reset to ATIVO if date was extended
             }
         }
 

@@ -29,6 +29,7 @@ import { contractItemsService } from '../services/api/contractItems.service';
 import { secretariatsService } from '../services/api/secretariats.service';
 import { allocationsService } from '../services/api/allocations.service';
 import { filesService } from '../services/api/files.service';
+import { ofsService } from '../services/api/ofs.service';
 import { useTenant } from '../context/TenantContext';
 import { formatLocalDate, getDaysDiffFromToday, parseLocalDate, getTodayLocalDateString } from '../utils/dateUtils';
 import './ContractDetails.css';
@@ -44,7 +45,13 @@ const ContractDetails = () => {
     const [isLoadingContract, setIsLoadingContract] = useState(true);
     const [isLoadingEmpenhos, setIsLoadingEmpenhos] = useState(true);
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+    const [isLoadingOfs, setIsLoadingOfs] = useState(true);
     const [error, setError] = useState(false);
+
+    const [contractOfs, setContractOfs] = useState([]);
+    const [reservedAmount, setReservedAmount] = useState(0);
+    const [reservedQuantityPerItem, setReservedQuantityPerItem] = useState({}); // { itemId: reservedQty }
+    const [reservedQuantityPerItemPerSec, setReservedQuantityPerItemPerSec] = useState({}); // { itemId: { secId: qty } }
 
     const [activeTab, setActiveTab] = useState('geral');
     const [showAlerts, setShowAlerts] = useState(true);
@@ -104,6 +111,11 @@ const ContractDetails = () => {
         rescission_notes: '',
         rescission_pdf_url: ''
     });
+
+    // OF Creation State
+    const [isOfOfModalOpen, setIsOfOfModalOpen] = useState(false);
+    const [selectedOfSecretariat, setSelectedOfSecretariat] = useState('');
+    const [isCreatingOf, setIsCreatingOf] = useState(false);
 
     // Toast State
     const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
@@ -355,6 +367,45 @@ const ContractDetails = () => {
             }
         };
 
+        const fetchOfs = async () => {
+            try {
+                setIsLoadingOfs(true);
+                const ofsData = await ofsService.listByContract(id);
+                if (isMounted) {
+                    const issuedOfs = ofsData.filter(o => o.status === 'ISSUED');
+                    setContractOfs(ofsData);
+                    
+                    // Calcular montante reservado
+                    const totalReserved = issuedOfs.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+                    setReservedAmount(totalReserved);
+
+                    // Calcular quantidades reservadas por item
+                    const qtyMap = {};
+                    const secQtyMap = {}; // { itemId: { secId: qty } }
+
+                    issuedOfs.forEach(of => {
+                        const sid = of.secretariat_id;
+                        (of.items || []).forEach(item => {
+                            const iid = item.contract_item_id;
+                            if (iid) {
+                                qtyMap[iid] = (qtyMap[iid] || 0) + (item.quantity || 0);
+                                if (!secQtyMap[iid]) secQtyMap[iid] = {};
+                                if (sid) {
+                                    secQtyMap[iid][sid] = (secQtyMap[iid][sid] || 0) + (item.quantity || 0);
+                                }
+                            }
+                        });
+                    });
+                    setReservedQuantityPerItem(qtyMap);
+                    setReservedQuantityPerItemPerSec(secQtyMap);
+                }
+            } catch (err) {
+                console.error("Erro ao carregar OFs do contrato:", err);
+            } finally {
+                if (isMounted) setIsLoadingOfs(false);
+            }
+        };
+
         const fetchItemsCount = async () => {
             if (!tenantId || !id) return;
             try {
@@ -368,6 +419,7 @@ const ContractDetails = () => {
         if (id) {
             fetchContract();
             fetchEmpenhos();
+            fetchOfs();
             fetchHistory();
             loadSecretariats();
             fetchItemsCount();
@@ -580,6 +632,51 @@ const ContractDetails = () => {
         }
     };
 
+    const handleGenerateOfClick = async () => {
+        if (!contract || isCreatingOf) return;
+
+        // Se o contrato já tem uma secretaria definida, usamos ela direto
+        if (contract.secretariat_id) {
+            handleConfirmCreateOf(contract.secretariat_id);
+            return;
+        }
+
+        // Se houver apenas uma secretaria cadastrada no sistema, usamos ela
+        if (secretariats.length === 1) {
+            handleConfirmCreateOf(secretariats[0].id);
+            return;
+        }
+
+        // Caso contrário, abrimos o modal para seleção
+        setSelectedOfSecretariat('');
+        setIsOfOfModalOpen(true);
+    };
+
+    const handleConfirmCreateOf = async (secId) => {
+        const secretariatId = secId || selectedOfSecretariat;
+        if (!secretariatId) {
+            showToast("Por favor, selecione uma secretaria.", "error");
+            return;
+        }
+
+        setIsCreatingOf(true);
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const newOf = await ofsService.createOf(tenantId, id, secretariatId, today);
+            
+            showToast("Ordem de Fornecimento criada com sucesso!", "success");
+            
+            // Pequeno delay para o usuário ver o feedback antes de redirecionar
+            setTimeout(() => {
+                navigate(`/ordens-fornecimento/${newOf.id}`);
+            }, 800);
+        } catch (err) {
+            console.error("Erro ao criar OF:", err);
+            showToast("Erro ao criar OF: " + (err.message || "Tente novamente mais tarde."), 'error');
+            setIsCreatingOf(false);
+        }
+    };
+
     const formatCurrency = (value) => {
         if (value === undefined || value === null) return '-';
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
@@ -638,8 +735,12 @@ const ContractDetails = () => {
     if (contract) {
         // Calculate dynamically from fetched empenhos instead of static DB mock if desired.
         // For matching visuals exactly we trust real calculation:
-        commitValue = empenhos.reduce((sum, e) => sum + e.value, 0);
-        balanceValue = contract.totalValue - commitValue;
+        commitValue = empenhos.reduce((sum, e) => sum + (e.value || 0), 0);
+        
+        // NOVO: O saldo disponível do contrato considera as OFs emitidas como RESERVA
+        // Executado (faturamento real) ainda não implementado, assumimos 0 por enquanto.
+        const executedValue = 0; 
+        balanceValue = contract.totalValue - reservedAmount - executedValue;
 
         daysLeft = getDaysLeft(contract.dateRange?.endDate);
         if (daysLeft !== null && daysLeft <= 30 && daysLeft >= 0) isUrgent = true;
@@ -750,33 +851,31 @@ const ContractDetails = () => {
 
                         <div className="cd-actions-dropdown-wrapper">
                             <button
-                                className={`cd-btn-primary ${contract.isPending ? 'is-blocked' : ''}`}
-                                disabled={contract.isPending}
+                                className={`cd-btn-primary ${contract.isPending || isCreatingOf ? 'is-blocked' : ''}`}
+                                disabled={contract.isPending || isCreatingOf}
                                 title={contract.isPending ? "Para gerar OF, cadastre pelo menos 1 item." : "Gerar Ordem de Fornecimento"}
+                                onClick={handleGenerateOfClick}
                             >
-                                Gerar OF
+                                {isCreatingOf ? 'Gerando...' : 'Gerar OF'}
                             </button>
                         </div>
 
                         {/* Functional Alert Indicator Toggle with Premium Tooltip */}
-                        <div className="cd-alert-indicator-wrapper">
-                            <button
-                                className={`cd-alert-indicator ${showAlerts && getContractAlerts().length > 0 ? 'is-panel-open' : ''} ${getContractAlerts().length === 0 ? 'is-empty' : ''}`}
-                                onClick={() => getContractAlerts().length > 0 && setShowAlerts(!showAlerts)}
-                                style={{ cursor: getContractAlerts().length === 0 ? 'default' : 'pointer' }}
-                            >
-                                <AlertTriangle size={16} />
-                                {getContractAlerts().length > 0 && (
+                        {getContractAlerts().length > 0 && (
+                            <div className="cd-alert-indicator-wrapper">
+                                <button
+                                    className={`cd-alert-indicator ${showAlerts ? 'is-panel-open' : ''}`}
+                                    onClick={() => setShowAlerts(!showAlerts)}
+                                    title={`${getContractAlerts().length} alertas ativos no contrato. Clique para ${showAlerts ? 'fechar' : 'visualizar'}.`}
+                                >
+                                    <AlertTriangle size={16} />
                                     <span>{getContractAlerts().length}</span>
-                                )}
-                            </button>
-                            <span className="cd-alert-tooltip">
-                                {getContractAlerts().length === 0
-                                    ? 'Nenhum alerta ativo'
-                                    : `${getContractAlerts().length} alertas ativos no contrato. Clique para ${showAlerts ? 'fechar' : 'visualizar'}.`
-                                }
-                            </span>
-                        </div>
+                                </button>
+                                <span className="cd-alert-tooltip">
+                                    {getContractAlerts().length} alertas ativos no contrato. Clique para {showAlerts ? 'fechar' : 'visualizar'}.
+                                </span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </header>
@@ -816,7 +915,7 @@ const ContractDetails = () => {
                 <div className="cd-kpi-card">
                     <div className="cd-kpi-icon"><DollarSign size={20} /></div>
                     <div className="cd-kpi-data">
-                        <span className="cd-kpi-label">Valor Global</span>
+                        <span className="cd-kpi-label">Valor global</span>
                         <span className="cd-kpi-value">{formatCurrency(contract.totalValue)}</span>
                     </div>
                 </div>
@@ -824,13 +923,20 @@ const ContractDetails = () => {
                     <div className="cd-kpi-icon warning"><FileText size={20} /></div>
                     <div className="cd-kpi-data">
                         <span className="cd-kpi-label">Empenhado</span>
-                        <span className="cd-kpi-value warning">{formatCurrency(commitValue)}</span>
+                        <span className="cd-kpi-value warning" style={{ color: '#b45309' }}>{formatCurrency(commitValue)}</span>
+                    </div>
+                </div>
+                <div className="cd-kpi-card">
+                    <div className="cd-kpi-icon" style={{ background: '#eff6ff', color: '#1d4ed8' }}><Clock size={20} /></div>
+                    <div className="cd-kpi-data">
+                        <span className="cd-kpi-label">Reservado em OFs</span>
+                        <span className="cd-kpi-value" style={{ color: '#1d4ed8' }}>{formatCurrency(reservedAmount)}</span>
                     </div>
                 </div>
                 <div className="cd-kpi-card">
                     <div className="cd-kpi-icon success"><DollarSign size={20} /></div>
                     <div className="cd-kpi-data">
-                        <span className="cd-kpi-label">Saldo a empenhar</span>
+                        <span className="cd-kpi-label">Saldo disponível</span>
                         <span className="cd-kpi-value success">{formatCurrency(balanceValue)}</span>
                     </div>
                 </div>
@@ -1198,13 +1304,15 @@ const ContractDetails = () => {
                                         <thead>
                                             <tr>
                                                 <th style={{ width: '60px', textAlign: 'left', paddingLeft: '1.5rem' }}>Nº</th>
-                                                <th style={{ textAlign: 'left', minWidth: '220px' }}>Descrição</th>
-                                                <th style={{ textAlign: 'center', width: '110px' }}>Rateio</th>
-                                                <th style={{ textAlign: 'right', width: '90px' }}>Qtd. Total</th>
+                                                <th style={{ textAlign: 'left', minWidth: '200px' }}>Descrição</th>
+                                                <th style={{ textAlign: 'right', width: '110px' }}>Qtd. Total</th>
+                                                <th style={{ textAlign: 'right', width: '110px' }}>Reservado</th>
+                                                <th style={{ textAlign: 'right', width: '120px' }}>Disponível</th>
                                                 <th style={{ textAlign: 'center', width: '60px' }}>Und</th>
                                                 <th style={{ textAlign: 'right', width: '130px' }}>Val. Unitário</th>
-                                                <th style={{ textAlign: 'right', width: '130px' }}>Valor Total</th>
-                                                <th style={{ textAlign: 'right', width: '160px', paddingRight: '1.5rem' }}>Ações</th>
+                                                <th style={{ textAlign: 'right', width: '130px' }}>Subtotal</th>
+                                                <th style={{ textAlign: 'center', width: '90px' }}>Rateio</th>
+                                                <th style={{ textAlign: 'right', width: '120px', paddingRight: '1.5rem' }}>Ações</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1219,6 +1327,9 @@ const ContractDetails = () => {
                                                     const diff = qTotal - allocSum;
                                                     const isPending = qTotal > 0 && diff !== 0;
 
+                                                    const qReserved = reservedQuantityPerItem[item.id] || 0;
+                                                    const qAvailable = qTotal - qReserved;
+
                                                     return (
                                                         <React.Fragment key={item.id}>
                                                             <tr
@@ -1230,34 +1341,35 @@ const ContractDetails = () => {
                                                                 }}
                                                                 className={expandedItemId === item.id ? 'active-row' : ''}
                                                             >
-                                                                <td style={{ width: '80px', minWidth: '80px', fontWeight: 600, textAlign: 'center' }}>
+                                                                <td style={{ width: '60px', fontWeight: 600, textAlign: 'left', paddingLeft: '1.5rem' }}>
                                                                     <span>{item.item_number || '-'}</span>
                                                                 </td>
-                                                                <td style={{ width: '38%', maxWidth: '400px', textAlign: 'left' }}>
-                                                                    <div style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500, color: 'var(--text-primary)', textTransform: 'uppercase', lineHeight: '1.4' }} title={item.description}>
+                                                                <td style={{ textAlign: 'left' }}>
+                                                                    <div style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: '0.875rem', lineHeight: '1.4' }} title={item.description}>
                                                                         {item.description}
                                                                     </div>
                                                                 </td>
-                                                                <td style={{ width: '100px', textAlign: 'center' }}>
+                                                                <td style={{ textAlign: 'right', fontWeight: 500 }}>{item.total_quantity}</td>
+                                                                <td style={{ textAlign: 'right', fontWeight: 600, color: '#1d4ed8' }}>{qReserved > 0 ? qReserved : '-'}</td>
+                                                                <td style={{ textAlign: 'right', fontWeight: 700, color: qAvailable > 0 ? '#16a34a' : (qAvailable < 0 ? '#dc2626' : 'var(--text-muted)') }}>{qAvailable}</td>
+                                                                <td style={{ textAlign: 'center', textTransform: 'uppercase', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{item.unit || '-'}</td>
+                                                                <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 500 }}>{formatExactCurrency(item.unit_price)}</td>
+                                                                <td style={{ fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatExactCurrency((item.total_quantity || 0) * (item.unit_price || 0))}</td>
+                                                                <td style={{ textAlign: 'center' }}>
                                                                     <span
                                                                         className={`cd-kpi-badge ${isPending ? 'warning' : 'success'}`}
                                                                         style={{
                                                                             background: isPending ? '#fff4e5' : '#e6f6ec',
                                                                             color: isPending ? '#b75c00' : '#0f8b4d',
-                                                                            padding: '4px 10px',
+                                                                            padding: '2px 8px',
                                                                             borderRadius: '9999px',
-                                                                            fontSize: '0.65rem',
-                                                                            fontWeight: 700,
-                                                                            letterSpacing: '0.025em'
+                                                                            fontSize: '0.6rem',
+                                                                            fontWeight: 700
                                                                         }}
                                                                     >
                                                                         {isPending ? 'PENDENTE' : 'OK'}
                                                                     </span>
                                                                 </td>
-                                                                <td style={{ width: '100px', textAlign: 'center', fontWeight: 500 }}>{item.total_quantity}</td>
-                                                                <td style={{ width: '80px', textAlign: 'center', textTransform: 'uppercase', color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>{item.unit || '-'}</td>
-                                                                <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 500, color: 'var(--text-primary)' }}>{formatExactCurrency(item.unit_price)}</td>
-                                                                <td style={{ fontWeight: 600, color: 'var(--text-primary)', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatExactCurrency((item.total_quantity || 0) * (item.unit_price || 0))}</td>
                                                                 <td style={{ width: '100px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
                                                                         <button
@@ -1470,45 +1582,53 @@ const ContractDetails = () => {
                                                                     <thead style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 1 }}>
                                                                         <tr>
                                                                             <th style={{ padding: '0.4rem 1rem', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Secretaria Alocada</th>
-                                                                            <th style={{ padding: '0.4rem 1rem', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', width: '140px', borderBottom: '1px solid #e2e8f0' }}>Quantidade</th>
-                                                                            <th style={{ padding: '0.4rem 1rem', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', width: '80px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Ações</th>
+                                                                            <th style={{ padding: '0.4rem 1rem', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', width: '100px', borderBottom: '1px solid #e2e8f0' }}>Alocado</th>
+                                                                            <th style={{ padding: '0.4rem 1rem', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', width: '100px', borderBottom: '1px solid #e2e8f0' }}>Reservado</th>
+                                                                            <th style={{ padding: '0.4rem 1rem', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', width: '100px', borderBottom: '1px solid #e2e8f0' }}>Saldo</th>
+                                                                            <th style={{ padding: '0.4rem 1rem', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', width: '60px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Ações</th>
                                                                         </tr>
                                                                     </thead>
                                                                     <tbody>
-                                                                        {addedSecretariatsList.map((sec, index) => (
-                                                                            <tr key={sec.id} style={{ borderBottom: index === addedSecretariatsList.length - 1 ? 'none' : '1px solid #f1f5f9', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                                                                <td style={{ padding: '0.4rem 1rem', color: 'var(--text-primary)', fontWeight: 500 }}>{sec.name}</td>
-                                                                                <td style={{ padding: '0.4rem 1rem' }}>
-                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                                                                                        <input
-                                                                                            type="number"
-                                                                                            value={sec.allocated}
-                                                                                            onChange={(e) => {
-                                                                                                const val = parseInt(e.target.value, 10);
-                                                                                                if (!isNaN(val) && val < 0) return;
-                                                                                                setAllocationForm({ ...allocationForm, [sec.id]: isNaN(val) ? '' : val });
-                                                                                            }}
-                                                                                            style={{ width: '80px', padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid #e2e8f0', background: '#ffffff', textAlign: 'center', fontWeight: 600, color: 'var(--color-primary)', outline: 'none', transition: 'all 0.2s' }}
-                                                                                            onFocus={e => { e.target.style.borderColor = 'var(--color-primary)'; e.target.style.boxShadow = '0 0 0 2px rgba(10,37,64,0.05)'; }}
-                                                                                            onBlur={e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; }}
-                                                                                            min="0" step="1"
-                                                                                        />
-                                                                                        <Edit2 size={12} style={{ color: '#94a3b8' }} />
-                                                                                    </div>
-                                                                                </td>
-                                                                                <td style={{ padding: '0.4rem 1rem', textAlign: 'right' }}>
-                                                                                    <button
-                                                                                        onClick={() => handleRemoveAllocation(sec.id)}
-                                                                                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0.25rem', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                                                                                        onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#dc2626'; }}
-                                                                                        onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#ef4444'; }}
-                                                                                        title="Remover"
-                                                                                    >
-                                                                                        <Trash2 size={14} />
-                                                                                    </button>
-                                                                                </td>
-                                                                            </tr>
-                                                                        ))}
+                                                                        {addedSecretariatsList.map((sec, index) => {
+                                                                            const secReserved = (reservedQuantityPerItemPerSec[item.id] || {})[sec.id] || 0;
+                                                                            const secBalance = (parseFloat(sec.allocated) || 0) - secReserved;
+
+                                                                            return (
+                                                                                <tr key={sec.id} style={{ borderBottom: index === addedSecretariatsList.length - 1 ? 'none' : '1px solid #f1f5f9', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                                                    <td style={{ padding: '0.4rem 1rem', color: 'var(--text-primary)', fontWeight: 500 }}>{sec.name}</td>
+                                                                                    <td style={{ padding: '0.4rem 1rem' }}>
+                                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                                                                                            <input
+                                                                                                type="number"
+                                                                                                value={sec.allocated}
+                                                                                                onChange={(e) => {
+                                                                                                    const val = parseInt(e.target.value, 10);
+                                                                                                    if (!isNaN(val) && val < 0) return;
+                                                                                                    setAllocationForm({ ...allocationForm, [sec.id]: isNaN(val) ? '' : val });
+                                                                                                }}
+                                                                                                style={{ width: '70px', padding: '0.2rem 0.4rem', borderRadius: '4px', border: '1px solid #e2e8f0', background: '#ffffff', textAlign: 'center', fontWeight: 600, color: 'var(--color-primary)', fontSize: '0.8rem', outline: 'none' }}
+                                                                                                onFocus={e => { e.target.style.borderColor = 'var(--color-primary)'; e.target.style.boxShadow = '0 0 0 2px rgba(10,37,64,0.05)'; }}
+                                                                                                onBlur={e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; }}
+                                                                                                min="0" step="1"
+                                                                                            />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td style={{ padding: '0.4rem 1rem', color: '#1d4ed8', fontWeight: 600 }}>{secReserved > 0 ? secReserved : '-'}</td>
+                                                                                    <td style={{ padding: '0.4rem 1rem', color: secBalance > 0 ? '#16a34a' : (secBalance < 0 ? '#dc2626' : 'var(--text-muted)'), fontWeight: 700 }}>{secBalance}</td>
+                                                                                    <td style={{ padding: '0.4rem 1rem', textAlign: 'right' }}>
+                                                                                        <button
+                                                                                            onClick={() => handleRemoveAllocation(sec.id)}
+                                                                                            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.25rem', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                                                                                            onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#ef4444'; }}
+                                                                                            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#94a3b8'; }}
+                                                                                            title="Remover"
+                                                                                        >
+                                                                                            <Trash2 size={14} />
+                                                                                        </button>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
                                                                     </tbody>
                                                                 </table>
                                                             </div>
@@ -2081,6 +2201,57 @@ const ContractDetails = () => {
                             <button type="button" className="cd-btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancelar</button>
                             <button type="submit" form="editContractForm" className="cd-btn-primary" disabled={isSubmittingEdit}>
                                 {isSubmittingEdit ? 'Salvando...' : 'Salvar Alterações'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Seleção de Secretaria para OF */}
+            {isOfOfModalOpen && (
+                <div className="modal-overlay">
+                    <div className="modal-content" style={{ maxWidth: '450px' }}>
+                        <div className="modal-header">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Landmark size={20} />
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#0f172a' }}>Selecionar Secretaria</h3>
+                                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Escolha a secretaria responsável por esta OF</p>
+                                </div>
+                            </div>
+                            <button className="modal-close" onClick={() => setIsOfOfModalOpen(false)}>
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="modal-body" style={{ padding: '1.5rem 2rem' }}>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem', fontWeight: 500, color: '#475569' }}>Secretaria *</label>
+                                <select 
+                                    value={selectedOfSecretariat} 
+                                    onChange={e => setSelectedOfSecretariat(e.target.value)}
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff' }}
+                                    required
+                                >
+                                    <option value="">Selecione uma secretaria...</option>
+                                    {secretariats.map(sec => (
+                                        <option key={sec.id} value={sec.id}>{sec.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="modal-footer" style={{ padding: '1.25rem 2rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                            <button className="cd-btn-secondary" onClick={() => setIsOfOfModalOpen(false)}>Cancelar</button>
+                            <button 
+                                className="cd-btn-primary" 
+                                onClick={() => {
+                                    handleConfirmCreateOf();
+                                    setIsOfOfModalOpen(false);
+                                }}
+                                disabled={!selectedOfSecretariat || isCreatingOf}
+                            >
+                                {isCreatingOf ? 'Gerando...' : 'Confirmar e Gerar'}
                             </button>
                         </div>
                     </div>

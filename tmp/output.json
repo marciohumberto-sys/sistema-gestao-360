@@ -1,0 +1,20 @@
+{
+  "add": {
+    "code": "PGRST202",
+    "details": "Searched for the function public.add_of_item with parameter p_of_id or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.",
+    "hint": null,
+    "message": "Could not find the function public.add_of_item(p_of_id) in the schema cache"
+  },
+  "del": {
+    "code": "PGRST202",
+    "details": "Searched for the function public.delete_of_item with parameter p_item_id or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.",
+    "hint": "Perhaps you meant to call the function public.delete_of_item(p_of_item_id, p_tenant_id)",
+    "message": "Could not find the function public.delete_of_item(p_item_id) in the schema cache"
+  },
+  "rec": {
+    "code": "PGRST202",
+    "details": "Searched for the function public.recalculate_of_total with parameter p_of_id or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.",
+    "hint": "Perhaps you meant to call the function public.recalculate_of_total(p_of_id, p_tenant_id)",
+    "message": "Could not find the function public.recalculate_of_total(p_of_id) in the schema cache"
+  }
+}

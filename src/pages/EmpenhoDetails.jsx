@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { commitmentsService } from '../services/api/commitments.service';
-import { ArrowLeft, Loader2, FileText, Activity } from 'lucide-react';
+import { ofsService } from '../services/api/ofs.service';
+import { ArrowLeft, Loader2, FileText, Activity, Eye } from 'lucide-react';
 import { formatLocalDate } from '../utils/dateUtils';
 import './EmpenhoDetails.css';
 
@@ -13,6 +14,7 @@ const EmpenhoDetails = () => {
 
     const [commitment, setCommitment] = useState(null);
     const [movements, setMovements] = useState([]);
+    const [linkedOfs, setLinkedOfs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('resumo');
 
@@ -21,12 +23,14 @@ const EmpenhoDetails = () => {
             if (!id || !tenantId) return;
             try {
                 setIsLoading(true);
-                const [commData, movData] = await Promise.all([
+                const [commData, movData, ofsData] = await Promise.all([
                     commitmentsService.getById(id),
-                    commitmentsService.getMovements(id)
+                    commitmentsService.getMovements(id),
+                    ofsService.listByCommitment(id)
                 ]);
                 setCommitment(commData);
                 setMovements(movData);
+                setLinkedOfs(ofsData);
             } catch (error) {
                 console.error("Erro ao carregar detalhes do empenho:", error);
             } finally {
@@ -297,11 +301,51 @@ const EmpenhoDetails = () => {
                 )}
 
                 {activeTab === 'ofs' && (
-                    <div className="ed-empty-state">
-                        <FileText size={48} />
-                        <h3>Nenhuma OF Vinculada</h3>
-                        <p>O módulo de OFs integradas será lançado na próxima etapa.</p>
-                    </div>
+                    linkedOfs.length === 0 ? (
+                        <div className="ed-empty-state">
+                            <FileText size={48} />
+                            <h3>Nenhuma OF Vinculada</h3>
+                            <p>Este empenho ainda não foi utilizado para emissão de Ordens de Fornecimento.</p>
+                        </div>
+                    ) : (
+                        <table className="data-table" style={{ width: '100%' }}>
+                            <thead>
+                                <tr>
+                                    <th>Número</th>
+                                    <th>Status</th>
+                                    <th>Data de Emissão</th>
+                                    <th>Valor Total</th>
+                                    <th style={{ textAlign: 'right' }}>Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {linkedOfs.map(of => (
+                                    <tr key={of.id}>
+                                        <td style={{ fontWeight: 600 }}>{of.number}</td>
+                                        <td>
+                                            <span className={`status-badge ${(of.status || 'DRAFT').toLowerCase()}`}>
+                                                {of.status === 'ISSUED' ? 'EMITIDA' : of.status === 'CANCELED' ? 'CANCELADA' : 'RASCUNHO'}
+                                            </span>
+                                        </td>
+                                        <td>{of.issue_date ? formatLocalDate(of.issue_date) : '-'}</td>
+                                        <td style={{ fontWeight: 600, fontStyle: of.status === 'DRAFT' ? 'italic' : 'normal', color: of.status === 'DRAFT' ? '#64748b' : 'inherit' }}>
+                                            {of.status === 'DRAFT' ? 'OF em edição' : formatCurrency(of.total_amount)}
+                                        </td>
+                                        <td style={{ textAlign: 'right' }}>
+                                            <button 
+                                                className="ct-icon-btn" 
+                                                onClick={() => navigate(`/ordens-fornecimento/${of.id}`)}
+                                                title="Ver Detalhes da OF"
+                                                style={{ padding: '4px', color: '#6366f1' }}
+                                            >
+                                                <Eye size={18} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )
                 )}
             </div>
 

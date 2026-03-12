@@ -5,6 +5,8 @@ import { TenantProvider, useTenant } from './context/TenantContext';
 
 import Dashboard from './pages/Dashboard';
 import OrdensFornecimento from './pages/OrdensFornecimento';
+import OfDetails from './pages/OfDetails';
+import OfPreview from './pages/OfPreview';
 import NotasFiscais from './pages/NotasFiscais';
 import Contratos from './pages/Contratos';
 import Empenhos from './pages/Empenhos';
@@ -28,6 +30,7 @@ const AppContent = () => {
       <Route path="/" element={<MainLayout />}>
         <Route index element={<Dashboard />} />
         <Route path="ordens-fornecimento" element={<OrdensFornecimento />} />
+        <Route path="ordens-fornecimento/:id" element={<OfDetails />} />
         <Route path="notas-fiscais" element={<NotasFiscais />} />
         <Route path="contratos" element={<Contratos />} />
         <Route path="empenhos" element={<Empenhos />} />
@@ -39,6 +42,8 @@ const AppContent = () => {
         <Route path="contratos/:id" element={<ContractDetails />} />
         <Route path="empenhos/:id" element={<EmpenhoDetails />} />
       </Route>
+      {/* Route without MainLayout */}
+      <Route path="/of-preview/:id" element={<OfPreview />} />
     </Routes>
   );
 };

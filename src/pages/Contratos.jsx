@@ -411,7 +411,9 @@ const Contratos = () => {
                 administrative_fiscal_name: formData.administrative_fiscal_name,
                 administrative_fiscal_registration: formData.administrative_fiscal_registration,
                 contract_pdf_url: finalContract_pdf_url,
-                status: isRescissionActive ? 'RESCINDIDO' : (editingContract && editingContract.status === 'RESCINDIDO' ? 'ATIVO' : (editingContract ? editingContract.status : 'ATIVO')),
+                status: isRescissionActive 
+                    ? 'RESCINDIDO' 
+                    : (['VENCIDO', 'VENCENDO', 'RESCINDIDO'].includes(editingContract?.status) ? 'ATIVO' : (editingContract?.status || 'ATIVO')),
                 // Optional conditional payload inclusion if applicable
                 ...(isRescissionActive && {
                     rescinded_at: formData.rescinded_at,
