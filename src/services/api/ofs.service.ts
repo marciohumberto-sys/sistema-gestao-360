@@ -255,18 +255,19 @@ class OFsService {
             throw new Error(`O empenho selecionado não possui saldo suficiente (Disponível: R$ ${currentBalance.toFixed(2)}).`);
         }
 
-        // 3. Fetch all ISSUED OFs for the same contract
-        const { data: issuedOfs, error: err2 } = await supabase
+        // 3. Fetch all non-canceled OFs for the same contract to validate balance
+        const { data: allOfs, error: err2 } = await supabase
             .from('ofs')
             .select('id, status, total_amount, secretariat_id, items:of_items(contract_item_id, quantity)')
             .eq('contract_id', ofData.contract_id)
             .eq('tenant_id', tenantId)
-            .eq('status', 'ISSUED');
+            .neq('status', 'CANCELED');
         if (err2) throw new Error("Erro ao validar histórico de OFs.");
 
-        // Validate Contract Balance
+        // Validate Contract Balance (Global)
         const contractTotalValue = Number(ofData.contract.total_value || 0);
-        const executedValue = (issuedOfs || []).reduce((acc: number, curr: any) => acc + Number(curr.total_amount || 0), 0);
+        // For global balance, we only count ISSUED ones as "executed"
+        const executedValue = (allOfs || []).filter((o: any) => o.status === 'ISSUED').reduce((acc: number, curr: any) => acc + Number(curr.total_amount || 0), 0);
         if (contractTotalValue - executedValue < totalAmount) {
             throw new Error(`O contrato não possui saldo global disponível suficiente (Disponível: R$ ${(contractTotalValue - executedValue).toFixed(2)}).`);
         }
@@ -289,9 +290,10 @@ class OFsService {
             }
 
             let consumedQtd = 0;
-            (issuedOfs || []).forEach((issOf: any) => {
-                if (issOf.secretariat_id === ofData.secretariat_id) {
-                    const elements = issOf.items.filter((i: any) => i.contract_item_id === item.contract_item_id);
+            (allOfs || []).forEach((existingOf: any) => {
+                if (existingOf.id === id) return; // Skip CURRENT OF being issued
+                if (existingOf.secretariat_id === ofData.secretariat_id) {
+                    const elements = existingOf.items.filter((i: any) => i.contract_item_id === item.contract_item_id);
                     elements.forEach((e: any) => consumedQtd += Number(e.quantity || 0));
                 }
             });

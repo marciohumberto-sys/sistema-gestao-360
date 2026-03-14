@@ -51,22 +51,30 @@ const OfDetails = () => {
                 const { data: cItems } = await supabase.from('contract_items').select('*').eq('contract_id', data.contract_id).eq('tenant_id', tenantId);
                 setContractItems(cItems || []);
 
-                // Fetch allocations for this secretariat
-                const { data: allocs } = await supabase
-                    .from('contract_item_allocations')
-                    .select('*')
-                    .eq('contract_id', data.contract_id)
-                    .eq('secretariat_id', data.secretariat_id)
-                    .eq('tenant_id', tenantId);
-                setAllocations(allocs || []);
+                const itemIds = (cItems || []).map(i => i.id);
 
-                // Fetch other OFs (ISSUED and DRAFT) to calculate balanced consumed
+                // Fetch allocations for this secretariat using item IDs (contract_id column doesn't exist in this table)
+                if (itemIds.length > 0) {
+                    const { data: allocs } = await supabase
+                        .from('contract_item_allocations')
+                        .select('*')
+                        .in('contract_item_id', itemIds)
+                        .eq('secretariat_id', data.secretariat_id)
+                        .eq('tenant_id', tenantId);
+                    setAllocations(allocs || []);
+                } else {
+                    setAllocations([]);
+                }
+
+                // Fetch other OFs (ISSUED and DRAFT) to calculate balanced consumed for THIS secretariat
                 const { data: oOfs } = await supabase
                     .from('ofs')
                     .select('id, status, items:of_items(contract_item_id, quantity)')
                     .eq('contract_id', data.contract_id)
+                    .eq('secretariat_id', data.secretariat_id)
                     .eq('tenant_id', tenantId)
-                    .neq('status', 'CANCELED');
+                    .neq('status', 'CANCELED')
+                    .neq('status', 'CANCELLED');
                 setOtherOfs(oOfs || []);
             }
         } catch (error) {
@@ -666,7 +674,7 @@ const OfDetails = () => {
                                                             const it = of.items?.find(i => i.contract_item_id === newItemObj.contract_item_id);
                                                             if (it) consumed += Number(it.quantity || 0);
                                                         });
-                                                        return (Number(alloc.quantity_allocated || 0) - consumed).toFixed(2);
+                                                        return Math.floor(Number(alloc.quantity_allocated || 0) - consumed);
                                                     })()}
                                                 </span>
                                             </div>
