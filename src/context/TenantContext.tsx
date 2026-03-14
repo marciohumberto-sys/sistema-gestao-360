@@ -27,7 +27,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     .from('tenants')
                     .select('*')
                     .eq('slug', slug)
-                    .single();
+                    .maybeSingle();
 
                 if (supabaseError) {
                     console.error('Error fetching tenant:', supabaseError);
