@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     ShoppingCart,
@@ -15,7 +15,13 @@ import {
     ChevronLeft,
     Plus,
     FilePlus,
-    HelpCircle
+    HelpCircle,
+    Package,
+    PackagePlus,
+    PackageMinus,
+    ArrowLeftRight,
+    SlidersHorizontal,
+    Pill,
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -57,10 +63,46 @@ const MENU_ITEMS = [
     }
 ];
 
+// Menu contextual do módulo Farmácia (3 grupos)
+const FARMACIA_MENU_ITEMS = [
+    {
+        section: 'Principal',
+        items: [
+            { path: '/farmacia/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+            { path: '/farmacia/estoque',   icon: Package,          label: 'Estoque' },
+        ]
+    },
+    {
+        section: 'Operações',
+        items: [
+            { path: '/farmacia/entradas',      icon: PackagePlus,       label: 'Entradas' },
+            { path: '/farmacia/saidas',        icon: PackageMinus,      label: 'Saídas' },
+            { path: '/farmacia/movimentacoes', icon: ArrowLeftRight,    label: 'Movimentações' },
+            { path: '/farmacia/ajustes',       icon: SlidersHorizontal, label: 'Ajustes' },
+        ]
+    },
+    {
+        section: 'Análises',
+        items: [
+            { path: '/farmacia/relatorios', icon: BarChart2, label: 'Relatórios' },
+        ]
+    }
+];
+
 const Sidebar = ({ isPinned, togglePin }) => {
+    const location = useLocation();
+    const isFarmacia = location.pathname.startsWith('/farmacia');
+    const activeMenu = isFarmacia ? FARMACIA_MENU_ITEMS : MENU_ITEMS;
+    const navigate = useNavigate();
     return (
         <aside className={`sidebar ${isPinned ? 'pinned' : 'compact'}`}>
             <div className="sidebar-header">
+                {isFarmacia && isPinned && (
+                    <span className="sidebar-module-label">
+                        <Pill size={13} strokeWidth={2} />
+                        Farmácia
+                    </span>
+                )}
                 <button
                     className="pin-toggle-btn"
                     onClick={togglePin}
@@ -70,7 +112,7 @@ const Sidebar = ({ isPinned, togglePin }) => {
                 </button>
             </div>
             <div className="sidebar-content">
-                {MENU_ITEMS.map((group, index) => (
+                {activeMenu.map((group, index) => (
                     <div key={index} className="sidebar-section">
                         <div className="sidebar-section-title">
                             {group.section}
@@ -110,6 +152,7 @@ const Sidebar = ({ isPinned, togglePin }) => {
                 ))}
             </div>
 
+            {!isFarmacia && (
             <div className="sidebar-footer">
                 <div className="footer-actions">
                     <button className="footer-btn btn-primary" title={!isPinned ? "Nova Ordem de Fornecimento" : ""}>
@@ -122,6 +165,7 @@ const Sidebar = ({ isPinned, togglePin }) => {
                     </button>
                 </div>
             </div>
+            )}
         </aside>
     );
 };
