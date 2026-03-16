@@ -3,15 +3,11 @@
   "redirects": [
     {
       "source": "/",
-      "destination": "/farmacia",
+      "destination": "/farmacia/dashboard",
       "permanent": false
     }
   ],
   "rewrites": [
-    {
-      "source": "/farmacia",
-      "destination": "/index.html"
-    },
     {
       "source": "/farmacia/:path*",
       "destination": "/index.html"
