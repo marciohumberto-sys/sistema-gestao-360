@@ -5,7 +5,7 @@ import { useFarmacia } from './FarmaciaContext';
 import FarmaciaUnitBadge from './FarmaciaUnitBadge';
 import './FarmaciaPages.css';
 
-const HOJE = '2026-03-14';
+const HOJE = new Date().toISOString().split('T')[0];
 
 // Componente visual unificado para Type Badge
 const TipoBadge = ({ tipo }) => {

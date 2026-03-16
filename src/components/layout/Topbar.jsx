@@ -1,8 +1,27 @@
 import React from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Bell, User, Plus } from 'lucide-react';
 import { brandConfig } from '../../config/brand';
 
 const Topbar = () => {
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    const isFarmacia = location.pathname.startsWith('/farmacia');
+    const isCompras = location.pathname.startsWith('/compras');
+
+    const tooltipText = isFarmacia ? "Nova Saída" : "Nova Ordem de Fornecimento";
+    const ariaLabelTex = isFarmacia ? "Nova Saída" : "Nova Ordem de Fornecimento";
+
+    const handleActionClick = () => {
+        if (isFarmacia) {
+            navigate('/farmacia/saidas', { state: { openModal: 'saida' } });
+        } else {
+            // Comportamento atual mantido para Compras e demais
+            // (no momento o botão não possuía onClick associado no frontend)
+        }
+    };
+
     return (
         <header className="topbar" style={{
             position: 'fixed', top: 0, left: 0, right: 0,
@@ -24,14 +43,15 @@ const Topbar = () => {
 
             <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
                 <div style={{ position: 'relative' }} className="topbar-action-group">
-                    <button aria-label="Nova Ordem de Fornecimento" className="topbar-global-add-btn"
+                    <button aria-label={ariaLabelTex} className="topbar-global-add-btn"
+                        onClick={handleActionClick}
                         style={{ backgroundColor: 'var(--color-secondary)', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: 'var(--shadow-sm)' }}
                         onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04) translateY(-1px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.filter = 'brightness(1.05)'; }}
                         onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.filter = 'brightness(1)'; }}
                     >
                         <Plus size={20} strokeWidth={2.5} />
                     </button>
-                    <span className="premium-tooltip">Nova Ordem de Fornecimento</span>
+                    <span className="premium-tooltip">{tooltipText}</span>
                 </div>
 
                 <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border)', margin: '0 0.25rem' }} />

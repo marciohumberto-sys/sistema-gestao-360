@@ -1,11 +1,18 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Pill, TrendingUp, TrendingDown, ClipboardList, Clock, ArrowUpDown, ChevronDown, Filter, Calendar, User, Hash, Info } from 'lucide-react';
+import { Search, ChevronDown, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Pill, ClipboardList, Clock, ArrowUpDown } from 'lucide-react';
 import { mockAjustes } from '../../mocks/farmaciaMocks';
 import { useFarmacia } from './FarmaciaContext';
 import FarmaciaUnitBadge from './FarmaciaUnitBadge';
 import './FarmaciaPages.css';
 
-const HOJE = '2026-03-14';
+const HOJE = new Date().toISOString().split('T')[0];
+const ajustesHoje = mockAjustes.filter(m => m.data.startsWith(HOJE));
+
+const METRICAS = {
+    registrosHoje: ajustesHoje.length,
+    saldoLiquido: ajustesHoje.reduce((acc, m) => acc + m.diferenca, 0),
+    itensEstoqueZero: 2, // mock demonstrativo
+};
 
 const FarmaciaAjustes = () => {
     const { setOpenModal, unidadeAtiva } = useFarmacia();

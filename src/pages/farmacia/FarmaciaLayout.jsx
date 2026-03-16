@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 import { FarmaciaProvider, useFarmacia } from './FarmaciaContext';
 import FarmaciaSaidaModal from './modals/FarmaciaSaidaModal';
@@ -16,8 +16,16 @@ const TOAST_MSGS = {
 const FarmaciaLayoutInner = () => {
     const { openModal, setOpenModal, atualizarEstoque } = useFarmacia();
     const location = useLocation();
+    const navigate = useNavigate();
     const [toast, setToast] = useState(null);
     
+    useEffect(() => {
+        if (location.state?.openModal) {
+            setOpenModal(location.state.openModal);
+            navigate(location.pathname, { replace: true, state: {} });
+        }
+    }, [location.state, location.pathname, navigate, setOpenModal]);
+
     const isDashboard = location.pathname === '/farmacia' || location.pathname === '/farmacia/';
 
     const showToast = tipo => {

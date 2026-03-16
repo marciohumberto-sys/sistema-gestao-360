@@ -209,34 +209,43 @@ const FarmaciaEstoque = () => {
                 <div style={{ padding: '1.1rem 1.5rem 0.9rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-muted-light)' }}>
                     <h2 className="farmacia-card-title" style={{ fontSize: '1rem', fontWeight: 700 }}>Listagem de Itens</h2>
                 </div>
-                <div className="farmacia-table-wrapper" style={{ border: 'none', borderRadius: '0 0 var(--radius) var(--radius)' }}>
-                    <table className="farmacia-table">
+                <div className="farmacia-table-wrapper" style={{ border: 'none', borderRadius: '0 0 var(--radius) var(--radius)', overflowX: 'hidden', maxWidth: '100%', width: '100%' }}>
+                    <table className="farmacia-table" style={{ tableLayout: 'fixed', width: '100%', maxWidth: '100%' }}>
+                        <colgroup>
+                            <col style={{ width: '28%' }} /> {/* Medicamento */}
+                            <col style={{ width: '12%' }} /> {/* Estoque Atual */}
+                            <col style={{ width: '11%' }} /> {/* Estoque Mín */}
+                            <col style={{ width: '14%' }} /> {/* Validade */}
+                            <col style={{ width: '8%' }} />  {/* Unidade */}
+                            <col style={{ width: '15%' }} /> {/* Status */}
+                            <col style={{ width: '12%' }} /> {/* Ações */}
+                        </colgroup>
                         <thead>
                             <tr>
-                                <th onClick={() => handleSort('descricao')} style={{ cursor: 'pointer', width: '31%' }}>
+                                <th onClick={() => handleSort('descricao')} style={{ cursor: 'pointer', width: '28%' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         Medicamento <ArrowUpDown size={12} style={{ opacity: sortFiltro.startsWith('descricao') ? 1 : 0.3 }} />
                                     </div>
                                 </th>
-                                <th onClick={() => handleSort('estoqueAtual')} style={{ cursor: 'pointer', textAlign: 'right', width: '12%' }}>
+                                <th onClick={() => handleSort('estoqueAtual')} style={{ cursor: 'pointer', textAlign: 'right', width: '13%' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
                                         Estoque Atual <ArrowUpDown size={12} style={{ opacity: sortFiltro.startsWith('estoqueAtual') ? 1 : 0.3 }} />
                                     </div>
                                 </th>
-                                <th onClick={() => handleSort('estoqueMinimo')} style={{ cursor: 'pointer', textAlign: 'right', width: '12%' }}>
+                                <th onClick={() => handleSort('estoqueMinimo')} style={{ cursor: 'pointer', textAlign: 'right', width: '11%' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
                                         Estoque Mín. <ArrowUpDown size={12} style={{ opacity: sortFiltro.startsWith('estoqueMinimo') ? 1 : 0.3 }} />
                                     </div>
                                 </th>
-                                <th onClick={() => handleSort('validade')} style={{ cursor: 'pointer', width: '12%' }}>
+                                <th onClick={() => handleSort('validade')} style={{ cursor: 'pointer', width: '14%' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         <div style={{ lineHeight: '1.2' }}>Validade<br/>mais próxima</div>
                                         <ArrowUpDown size={12} style={{ opacity: sortFiltro.startsWith('validade') ? 1 : 0.3 }} />
                                     </div>
                                 </th>
-                                <th style={{ width: '9%' }}>Unidade</th>
+                                <th style={{ width: '8%' }}>Unidade</th>
                                 <th style={{ width: '14%' }}>Status</th>
-                                <th style={{ textAlign: 'center', width: '10%' }}>Ações</th>
+                                <th style={{ textAlign: 'center', width: '12%' }}>Ações</th>
                             </tr>
                         </thead>
                         <tbody>

@@ -5,7 +5,7 @@ import { useFarmacia } from './FarmaciaContext';
 import FarmaciaUnitBadge from './FarmaciaUnitBadge';
 import './FarmaciaPages.css';
 
-const HOJE = '2026-03-14';
+const HOJE = new Date().toISOString().split('T')[0];
 const getNDaysAgo = (n) => {
     const d = new Date();
     d.setDate(d.getDate() - n);
@@ -13,15 +13,15 @@ const getNDaysAgo = (n) => {
 };
 
 const MOCK_DATA_SIMULADO = [
-    { id: 1, data: '2026-03-14T08:30:00Z', medicamento: 'Paracetamol 500mg comprimido', codigo: 'MED001', lote: 'LT-2026-065', validade: '2027-04-30', quantidade: 200, unidadeId: 'upa', unidade: 'UPA', responsavel: 'João Mendes', setor: 'Almoxarifado Central', observacao: 'Carga regular', documento: 'NF-8821' },
-    { id: 2, data: '2026-03-14T09:15:00Z', medicamento: 'Metformina 850mg comprimido', codigo: 'MED002', lote: 'LT-2026-112', validade: '2027-10-31', quantidade: 350, unidadeId: 'umsj', unidade: 'UMSJ', responsavel: 'Maria Silva', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8822' },
-    { id: 3, data: '2026-03-14T10:00:00Z', medicamento: 'Dipirona 500mg comprimido', codigo: 'MED003', lote: 'LT-2026-210', validade: '2028-01-31', quantidade: 500, unidadeId: 'upa', unidade: 'UPA', responsavel: 'Carlos Souza', setor: 'Almoxarifado Central', observacao: 'Urgente', documento: 'NF-8823' },
-    { id: 4, data: '2026-03-14T11:20:00Z', medicamento: 'Amoxicilina 500mg cápsula', codigo: 'MED004', lote: 'LT-2026-005', validade: '2027-06-15', quantidade: 120, unidadeId: 'upa', unidade: 'UPA', responsavel: 'João Mendes', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8824' },
-    { id: 5, data: '2026-03-14T13:45:00Z', medicamento: 'Omeprazol 20mg cápsula', code: 'MED005', lote: 'LT-2026-098', validade: '2027-12-20', quantidade: 400, unidadeId: 'umsj', unidade: 'UMSJ', responsavel: 'Maria Silva', setor: 'Almoxarifado Central', observacao: 'Estoque de reserva', documento: 'NF-8825' },
-    { id: 6, data: getNDaysAgo(2), medicamento: 'Losartana 50mg comprimido', codigo: 'MED006', lote: 'LT-2026-044', validade: '2028-03-10', quantidade: 600, unidadeId: 'upa', unidade: 'UPA', responsavel: 'Carlos Souza', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8826' },
-    { id: 7, data: getNDaysAgo(2), medicamento: 'Sinvastatina 20mg comprimido', codigo: 'MED007', lote: 'LT-2026-033', validade: '2027-08-05', quantidade: 300, unidadeId: 'upa', unidade: 'UPA', responsavel: 'João Mendes', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8827' },
-    { id: 8, data: getNDaysAgo(3), medicamento: 'Glibenclamida 5mg comprimido', codigo: 'MED008', lote: 'LT-2026-022', validade: '2027-11-25', quantidade: 250, unidadeId: 'umsj', unidade: 'UMSJ', responsavel: 'Maria Silva', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8828' },
-    { id: 9, data: getNDaysAgo(4), medicamento: 'Ibuprofeno 600mg comprimido', codigo: 'MED009', lote: 'LT-2026-011', validade: '2028-02-14', quantidade: 180, unidadeId: 'upa', unidade: 'UPA', responsavel: 'Carlos Souza', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8829' },
+    { id: 1, data: `${HOJE}T08:30:00Z`, medicamento: 'Paracetamol 500mg comprimido', codigo: 'MED001', lote: 'LT-2026-065', validade: '2027-04-30', quantidade: 200, unidadeId: 'upa', unidade: 'UPA', responsavel: 'João Mendes', setor: 'Almoxarifado Central', observacao: 'Carga regular', documento: 'NF-8821' },
+    { id: 2, data: `${HOJE}T09:15:00Z`, medicamento: 'Metformina 850mg comprimido', codigo: 'MED002', lote: 'LT-2026-112', validade: '2027-10-31', quantidade: 350, unidadeId: 'umsj', unidade: 'UMSJ', responsavel: 'Maria Silva', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8822' },
+    { id: 3, data: `${HOJE}T10:00:00Z`, medicamento: 'Dipirona 500mg comprimido', codigo: 'MED003', lote: 'LT-2026-210', validade: '2028-01-31', quantidade: 500, unidadeId: 'upa', unidade: 'UPA', responsavel: 'Carlos Souza', setor: 'Almoxarifado Central', observacao: 'Urgente', documento: 'NF-8823' },
+    { id: 4, data: `${HOJE}T11:20:00Z`, medicamento: 'Amoxicilina 500mg cápsula', codigo: 'MED004', lote: 'LT-2026-005', validade: '2027-06-15', quantidade: 120, unidadeId: 'upa', unidade: 'UPA', responsavel: 'João Mendes', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8824' },
+    { id: 5, data: `${HOJE}T13:45:00Z`, medicamento: 'Omeprazol 20mg cápsula', code: 'MED005', lote: 'LT-2026-098', validade: '2027-12-20', quantidade: 400, unidadeId: 'umsj', unidade: 'UMSJ', responsavel: 'Maria Silva', setor: 'Almoxarifado Central', observacao: 'Estoque de reserva', documento: 'NF-8825' },
+    { id: 6, data: getNDaysAgo(1), medicamento: 'Losartana 50mg comprimido', codigo: 'MED006', lote: 'LT-2026-044', validade: '2028-03-10', quantidade: 600, unidadeId: 'upa', unidade: 'UPA', responsavel: 'Carlos Souza', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8826' },
+    { id: 7, data: getNDaysAgo(1), medicamento: 'Sinvastatina 20mg comprimido', codigo: 'MED007', lote: 'LT-2026-033', validade: '2027-08-05', quantidade: 300, unidadeId: 'upa', unidade: 'UPA', responsavel: 'João Mendes', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8827' },
+    { id: 8, data: getNDaysAgo(2), medicamento: 'Glibenclamida 5mg comprimido', codigo: 'MED008', lote: 'LT-2026-022', validade: '2027-11-25', quantidade: 250, unidadeId: 'umsj', unidade: 'UMSJ', responsavel: 'Maria Silva', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8828' },
+    { id: 9, data: getNDaysAgo(3), medicamento: 'Ibuprofeno 600mg comprimido', codigo: 'MED009', lote: 'LT-2026-011', validade: '2028-02-14', quantidade: 180, unidadeId: 'upa', unidade: 'UPA', responsavel: 'Carlos Souza', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8829' },
     { id: 10, data: getNDaysAgo(14), medicamento: 'Enalapril 10mg comprimido', codigo: 'MED010', lote: 'LT-2026-077', validade: '2027-05-18', quantidade: 450, unidadeId: 'upsj', unidade: 'UPSJ', responsavel: 'João Mendes', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8830' },
     { id: 11, data: getNDaysAgo(15), medicamento: 'Atenolol 50mg comprimido', codigo: 'MED011', lote: 'LT-2026-088', validade: '2027-03-12', quantidade: 320, unidadeId: 'upa', unidade: 'UPA', responsavel: 'Maria Silva', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8831' },
     { id: 12, data: getNDaysAgo(20), medicamento: 'Simeticona 40mg comprimido', codigo: 'MED012', lote: 'LT-2026-099', validade: '2028-06-22', quantidade: 150, unidadeId: 'umsj', unidade: 'UMSJ', responsavel: 'Carlos Souza', setor: 'Almoxarifado Central', observacao: '', documento: 'NF-8832' },
