@@ -1,4 +1,5 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "redirects": [
     {
       "source": "/",
@@ -6,10 +7,14 @@
       "permanent": false
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/farmacia",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/farmacia/:path*",
+      "destination": "/index.html"
     }
   ]
 }
