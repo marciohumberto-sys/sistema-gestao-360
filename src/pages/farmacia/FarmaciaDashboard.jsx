@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     Package, PackagePlus, PackageMinus, AlertTriangle, ArrowLeftRight,
-    ChevronRight, Bell, XCircle, Clock, TrendingUp, Activity, Heart
+    ChevronRight, Bell, XCircle, Clock, TrendingUp, Activity, Heart, BarChart3
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { mockFarmaciaKPIs, mockMovimentacoes, mockEstoqueItems } from '../../mocks/farmaciaMocks';
 import {
     LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer,
-    Tooltip as RechartsTooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar, Area, AreaChart, Legend
+    Tooltip as RechartsTooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar, Area, AreaChart, Legend, ReferenceLine
 } from 'recharts';
 import './FarmaciaPages.css';
 
@@ -62,7 +62,7 @@ const GaugeCircular = ({ pct, cor }) => {
     const circ = 2 * Math.PI * R;
     const dash = (pct / 100) * circ;
     return (
-        <svg width="100" height="100" viewBox="0 0 100 100" style={{ display: 'block', margin: '0 auto' }}>
+        <svg width="76" height="76" viewBox="0 0 100 100" style={{ display: 'block', margin: '0 auto' }}>
             <circle cx="50" cy="50" r={R} fill="none" stroke="var(--bg-muted)" strokeWidth="10" />
             <circle
                 cx="50" cy="50" r={R} fill="none"
@@ -125,11 +125,59 @@ const TooltipConsumo = ({ active, payload }) => {
     );
 };
 
+/* Tooltip customizado para Distribuição do Estoque */
+const TooltipDistribuicao = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const item = payload[0];
+    const color = item.payload.fill || item.color || item.payload.color;
+    const pct = Math.round((item.value / totalDistrib) * 100);
+    return (
+        <div style={{ 
+            background: 'var(--bg)', 
+            border: '1px solid var(--border)', 
+            borderLeft: `4px solid ${color}`,
+            borderRadius: '8px', 
+            padding: '10px 14px', 
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)', 
+            fontSize: '0.85rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px'
+        }}>
+            <span style={{ fontWeight: 800, color: 'var(--text)', fontSize: '0.9rem' }}>{item.name}</span>
+            <span style={{ fontWeight: 700, color: color }}>
+                {pct}% <span style={{ fontWeight: 500, fontSize: '0.75rem', color: 'var(--text-muted)' }}>do total</span>
+            </span>
+        </div>
+    );
+};
+
 const FarmaciaDashboard = () => {
     const navigate = useNavigate();
     const [alertaAberto, setAlertaAberto] = useState(false);
+    const [barrasAnimadas, setBarrasAnimadas] = useState(false);
     const alertaRef = useRef(null);
+    const analiseOpRef = useRef(null);
     const movRecentes = mockMovimentacoes.slice(0, 5);
+
+    // Fade-in animation for bars on scroll visibility
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setBarrasAnimadas(true);
+                    observer.disconnect();
+                }
+            },
+            { threshold: 0.15 } // Dispara quando 15% do bloco estiver visível
+        );
+
+        if (analiseOpRef.current) {
+            observer.observe(analiseOpRef.current);
+        }
+
+        return () => observer.disconnect();
+    }, []);
 
     // Fechar painel ao clicar fora
     useEffect(() => {
@@ -159,20 +207,35 @@ const FarmaciaDashboard = () => {
     // Consumo por unidade — calculado dinamicamente
     const consumoUnidades = useMemo(() => calcConsumoUnidades(), []);
 
+    // Cálculo da média semanal para o Hero Chart
+    const mediaMovimentacoes = useMemo(() => {
+        const total = mockTendencia.reduce((acc, curr) => acc + curr.Entradas + curr.Saídas, 0);
+        return Math.round(total / (mockTendencia.length * 2));
+    }, []);
+
     const kpiCards = [
-        { label: 'Total de Itens',  value: mockFarmaciaKPIs.totalItens,  desc: 'medicamentos cadastrados', icon: Package,      color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-        { label: 'Entradas Hoje',   value: mockFarmaciaKPIs.entradasHoje, desc: 'movimentação registrada', icon: PackagePlus,   color: '#00967D', bg: 'rgba(0,150,125,0.1)' },
-        { label: 'Saídas Hoje',     value: mockFarmaciaKPIs.saidasHoje,   desc: 'dispensação realizada',   icon: PackageMinus,  color: '#ea580c', bg: 'rgba(234,88,12,0.1)' },
-        { label: 'Itens Críticos',  value: mockFarmaciaKPIs.itensCriticos,desc: 'estoque baixo ou zerado', icon: AlertTriangle, color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: '#ef4444' },
+        { label: 'Total de Itens',  value: mockFarmaciaKPIs.totalItens,  desc: 'estoque ativo no sistema', context: 'base consolidada', trendColor: 'var(--text-muted)', icon: Package,      color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', shadow: 'rgba(59,130,246,0.15)' },
+        { label: 'Entradas Hoje',   value: mockFarmaciaKPIs.entradasHoje, desc: 'fluxo dentro da média de abastecimento', context: '+1 vs ontem', trendColor: '#10b981', icon: PackagePlus,   color: '#00967D', bg: 'rgba(0,150,125,0.1)', shadow: 'rgba(0,150,125,0.15)' },
+        { label: 'Saídas Hoje',     value: mockFarmaciaKPIs.saidasHoje,   desc: 'demanda regular do dia',   context: 'dentro da média semanal', trendColor: 'var(--text-muted)', icon: PackageMinus,  color: '#ea580c', bg: 'rgba(234,88,12,0.1)', shadow: 'rgba(234,88,12,0.15)' },
+        { label: 'Itens Críticos',  value: mockFarmaciaKPIs.itensCriticos,desc: 'reposição recomendada', context: 'prioridade de análise', trendColor: '#ef4444', icon: AlertTriangle, color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: '#ef4444', shadow: 'rgba(239,68,68,0.15)' },
     ];
 
     return (
-        <div className="farmacia-page-container">
-            {/* Keyframe da animação do painel flutuante */}
+        <div className="farmacia-page-container" style={{ gap: '0.85rem' }}>
+            {/* Keyframe da animação do painel flutuante e do ícone crítico */}
             <style>{`
                 @keyframes alertaPainelEntrar {
-                    from { opacity: 0; transform: translateY(-6px); }
-                    to   { opacity: 1; transform: translateY(0); }
+                    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+                    to   { opacity: 1; transform: translateY(0) scale(1); }
+                }
+                @keyframes pulseIconCritico {
+                    0% { transform: scale(1); opacity: 1; }
+                    50% { transform: scale(1.15); opacity: 0.7; }
+                    100% { transform: scale(1); opacity: 1; }
+                }
+                @keyframes alertaItemFadeIn {
+                    from { opacity: 0; transform: translateX(-5px); }
+                    to   { opacity: 1; transform: translateX(0); }
                 }
             `}</style>
             {/* ── Header + Alerta Dropdown Flutuante ── */}
@@ -199,7 +262,14 @@ const FarmaciaDashboard = () => {
                                 boxShadow: alertaAberto ? '0 2px 8px rgba(239,68,68,0.12)' : 'none',
                             }}
                         >
-                            <Bell size={14} strokeWidth={2.5} />
+                            <Bell 
+                                size={16} 
+                                strokeWidth={2.5} 
+                                style={{
+                                    animation: (!alertaAberto && itensSemEstoque > 0) ? 'pulseIconCritico 2s infinite ease-in-out' : 'none',
+                                    transition: 'all 0.3s ease'
+                                }}
+                            />
                             <span>
                                 {itensSemEstoque + itensAbaixoMinimo + itensVencendo} alerta
                                 {itensSemEstoque + itensAbaixoMinimo + itensVencendo > 1 ? 's' : ''}
@@ -217,51 +287,88 @@ const FarmaciaDashboard = () => {
                                 background: 'var(--bg)',
                                 border: '1px solid var(--border)',
                                 borderRadius: '12px',
-                                boxShadow: '0 12px 32px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06)',
+                                boxShadow: '0 16px 40px rgba(0,0,0,0.08), 0 6px 16px rgba(0,0,0,0.04)',
                                 padding: '1rem',
-                                animation: 'alertaPainelEntrar 0.18s ease both',
+                                animation: 'alertaPainelEntrar 0.2s cubic-bezier(0.16, 1, 0.3, 1) both',
+                                transformOrigin: 'top right'
                             }}>
                                 {/* Cabeçalho do painel */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '0.85rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
-                                    <Bell size={14} color="#dc2626" strokeWidth={2.5} />
-                                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Atenção Operacional</span>
+                                <div style={{ marginBottom: '0.85rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                                        <Bell size={14} color="#dc2626" strokeWidth={2.5} />
+                                        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Atenção Operacional</span>
+                                    </div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px', fontWeight: 500 }}>
+                                        {itensSemEstoque + itensAbaixoMinimo + itensVencendo} eventos exigem atenção
+                                    </div>
                                 </div>
 
                                 {/* Alertas por nível */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                     {itensSemEstoque > 0 && (
                                         <button onClick={() => { navigate('/farmacia/estoque'); setAlertaAberto(false); }}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '8px', cursor: 'pointer', border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.06)', textAlign: 'left', transition: 'background 0.15s', width: '100%' }}>
-                                            <div style={{ width: 28, height: 28, borderRadius: '6px', background: 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            style={{ 
+                                                display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', 
+                                                borderRadius: '8px', cursor: 'pointer', 
+                                                border: '1px solid rgba(239,68,68,0.25)', borderLeft: '3px solid #dc2626',
+                                                background: 'linear-gradient(90deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.03) 100%)', 
+                                                textAlign: 'left', transition: 'background 0.15s, transform 0.15s', width: '100%',
+                                                animation: 'alertaItemFadeIn 0.3s ease-out 0.05s both'
+                                            }}>
+                                            <div style={{ width: 28, height: 28, borderRadius: '6px', background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                                 <XCircle size={14} color="#dc2626" strokeWidth={2.5} />
                                             </div>
                                             <div>
-                                                <div style={{ fontSize: '0.83rem', fontWeight: 700, color: '#dc2626' }}>{itensSemEstoque} item{itensSemEstoque > 1 ? 's' : ''} sem estoque</div>
-                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1px' }}>Nível crítico — clique para ver</div>
+                                                <div style={{ fontSize: '0.83rem', fontWeight: 700, color: '#dc2626' }}>
+                                                    {itensSemEstoque === 1 
+                                                        ? `${mockEstoqueItems.find(i => i.status === 'SEM_ESTOQUE')?.nome || '1 item'} sem estoque` 
+                                                        : `${itensSemEstoque} itens sem estoque`}
+                                                </div>
+                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>Reposição imediata recomendada.</div>
                                             </div>
                                         </button>
                                     )}
                                     {itensAbaixoMinimo > 0 && (
                                         <button onClick={() => { navigate('/farmacia/estoque'); setAlertaAberto(false); }}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '8px', cursor: 'pointer', border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.06)', textAlign: 'left', transition: 'background 0.15s', width: '100%' }}>
+                                            style={{ 
+                                                display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', 
+                                                borderRadius: '8px', cursor: 'pointer', 
+                                                border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.05)', 
+                                                textAlign: 'left', transition: 'background 0.15s', width: '100%',
+                                                animation: 'alertaItemFadeIn 0.3s ease-out 0.1s both'
+                                            }}>
                                             <div style={{ width: 28, height: 28, borderRadius: '6px', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                                 <AlertTriangle size={14} color="#b45309" strokeWidth={2.5} />
                                             </div>
                                             <div>
-                                                <div style={{ fontSize: '0.83rem', fontWeight: 700, color: '#b45309' }}>{itensAbaixoMinimo} item{itensAbaixoMinimo > 1 ? 's' : ''} abaixo do mínimo</div>
-                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1px' }}>Atenção — reabastecimento recomendado</div>
+                                                <div style={{ fontSize: '0.83rem', fontWeight: 700, color: '#b45309' }}>
+                                                    {itensAbaixoMinimo === 1
+                                                        ? `${mockEstoqueItems.find(i => i.status === 'ABAIXO_MINIMO')?.nome || '1 item'} abaixo do mínimo`
+                                                        : `${itensAbaixoMinimo} itens abaixo do mínimo`}
+                                                </div>
+                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>Análise de reabastecimento sugerida.</div>
                                             </div>
                                         </button>
                                     )}
                                     {itensVencendo > 0 && (
                                         <button onClick={() => { navigate('/farmacia/relatorios'); setAlertaAberto(false); }}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '8px', cursor: 'pointer', border: '1px solid rgba(59,130,246,0.2)', background: 'rgba(59,130,246,0.06)', textAlign: 'left', transition: 'background 0.15s', width: '100%' }}>
+                                            style={{ 
+                                                display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', 
+                                                borderRadius: '8px', cursor: 'pointer', 
+                                                border: '1px solid rgba(59,130,246,0.2)', background: 'rgba(59,130,246,0.05)', 
+                                                textAlign: 'left', transition: 'background 0.15s', width: '100%',
+                                                animation: 'alertaItemFadeIn 0.3s ease-out 0.15s both'
+                                            }}>
                                             <div style={{ width: 28, height: 28, borderRadius: '6px', background: 'rgba(59,130,246,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                                 <Clock size={14} color="#1d4ed8" strokeWidth={2.5} />
                                             </div>
                                             <div>
-                                                <div style={{ fontSize: '0.83rem', fontWeight: 700, color: '#1d4ed8' }}>{itensVencendo} item{itensVencendo > 1 ? 's' : ''} com validade próxima</div>
-                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1px' }}>Monitoramento — clique para relatório</div>
+                                                <div style={{ fontSize: '0.83rem', fontWeight: 700, color: '#1d4ed8' }}>
+                                                    {itensVencendo === 1
+                                                        ? `1 item com validade próxima` // Cannot easily extract name here without the complex filter logic duplicated
+                                                        : `${itensVencendo} itens com validade próxima`}
+                                                </div>
+                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>Avaliar redistribuição de estoque.</div>
                                             </div>
                                         </button>
                                     )}
@@ -272,9 +379,50 @@ const FarmaciaDashboard = () => {
                 )}
             </header>
 
-            {/* ── 2) Hero Chart – Fluxo Últimos 7 Dias (logo acima da dobra) ── */}
-            <div className="dashboard-chart-surface" style={{ padding: '1.5rem 1.5rem 1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+            {/* ── 2) KPI Cards + Gauge Saúde (Movido para cima do gráfico) ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.85rem' }}>
+                {kpiCards.map((k, i) => (
+                    <div key={i} className="farmacia-kpi-card dashboard-chart-surface" style={{ borderLeft: `4px solid ${k.border || k.color}`, gap: '0.2rem', padding: '0.875rem 1rem' }}>
+                        <span className="farmacia-kpi-label">{k.label}</span>
+                        <span className="farmacia-kpi-value" style={{ color: k.color }}>
+                            <AnimatedCount target={k.value} />
+                        </span>
+                        <span className="farmacia-kpi-desc" style={{ marginBottom: '2px' }}>{k.desc}</span>
+                        <span style={{ fontSize: '0.62rem', color: k.trendColor, opacity: 0.48, fontWeight: 500, marginTop: '1px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            • {k.context}
+                        </span>
+                        <div className="farmacia-kpi-icon" style={{ 
+                            backgroundColor: k.bg, 
+                            color: k.color, 
+                            top: '1rem', 
+                            right: '1rem',
+                            border: `1px solid ${k.bg.replace('0.1)', '0.2)')}`,
+                            boxShadow: `0 4px 10px ${k.shadow}`,
+                            borderRadius: '8px',
+                            width: '34px',
+                            height: '34px'
+                        }}>
+                            <k.icon size={17} />
+                        </div>
+                    </div>
+                ))}
+
+                {/* Gauge Saúde */}
+                <div className="farmacia-kpi-card dashboard-chart-surface" style={{ borderLeft: `4px solid ${saudeCor}`, gap: '0.1rem', padding: '0.875rem 1rem', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                    <span className="farmacia-kpi-label" style={{ marginBottom: '0.2rem' }}>Saúde do Estoque</span>
+                    <div style={{ margin: '0.2rem 0' }}>
+                        <GaugeCircular pct={saudePercentual} cor={saudeCor} />
+                    </div>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: saudeCor, marginTop: '2px' }}>{saudeLabel}</span>
+                    <span style={{ fontSize: '0.62rem', color: saudePercentual <= 85 ? saudeCor : 'var(--text-muted)', opacity: 0.48, fontWeight: 500, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
+                        • {saudePercentual < 70 ? 'ação preventiva urgente' : saudePercentual <= 85 ? 'análise recomendada' : 'operação estabilizada'}
+                    </span>
+                </div>
+            </div>
+
+            {/* ── 3) Hero Chart – Fluxo Últimos 7 Dias ── */}
+            <div className="dashboard-chart-surface" style={{ padding: '1.1rem 1.5rem 0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.85rem' }}>
                     <div>
                         <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text)' }}>
                             Fluxo de Medicamentos — Últimos 7 dias
@@ -296,9 +444,13 @@ const FarmaciaDashboard = () => {
                             </span>
                             <span style={{ color: 'var(--text)' }}>Saídas</span>
                         </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ width: 14, height: 0, borderTop: '2px dashed var(--text-muted)', opacity: 0.5, display: 'inline-block' }} />
+                            <span style={{ color: 'var(--text-muted)' }}>Média semanal</span>
+                        </span>
                     </div>
                 </div>
-                <div style={{ width: '100%', height: 320 }}>
+                <div style={{ width: '100%', height: 280 }}>
                     <ResponsiveContainer>
                         <AreaChart data={mockTendencia} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <defs>
@@ -315,6 +467,7 @@ const FarmaciaDashboard = () => {
                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} />
                             <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} />
                             <RechartsTooltip content={<HeroTooltip />} />
+                            <ReferenceLine y={mediaMovimentacoes} stroke="var(--text-muted)" strokeDasharray="4 4" opacity={0.3} />
                             <Area type="monotone" dataKey="Entradas" stroke="#00967D" strokeWidth={3} fill="url(#gradEntradas)" dot={{ r: 4, fill: '#00967D', strokeWidth: 0 }} activeDot={{ r: 7, fill: '#00967D' }} animationDuration={1000} />
                             <Area type="monotone" dataKey="Saídas"   stroke="#ea580c" strokeWidth={3} fill="url(#gradSaidas)"   dot={{ r: 4, fill: '#ea580c', strokeWidth: 0 }} activeDot={{ r: 7, fill: '#ea580c' }} animationDuration={1000} animationBegin={200} />
                         </AreaChart>
@@ -322,67 +475,57 @@ const FarmaciaDashboard = () => {
                 </div>
             </div>
 
-            {/* ── 3) KPI Cards + Gauge Saúde ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem' }}>
-                {kpiCards.map((k, i) => (
-                    <div key={i} className="farmacia-kpi-card dashboard-chart-surface" style={{ borderLeft: `4px solid ${k.border || k.color}`, gap: '0.2rem', padding: '0.75rem 1rem 0.65rem' }}>
-                        <span className="farmacia-kpi-label">{k.label}</span>
-                        <span className="farmacia-kpi-value" style={{ color: k.color }}>
-                            <AnimatedCount target={k.value} />
-                        </span>
-                        <span className="farmacia-kpi-desc">{k.desc}</span>
-                        <div className="farmacia-kpi-icon" style={{ backgroundColor: k.bg, color: k.color }}>
-                            <k.icon size={16} />
-                        </div>
-                    </div>
-                ))}
-
-                {/* Gauge Saúde */}
-                <div className="farmacia-kpi-card dashboard-chart-surface" style={{ borderLeft: `4px solid ${saudeCor}`, gap: '0.2rem', padding: '0.75rem 1rem', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-                    <span className="farmacia-kpi-label" style={{ marginBottom: '0.5rem' }}>Saúde do Estoque</span>
-                    <GaugeCircular pct={saudePercentual} cor={saudeCor} />
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: saudeCor, marginTop: '4px' }}>{saudeLabel}</span>
-                </div>
-            </div>
-
             {/* ── 4) Análise Operacional: Donut + Barras Setor ── */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '0.5rem' }}>
-                <Activity size={17} style={{ color: 'var(--color-secondary)' }} />
-                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Análise Operacional</span>
+            <div ref={analiseOpRef} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.5rem' }}>
+                <Activity size={15} style={{ color: 'var(--text-muted)', opacity: 0.8 }} />
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Análise Operacional</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1rem' }}>
 
                 {/* Donut Distribuição — refinado */}
                 <div className="dashboard-chart-surface">
                     <h3 className="farmacia-title-small">Distribuição do Estoque</h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginTop: '0.75rem' }}>
+                    <div style={{ 
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4.5rem', marginTop: '1.25rem', marginBottom: '0.75rem',
+                        opacity: barrasAnimadas ? 1 : 0,
+                        transform: barrasAnimadas ? 'scale(1)' : 'scale(0.96)',
+                        transition: 'opacity 0.7s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)' 
+                    }}>
                         {/* Donut com espessura maior (innerRadius 50, outerRadius 78 = 28px de espessura) */}
-                        <div style={{ width: 170, height: 170, flexShrink: 0 }}>
-                            <ResponsiveContainer width={170} height={170}>
-                                <PieChart>
-                                    <Pie
-                                        data={mockDistribuicao}
-                                        innerRadius={50} outerRadius={78}
-                                        paddingAngle={3} dataKey="value"
-                                        stroke="none" startAngle={90} endAngle={-270}
-                                        animationDuration={800}
-                                    >
-                                        {mockDistribuicao.map((e, i) => <Cell key={i} fill={e.color} />)}
-                                    </Pie>
+                        <div style={{ position: 'relative', width: 170, height: 170, flexShrink: 0 }}>
+                            <ResponsiveContainer width={170} height={170} style={{ overflow: 'visible' }}>
+                                <PieChart style={{ overflow: 'visible' }}>
+                                    {barrasAnimadas && (
+                                        <Pie
+                                            data={mockDistribuicao}
+                                            innerRadius={54} outerRadius={78}
+                                            paddingAngle={3} dataKey="value"
+                                            stroke="none" startAngle={90} endAngle={-270}
+                                            animationDuration={800}
+                                        >
+                                            {mockDistribuicao.map((e, i) => <Cell key={i} fill={e.color} />)}
+                                        </Pie>
+                                    )}
                                     <RechartsTooltip
-                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.82rem' }}
-                                        formatter={(value, name) => [`${Math.round((value / totalDistrib) * 100)}%`, name]}
+                                        wrapperStyle={{ zIndex: 10, pointerEvents: 'none' }}
+                                        content={<TooltipDistribuicao />}
                                     />
                                 </PieChart>
                             </ResponsiveContainer>
+                            {/* Conteúdo central do Donut */}
+                            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', lineHeight: 1.1 }}>
+                                <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', opacity: 0.85, marginBottom: '2px' }}>Total de itens</span>
+                                <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text)', margin: '0' }}>{totalDistrib.toLocaleString('pt-BR')}</span>
+                                <span style={{ fontSize: '0.52rem', color: 'var(--text-muted)', opacity: 0.65, marginTop: '1px' }}>formas farmacê.</span>
+                            </div>
                         </div>
                         {/* Legenda com melhor alinhamento e espaçamento */}
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                             {mockDistribuicao.map((item, idx) => (
-                                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{ width: 12, height: 12, borderRadius: '3px', backgroundColor: item.color, flexShrink: 0 }} />
-                                    <span style={{ color: 'var(--text)', fontWeight: 500, flex: 1, fontSize: '0.84rem' }}>{item.name}</span>
-                                    <span style={{ color: item.color, fontWeight: 700, fontSize: '0.84rem' }}>
+                                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: item.color, flexShrink: 0 }} />
+                                    <span style={{ color: 'var(--text)', fontWeight: 500, fontSize: '0.82rem' }}>{item.name}</span>
+                                    <span style={{ color: item.color, fontWeight: 700, fontSize: '0.85rem' }}>
                                         {Math.round((item.value / totalDistrib) * 100)}%
                                     </span>
                                 </div>
@@ -400,8 +543,7 @@ const FarmaciaDashboard = () => {
                             const pct = ((u.consumo / total) * 100).toFixed(1);
                             const barW = (u.consumo / consumoUnidades[0].consumo) * 100;
                             const barColor = i === 0 ? '#00967D' : '#2E86AB';
-                            // Trilho com contraste maior para realçar a barra ativa
-                            const trilhoColor = i === 0 ? 'rgba(0,150,125,0.15)' : 'rgba(46,134,171,0.12)';
+                            const trilhoColor = i === 0 ? 'rgba(0,150,125,0.06)' : 'rgba(46,134,171,0.05)';
                             return (
                                 <div key={i}>
                                     {/* Nome da unidade — destaque máximo */}
@@ -410,15 +552,15 @@ const FarmaciaDashboard = () => {
                                     </div>
                                     {/* Barra proporcional — mais espessa e com contraste */}
                                     <div style={{ height: '16px', background: trilhoColor, borderRadius: '8px', overflow: 'hidden', marginBottom: '6px' }}>
-                                        <div style={{ height: '100%', width: `${barW}%`, background: barColor, borderRadius: '8px', transition: 'width 0.9s ease' }} />
+                                        <div style={{ height: '100%', width: barrasAnimadas ? `${barW}%` : '0%', background: barColor, borderRadius: '8px', transition: 'width 0.9s cubic-bezier(0.22, 1, 0.36, 1)' }} />
                                     </div>
                                     {/* Valor e percentual — hierarquia clara */}
-                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                                        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: barColor }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px' }}>
+                                        <span style={{ fontSize: '0.92rem', fontWeight: 700, color: barColor, lineHeight: 1 }}>
                                             {u.consumo.toLocaleString('pt-BR')} un
                                         </span>
-                                        <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>
-                                            ({pct}% do total)
+                                        <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)', opacity: 0.7, lineHeight: 1 }}>
+                                            {pct}% do total
                                         </span>
                                     </div>
                                 </div>
@@ -433,23 +575,76 @@ const FarmaciaDashboard = () => {
                 <TrendingUp size={17} style={{ color: 'var(--color-secondary)' }} />
                 <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Análise de Consumo</span>
             </div>
-            <div className="dashboard-chart-surface">
-                <h3 className="farmacia-title-small" style={{ marginBottom: '1.25rem' }}>Medicamentos Mais Movimentados</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {topMedicamentos.map((m, i) => (
-                        <div key={i}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 600, marginBottom: '5px' }}>
-                                <span style={{ color: 'var(--text)' }}>
-                                    <span style={{ display: 'inline-block', width: '18px', color: 'var(--text-muted)', fontWeight: 700 }}>{i + 1}.</span>
-                                    {m.nome}
-                                </span>
-                                <span style={{ color: 'var(--text-muted)' }}>{m.qtd.toLocaleString('pt-BR')} un</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(400px, 2.5fr) minmax(280px, 1fr)', gap: '1rem' }}>
+                <div className="dashboard-chart-surface" style={{ display: 'flex', flexDirection: 'column' }}>
+                    <h3 className="farmacia-title-small" style={{ marginBottom: '1.25rem' }}>Medicamentos Mais Movimentados</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, gap: '1rem' }}>
+                        {topMedicamentos.slice(0, 4).map((m, i) => (
+                            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                    <div style={{ fontWeight: 600, color: 'var(--text)' }}>
+                                        <span style={{ display: 'inline-block', width: '22px', color: 'var(--text-muted)', fontWeight: 700 }}>{i + 1}º</span>
+                                        {m.nome}
+                                    </div>
+                                    <span style={{ fontWeight: 700, color: 'var(--text)', fontSize: '0.9rem' }}>
+                                        {m.qtd.toLocaleString('pt-BR')} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-muted)' }}>un</span>
+                                    </span>
+                                </div>
+                                
+                                {/* Barra da exata mesma largura total (100%) */}
+                                <div style={{ height: '6px', background: 'rgba(150, 150, 150, 0.3)', borderRadius: '999px', overflow: 'hidden', width: '100%' }}>
+                                    <div style={{ 
+                                        height: '100%', 
+                                        width: barrasAnimadas ? `${(m.qtd / m.max) * 100}%` : '0%', 
+                                        background: rankColors[i], 
+                                        borderRadius: '999px', 
+                                        transition: 'width 0.9s cubic-bezier(0.22, 1, 0.36, 1)' 
+                                    }} />
+                                </div>
                             </div>
-                            <div style={{ height: '8px', background: 'var(--bg-muted)', borderRadius: '4px', overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: `${(m.qtd / m.max) * 100}%`, background: rankColors[i], borderRadius: '4px', transition: 'width 0.8s ease' }} />
-                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Painel Inteligente de Insights */}
+                <div className="dashboard-chart-surface" style={{ 
+                    display: 'flex', flexDirection: 'column',
+                    opacity: barrasAnimadas ? 1 : 0, 
+                    transform: barrasAnimadas ? 'translateX(0)' : 'translateX(15px)',
+                    background: barrasAnimadas ? 'linear-gradient(145deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.03) 100%)' : 'rgba(255, 255, 255, 0)',
+                    border: barrasAnimadas ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid transparent',
+                    boxShadow: barrasAnimadas ? '0 12px 35px -5px rgba(59, 130, 246, 0.15), 0 4px 15px rgba(59, 130, 246, 0.05)' : 'none',
+                    transition: 'all 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.25s',
+                    position: 'relative',
+                    overflow: 'hidden'
+                }}>
+                    <div style={{ position: 'absolute', right: '-25px', top: '50%', opacity: 0.05, pointerEvents: 'none', transform: 'translateY(-50%)', zIndex: 0 }}>
+                        <Activity size={160} color="var(--color-primary)" strokeWidth={1.2} />
+                    </div>
+                
+                    <h3 className="farmacia-title-small" style={{ marginBottom: '1.25rem', color: 'var(--color-primary)', borderBottom: '1px solid rgba(59, 130, 246, 0.25)', paddingBottom: '0.65rem', fontWeight: 900, fontSize: '0.95rem', textShadow: '0 1px 2px rgba(59, 130, 246, 0.1)', zIndex: 1, position: 'relative' }}>
+                        Insights de Consumo
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', flex: 1, zIndex: 1, position: 'relative' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '0.65rem', borderBottom: '1px solid rgba(150, 150, 150, 0.2)' }}>
+                            <span style={{ fontSize: '0.73rem', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Consumo acelerado</span>
+                            <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text)' }}>Dipirona 500mg</span>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-muted)' }}>+18% no período</span>
                         </div>
-                    ))}
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '0.65rem', borderBottom: '1px solid rgba(150, 150, 150, 0.2)' }}>
+                            <span style={{ fontSize: '0.73rem', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Queda de consumo</span>
+                            <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text)' }}>Ibuprofeno 600mg</span>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-muted)' }}>-5% no período</span>
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: 'auto' }}>
+                            <span style={{ fontSize: '0.73rem', fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Recomendação / IA</span>
+                            <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text)', lineHeight: 1.45 }}>
+                                Reforçar estoque de Dipirona para suportar o pico de admissões da UPA.
+                            </span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -470,9 +665,14 @@ const FarmaciaDashboard = () => {
                         { label: '60 – 90 dias', sub: 'Monitorar', qtd: 45, pct: 60, cor: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
                     ].map((v, i) => (
                         <div key={i} style={{ marginBottom: i < 2 ? '1.25rem' : 0 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.83rem', fontWeight: 600, marginBottom: '6px' }}>
-                                <span style={{ color: v.cor }}>{v.label} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({v.sub})</span></span>
-                                <span style={{ color: 'var(--text)' }}>{v.qtd} itens</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontSize: '0.83rem', fontWeight: i === 0 ? 700 : 600, marginBottom: '6px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ color: v.cor, fontSize: i === 0 ? '0.87rem' : '0.83rem' }}>{v.label} <span style={{ color: i === 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: i === 0 ? 700 : 400, opacity: i === 0 ? 0.9 : 1 }}>({v.sub})</span></span>
+                                    {i === 0 && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: '2px' }}>Vencem em até 30 dias</span>}
+                                </div>
+                                <span style={{ color: i === 0 ? 'var(--text)' : 'var(--text-muted)', fontSize: i === 0 ? '0.9rem' : '0.83rem' }}>
+                                    {v.qtd} {i === 0 ? 'itens críticos' : 'itens'}
+                                </span>
                             </div>
                             <div style={{ height: '8px', background: v.bg, borderRadius: '4px', overflow: 'hidden' }}>
                                 <div style={{ height: '100%', width: `${v.pct}%`, background: v.cor, borderRadius: '4px', transition: 'width 1s ease' }} />
@@ -483,46 +683,84 @@ const FarmaciaDashboard = () => {
 
                 {/* Movimentações Recentes */}
                 <div className="farmacia-card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h3 className="farmacia-title-small">Movimentações Recentes</h3>
-                        <button className="farmacia-link-action" onClick={() => navigate('/farmacia/movimentacoes')} style={{ fontSize: '0.83rem' }}>
-                            Ver todas <ChevronRight size={14} />
-                        </button>
+                    <div style={{ padding: '1rem 1.5rem 0.65rem', borderBottom: '1px solid rgba(150, 150, 150, 0.15)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+                            <h3 className="farmacia-title-small">Movimentações Recentes</h3>
+                            <button className="farmacia-link-action" onClick={() => navigate('/farmacia/movimentacoes')} style={{ fontSize: '0.83rem' }}>
+                                Ver todas <ChevronRight size={14} />
+                            </button>
+                        </div>
+                        
+                        {/* Resumo do Dia */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.78rem', backgroundColor: 'var(--bg-muted-light)', padding: '0.4rem 0.6rem', borderRadius: '6px' }}>
+                            <span style={{ fontWeight: 600, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.7rem' }}>Hoje:</span>
+                            <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                                <ArrowLeftRight size={12} color="#00967D" />
+                                <span style={{ fontWeight: 600, color: '#00967D' }}>+620</span> <span style={{ color: 'var(--text-muted)' }}>entradas</span>
+                            </div>
+                            <div style={{ height: '12px', width: '1px', backgroundColor: 'var(--border)' }}></div>
+                            <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                                <ArrowLeftRight size={12} color="#ea580c" style={{ transform: 'scaleX(-1)' }} />
+                                <span style={{ fontWeight: 600, color: '#ea580c' }}>-75</span> <span style={{ color: 'var(--text-muted)' }}>saídas</span>
+                            </div>
+                            <div style={{ height: '12px', width: '1px', backgroundColor: 'var(--border)' }}></div>
+                            <span style={{ fontWeight: 600, color: '#00967D', background: 'rgba(0, 150, 125, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>Saldo positivo</span>
+                        </div>
                     </div>
-                    <div className="farmacia-table-wrapper" style={{ border: 'none', flex: 1, borderRadius: 0 }}>
+                    <div className="farmacia-table-wrapper" style={{ border: 'none', flex: 1, borderRadius: 0, paddingBottom: '0.75rem' }}>
                         <table className="farmacia-table">
                             <thead>
                                 <tr>
-                                    <th>Data</th>
-                                    <th>Tipo</th>
-                                    <th>Medicamento</th>
-                                    <th>Responsável</th>
-                                    <th style={{ textAlign: 'right' }}>Qtd</th>
+                                    <th style={{ padding: '0.5rem 1rem' }}>Data</th>
+                                    <th style={{ padding: '0.5rem 1rem' }}>Tipo</th>
+                                    <th style={{ padding: '0.5rem 1rem' }}>Medicamento</th>
+                                    <th style={{ padding: '0.5rem 1rem' }}>Responsável</th>
+                                    <th style={{ padding: '0.5rem 1rem', textAlign: 'right' }}>Qtd</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {movRecentes.map(mov => (
-                                    <tr key={mov.id} style={{ cursor: 'default', transition: 'background 0.15s' }}
-                                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted-light)'}
-                                        onMouseLeave={e => e.currentTarget.style.background = ''}>
-                                        <td className="farmacia-td-muted" style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
-                                            {new Date(mov.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                                        </td>
-                                        <td>
-                                            <span className={`farmacia-badge badge-tipo badge-tipo-${mov.tipo.toLowerCase()}`}
-                                                style={{ fontSize: '0.7rem', padding: '0.12rem 0.4rem' }}>
-                                                {mov.tipo}
-                                            </span>
-                                        </td>
-                                        <td className="farmacia-td-primary" style={{ fontSize: '0.84rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {mov.medicamento}
-                                        </td>
-                                        <td style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{mov.responsavel}</td>
-                                        <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.85rem', color: mov.quantidade > 0 ? '#00967D' : '#ea580c' }}>
-                                            {mov.quantidade > 0 ? '+' : ''}{mov.quantidade}
-                                        </td>
-                                    </tr>
-                                ))}
+                                {(() => {
+                                    const highestEntry = Math.max(...movRecentes.filter(m => m.tipo === 'Entrada').map(m => m.quantidade));
+                                    const highestExit = Math.min(...movRecentes.filter(m => m.tipo === 'Saída').map(m => m.quantidade));
+                                    
+                                    return movRecentes.slice(0, 4).map(mov => {
+                                        const isHighestEntry = mov.tipo === 'Entrada' && mov.quantidade === highestEntry;
+                                        const isHighestExit = mov.tipo === 'Saída' && mov.quantidade === highestExit;
+                                        const isHighlight = isHighestEntry || isHighestExit;
+                                        
+                                        return (
+                                            <tr key={mov.id} style={{ 
+                                                cursor: 'default', 
+                                                transition: 'background 0.15s',
+                                                backgroundColor: isHighlight ? 'var(--bg-muted)' : 'transparent'
+                                            }}
+                                                onMouseEnter={e => e.currentTarget.style.background = isHighlight ? 'var(--bg-muted)' : 'var(--bg-muted-light)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = isHighlight ? 'var(--bg-muted)' : 'transparent'}>
+                                                <td className="farmacia-td-muted" style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                                                    {new Date(mov.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                                </td>
+                                                <td style={{ padding: '0.5rem 1rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span className={`farmacia-badge badge-tipo badge-tipo-${mov.tipo.toLowerCase()}`}
+                                                            style={{ fontSize: '0.7rem', padding: '0.12rem 0.4rem' }}>
+                                                            {mov.tipo}
+                                                        </span>
+                                                        {isHighlight && (
+                                                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--color-primary)', background: 'rgba(59, 130, 246, 0.1)', padding: '2px 4px', borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Maior</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="farmacia-td-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.84rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isHighlight ? 700 : 500 }}>
+                                                    {mov.medicamento}
+                                                </td>
+                                                <td style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>{mov.responsavel}</td>
+                                                <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 700, fontSize: '0.85rem', color: mov.quantidade > 0 ? '#00967D' : '#ea580c' }}>
+                                                    {mov.quantidade > 0 ? '+' : ''}{mov.quantidade}
+                                                </td>
+                                            </tr>
+                                        );
+                                    });
+                                })()}
                             </tbody>
                         </table>
                     </div>
