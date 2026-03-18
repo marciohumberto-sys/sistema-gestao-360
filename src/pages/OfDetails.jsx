@@ -73,7 +73,6 @@ const OfDetails = () => {
                     .eq('contract_id', data.contract_id)
                     .eq('secretariat_id', data.secretariat_id)
                     .eq('tenant_id', tenantId)
-                    .neq('status', 'CANCELED')
                     .neq('status', 'CANCELLED');
                 setOtherOfs(oOfs || []);
             }
@@ -104,8 +103,7 @@ const OfDetails = () => {
         switch(status.toUpperCase()) {
             case 'DRAFT': return 'Rascunho';
             case 'ISSUED': return 'Emitida';
-            case 'CANCELLED':
-            case 'CANCELED': return 'Cancelada';
+            case 'CANCELLED': return 'Cancelada';
             default: return status;
         }
     };
@@ -331,7 +329,7 @@ const OfDetails = () => {
     const currentStatus = (ofData.status || 'DRAFT').toUpperCase();
     const isDraft = currentStatus === 'DRAFT';
     const isIssued = currentStatus === 'ISSUED';
-    const isCanceled = currentStatus === 'CANCELED' || currentStatus === 'CANCELLED';
+    const isCancelled = currentStatus === 'CANCELLED';
 
     const renderFeedback = () => {
         if (!feedback) return null;
@@ -362,7 +360,7 @@ const OfDetails = () => {
                 </button>
                 
                 <div>
-                    {(isDraft || isCanceled) && (
+                    {(isDraft || isCancelled) && (
                         <button 
                             className="btn-secondary" 
                             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0.5rem 1rem', fontSize: '0.875rem' }}

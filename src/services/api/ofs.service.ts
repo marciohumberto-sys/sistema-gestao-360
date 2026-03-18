@@ -257,12 +257,15 @@ class OFsService {
 
         // 3. Fetch all non-canceled OFs for the same contract to validate balance
         const { data: allOfs, error: err2 } = await supabase
-            .from('ofs')
-            .select('id, status, total_amount, secretariat_id, items:of_items(contract_item_id, quantity)')
-            .eq('contract_id', ofData.contract_id)
-            .eq('tenant_id', tenantId)
-            .neq('status', 'CANCELED');
-        if (err2) throw new Error("Erro ao validar histórico de OFs.");
+		  .from('ofs')
+		  .select('id, status, total_amount, secretariat_id, items:of_items(contract_item_id, quantity)')
+		  .eq('contract_id', ofData.contract_id)
+		  .eq('tenant_id', tenantId)
+		  .neq('status', 'CANCELLED');
+        if (err2) {
+  console.error('Erro real ao validar histórico de OFs:', err2);
+  throw new Error(`Erro ao validar histórico de OFs: ${err2.message}`);
+}
 
         // Validate Contract Balance (Global)
         const contractTotalValue = Number(ofData.contract.total_value || 0);
@@ -319,7 +322,7 @@ class OFsService {
         const { error: err5 } = await supabase.from('commitment_movements').insert([{
             tenant_id: tenantId,
             commitment_id: ofData.commitment.id,
-            movement_type: 'CONSUMPTION',
+            movement_type: 'OF_CONSUMPTION',
             amount: totalAmount,
             description: `Emissão da OF Nº ${ofData.number || 'S/N'}`,
             of_id: id,
