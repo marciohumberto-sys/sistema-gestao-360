@@ -9,7 +9,7 @@
   ],
   "rewrites": [
     {
-      "source": "/farmacia/:path*",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
