@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+test-output.json
+test-rpc.js
+check*.json
+check_*.mjs
+.env
+.env.local
+.vite/
+scripts/*
+schema*
+tmp/*

@@ -111,7 +111,7 @@ const Login = () => {
                                         const val = e.target.value.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9.]/g, '');
                                         setLoginStr(val);
                                     }}
-                                    placeholder="Ex: erlane.vieira" 
+                                    placeholder="Ex: isabella.oliveira" 
                                     required
                                     style={{ width: '100%', padding: '15px 15px 15px 46px', border: '1.5px solid #e2e8f0', borderRadius: '12px', fontSize: '1rem', color: '#0f172a', outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box', backgroundColor: '#fdfdfd' }} 
                                     onFocus={e => { e.target.style.borderColor = 'var(--color-primary)'; e.target.style.boxShadow = '0 0 0 4px rgba(0,180,150, 0.1)'; e.target.style.backgroundColor = '#fff'; }}
