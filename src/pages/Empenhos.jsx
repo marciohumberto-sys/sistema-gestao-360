@@ -513,7 +513,7 @@ const Empenhos = () => {
 
                                         return (
                                             <tr key={emp.id} className="clickable-row">
-                                                <td onClick={() => navigate(`/empenhos/${emp.id}`)}>
+                                                <td onClick={() => navigate(`/compras/empenhos/${emp.id}`)}>
                                                     <div className="emp-contract-info">
                                                         <span className="td-number" style={{ fontSize: '0.875rem' }}>{emp.number}</span>
                                                         <span className="emp-meta-text" style={{ marginTop: '0', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={emp.contract?.title}>
@@ -521,12 +521,12 @@ const Empenhos = () => {
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td onClick={() => navigate(`/empenhos/${emp.id}`)}>
+                                                <td onClick={() => navigate(`/compras/empenhos/${emp.id}`)}>
                                                     <div className="emp-contract-info">
                                                         <span className="title-text">{emp.secretariat?.name || '-'}</span>
                                                     </div>
                                                 </td>
-                                                <td onClick={() => navigate(`/empenhos/${emp.id}`)}>
+                                                <td onClick={() => navigate(`/compras/empenhos/${emp.id}`)}>
                                                     <div className="emp-contract-info">
                                                         <span className="val-total" style={{ fontWeight: 500, marginBottom: 0 }}>{formatCurrency(inicial)}</span>
                                                         {(adicoes > 0 || anulacoes > 0) && (
@@ -537,7 +537,7 @@ const Empenhos = () => {
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td onClick={() => navigate(`/empenhos/${emp.id}`)}>
+                                                <td onClick={() => navigate(`/compras/empenhos/${emp.id}`)}>
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
                                                         <span className="val-total emp-value-consumido" style={consumido > 0 ? { color: '#7C6EE6', fontWeight: 600 } : {}}>
                                                             {formatCurrency(consumido)}
@@ -555,12 +555,12 @@ const Empenhos = () => {
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td onClick={() => navigate(`/empenhos/${emp.id}`)}>
+                                                <td onClick={() => navigate(`/compras/empenhos/${emp.id}`)}>
                                                     <span className={`val-total emp-value-destaque`} style={isLow ? { color: '#d97706' } : {}}>
                                                         {formatCurrency(saldo)}
                                                     </span>
                                                 </td>
-                                                <td style={{ textAlign: 'center' }} onClick={() => navigate(`/empenhos/${emp.id}`)}>
+                                                <td style={{ textAlign: 'center' }} onClick={() => navigate(`/compras/empenhos/${emp.id}`)}>
                                                     <span className={`status-badge ${emp.status?.toLowerCase()}`}>
                                                         {emp.status}
                                                     </span>
@@ -593,7 +593,7 @@ const Empenhos = () => {
                                                             className="action-btn edit" 
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                navigate(`/empenhos/${emp.id}`);
+                                                                navigate(`/compras/empenhos/${emp.id}`);
                                                             }}
                                                         >
                                                             <Eye size={18} />

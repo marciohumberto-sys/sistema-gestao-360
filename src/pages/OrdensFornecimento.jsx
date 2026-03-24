@@ -332,10 +332,10 @@ const OrdensFornecimento = () => {
                                 ) : (
                                     filteredOfs.map(of => (
                                         <tr key={of.id} className="clickable-row">
-                                            <td onClick={() => navigate(`/ordens-fornecimento/${of.id}`)}>
+                                            <td onClick={() => navigate(`/compras/ordens-fornecimento/${of.id}`)}>
                                                 <span className="td-number" style={{ fontSize: '0.875rem' }}>{of.number}</span>
                                             </td>
-                                            <td onClick={() => navigate(`/ordens-fornecimento/${of.id}`)}>
+                                            <td onClick={() => navigate(`/compras/ordens-fornecimento/${of.id}`)}>
                                                 <div className="emp-contract-info">
                                                     <span className="emp-contract-number">{of.contract?.number || '-'}</span>
                                                     <span className="emp-contract-type" style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={of.contract?.title}>
@@ -343,20 +343,20 @@ const OrdensFornecimento = () => {
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td onClick={() => navigate(`/ordens-fornecimento/${of.id}`)}>
+                                            <td onClick={() => navigate(`/compras/ordens-fornecimento/${of.id}`)}>
                                                 <span className="title-text">{of.secretariat?.name || '-'}</span>
                                             </td>
-                                            <td onClick={() => navigate(`/ordens-fornecimento/${of.id}`)}>
+                                            <td onClick={() => navigate(`/compras/ordens-fornecimento/${of.id}`)}>
                                                 <span className="val-total" style={{ fontWeight: 600, fontStyle: of.status === 'DRAFT' ? 'italic' : 'normal' }}>
                                                     {of.status === 'DRAFT' ? 'OF em edição' : formatCurrency(of.total_amount)}
                                                 </span>
                                             </td>
-                                            <td onClick={() => navigate(`/ordens-fornecimento/${of.id}`)}>
+                                            <td onClick={() => navigate(`/compras/ordens-fornecimento/${of.id}`)}>
                                                 <span className={`status-badge ${of.status?.toLowerCase()}`}>
                                                     {getStatusLabel(of.status)}
                                                 </span>
                                             </td>
-                                            <td onClick={() => navigate(`/ordens-fornecimento/${of.id}`)}>
+                                            <td onClick={() => navigate(`/compras/ordens-fornecimento/${of.id}`)}>
                                                 <span className="td-date">
                                                     {of.issue_date ? formatLocalDate(of.issue_date) : '-'}
                                                 </span>
@@ -367,7 +367,7 @@ const OrdensFornecimento = () => {
                                                         className="action-btn edit" 
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            navigate(`/ordens-fornecimento/${of.id}`);
+                                                            navigate(`/compras/ordens-fornecimento/${of.id}`);
                                                         }}
                                                     >
                                                         <Eye size={18} />
@@ -410,7 +410,7 @@ const OrdensFornecimento = () => {
                                                                 <button 
                                                                     className="action-button icon-only" 
                                                                     title="Visualizar OF"
-                                                                    onClick={(e) => { e.stopPropagation(); navigate(`/ordens-fornecimento/${of.id}`); }}
+                                                                    onClick={(e) => { e.stopPropagation(); navigate(`/compras/ordens-fornecimento/${of.id}`); }}
                                                                     style={{
                                                                         display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 16px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.875rem', color: '#4a5568'
                                                                     }}

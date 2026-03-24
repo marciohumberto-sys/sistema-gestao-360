@@ -382,6 +382,46 @@ class ContractsService {
             if (c.isPending) totalPending++;
         });
 
+        const now = new Date();
+        const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+
+        let ofsQuery = supabase
+            .from('ofs')
+            .select('issue_date, status')
+            .eq('status', 'ISSUED');
+
+        if (tenantId) {
+            ofsQuery = ofsQuery.eq('tenant_id', tenantId);
+        }
+
+        const { data: ofsData, error: ofsError } = await ofsQuery.gte('issue_date', startOfLastMonth);
+        console.log("DASHBOARD OFS DEBUG ->", ofsData, "ERROR ->", ofsError);
+
+        let ofsThisMonth = 0;
+        let ofsLastMonth = 0;
+
+        if (ofsData) {
+            ofsData.forEach(of => {
+                if (of.issue_date >= startOfThisMonth) {
+                    ofsThisMonth++;
+                } else {
+                    ofsLastMonth++;
+                }
+            });
+        }
+
+        let ofsChangePercentage = 0;
+        if (ofsLastMonth > 0) {
+            ofsChangePercentage = Math.round(((ofsThisMonth - ofsLastMonth) / ofsLastMonth) * 100);
+        } else if (ofsThisMonth > 0) {
+            ofsChangePercentage = 100;
+        }
+
+        // Mocks for NFs for now
+        const pendingNfsMock = 3;
+        const nfsExpiringThisWeekMock = 1;
+
         return {
             totalContracts: contracts.length,
             expiringContracts: expiringCount,
@@ -389,10 +429,10 @@ class ContractsService {
             totalValueSum: totalValSum,
             balanceValueSum: balanceValSum,
             totalPendingContracts: totalPending,
-            ofsThisMonth: 0,
-            ofsChangePercentage: 0,
-            pendingNfs: 0,
-            nfsExpiringThisWeek: 0
+            ofsThisMonth: ofsThisMonth,
+            ofsChangePercentage: ofsChangePercentage,
+            pendingNfs: pendingNfsMock,
+            nfsExpiringThisWeek: nfsExpiringThisWeekMock
         };
     }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     ShoppingCart,
@@ -15,52 +15,117 @@ import {
     ChevronLeft,
     Plus,
     FilePlus,
-    HelpCircle
+    HelpCircle,
+    Package,
+    PackagePlus,
+    PackageMinus,
+    ArrowLeftRight,
+    SlidersHorizontal,
+    Pill,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { canAccessFarmacia } from '../../utils/farmaciaAcl';
 import './Sidebar.css';
 
 const MENU_ITEMS = [
     {
         section: 'Principal',
         items: [
-            { path: '/', icon: LayoutDashboard, label: 'Dashboard' }
+            { path: '/compras/dashboard', icon: LayoutDashboard, label: 'Dashboard' }
         ]
     },
     {
         section: 'Operacional',
         items: [
-            { path: '/ordens-fornecimento', icon: ShoppingCart, label: 'Ordens de Fornecimento' },
-            { path: '/notas-fiscais', icon: FileText, label: 'Notas Fiscais' }
+            { path: '/compras/ordens-fornecimento', icon: ShoppingCart, label: 'Ordens de Fornecimento' },
+            { path: '/compras/notas-fiscais', icon: FileText, label: 'Notas Fiscais' }
         ]
     },
     {
         section: 'Gestão',
         items: [
-            { path: '/contratos', icon: Briefcase, label: 'Contratos' },
-            { path: '/empenhos', icon: FileBadge, label: 'Empenhos' },
-            { path: '/aditivos', icon: Files, label: 'Aditivos' }
+            { path: '/compras/contratos', icon: Briefcase, label: 'Contratos' },
+            { path: '/compras/empenhos', icon: FileBadge, label: 'Empenhos' },
+            { path: '/compras/aditivos', icon: Files, label: 'Aditivos' }
         ]
     },
     {
         section: 'Análise',
         items: [
-            { path: '/relatorios', icon: BarChart2, label: 'Relatórios' },
-            { path: '/alertas', icon: AlertTriangle, label: 'Alertas' }
+            { path: '/compras/relatorios', icon: BarChart2, label: 'Relatórios' },
+            { path: '/compras/alertas', icon: AlertTriangle, label: 'Alertas' }
         ]
     },
     {
         section: 'Administração',
         items: [
-            { path: '/cadastros', icon: Users, label: 'Cadastros' },
-            { path: '/configuracoes', icon: Settings, label: 'Configurações' }
+            { path: '/compras/cadastros', icon: Users, label: 'Cadastros' },
+            { path: '/compras/configuracoes', icon: Settings, label: 'Configurações' }
+        ]
+    }
+];
+
+// Menu contextual do módulo Farmácia (3 grupos)
+const FARMACIA_MENU_ITEMS = [
+    {
+        section: 'Principal',
+        items: [
+            { path: '/farmacia/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+            { path: '/farmacia/estoque',   icon: Package,          label: 'Estoque' },
+        ]
+    },
+    {
+        section: 'Operações',
+        items: [
+            { path: '/farmacia/entradas',      icon: PackagePlus,       label: 'Entradas' },
+            { path: '/farmacia/saidas',        icon: PackageMinus,      label: 'Saídas' },
+            { path: '/farmacia/movimentacoes', icon: ArrowLeftRight,    label: 'Movimentações' },
+            { path: '/farmacia/ajustes',       icon: SlidersHorizontal, label: 'Ajustes' },
+        ]
+    },
+    {
+        section: 'Análises',
+        items: [
+            { path: '/farmacia/relatorios', icon: BarChart2, label: 'Relatórios' },
+        ]
+    },
+    {
+        section: 'Administração',
+        items: [
+            { path: '/farmacia/usuarios', icon: Users, label: 'Usuários' }
         ]
     }
 ];
 
 const Sidebar = ({ isPinned, togglePin }) => {
+    const location = useLocation();
+    const navigate = useNavigate();
+    const { tenantLink, isSuperAdmin } = useAuth();
+    
+    const isFarmacia = location.pathname.startsWith('/farmacia');
+    const activeMenu = isFarmacia ? FARMACIA_MENU_ITEMS : MENU_ITEMS;
+    
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
+
+    const filteredMenu = activeMenu.map(group => ({
+        ...group,
+        items: group.items.filter(item => {
+            if (isFarmacia) {
+                return canAccessFarmacia(role, item.path);
+            }
+            return true;
+        })
+    })).filter(group => group.items.length > 0);
+
     return (
         <aside className={`sidebar ${isPinned ? 'pinned' : 'compact'}`}>
             <div className="sidebar-header">
+                {isFarmacia && isPinned && (
+                    <span className="sidebar-module-label">
+                        <Pill size={13} strokeWidth={2} />
+                        Farmácia
+                    </span>
+                )}
                 <button
                     className="pin-toggle-btn"
                     onClick={togglePin}
@@ -70,7 +135,7 @@ const Sidebar = ({ isPinned, togglePin }) => {
                 </button>
             </div>
             <div className="sidebar-content">
-                {MENU_ITEMS.map((group, index) => (
+                {filteredMenu.map((group, index) => (
                     <div key={index} className="sidebar-section">
                         <div className="sidebar-section-title">
                             {group.section}
@@ -110,18 +175,20 @@ const Sidebar = ({ isPinned, togglePin }) => {
                 ))}
             </div>
 
+            {!isFarmacia && (
             <div className="sidebar-footer">
                 <div className="footer-actions">
-                    <button className="footer-btn btn-primary" title={!isPinned ? "Nova Ordem de Fornecimento" : ""}>
+                    <button className="footer-btn btn-primary" title={!isPinned ? "Nova Ordem de Fornecimento" : ""} onClick={() => navigate('/compras/ordens-fornecimento')}>
                         <Plus size={18} strokeWidth={2.5} className="footer-icon" />
                         <span className="footer-btn-label">Nova OF</span>
                     </button>
-                    <button className="footer-btn btn-secondary" title={!isPinned ? "Registrar Nota Fiscal" : ""}>
+                    <button className="footer-btn btn-secondary" title={!isPinned ? "Registrar Nota Fiscal" : ""} onClick={() => navigate('/compras/notas-fiscais')}>
                         <FilePlus size={18} strokeWidth={2} className="footer-icon" />
                         <span className="footer-btn-label">Registrar NF</span>
                     </button>
                 </div>
             </div>
+            )}
         </aside>
     );
 };

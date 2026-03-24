@@ -441,7 +441,7 @@ const Contratos = () => {
             handleCloseModal();
             await loadContracts();
             // Only navigate if creating? Actually, staying on page is fine for both.
-            if (!editingContract) navigate('/contratos');
+            if (!editingContract) navigate('/compras/contratos');
 
         } catch (error) {
             console.error(editingContract ? "Erro ao atualizar contrato:" : "Erro ao criar contrato:", error);
@@ -605,15 +605,15 @@ const Contratos = () => {
                                     filteredAndSortedContracts.map(contract => (
                                         <tr
                                             key={contract.id}
-                                            onClick={() => navigate(`/contratos/${contract.id}`)}
+                                            onClick={() => navigate(`/compras/contratos/${contract.id}`)}
                                             style={{ cursor: 'pointer' }}
                                             className="clickable-row"
                                         >
                                             <td>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '300px' }}>
-                                                    <span className="td-number" style={{ whiteSpace: 'nowrap' }}>{contract.number}</span>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <span className="title-text" title={contract.title}>{contract.title}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
+                                                    <span className="td-number" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{contract.number}</span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                                        <span className="title-text" title={contract.title} style={{ minWidth: 0, flexShrink: 1 }}>{contract.title}</span>
                                                         {getContractAlerts(contract).length > 0 && (
                                                             <div className="ct-alerts-list" style={{ marginLeft: 0 }}>
                                                                 {getContractAlerts(contract).map(alert => (

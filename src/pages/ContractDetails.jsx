@@ -668,7 +668,7 @@ const ContractDetails = () => {
             
             // Pequeno delay para o usuário ver o feedback antes de redirecionar
             setTimeout(() => {
-                navigate(`/ordens-fornecimento/${newOf.id}`);
+                navigate(`/compras/ordens-fornecimento/${newOf.id}`);
             }, 800);
         } catch (err) {
             console.error("Erro ao criar OF:", err);
@@ -770,7 +770,7 @@ const ContractDetails = () => {
                     <AlertCircle size={48} className="cd-error-icon" />
                     <h2>Contrato não encontrado</h2>
                     <p>O registro que você tenta acessar não existe ou foi removido.</p>
-                    <button className="cd-btn-secondary" onClick={() => navigate('/contratos')}>
+                    <button className="cd-btn-secondary" onClick={() => navigate('/compras/contratos')}>
                         <ChevronLeft size={18} />
                         Voltar para Contratos
                     </button>
@@ -807,7 +807,7 @@ const ContractDetails = () => {
 
             {/* Context Navigation */}
             <nav className="cd-breadcrumb">
-                <button className="cd-back-link" onClick={() => navigate('/contratos')}>
+                <button className="cd-back-link" onClick={() => navigate('/compras/contratos')}>
                     <ChevronLeft size={16} /> Contratos
                 </button>
                 <span className="cd-crumb-separator">/</span>

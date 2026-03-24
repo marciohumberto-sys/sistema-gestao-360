@@ -60,7 +60,7 @@ const EmpenhoDetails = () => {
             <div className="ct-container">
                 <div className="ed-empty-state">
                     <h3>Empenho não encontrado</h3>
-                    <button className="ct-secondary-btn" onClick={() => navigate('/empenhos')} style={{ marginTop: '1rem' }}>
+                    <button className="ct-secondary-btn" onClick={() => navigate('/compras/empenhos')} style={{ marginTop: '1rem' }}>
                         Voltar para Empenhos
                     </button>
                 </div>
@@ -81,7 +81,7 @@ const EmpenhoDetails = () => {
             {/* Header / Navigate Back */}
             <div>
                 <button 
-                    onClick={() => navigate('/empenhos')} 
+                    onClick={() => navigate('/compras/empenhos')} 
                     className="ct-secondary-btn" 
                     style={{ border: 'none', background: 'transparent', paddingLeft: 0, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
@@ -334,7 +334,7 @@ const EmpenhoDetails = () => {
                                         <td style={{ textAlign: 'right' }}>
                                             <button 
                                                 className="ct-icon-btn" 
-                                                onClick={() => navigate(`/ordens-fornecimento/${of.id}`)}
+                                                onClick={() => navigate(`/compras/ordens-fornecimento/${of.id}`)}
                                                 title="Ver Detalhes da OF"
                                                 style={{ padding: '4px', color: '#6366f1' }}
                                             >

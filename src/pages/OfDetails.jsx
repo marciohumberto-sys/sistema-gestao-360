@@ -73,6 +73,7 @@ const OfDetails = () => {
                     .eq('contract_id', data.contract_id)
                     .eq('secretariat_id', data.secretariat_id)
                     .eq('tenant_id', tenantId)
+                    .neq('status', 'CANCELED')
                     .neq('status', 'CANCELLED');
                 setOtherOfs(oOfs || []);
             }
@@ -103,7 +104,8 @@ const OfDetails = () => {
         switch(status.toUpperCase()) {
             case 'DRAFT': return 'Rascunho';
             case 'ISSUED': return 'Emitida';
-            case 'CANCELLED': return 'Cancelada';
+            case 'CANCELLED':
+            case 'CANCELED': return 'Cancelada';
             default: return status;
         }
     };
@@ -316,7 +318,7 @@ const OfDetails = () => {
                 <p style={{ marginTop: '0.5rem' }}>O registro que você tenta acessar não existe ou foi removido.</p>
                 <button 
                     className="btn-secondary" 
-                    onClick={() => navigate('/ordens-fornecimento')}
+                    onClick={() => navigate('/compras/ordens-fornecimento')}
                     style={{ marginTop: '1.5rem', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                 >
                     <ArrowLeft size={16} /> Voltar para a lista
@@ -329,7 +331,7 @@ const OfDetails = () => {
     const currentStatus = (ofData.status || 'DRAFT').toUpperCase();
     const isDraft = currentStatus === 'DRAFT';
     const isIssued = currentStatus === 'ISSUED';
-    const isCancelled = currentStatus === 'CANCELLED';
+    const isCanceled = currentStatus === 'CANCELED' || currentStatus === 'CANCELLED';
 
     const renderFeedback = () => {
         if (!feedback) return null;
@@ -355,12 +357,12 @@ const OfDetails = () => {
             {renderFeedback()}
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <button className="back-link" onClick={() => navigate('/ordens-fornecimento')} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: 500, padding: 0 }}>
+                <button className="back-link" onClick={() => navigate('/compras/ordens-fornecimento')} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: 500, padding: 0 }}>
                     <ArrowLeft size={16} /> Voltar para Ordens de Fornecimento
                 </button>
                 
                 <div>
-                    {(isDraft || isCancelled) && (
+                    {(isDraft || isCanceled) && (
                         <button 
                             className="btn-secondary" 
                             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0.5rem 1rem', fontSize: '0.875rem' }}

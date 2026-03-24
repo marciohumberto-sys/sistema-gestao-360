@@ -166,7 +166,7 @@ const Dashboard = () => {
                     {metrics.totalPendingContracts > 0 && (
                         <button
                             className="alert-chip danger"
-                            onClick={() => navigate('/contratos?pending=1')}
+                            onClick={() => navigate('/compras/contratos?pending=1')}
                         >
                             <AlertCircle size={14} />
                             {metrics.totalPendingContracts} Contratos com pendência (Sem itens)
@@ -371,7 +371,7 @@ const Dashboard = () => {
                                         </div>
                                         <button
                                             className="queue-action"
-                                            onClick={() => navigate(`/contratos/${contract.id}`)}
+                                            onClick={() => navigate(`/compras/contratos/${contract.id}`)}
                                         >
                                             {contract.status === 'VENCIDO' ? 'Urgente' : 'Analisar'}
                                         </button>
