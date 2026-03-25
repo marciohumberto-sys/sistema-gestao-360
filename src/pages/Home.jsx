@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderKanban, Pill, LogOut, ArrowRight, ShieldCheck } from 'lucide-react';
+import { FolderKanban, Pill, LogOut, ArrowRight, ShieldCheck, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { brandConfig } from '../config/brand';
 
@@ -36,22 +36,27 @@ const Home = () => {
             {/* Header Simples Premium */}
             <header style={{ backgroundColor: '#fff', borderBottom: '1px solid #e5e7eb', padding: '1.25rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                    <img src={brandConfig.logoPath} alt="Logo" style={{ height: '38px', objectFit: 'contain' }} />
-                    <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '1.25rem', height: '30px', display: 'flex', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 500, color: '#475569', fontSize: '1.05rem', letterSpacing: '-0.01em' }}>Sistema Gestão 360</span>
+                    <img src={brandConfig.logoPath} alt="Logo" style={{ height: '42px', objectFit: 'contain' }} />
+                    <div style={{ borderLeft: '2px solid #e2e8f0', paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        <h1 style={{ fontSize: '1.15rem', color: '#0f172a', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontWeight: 600 }}>Sistema Gestão</span>
+                            <span style={{ fontWeight: 800, color: 'var(--color-primary)' }}>360</span>
+                        </h1>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500, letterSpacing: '0.01em', marginTop: '2px' }}>Plataforma inteligente de gestão pública</span>
                     </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                        <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>{authUser?.email}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                            {isSuperAdmin && <ShieldCheck size={12} color="var(--color-primary)" />}
-                            <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 500 }}>
-                                {isSuperAdmin ? 'Administrador Superior' : 'Gestor de Áreas'}
-                            </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>{userName}</span>
+                            <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>{authUser?.email}</span>
+                        </div>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(0, 150, 125, 0.08)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(0, 150, 125, 0.15)' }}>
+                            <User size={18} strokeWidth={2.5} />
                         </div>
                     </div>
+                    <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0', margin: '0 0.25rem' }} />
                     <button 
                         onClick={handleLogout}
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', transition: 'all 0.2s' }}

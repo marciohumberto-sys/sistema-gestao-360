@@ -176,16 +176,7 @@ const FarmaciaMovimentacoes = () => {
         return result;
     }, [todosRegistros, busca, tipoFiltro, periodoFiltro, setorFiltro, sortConfig]);
 
-    if (isLoading) {
-        return (
-            <div className="farmacia-page-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', opacity: 0.6 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-                    <div className="spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(0, 150, 125, 0.2)', borderTopColor: 'var(--color-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                    <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Sincronizando pipeline de movimentos...</span>
-                </div>
-            </div>
-        );
-    }
+    // Removido o bloqueio agressivo de tela por isLoading
 
     return (
         <div className="farmacia-page-container" style={{ gap: '1.25rem' }}>
@@ -195,6 +186,12 @@ const FarmaciaMovimentacoes = () => {
                     <p className="farmacia-page-subtitle">Histórico completo de todas as movimentações do estoque.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    {isLoading && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, background: 'rgba(0,150,125,0.1)', padding: '4px 10px', borderRadius: '12px' }}>
+                            <div className="spinner" style={{ width: '12px', height: '12px', border: '2px solid rgba(0, 150, 125, 0.2)', borderTopColor: 'var(--color-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} /> 
+                            Atualizando...
+                        </span>
+                    )}
                     <FarmaciaUnitBadge />
                 </div>
             </header>

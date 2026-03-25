@@ -45,9 +45,15 @@ export const AuthProvider = ({ children }) => {
             loadSessionData(session?.user || null);
         });
 
-        // Event listener para logins e logouts reativos
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setLoading(true);
+        // Listener reativo de auth.
+        // IMPORTANTE: setLoading(true) só é chamado para eventos que realmente
+        // mudam a identidade do usuário (login/logout). Eventos silenciosos como
+        // TOKEN_REFRESHED e INITIAL_SESSION NÃO devem desmontar a árvore React.
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            const eventosQueExigemLoading = ['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'];
+            if (eventosQueExigemLoading.includes(event)) {
+                setLoading(true);
+            }
             loadSessionData(session?.user || null);
         });
 

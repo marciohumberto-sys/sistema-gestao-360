@@ -1,12 +1,22 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { getPostLoginRedirectPath } from '../../utils/authUtils';
 
 const ProtectedRoute = ({ module, children }) => {
     const { isAuthenticated, loading, isSuperAdmin, accessibleModules, tenantLink } = useAuth();
     const location = useLocation();
 
-    if (loading) {
+    // Controla se o splash inicial já foi exibido.
+    // Depois que a sessão foi carregada uma vez, loading subsequentes
+    // (ex: TOKEN_REFRESHED) não devem desmontar a árvore de componentes.
+    const initialLoadDone = useRef(false);
+    if (!loading) {
+        initialLoadDone.current = true;
+    }
+
+    // Apenas exibe o splash ANTES de qualquer dado de sessão estar disponível
+    if (loading && !initialLoadDone.current) {
         return (
             <div style={{ height: '100vh', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', gap: '16px' }}>
                 <div style={{ width: '40px', height: '40px', border: '3px solid rgba(0, 150, 125, 0.1)', borderTopColor: '#00967d', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -28,7 +38,8 @@ const ProtectedRoute = ({ module, children }) => {
 
     if (module && !isSuperAdmin) {
         if (!accessibleModules.includes(module)) {
-             return <Navigate to="/home" replace />;
+             const redirectPath = getPostLoginRedirectPath(tenantLink, isSuperAdmin, accessibleModules);
+             return <Navigate to={redirectPath} replace />;
         }
     }
 

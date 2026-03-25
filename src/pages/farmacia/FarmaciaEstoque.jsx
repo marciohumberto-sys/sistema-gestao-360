@@ -207,6 +207,12 @@ const FarmaciaEstoque = () => {
                     <p className="farmacia-page-subtitle">Visão geral do estoque atual por medicamento.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    {isLoading && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, background: 'rgba(0,150,125,0.1)', padding: '4px 10px', borderRadius: '12px' }}>
+                            <div className="spinner" style={{ width: '12px', height: '12px', border: '2px solid rgba(0, 150, 125, 0.2)', borderTopColor: 'var(--color-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} /> 
+                            Atualizando...
+                        </span>
+                    )}
                     <FarmaciaUnitBadge />
                 </div>
             </header>

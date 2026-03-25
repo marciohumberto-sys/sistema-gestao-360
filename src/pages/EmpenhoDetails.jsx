@@ -49,8 +49,24 @@ const EmpenhoDetails = () => {
 
     if (isLoading) {
         return (
-            <div className="ct-container" style={{ justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-                <Loader2 size={48} className="animate-spin text-gray-400" />
+            <div className="empenho-details-container ct-container">
+                <div style={{ paddingBottom: '2rem' }}>
+                    <div style={{ width: '150px', height: '20px', background: 'var(--bg-muted-light)', borderRadius: '4px', marginBottom: '1rem', animation: 'pulse 1.5s infinite ease-in-out' }} />
+                    <div className="ed-header-card" style={{ opacity: 0.7 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ width: '250px', height: '32px', background: 'var(--bg-muted)', borderRadius: '6px', animation: 'pulse 1.5s infinite ease-in-out' }} />
+                            <div style={{ width: '380px', height: '20px', background: 'var(--bg-muted)', borderRadius: '4px', animation: 'pulse 1.5s infinite ease-in-out' }} />
+                        </div>
+                    </div>
+                </div>
+                <div className="summary-cards-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', opacity: 0.5 }}>
+                    {[1, 2, 3, 4, 5].map(i => (
+                        <div key={i} className="summary-card" style={{ padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ width: '80px', height: '14px', background: 'var(--bg-muted)', borderRadius: '4px', animation: 'pulse 1.5s infinite ease-in-out' }} />
+                            <div style={{ width: '120px', height: '28px', background: 'var(--bg-muted)', borderRadius: '6px', animation: 'pulse 1.5s infinite ease-in-out' }} />
+                        </div>
+                    ))}
+                </div>
             </div>
         );
     }
