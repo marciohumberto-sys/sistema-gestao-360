@@ -68,14 +68,29 @@ export const createFarmaciaUser = async (tenantId, userData) => {
     const tempPassword = 'Farmacia@123'; // Senha de reset padronizada inicial
 
     // 1. Criar usuário no Auth via RPC (para evitar deslogar o administrador ativo)
-    const { data: authUserId, error: createError } = await supabase.rpc('admin_create_auth_user', {
-        p_email: userData.email,
-        p_password: tempPassword,
-        p_name: userData.name
-    });
+    const response = await fetch(
+	  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-user`,
+	  {
+		method: 'POST',
+		headers: {
+		  'Content-Type': 'application/json',
+		  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+		},
+		body: JSON.stringify({
+		  email: userData.email,
+		  password: tempPassword,
+		  name: userData.name
+		})
+	  }
+	);
 
-    if (createError) throw createError;
-    const userId = authUserId.id || authUserId;
+	const result = await response.json();
+
+	if (!response.ok) {
+	  throw new Error(result.error || 'Erro ao criar usuário');
+	}
+
+	const userId = result.user_id;
 
     // 2. Localizar módulo FARMACIA
     const { data: moduleData } = await supabase
@@ -108,13 +123,22 @@ export const createFarmaciaUser = async (tenantId, userData) => {
             .in('name', userData.units);
         
         if (unitsData && unitsData.length > 0) {
-            const scopes = unitsData.map(u => ({
+            /* const scopes = unitsData.map(u => ({
                 user_tenant_id: tenantLink.id,
                 module_id: moduleData.id,
                 secretariat_id: u.secretariat_id,
                 unit_id: u.id,
                 is_active: true
-            }));
+            })); */
+			
+			const scopes = unitsData.map(u => ({
+				tenant_id: tenantId,
+				user_id: userId,
+				module_id: moduleData.id,
+				secretariat_id: u.secretariat_id,
+				unit_id: u.id,
+				is_active: true
+			}));
 
             const { error: scopeError } = await supabase
                 .from('user_access_scopes')
@@ -131,45 +155,101 @@ export const createFarmaciaUser = async (tenantId, userData) => {
  * Atualiza role, status e refaz rigorosamente os escopos para o módulo Farmácia.
  */
 export const updateFarmaciaUser = async (userTenantId, userData) => {
-    // 1. Atualizar role e is_active
+    let tenantData = null;
+
+    const { data: tenantByLink } = await supabase
+        .from('user_tenants')
+        .select('id, user_id, tenant_id')
+        .eq('id', userTenantId)
+        .single();
+
+    if (tenantByLink) {
+        tenantData = tenantByLink;
+    } else {
+        const { data: tenantByUser, error: tenantByUserError } = await supabase
+            .from('user_tenants')
+            .select('id, user_id, tenant_id')
+            .eq('user_id', userTenantId)
+            .single();
+
+        if (tenantByUserError && !tenantByUser) {
+            throw new Error('Usuário não encontrado no tenant');
+        }
+
+        tenantData = tenantByUser;
+    }
+
+    if (!tenantData) throw new Error('Usuário não encontrado no tenant');
+
+    const usernameBase = userData.username || userData.email || '';
+
+	if (!usernameBase) {
+		throw new Error('Usuário/login não informado');
+	}
+
+	const normalizedEmail = usernameBase.includes('@')
+		? usernameBase
+		: `${usernameBase}@farmacia.local`;
+
+    const authResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-user`,
+        {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({
+                user_id: tenantData.user_id,
+                name: userData.name,
+                email: normalizedEmail
+            })
+        }
+    );
+
+    const authResult = await authResponse.json();
+
+    if (!authResponse.ok) {
+        throw new Error(authResult.error || 'Erro ao atualizar usuário no Auth');
+    }
+
     const { error: updateError } = await supabase
         .from('user_tenants')
         .update({
             role: userData.profile,
             is_active: userData.status === 'ATIVO'
         })
-        .eq('id', userTenantId);
+        .eq('id', tenantData.id);
 
     if (updateError) throw updateError;
 
-    // 2. Localizar módulo FARMACIA
     const { data: moduleData } = await supabase
         .from('system_modules')
         .select('id')
         .eq('key', 'FARMACIA')
         .single();
-        
+
     if (!moduleData) throw new Error("Módulo FARMACIA não encontrado.");
 
-    // 3. Limpeza determinística: remover todos os access scopes deste usuário que pertencem ao módulo FARMACIA
     const { error: deleteScopesError } = await supabase
         .from('user_access_scopes')
         .delete()
-        .eq('user_tenant_id', userTenantId)
+        .eq('user_id', tenantData.user_id)
+        .eq('tenant_id', tenantData.tenant_id)
         .eq('module_id', moduleData.id);
 
     if (deleteScopesError) throw deleteScopesError;
 
-    // 4. Reinserir escopos de Unidade
     if (userData.units && userData.units.length > 0) {
         const { data: unitsData } = await supabase
             .from('units')
             .select('id, name, secretariat_id')
             .in('name', userData.units);
-        
+
         if (unitsData && unitsData.length > 0) {
             const scopes = unitsData.map(u => ({
-                user_tenant_id: userTenantId,
+                tenant_id: tenantData.tenant_id,
+                user_id: tenantData.user_id,
                 module_id: moduleData.id,
                 secretariat_id: u.secretariat_id,
                 unit_id: u.id,
@@ -197,5 +277,34 @@ export const toggleFarmaciaUserStatus = async (userTenantId, isActive) => {
         .eq('id', userTenantId);
 
     if (error) throw error;
+    return true;
+};
+
+/**
+ * Delete 
+ */
+ 
+export const deleteFarmaciaUser = async (user) => {
+    const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-user`,
+        {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({
+                user_id: user.id,
+                email: user.email
+            })
+        }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+        throw new Error(result.error || 'Erro ao excluir usuário');
+    }
+
     return true;
 };

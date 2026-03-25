@@ -618,6 +618,8 @@
     bottom: calc(100% + 8px);
     top: auto;
     transform: translateX(-50%) translateY(4px);
+    z-index: 9999;
+    white-space: nowrap;
 }
 
 .farmacia-action-icon:hover .premium-tooltip {
@@ -831,4 +833,122 @@
 
 .hover-bg-muted:hover {
     background: var(--bg-body) !important;
+}
+
+/* ── Modal de Confirmação (UX Premium) ───────────────────────── */
+.farmacia-modal-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 1.5rem;
+    animation: farmacia-fade-in 0.2s ease-out;
+}
+
+.farmacia-modal-confirm-card {
+    background: var(--bg);
+    width: 100%;
+    max-width: 400px;
+    border-radius: 16px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    animation: farmacia-modal-confirm-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    border: 1px solid var(--border);
+}
+
+@keyframes farmacia-modal-confirm-in {
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.farmacia-modal-confirm-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.farmacia-modal-confirm-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.farmacia-modal-confirm-body {
+    padding: 1.5rem;
+}
+
+.farmacia-modal-confirm-msg {
+    font-size: 0.95rem;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+}
+
+.farmacia-modal-confirm-warning {
+    font-size: 0.85rem;
+    color: #ef4444;
+    font-weight: 600;
+}
+
+.farmacia-modal-confirm-footer {
+    padding: 1rem 1.5rem;
+    background: var(--bg-muted-light, #f8fafc);
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+}
+
+.btn-confirm-cancel {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-weight: 600;
+    padding: 0.6rem 1.25rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-confirm-cancel:hover {
+    background: var(--bg);
+    color: var(--text);
+}
+
+.btn-confirm-delete {
+    background: #ef4444;
+    color: #fff;
+    border: none;
+    font-weight: 700;
+    padding: 0.6rem 1.25rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+.btn-confirm-delete:hover:not(:disabled) {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
+}
+
+.btn-confirm-delete:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Ensure table cells allow tooltip visibility */
+.farmacia-table td {
+    overflow: visible !important;
+}
+
+.farmacia-table-wrapper {
+    overflow: visible !important;
 }

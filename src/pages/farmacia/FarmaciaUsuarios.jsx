@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Users, ShieldCheck, UserCheck, UserX, UserMinus, Plus, Edit2, XCircle, ShieldAlert, Check, ChevronDown } from 'lucide-react';
+import { Search, Users, ShieldCheck, UserCheck, UserX, UserMinus, Plus, Edit2, XCircle, ShieldAlert, Check, ChevronDown, AlertTriangle, Trash2 } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessFarmacia } from '../../utils/farmaciaAcl';
 import FarmaciaUnitBadge from './FarmaciaUnitBadge';
-import { getCurrentTenantId, fetchFarmaciaUsers, createFarmaciaUser, updateFarmaciaUser, toggleFarmaciaUserStatus } from '../../services/farmaciaUsers.service';
+import { getCurrentTenantId, fetchFarmaciaUsers, createFarmaciaUser, updateFarmaciaUser, toggleFarmaciaUserStatus, deleteFarmaciaUser } from '../../services/farmaciaUsers.service';
 import './FarmaciaPages.css';
 
 const FarmaciaUsuarios = () => {
@@ -23,6 +23,9 @@ const FarmaciaUsuarios = () => {
     const [toast, setToast] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [deletingId, setDeletingId] = useState(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [userToDelete, setUserToDelete] = useState(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -93,6 +96,30 @@ const FarmaciaUsuarios = () => {
             alert('Falha ao atualizar o status na nuvem.');
             // Reverte fallback
             setUsuarios(prev => prev.map(u => u.id === user.id ? { ...u, status: user.status } : u));
+        }
+    };
+
+    const handleDeleteUser = (user) => {
+        setUserToDelete(user);
+        setIsDeleteModalOpen(true);
+    };
+
+    const confirmDeletion = async () => {
+        if (!userToDelete || deletingId) return;
+        
+        setDeletingId(userToDelete.id);
+        try {
+            await deleteFarmaciaUser(userToDelete);
+            setToast('Usuário excluído com sucesso!');
+            setIsDeleteModalOpen(false);
+            setUserToDelete(null);
+            await carregarUsuarios();
+        } catch (e) {
+            console.error(e);
+            alert('Erro ao excluir o usuário: ' + (e.message || 'Falha na comunicação com o servidor.'));
+        } finally {
+            setDeletingId(null);
+            setTimeout(() => setToast(false), 3000);
         }
     };
 
@@ -378,6 +405,19 @@ const FarmaciaUsuarios = () => {
                                                     <Edit2 size={16} />
                                                     <span className="premium-tooltip">Editar Usuário</span>
                                                 </button>
+                                                <button 
+                                                    className="farmacia-action-icon" 
+                                                    onClick={() => handleDeleteUser(user)}
+                                                    disabled={deletingId === user.id}
+                                                    style={{ 
+                                                        opacity: deletingId === user.id ? 0.5 : 1, 
+                                                        cursor: deletingId === user.id ? 'not-allowed' : 'pointer',
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                >
+                                                    <UserX size={16} />
+                                                    <span className="premium-tooltip">Excluir Usuário</span>
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -574,6 +614,56 @@ const FarmaciaUsuarios = () => {
                     animation: 'slideUp 0.3s ease-out', zIndex: 9999
                 }}>
                     <Check size={20} /> {typeof toast === 'string' ? toast : 'Usuário salvo com sucesso!'}
+                </div>
+            )}
+
+            {/* Modal de Confirmação de Exclusão */}
+            {isDeleteModalOpen && (
+                <div className="farmacia-modal-confirm-overlay">
+                    <div className="farmacia-modal-confirm-card">
+                        <div className="farmacia-modal-confirm-header">
+                            <div style={{ padding: '8px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', display: 'flex' }}>
+                                <AlertTriangle size={20} />
+                            </div>
+                            <h2 className="farmacia-modal-confirm-title">Excluir usuário</h2>
+                        </div>
+                        <div className="farmacia-modal-confirm-body">
+                            <p className="farmacia-modal-confirm-msg">
+                                Deseja realmente excluir o usuário <strong>{userToDelete?.name}</strong>?
+                            </p>
+                            <p className="farmacia-modal-confirm-warning">
+                                Essa ação não poderá ser desfeita.
+                            </p>
+                        </div>
+                        <div className="farmacia-modal-confirm-footer">
+                            <button 
+                                className="btn-confirm-cancel" 
+                                onClick={() => {
+                                    setIsDeleteModalOpen(false);
+                                    setUserToDelete(null);
+                                }}
+                                disabled={deletingId}
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                className="btn-confirm-delete" 
+                                onClick={confirmDeletion}
+                                disabled={deletingId}
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                            >
+                                {deletingId ? (
+                                    <>
+                                        <div className="spinner-border" style={{ width: '14px', height: '14px', border: '2px solid' }} /> Excluindo...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 size={16} /> Excluir
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
