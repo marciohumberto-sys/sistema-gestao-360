@@ -16,8 +16,8 @@ export const ENDPOINTS = {
     },
     empenhos: {
         list: '/api/empenhos',
-        listByContract: (contractId: string) => `/api/empenhos?contractId=${contractId}`,
+        listByContract: (contractId: string) => `/api/empenhos?contract_id=${contractId}`,
         metrics: '/api/empenhos/metrics',
-        totalByContract: (contractId: string) => `/api/empenhos/total?contractId=${contractId}`
+        totalByContract: (contractId: string) => `/api/empenhos/total?contract_id=${contractId}`
     }
 };

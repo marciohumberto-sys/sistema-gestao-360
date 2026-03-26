@@ -356,7 +356,9 @@ const ContractDetails = () => {
         const fetchEmpenhos = async () => {
             try {
                 setIsLoadingEmpenhos(true);
+                console.log('contractId (route):', id);
                 const empenhosData = await empenhosService.listByContract(id);
+                console.log('empenhos raw response:', empenhosData);
                 if (isMounted) {
                     setEmpenhos(empenhosData);
                 }
@@ -728,19 +730,21 @@ const ContractDetails = () => {
 
     // Calculate specific stats based on rules
     let commitValue = 0;
-    let balanceValue = 0;
+    let balanceValue = 0; // Saldo para OF (Empenhado - OFs)
+    let contractBalanceValue = 0; // Saldo do Contrato (Total - Empenhado)
     let daysLeft = null;
     let isUrgent = false;
 
     if (contract) {
-        // Calculate dynamically from fetched empenhos instead of static DB mock if desired.
-        // For matching visuals exactly we trust real calculation:
+        // 1. Empenhado = soma de todos os empenhos vinculados
         commitValue = empenhos.reduce((sum, e) => sum + (e.value || 0), 0);
         
-        // NOVO: O saldo disponível do contrato considera as OFs emitidas como RESERVA
-        // Executado (faturamento real) ainda não implementado, assumimos 0 por enquanto.
-        const executedValue = 0; 
-        balanceValue = contract.totalValue - reservedAmount - executedValue;
+        // 2. Saldo Contrato = valor total - valor empenhado
+        contractBalanceValue = contract.totalValue - commitValue;
+        
+        // 3. Saldo para OF = valor empenhado - total das OFs
+        // reservedAmount já é a soma das OFs emitidas (calculado no side effect de fetchOfs)
+        balanceValue = commitValue - reservedAmount;
 
         daysLeft = getDaysLeft(contract.dateRange?.endDate);
         if (daysLeft !== null && daysLeft <= 30 && daysLeft >= 0) isUrgent = true;
@@ -936,8 +940,15 @@ const ContractDetails = () => {
                 <div className="cd-kpi-card">
                     <div className="cd-kpi-icon success"><DollarSign size={20} /></div>
                     <div className="cd-kpi-data">
-                        <span className="cd-kpi-label">Saldo disponível</span>
-                        <span className="cd-kpi-value success">{formatCurrency(balanceValue)}</span>
+                        <span className="cd-kpi-label">Saldo do contrato</span>
+                        <span className="cd-kpi-value success">{formatCurrency(contractBalanceValue)}</span>
+                    </div>
+                </div>
+                <div className="cd-kpi-card">
+                    <div className="cd-kpi-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}><DollarSign size={20} /></div>
+                    <div className="cd-kpi-data">
+                        <span className="cd-kpi-label">Saldo disponível (OF)</span>
+                        <span className="cd-kpi-value" style={{ color: '#16a34a' }}>{formatCurrency(balanceValue)}</span>
                     </div>
                 </div>
                 <div className={`cd-kpi-card ${isUrgent ? 'urgent' : ''}`}>
@@ -1554,12 +1565,12 @@ const ContractDetails = () => {
                                                                 <input
                                                                     ref={rateioAmountRef}
                                                                     type="number"
-                                                                    value={rateioAmount}
+                                                                    value={rateioAmount || ''}
                                                                     onChange={(e) => setRateioAmount(e.target.value)}
                                                                     onKeyDown={(e) => {
                                                                         if (e.key === 'Enter') handleAddAllocation();
                                                                     }}
-                                                                    min="1" step="1" placeholder="0"
+                                                                    min={1} step="1"
                                                                     style={{ width: '100%', height: '38px', padding: '0 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.875rem', color: 'var(--text-primary)', outline: 'none', background: '#f8fafc', transition: 'all 0.2s', textAlign: 'center' }}
                                                                     onFocus={e => { e.target.style.background = '#ffffff'; e.target.style.borderColor = 'var(--color-primary)'; e.target.style.boxShadow = '0 0 0 2px rgba(10,37,64,0.05)'; }}
                                                                     onBlur={e => { e.target.style.background = '#f8fafc'; e.target.style.borderColor = '#cbd5e1'; e.target.style.boxShadow = 'none'; }}

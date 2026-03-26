@@ -99,7 +99,7 @@ async function mockFetch(url: string, options?: RequestInit): Promise<Response> 
             }
 
             if (id === 'total' && method === 'GET') {
-                const contractId = searchParams.get('contractId');
+                const contractId = searchParams.get('contract_id') || searchParams.get('contractId');
                 if (contractId) {
                     const total = await empenhosRepository.totalByContract(contractId);
                     return new Response(JSON.stringify({ total }), { status: 200 });
@@ -108,7 +108,7 @@ async function mockFetch(url: string, options?: RequestInit): Promise<Response> 
             }
 
             if (method === 'GET') {
-                const contractId = searchParams.get('contractId');
+                const contractId = searchParams.get('contract_id') || searchParams.get('contractId');
                 if (contractId) {
                     const data = await empenhosRepository.listByContract(contractId);
                     return new Response(JSON.stringify(data), { status: 200 });

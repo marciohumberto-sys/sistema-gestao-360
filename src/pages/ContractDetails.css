@@ -502,8 +502,8 @@
 /* KPI Grid */
 .cd-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 1.25rem;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1rem; /* Slightly reduced gap for 6 items */
 }
 
 .cd-kpi-card {

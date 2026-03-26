@@ -34,6 +34,7 @@ import FarmaciaMovimentacoes from './pages/farmacia/FarmaciaMovimentacoes';
 import FarmaciaAjustes from './pages/farmacia/FarmaciaAjustes';
 import FarmaciaRelatorios from './pages/farmacia/FarmaciaRelatorios';
 import FarmaciaUsuarios from './pages/farmacia/FarmaciaUsuarios';
+import ComprasUsuarios from './pages/ComprasUsuarios';
 
 // Container nativo do Tenant para rotas base
 const AppContent = () => {
@@ -97,6 +98,7 @@ function App() {
                     <Route path="configuracoes" element={<Configuracoes />} />
                     <Route path="contratos/:id" element={<ContractDetails />} />
                     <Route path="empenhos/:id" element={<EmpenhoDetails />} />
+                    <Route path="usuarios" element={<ComprasUsuarios />} />
                   </Route>
 
                   {/* --- Galho Restrito: FARMÁCIA --- */}

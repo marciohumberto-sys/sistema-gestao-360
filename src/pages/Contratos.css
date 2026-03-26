@@ -63,7 +63,8 @@
     border-radius: var(--radius-lg);
     border: 1px solid var(--border-light);
     box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
-    overflow: hidden;
+    /* Removido overflow: hidden para não cortar a scrollbar da tabela */
+    overflow: visible; 
     display: flex;
     flex-direction: column;
     padding: 1.5rem;
@@ -186,7 +187,7 @@
     /* Automatically expand to all available space */
     min-height: 0;
     min-width: 0;
-    width: 100%;
+    width: 100%; /* Garantido conforme solicitação */
     /* Crucial for nested flex scrolling */
     scrollbar-width: thin;
     /* Firefox */

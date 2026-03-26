@@ -59,8 +59,7 @@ const MENU_ITEMS = [
     {
         section: 'Administração',
         items: [
-            { path: '/compras/cadastros', icon: Users, label: 'Cadastros' },
-            { path: '/compras/configuracoes', icon: Settings, label: 'Configurações' }
+            { path: '/compras/usuarios', icon: Users, label: 'Usuários' }
         ]
     }
 ];
