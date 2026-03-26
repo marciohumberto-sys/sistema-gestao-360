@@ -20,6 +20,14 @@ const Login = () => {
     // Isso impede falsos redirects enquanto IS_SUPERADMIN ainda estiver mascarado.
     React.useEffect(() => {
         if (isAuthenticated && !authLoading) {
+            // PRIORIDADE ABSOLUTA: Marcio Humberto sempre vai para /home
+            if (authUser?.email === 'marcio.humberto@gmail.com') {
+                console.log('[AUTH DEBUG] Prioridade Absoluta: Marcio detectado. Forçando /home');
+                console.log(`[AUTH DEBUG] Email Autenticado: ${authUser.email}`);
+                navigate('/home', { replace: true });
+                return;
+            }
+
             const from = location.state?.from?.pathname;
             if (from && from !== '/login') {
                 navigate(from, { replace: true });
