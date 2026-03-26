@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import * as authService from '../../services/authService';
-import { getPostLoginRedirectPath } from '../../utils/authUtils';
+import { normalizeEmail, getPostLoginRedirectPath } from '../../utils/authUtils';
 import { brandConfig } from '../../config/brand';
 import { Lock, Mail, Loader2 } from 'lucide-react';
 
 const Login = () => {
-    const { isAuthenticated, loading: authLoading, tenantLink, isSuperAdmin, accessibleModules } = useAuth();
+    const { authUser, isAuthenticated, loading: authLoading, tenantLink, isSuperAdmin, accessibleModules } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -24,11 +24,12 @@ const Login = () => {
             if (from && from !== '/login') {
                 navigate(from, { replace: true });
             } else {
-                const path = getPostLoginRedirectPath(tenantLink, isSuperAdmin, accessibleModules);
+                const path = getPostLoginRedirectPath(tenantLink, isSuperAdmin, accessibleModules, authUser?.email);
+                console.log(`[AUTH DEBUG] Rota de redirecionamento final: ${path}`);
                 navigate(path, { replace: true });
             }
         }
-    }, [isAuthenticated, authLoading, navigate, location, tenantLink, isSuperAdmin, accessibleModules]);
+    }, [isAuthenticated, authLoading, navigate, location, tenantLink, isSuperAdmin, accessibleModules, authUser]);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -36,8 +37,9 @@ const Login = () => {
         setErrorMsg('');
 
         try {
-            const trimmedLogin = loginStr.trim().toLowerCase();
-            const emailFormatted = trimmedLogin === 'marcio.humberto' ? 'marcio.humberto@gmail.com' : `${trimmedLogin}@farmacia.local`;
+            const moduleContext = location.state?.moduleContext;
+            const fromPathname = location.state?.from?.pathname;
+            const emailFormatted = normalizeEmail(loginStr, fromPathname, moduleContext);
             
             await authService.login(emailFormatted, password);
             // O auth listener no AuthContext atualizará o estado automaticamente e disparará o redirect

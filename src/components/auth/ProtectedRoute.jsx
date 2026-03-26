@@ -29,7 +29,7 @@ const ProtectedRoute = ({ module, children }) => {
     }
 
     if (!isAuthenticated) {
-        return <Navigate to="/login" state={{ from: location }} replace />;
+        return <Navigate to="/login" state={{ from: location, moduleContext: module }} replace />;
     }
 
     if (!tenantLink || !tenantLink.is_active) {
