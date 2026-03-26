@@ -3,6 +3,7 @@ import { Search, Plus, Edit2, Trash2, Calendar, TrendingUp, AlertCircle, FileTex
 import { useNavigate, useLocation } from 'react-router-dom';
 import { contractsService } from '../services/api/contracts.service';
 import { secretariatsService } from '../services/api/secretariats.service';
+import { ofsService } from '../services/api/ofs.service';
 import { filesService } from '../services/api/files.service';
 import { useTenant } from '../context/TenantContext';
 import { formatLocalDate, getTodayLocalDateString, getDaysDiffFromToday } from '../utils/dateUtils';
@@ -295,14 +296,40 @@ const Contratos = () => {
         setIsModalOpen(true);
     };
 
+    const mapErrorToMessage = (error) => {
+        const msg = error?.message || "";
+        if (msg.includes('contracts_tenant_id_code_key')) {
+            return "Já existe um contrato com este código ou referência.";
+        }
+        if (msg.includes('ofs_contract_id_fkey')) {
+            return "Este contrato possui ordens de fornecimento vinculadas e não pode ser excluído.";
+        }
+        return msg || "Ocorreu um erro inesperado.";
+    };
+
     const handleDeleteContract = async (id) => {
         try {
+            // Objective 2: Check for linked OFs before deletion
+            const linkedOfs = await ofsService.listByContract(id);
+            if (linkedOfs && linkedOfs.length > 0) {
+                setFeedback({ 
+                    type: 'error', 
+                    message: 'Este contrato possui ordens de fornecimento vinculadas e não pode ser excluído.' 
+                });
+                setContractToDelete(null);
+                return;
+            }
+
             await contractsService.remove(id);
+            setFeedback({ type: 'success', message: 'Contrato excluído com sucesso!' });
             await loadContracts();
             setContractToDelete(null);
         } catch (error) {
             console.error("Erro ao excluir contrato:", error);
-            alert("Erro ao excluir contrato: " + error.message);
+            setFeedback({ 
+                type: 'error', 
+                message: "Erro ao excluir contrato: " + mapErrorToMessage(error) 
+            });
         }
     };
 
@@ -428,9 +455,29 @@ const Contratos = () => {
             };
 
             if (editingContract) {
+                // Objective 1: Check for duplicate code during update
+                if (formData.code) {
+                    const isDuplicate = await contractsService.checkDuplicateCode(formData.code, tenantId, editingContract.id);
+                    if (isDuplicate) {
+                        setFeedback({ type: 'error', message: 'Já existe um contrato com este código ou referência.' });
+                        setIsSubmitting(false);
+                        return;
+                    }
+                }
+
                 await contractsService.update(editingContract.id, payload);
                 setFeedback({ type: 'success', message: 'Contrato atualizado com sucesso!' });
             } else {
+                // Objective 1: Check for duplicate code during creation
+                if (formData.code) {
+                    const isDuplicate = await contractsService.checkDuplicateCode(formData.code, tenantId);
+                    if (isDuplicate) {
+                        setFeedback({ type: 'error', message: 'Já existe um contrato com este código ou referência.' });
+                        setIsSubmitting(false);
+                        return;
+                    }
+                }
+
                 const { error } = await contractsService.createContract(payload, tenantId);
                 if (error) throw error;
                 setFeedback({ type: 'success', message: 'Contrato criado com sucesso!' });
@@ -440,12 +487,14 @@ const Contratos = () => {
 
             handleCloseModal();
             await loadContracts();
-            // Only navigate if creating? Actually, staying on page is fine for both.
             if (!editingContract) navigate('/compras/contratos');
 
         } catch (error) {
             console.error(editingContract ? "Erro ao atualizar contrato:" : "Erro ao criar contrato:", error);
-            alert((editingContract ? "Erro ao atualizar contrato: " : "Erro ao criar contrato: ") + error.message);
+            setFeedback({ 
+                type: 'error', 
+                message: (editingContract ? "Erro ao atualizar contrato: " : "Erro ao criar contrato: ") + mapErrorToMessage(error) 
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -856,7 +905,7 @@ const Contratos = () => {
                                                                                     }
                                                                                 } catch (err) {
                                                                                     console.error("Erro ao remover PDF:", err);
-                                                                                    alert("Erro ao remover arquivo: " + err.message);
+                                                                                    setFeedback({ type: 'error', message: "Erro ao remover arquivo: " + mapErrorToMessage(err) });
                                                                                 }
                                                                             }
                                                                         }}
@@ -1057,7 +1106,7 @@ const Contratos = () => {
                                                                                     }
                                                                                 } catch (err) {
                                                                                     console.error("Erro ao remover PDF da rescisão:", err);
-                                                                                    alert("Erro ao remover arquivo: " + err.message);
+                                                                                    setFeedback({ type: 'error', message: "Erro ao remover arquivo: " + mapErrorToMessage(err) });
                                                                                 }
                                                                             }
                                                                         }}

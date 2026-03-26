@@ -98,6 +98,28 @@ class ContractsService {
         return this.enrichContract(data);
     }
 
+    async checkDuplicateCode(code: string, tenantId: string, excludeId?: string): Promise<boolean> {
+        if (!code || !tenantId) return false;
+        
+        let query = supabase
+            .from("contracts")
+            .select("id")
+            .eq("tenant_id", tenantId)
+            .eq("code", code);
+
+        if (excludeId) {
+            query = query.neq("id", excludeId);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+            console.error("Erro ao validar duplicidade de código:", error);
+            return false;
+        }
+
+        return data && data.length > 0;
+    }
+
     async createContract(input: any, tenantId: string) {
         if (!tenantId) {
             return { data: null, error: new Error("tenantId is required to create a contract.") };
