@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { commitmentsService } from '../services/api/commitments.service';
 import { ofsService } from '../services/api/ofs.service';
-import { ArrowLeft, Loader2, FileText, Activity, Eye } from 'lucide-react';
+import { ArrowLeft, Loader2, FileText, Activity, Eye, Plus } from 'lucide-react';
 import { formatLocalDate } from '../utils/dateUtils';
 import './EmpenhoDetails.css';
 
@@ -17,6 +17,7 @@ const EmpenhoDetails = () => {
     const [linkedOfs, setLinkedOfs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('resumo');
+    const [isCreatingOf, setIsCreatingOf] = useState(false);
 
     useEffect(() => {
         const loadDetails = async () => {
@@ -42,6 +43,26 @@ const EmpenhoDetails = () => {
         if (isMounted) loadDetails();
         return () => { isMounted = false; };
     }, [id, tenantId]);
+
+    const handleCreateOf = async () => {
+        if (!commitment || isCreatingOf) return;
+        setIsCreatingOf(true);
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const newOf = await ofsService.createOf(
+                tenantId, 
+                commitment.contract_id, 
+                commitment.secretariat_id, 
+                today, 
+                id
+            );
+            navigate(`/compras/ordens-fornecimento/${newOf.id}`);
+        } catch (error) {
+            console.error("Erro ao gerar OF:", error);
+            alert("Erro ao gerar OF: " + error.message);
+            setIsCreatingOf(false);
+        }
+    };
 
     const formatCurrency = (value) => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -117,9 +138,33 @@ const EmpenhoDetails = () => {
                         </div>
                     </div>
                     
-                    <div className="ed-header-balance">
-                        <div className="ed-balance-label">Saldo Atual</div>
-                        <div className="ed-balance-value">{formatCurrency(current_balance)}</div>
+                    <div className="ed-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div className="ed-header-balance">
+                            <div className="ed-balance-label">Saldo Atual</div>
+                            <div className="ed-balance-value">{formatCurrency(current_balance)}</div>
+                        </div>
+                        <button 
+                            className="ct-primary-btn" 
+                            onClick={handleCreateOf}
+                            disabled={isCreatingOf || commitment.status === 'CANCELADO' || (current_balance || 0) <= 0}
+                            style={{ 
+                                height: '48px', 
+                                padding: '0 1.5rem', 
+                                borderRadius: '10px', 
+                                background: 'var(--color-primary)', 
+                                color: '#fff', 
+                                border: 'none', 
+                                fontWeight: 700, 
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                opacity: (isCreatingOf || commitment.status === 'CANCELADO' || (current_balance || 0) <= 0) ? 0.6 : 1
+                            }}
+                        >
+                            {isCreatingOf ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+                            Gerar OF
+                        </button>
                     </div>
                 </div>
             </div>
@@ -176,7 +221,7 @@ const EmpenhoDetails = () => {
                     className={`ed-tab ${activeTab === 'ofs' ? 'active' : ''}`}
                     onClick={() => setActiveTab('ofs')}
                 >
-                    <FileText size={16} /> OFs Vinculadas
+                    <FileText size={16} /> OFs Vinculadas ({linkedOfs.length})
                 </button>
             </div>
 

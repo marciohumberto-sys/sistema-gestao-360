@@ -63,18 +63,15 @@
     border-radius: var(--radius-lg);
     border: 1px solid var(--border-light);
     box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
-    /* Removido overflow: hidden para não cortar a scrollbar da tabela */
+    /* Removido overflow: hidden para garantir visibilidade da scrollbar */
     overflow: visible; 
     display: flex;
     flex-direction: column;
-    padding: 1.5rem;
-    /* 24px */
+    padding: 1.5rem 1.5rem 0.5rem 1.5rem; /* Reduzido padding inferior para aproximar do rodapé */
     flex: 1;
-    /* Take remaining space */
     min-height: 0;
     min-width: 0;
     width: 100%;
-    /* Important for nested flex scroll */
 }
 
 /* Filters Bar (SaaS Toolbar) */
@@ -181,46 +178,32 @@
 
 .data-table-wrapper {
     position: relative;
-    overflow-y: auto;
-    overflow-x: auto;
+    width: 100%;
+    overflow-x: hidden; /* Forçar remoção da scrollbar horizontal no Desktop */
+    overflow-y: hidden;
     flex: 1;
-    /* Automatically expand to all available space */
     min-height: 0;
     min-width: 0;
-    width: 100%; /* Garantido conforme solicitação */
-    /* Crucial for nested flex scrolling */
     scrollbar-width: thin;
-    /* Firefox */
     scrollbar-color: #cbd5e1 transparent;
     border: 1px solid #f1f5f9;
-    /* Subtle border for the table itself */
-    border-radius: 12px;
+    border-radius: 12px 12px 0 0;
     background: #ffffff;
-}
-
-.data-table-wrapper::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-
-.data-table-wrapper::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.data-table-wrapper::-webkit-scrollbar-thumb {
-    background-color: #cbd5e1;
-    border-radius: 10px;
 }
 
 /* Optional premium fade shadow at the bottom is achieved via the footer's shadow */
 
 .data-table {
     width: 100%;
-    min-width: 900px;
     border-collapse: collapse;
     text-align: left;
     table-layout: fixed;
-    /* Tabela agora não deforma independente do tamanho das células */
+    /* Tabela agora não deforma e cabe 100% no container Desktop */
+}
+
+.data-table th,
+.data-table td {
+    box-sizing: border-box;
 }
 
 .data-table th {
@@ -240,27 +223,27 @@
 
 /* Hard locking the column sizes */
 .data-table th:nth-child(1) {
-    width: 17% !important;
+    width: 15% !important;
 }
 
 .data-table th:nth-child(2) {
-    width: 25% !important;
+    width: 40% !important; /* Espaço generoso para o fornecedor */
 }
 
 .data-table th:nth-child(3) {
-    width: 22% !important;
+    width: 11% !important;
 }
 
 .data-table th:nth-child(4) {
-    width: 18% !important;
+    width: 16% !important;
 }
 
 .data-table th:nth-child(5) {
-    width: 10% !important;
+    width: 12% !important;
 }
 
 .data-table th:nth-child(6) {
-    width: 8% !important;
+    width: 6% !important; /* Mínimo para os ícones */
     text-align: right;
 }
 
@@ -288,10 +271,16 @@
 .td-number {
     font-weight: 600;
     color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .td-title {
-    max-width: 250px;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .title-text {
@@ -369,12 +358,18 @@
     font-weight: 500;
     color: var(--text-primary);
     margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .val-balance {
     display: block;
     font-size: 0.75rem;
     color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Badges */
@@ -549,15 +544,15 @@
 
 /* Table Footer */
 .table-footer {
-    padding: 1rem 0 0 0;
-    border-top: 1px solid var(--border-light);
-    background: #ffffff;
+    padding: 0.75rem 1rem;
+    border: 1px solid #f1f5f9;
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    background: #f8fafc; /* Fundo sutil diferenciado */
     text-align: right;
     font-size: 0.75rem;
     color: var(--text-muted);
     font-weight: 500;
-    box-shadow: 0 -10px 15px -3px rgba(0, 0, 0, 0.03);
-    /* Premium fade indicating scrollable area above */
     z-index: 10;
 }
 
@@ -728,6 +723,10 @@
 .form-group input,
 .form-group select,
 .form-group textarea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     height: 44px;
     padding: 0 1rem;
     border: 1px solid #cbd5e1;

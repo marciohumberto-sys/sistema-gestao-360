@@ -35,6 +35,9 @@ const OfDetails = () => {
     const [contractItems, setContractItems] = useState([]);
     const [allocations, setAllocations] = useState([]);
     const [otherOfs, setOtherOfs] = useState([]);
+    const [isSignatoryModalOpen, setIsSignatoryModalOpen] = useState(false);
+    const [selectedSignatory, setSelectedSignatory] = useState(null);
+    const [signatoryContext, setSignatoryContext] = useState('emission'); // 'emission' or 'preview'
 
     const loadData = async () => {
         if (!tenantId || !id) return;
@@ -111,10 +114,18 @@ const OfDetails = () => {
     };
 
     const handleIssueOf = async () => {
+        if (!selectedSignatory) {
+            setSignatoryContext('emission');
+            setIsSignatoryModalOpen(true);
+            return;
+        }
+
         try {
             setIsSubmitting(true);
-            await ofsService.issueOf(id, tenantId);
+            await ofsService.issueOf(id, tenantId, selectedSignatory);
             setFeedback({ type: 'success', message: 'Reserva emitida com sucesso!' });
+            setIsSignatoryModalOpen(false);
+            setSelectedSignatory(null);
             await loadData();
         } catch (error) {
             console.error(error);
@@ -147,7 +158,10 @@ const OfDetails = () => {
             
             // Validation: Quantity vs Balance
             const selectedContractItemId = newItemObj.contract_item_id;
-            const requestedQty = Number(newItemObj.quantity);
+            const requestedQty = Math.floor(Number(newItemObj.quantity));
+            if (requestedQty <= 0) {
+                throw new Error("A quantidade deve ser um número inteiro maior que zero.");
+            }
             
             const allocation = allocations.find(a => a.contract_item_id === selectedContractItemId);
             if (!allocation) {
@@ -303,7 +317,23 @@ const OfDetails = () => {
     };
 
     const handlePrintPdf = () => {
-        window.open(`/of-preview/${id}`, '_blank');
+        if (isDraft && !selectedSignatory) {
+            setSignatoryContext('preview');
+            setIsSignatoryModalOpen(true);
+            return;
+        }
+
+        let url = `/compras/of-preview/${id}`;
+        if (isDraft && selectedSignatory) {
+            const params = new URLSearchParams();
+            params.set('sigName', selectedSignatory.name || '');
+            params.set('sigRole', selectedSignatory.role || '');
+            params.set('sigReg', selectedSignatory.reg || '');
+            url += `?${params.toString()}`;
+        }
+        
+        setIsSignatoryModalOpen(false);
+        window.open(url, '_blank');
     };
 
     if (isLoading && !ofData) {
@@ -337,17 +367,30 @@ const OfDetails = () => {
         if (!feedback) return null;
         return (
             <div style={{
-                marginBottom: '1rem',
-                padding: '1rem',
-                borderRadius: '8px',
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 9999,
+                padding: '1.5rem 2rem',
+                borderRadius: '12px',
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                gap: '8px',
-                backgroundColor: feedback.type === 'success' ? '#dcfce7' : '#fee2e2',
-                color: feedback.type === 'success' ? '#16a34a' : '#dc2626'
+                justifyContent: 'center',
+                gap: '12px',
+                backgroundColor: 'white',
+                color: feedback.type === 'success' ? '#16a34a' : '#dc2626',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                border: `2px solid ${feedback.type === 'success' ? '#dcfce7' : '#fee2e2'}`,
+                minWidth: '300px',
+                textAlign: 'center'
             }}>
-                {feedback.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-                <span>{feedback.message}</span>
+                {feedback.type === 'success' ? 
+                    <CheckCircle size={48} strokeWidth={2.5} /> : 
+                    <AlertCircle size={48} strokeWidth={2.5} />
+                }
+                <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{feedback.message}</span>
             </div>
         );
     };
@@ -421,7 +464,9 @@ const OfDetails = () => {
                         </div>
                         <div>
                             <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>Secretaria</span>
-                            <span style={{ color: '#0f172a', fontWeight: 500, fontSize: '0.95rem' }}>{ofData.secretariat?.name}</span>
+                            <span style={{ color: '#0f172a', fontWeight: 500, fontSize: '0.95rem' }}>
+                                {ofData.secretariat?.name || ofData.contract?.secretariat?.name || 'Não informada'}
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -656,10 +701,13 @@ const OfDetails = () => {
                                         <input 
                                             required 
                                             type="number" 
-                                            min="0.01" 
-                                            step="0.01" 
+                                            min="1" 
+                                            step="1" 
                                             value={newItemObj.quantity} 
-                                            onChange={e => setNewItemObj({...newItemObj, quantity: parseFloat(e.target.value) || 0})} 
+                                            onChange={e => {
+                                                const val = e.target.value === '' ? '' : Math.floor(Number(e.target.value)) || 0;
+                                                setNewItemObj({...newItemObj, quantity: val});
+                                            }} 
                                             style={{ width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px' }} 
                                         />
                                         {newItemObj.contract_item_id && (
@@ -755,6 +803,67 @@ const OfDetails = () => {
                         )}
                         <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
                             <button type="button" className="btn-secondary" onClick={() => setIsLinkModalOpen(false)}>Cancelar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Seleção de Assinante */}
+            {isSignatoryModalOpen && (
+                <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+                    <div className="modal-content" style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '500px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+                        <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a' }}>Selecione o Assinante Responsável</h2>
+                            <button onClick={() => setIsSignatoryModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><XCircle size={24} /></button>
+                        </div>
+                        <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+                            Escolha quem assinará a Ordem de Fornecimento. Esta informação constará no documento final.
+                        </p>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            {[
+                                { role: 'Gestor do Contrato', name: ofData?.contract?.manager_name, reg: ofData?.contract?.manager_registration },
+                                { role: 'Fiscal Técnico', name: ofData?.contract?.technical_fiscal_name, reg: ofData?.contract?.technical_fiscal_registration },
+                                { role: 'Fiscal Administrativo', name: ofData?.contract?.administrative_fiscal_name, reg: ofData?.contract?.administrative_fiscal_registration }
+                            ].map((opt, idx) => (
+                                <button
+                                    key={idx}
+                                    className="signatory-option"
+                                    onClick={() => setSelectedSignatory(opt)}
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'flex-start',
+                                        padding: '1rem',
+                                        border: selectedSignatory?.role === opt.role ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                                        borderRadius: '8px',
+                                        background: selectedSignatory?.role === opt.role ? '#eff6ff' : 'white',
+                                        cursor: 'pointer',
+                                        textAlign: 'left',
+                                        transition: 'all 0.2s',
+                                        width: '100%'
+                                    }}
+                                >
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>{opt.role}</span>
+                                    <span style={{ fontSize: '1rem', fontWeight: 600, color: '#0f172a' }}>{opt.name || 'Não cadastrado'}</span>
+                                    {opt.reg && <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Matrícula: {opt.reg}</span>}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
+                            <button type="button" className="btn-secondary" onClick={() => setIsSignatoryModalOpen(false)}>Cancelar</button>
+                            <button 
+                                type="button" 
+                                className="btn-primary" 
+                                onClick={signatoryContext === 'preview' ? handlePrintPdf : handleIssueOf}
+                                disabled={isSubmitting || !selectedSignatory || !selectedSignatory.name}
+                            >
+                                {signatoryContext === 'preview' 
+                                    ? 'Visualizar PDF' 
+                                    : (isSubmitting ? 'Emitindo...' : 'Confirmar e Emitir OF')
+                                }
+                            </button>
                         </div>
                     </div>
                 </div>

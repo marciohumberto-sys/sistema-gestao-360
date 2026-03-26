@@ -36,6 +36,12 @@ import FarmaciaRelatorios from './pages/farmacia/FarmaciaRelatorios';
 import FarmaciaUsuarios from './pages/farmacia/FarmaciaUsuarios';
 import ComprasUsuarios from './pages/ComprasUsuarios';
 
+// Helper para redirecionamento dinâmico do preview
+const OfPreviewRedirect = () => {
+  const { id } = useParams();
+  return <Navigate to={`/compras/of-preview/${id}`} replace />;
+};
+
 // Container nativo do Tenant para rotas base
 const AppContent = () => {
   const { loading } = useTenant();
@@ -120,7 +126,7 @@ function App() {
 
                 {/* Print/Preview Solto sem MainLayout */}
                 {/* Fallback de preview antigo */}
-                <Route path="/of-preview/:id" element={<Navigate to="/compras/of-preview/:id" replace />} />
+                <Route path="/of-preview/:id" element={<OfPreviewRedirect />} />
                 <Route path="/compras/of-preview/:id" element={<ProtectedRoute module="COMPRAS"><OfPreview /></ProtectedRoute>} />
                 
             </Route>

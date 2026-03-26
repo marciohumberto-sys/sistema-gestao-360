@@ -92,7 +92,14 @@ class OFsService {
                     supplier_name, 
                     cnpj, 
                     address, 
-                    contract_object
+                    contract_object,
+                    manager_name,
+                    manager_registration,
+                    technical_fiscal_name,
+                    technical_fiscal_registration,
+                    administrative_fiscal_name,
+                    administrative_fiscal_registration,
+                    secretariat:secretariats(name)
                 ), 
                 secretariat:secretariats(name), 
                 items:of_items(*), 
@@ -105,13 +112,19 @@ class OFsService {
         
         return {
             ...data,
-            contract: data.contract ? (Array.isArray(data.contract) ? data.contract[0] : data.contract) : null,
+            contract: data.contract ? {
+                ...(Array.isArray(data.contract) ? data.contract[0] : data.contract),
+                secretariat: (Array.isArray(data.contract) ? data.contract[0] : data.contract).secretariat ? 
+                    (Array.isArray((Array.isArray(data.contract) ? data.contract[0] : data.contract).secretariat) ? 
+                        (Array.isArray(data.contract) ? data.contract[0] : data.contract).secretariat[0] : 
+                        (Array.isArray(data.contract) ? data.contract[0] : data.contract).secretariat) : null
+            } : null,
             secretariat: data.secretariat ? (Array.isArray(data.secretariat) ? data.secretariat[0] : data.secretariat) : null,
             commitment: data.commitment ? (Array.isArray(data.commitment) ? data.commitment[0] : data.commitment) : null
         };
     }
 
-    async createOf(tenantId: string, contractId: string, secretariatId: string, issueDate: string): Promise<any> {
+    async createOf(tenantId: string, contractId: string, secretariatId: string, issueDate: string, commitmentId: string | null = null): Promise<any> {
         if (!tenantId) throw new Error("tenantId is required");
 
         const targetDate = issueDate || new Date().toISOString().split('T')[0];
@@ -127,7 +140,7 @@ class OFsService {
             tenant_id: tenantId,
             contract_id: contractId,
             secretariat_id: secretariatId,
-            commitment_id: null,
+            commitment_id: commitmentId,
             status: 'DRAFT',
             issue_date: targetDate,
             number: generatedNumber,
@@ -232,7 +245,7 @@ class OFsService {
         if (error) throw error;
     }
 
-    async issueOf(id: string, tenantId: string): Promise<void> {
+    async issueOf(id: string, tenantId: string, signatoryInfo: { name: string, role: string, registration?: string }): Promise<void> {
         if (!tenantId) throw new Error("tenantId is required");
 
         // 1. Fetch current OF
@@ -334,7 +347,9 @@ class OFsService {
 
         const { error: err6 } = await supabase.from('ofs').update({
             status: 'ISSUED',
-            issue_date: new Date().toISOString().split('T')[0]
+            issue_date: new Date().toISOString().split('T')[0],
+            requester_name: signatoryInfo.name,
+            requester_department: `${signatoryInfo.role}${signatoryInfo.registration ? ` - Matrícula: ${signatoryInfo.registration}` : ''}`
         }).eq('id', id);
         if (err6) throw new Error("Erro ao marcar OF como emitida.");
     }

@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { commitmentsService } from '../services/api/commitments.service';
 import { contractsService } from '../services/api/contracts.service';
 import { secretariatsService } from '../services/api/secretariats.service';
+import { contractItemsService } from '../services/api/contractItems.service';
+import { allocationsService } from '../services/api/allocations.service';
 import { useTenant } from '../context/TenantContext';
 import { formatLocalDate, getTodayLocalDateString } from '../utils/dateUtils';
 import './Contratos.css';
@@ -35,7 +37,9 @@ const Empenhos = () => {
     const [selectedCommitment, setSelectedCommitment] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', message: '' }
-    const [openActionMenuId, setOpenActionMenuId] = useState(null); // ID of row showing the dropdown
+    const [openActionMenuId, setOpenActionMenuId] = useState(null); 
+    const [filteredSecretariats, setFilteredSecretariats] = useState([]); // Secretarias do contrato selecionado
+    const [isLoadingFilteredSecs, setIsLoadingFilteredSecs] = useState(false);
 
     // Click outside handler for dropdown
     useEffect(() => {
@@ -92,6 +96,47 @@ const Empenhos = () => {
         if (isMounted) loadData();
         return () => { isMounted = false; };
     }, [tenantId]);
+
+    // Filtragem dinâmica de secretarias com base no contrato selecionado
+    useEffect(() => {
+        const fetchFilteredSecretariats = async () => {
+            if (!createForm.contract_id || !tenantId) {
+                setFilteredSecretariats([]);
+                return;
+            }
+
+            try {
+                setIsLoadingFilteredSecs(true);
+                // 1. Buscar os itens do contrato
+                const cItems = await contractItemsService.listContractItems(createForm.contract_id, tenantId);
+                const itemIds = cItems.map(i => i.id);
+
+                if (itemIds.length === 0) {
+                    setFilteredSecretariats([]);
+                    return;
+                }
+
+                // 2. Buscar as alocações desses itens
+                const allocs = await allocationsService.listAllocationsByItemIds(itemIds, tenantId);
+                const uniqueSecIds = [...new Set(allocs.filter(a => (a.quantity_allocated || 0) > 0).map(a => a.secretariat_id))];
+
+                // 3. Filtrar a lista global de secretarias
+                const filtered = secretariats.filter(s => uniqueSecIds.includes(s.id));
+                setFilteredSecretariats(filtered);
+
+                // Se a secretaria atualmente selecionada não estiver na lista filtrada, reseta ela
+                if (createForm.secretariat_id && !uniqueSecIds.includes(createForm.secretariat_id)) {
+                    setCreateForm(prev => ({ ...prev, secretariat_id: '' }));
+                }
+            } catch (error) {
+                console.error("Erro ao filtrar secretarias:", error);
+            } finally {
+                setIsLoadingFilteredSecs(false);
+            }
+        };
+
+        fetchFilteredSecretariats();
+    }, [createForm.contract_id, tenantId, secretariats]);
 
     const formatCurrency = (value) => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -675,7 +720,7 @@ const Empenhos = () => {
             {/* MODAL: NOVO EMPENHO */}
             {isCreateModalOpen && (
                 <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '720px', overflowX: 'hidden', boxSizing: 'border-box' }}>
                         <div className="modal-header">
                             <h2>Novo Empenho</h2>
                             <button className="close-btn" onClick={() => setIsCreateModalOpen(false)}>×</button>
@@ -703,42 +748,54 @@ const Empenhos = () => {
                                                 required 
                                                 value={createForm.secretariat_id} 
                                                 onChange={e => setCreateForm({...createForm, secretariat_id: e.target.value})}
+                                                disabled={!createForm.contract_id || isLoadingFilteredSecs}
                                             >
-                                                <option value="">Selecione a secretaria</option>
-                                                {secretariats.map(s => (
+                                                <option value="">
+                                                    {!createForm.contract_id 
+                                                        ? 'Selecione um contrato primeiro' 
+                                                        : isLoadingFilteredSecs 
+                                                            ? 'Carregando secretarias...' 
+                                                            : filteredSecretariats.length === 0 
+                                                                ? 'Nenhuma secretaria com rateio neste contrato' 
+                                                                : 'Selecione a secretaria'}
+                                                </option>
+                                                {filteredSecretariats.map(s => (
                                                     <option key={s.id} value={s.id}>{s.name}</option>
                                                 ))}
                                             </select>
                                         </div>
                                     </div>
-                                    <div className="contract-form-grid" style={{ marginTop: '1.5rem' }}>
-                                        <div className="form-group">
-                                            <label>Número do Empenho *</label>
+                                    <div className="contract-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginTop: '1.25rem', width: '100%', maxWidth: '100%' }}>
+                                        <div className="form-group" style={{ minWidth: 0 }}>
+                                            <label>Nº do Empenho *</label>
                                             <input 
                                                 required 
                                                 type="text" 
                                                 placeholder="Ex: 2026NE000123" 
                                                 value={createForm.number} 
                                                 onChange={e => setCreateForm({...createForm, number: e.target.value})} 
+                                                style={{ width: '100%' }}
                                             />
                                         </div>
-                                        <div className="form-group">
-                                            <label>Data de Emissão *</label>
+                                        <div className="form-group" style={{ minWidth: 0 }}>
+                                            <label>Data Emissão *</label>
                                             <input 
                                                 required 
                                                 type="date" 
                                                 value={createForm.issue_date} 
                                                 onChange={e => setCreateForm({...createForm, issue_date: e.target.value})} 
+                                                style={{ width: '100%' }}
                                             />
                                         </div>
-                                        <div className="form-group">
-                                            <label>Valor Inicial (R$) *</label>
+                                        <div className="form-group" style={{ minWidth: 0 }}>
+                                            <label>Valor Inicial *</label>
                                             <input 
                                                 required 
                                                 type="text" 
                                                 placeholder="R$ 0,00" 
                                                 value={getMaskedCurrencyValue(createForm.initial_amount)} 
                                                 onChange={e => handleCurrencyInput(e, setCreateForm, createForm, 'initial_amount')} 
+                                                style={{ width: '100%' }}
                                             />
                                         </div>
                                     </div>
@@ -771,7 +828,7 @@ const Empenhos = () => {
             {/* MODAL: ADICIONAR VALOR */}
             {isAddValueModalOpen && selectedCommitment && (
                 <div className="modal-overlay" onClick={() => setIsAddValueModalOpen(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', overflowX: 'hidden', boxSizing: 'border-box' }}>
                         <div className="modal-header" style={{ borderBottomColor: '#dcfce7' }}>
                             <h2 style={{ color: '#16a34a', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <PlusCircle size={20} /> Adicionar Valor

@@ -1,7 +1,6 @@
 /* OfPreview.css */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* Override absolute lockdown from index.css */
 html.of-preview-html,
 body.of-preview-body,
 html.of-preview-html #root {
@@ -15,8 +14,8 @@ body.of-preview-body {
     background-color: #525659;
     margin: 0;
     padding: 0;
-    display: block; /* Remove flex from body to avoid scroll issues */
-    font-family: Arial, Helvetica, sans-serif;
+    display: block;
+    font-family: 'Inter', Arial, sans-serif;
     color: #000;
 }
 
@@ -31,189 +30,338 @@ body.of-preview-body {
     box-sizing: border-box;
 }
 
+/* Controls Toolbar */
 .of-preview-controls {
     background: white;
-    padding: 1rem 2rem;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    width: 210mm; /* A4 width */
+    width: 210mm;
     box-sizing: border-box;
+    position: sticky;
+    top: 1rem;
+    z-index: 100;
 }
 
-.of-preview-controls button {
+.of-info-text {
+    font-size: 0.9rem;
+    color: #475569;
+    font-weight: 500;
+}
+
+.btn-back {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 6px;
-    background-color: #2563eb;
-    color: white;
-    font-weight: 500;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    color: #475569;
     cursor: pointer;
-    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 0.85rem;
+    transition: all 0.2s;
 }
 
-.of-preview-controls button:hover {
-    background-color: #1d4ed8;
-}
-
-.of-pdf-document {
-    background: white;
-    width: 210mm; /* A4 width */
-    min-height: 297mm; /* A4 height */
-    padding: 1.5cm;
-    box-sizing: border-box;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    position: relative;
-    /* Allow scrolling in preview, standard print will handle pages */
-    overflow: visible;
-}
-
-.of-pdf-header {
-    text-align: center;
-    margin-bottom: 2rem;
-    position: relative;
-}
-
-/* Espaço para logo no canto esquerdo (opcional, pode ser centralizado) */
-.of-pdf-logo-placeholder {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 60px;
-    height: 60px;
-    border: 1px dashed #ccc;
+.btn-print {
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    color: #999;
+    gap: 8px;
+    padding: 0.6rem 1.25rem;
+    background: #2563eb;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
 }
 
-.of-pdf-header h1 {
-    font-size: 14pt;
-    font-weight: bold;
-    margin: 0 0 5px 0;
-}
+.btn-print:hover { background: #1d4ed8; }
 
-.of-pdf-header h2 {
-    font-size: 12pt;
-    font-weight: normal;
-    margin: 0 0 5px 0;
-}
-
-.of-pdf-header h3 {
-    font-size: 12pt;
-    font-weight: bold;
-    margin: 0;
-    text-transform: uppercase;
-}
-
-.of-pdf-title {
-    text-align: center;
-    font-size: 16pt;
-    font-weight: bold;
-    margin: 1.5rem 0;
-    border-bottom: 2px solid black;
-    padding-bottom: 5px;
-}
-
-.of-pdf-section {
-    margin-bottom: 1.25rem;
-    font-size: 10pt;
-}
-
-.of-pdf-row {
+/* Document Layout */
+.of-pdf-document {
+    background: white;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 1.5cm 2cm;
+    box-sizing: border-box;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     display: flex;
-    margin-bottom: 3px;
-    line-height: 1.4;
+    flex-direction: column;
 }
 
-.of-pdf-label {
-    font-weight: bold;
-    width: 150px;
-    flex-shrink: 0;
+.of-header-institutional {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 25px;
+    text-align: center;
+    border-bottom: 2px solid #000;
+    padding-bottom: 20px;
 }
 
-.of-pdf-value {
-    flex-grow: 1;
+.header-logo {
+    height: 80px;
 }
 
-.of-pdf-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 1.5rem 0;
+.header-text-vertical h1 { font-size: 14pt; margin: 0; font-weight: 800; line-height: 1.2; text-transform: uppercase; }
+.header-text-vertical h2 { font-size: 11pt; margin: 4px 0; font-weight: 600; line-height: 1.2; text-transform: uppercase; }
+.header-text-vertical h3 { font-size: 10pt; margin: 0; font-weight: 500; line-height: 1.1; text-transform: uppercase; }
+
+.of-document-title {
+    text-align: center;
+    font-size: 14pt;
+    font-weight: 800;
+    margin: 20px 0;
+    text-decoration: underline;
+}
+
+.of-info-blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.info-block {
+    padding: 8px 12px;
     font-size: 9pt;
 }
 
-.of-pdf-table th, 
-.of-pdf-table td {
-    border: 1px solid black;
-    padding: 6px;
-    text-align: left;
-}
+.border-full { border: 1px solid #000; }
+.bg-light { background-color: #f8fafc; }
 
-.of-pdf-table th {
-    background-color: #f0f0f0 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    font-weight: bold;
-}
-
-.of-pdf-total {
-    text-align: right;
-    font-size: 12pt;
-    font-weight: bold;
-    margin-top: 1rem;
-}
-
-.of-pdf-empenho {
-    font-weight: bold;
-    margin: 1rem 0;
+.block-title {
+    display: block;
+    font-weight: 800;
+    text-align: center;
+    margin-bottom: 8px;
     font-size: 10pt;
+    text-decoration: underline;
 }
 
-.of-pdf-date {
-    text-align: right;
-    margin-top: 2rem;
-    font-size: 10pt;
-}
-
-.of-pdf-signatures {
+.info-item {
     display: flex;
-    justify-content: space-around;
-    margin-top: 3.5rem;
-    page-break-inside: avoid;
+    gap: 5px;
+    margin-bottom: 2px;
+}
+
+.info-item .label {
+    font-weight: 800;
+    min-width: 120px;
+    flex-shrink: 0;
+}
+
+.info-item .value {
+    flex-grow: 1;
+}
+
+.grid-2-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid-3-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+.solicitation-text {
+    margin: 15px 0;
     font-size: 10pt;
 }
 
-.of-pdf-signature-block {
+.annex-title {
+    font-weight: 800;
     text-align: center;
-    width: 40%;
+    margin: 10px 0 5px 0;
 }
 
-.of-pdf-signature-line {
-    border-top: 1px solid black;
-    margin-bottom: 5px;
-    padding-top: 5px;
+.secretariat-box {
+    text-align: center;
+    padding: 5px;
+    font-weight: 800;
+    background-color: #eee;
+    margin-bottom: 10px;
 }
 
-.of-pdf-footer {
-    margin-top: 4rem;
-    text-align: center;
+.items-table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 8pt;
-    color: #666;
-    border-top: 1px solid #ccc;
-    padding-top: 5px;
+}
+
+.items-table th, .items-table td {
+    border: 1px solid #000;
+    padding: 4px 6px;
+}
+
+.items-table th {
+    background-color: #f0f0f0 !important;
+    text-align: center;
+    font-weight: 800;
+}
+
+.items-table tfoot td {
+    font-size: 9pt;
+}
+
+.date-location {
+    text-align: center;
+    margin-top: 40px;
+    font-size: 10pt;
+}
+
+.signatures-container {
+    margin-top: 50px;
+    display: flex;
+    justify-content: center;
     page-break-inside: avoid;
 }
 
-/* Modo Impressão */
+.signature-box {
+    text-align: center;
+    width: 300px;
+}
+
+.signature-line {
+    border-top: 1px solid #000;
+    margin-bottom: 5px;
+}
+
+.sig-name {
+    display: block;
+    font-weight: 800;
+    font-size: 10pt;
+}
+
+.sig-role {
+    display: block;
+    font-size: 9pt;
+    font-weight: 700;
+    margin-top: 2px;
+}
+
+.document-footer {
+    margin-top: auto;
+    padding-top: 20px;
+    text-align: center;
+    font-size: 7.5pt;
+    color: #444;
+    border-top: 1px solid #ccc;
+    line-height: 1.4;
+}
+
+.document-footer p { margin: 0; }
+
+.loading-container, .error-container {
+    text-align: center;
+    padding: 100px;
+    font-size: 1.25rem;
+    color: white;
+}
+
+.error-container { color: #fca5a5; }
+
+/* Signatory Modal Styles */
+.sig-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.sig-modal-content {
+    background: white;
+    width: 90%;
+    max-width: 450px;
+    padding: 2rem;
+    border-radius: 16px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    animation: slideUp 0.3s ease-out;
+}
+
+.sig-modal-content h2 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.sig-modal-content p {
+    color: #64748b;
+    margin-bottom: 1.5rem;
+}
+
+.sig-options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+}
+
+.sig-option-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.sig-option-item:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+
+.sig-option-item.active {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+.sig-option-item input {
+    width: 18px;
+    height: 18px;
+}
+
+.sig-option-item span {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.sig-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Print Settings */
 @media print {
+    @page {
+        size: A4;
+        margin: 0;
+    }
+
     body {
         background-color: white !important;
         margin: 0 !important;
@@ -225,15 +373,19 @@ body.of-preview-body {
     }
 
     .of-preview-container {
-        display: block;
-        width: 100%;
+        padding: 0 !important;
+        display: block !important;
     }
 
     .of-pdf-document {
-        box-shadow: none;
-        width: 100%;
-        min-height: auto;
-        padding: 0; /* Browsers handle their own print margins */
-        margin: 0;
+        box-shadow: none !important;
+        width: 100% !important;
+        padding: 1.5cm 1cm !important;
+        height: 297mm;
+        margin: 0 !important;
     }
+
+    .bg-light { background-color: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .secretariat-box { background-color: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .items-table th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }

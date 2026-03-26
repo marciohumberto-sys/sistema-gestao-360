@@ -79,6 +79,12 @@ const ContractDetails = () => {
     const [rateioAmount, setRateioAmount] = useState('');
     const [isSavingAllocations, setIsSavingAllocations] = useState(false);
     const rateioAmountRef = useRef(null);
+    const isMounted = useRef(true);
+
+    useEffect(() => {
+        isMounted.current = true;
+        return () => { isMounted.current = false; };
+    }, []);
 
     // Delete Confirmation State
     const [itemToDelete, setItemToDelete] = useState(null);
@@ -115,6 +121,9 @@ const ContractDetails = () => {
     // OF Creation State
     const [isOfOfModalOpen, setIsOfOfModalOpen] = useState(false);
     const [selectedOfSecretariat, setSelectedOfSecretariat] = useState('');
+    const [availableCommitments, setAvailableCommitments] = useState([]);
+    const [selectedOfCommitmentId, setSelectedOfCommitmentId] = useState('');
+    const [participatingSecretariats, setParticipatingSecretariats] = useState([]);
     const [isCreatingOf, setIsCreatingOf] = useState(false);
 
     // Toast State
@@ -336,99 +345,99 @@ const ContractDetails = () => {
     };
 
     useEffect(() => {
-        let isMounted = true;
         const fetchContract = async () => {
             try {
                 setIsLoadingContract(true);
                 setError(false);
                 const contractData = await contractsService.getById(id);
-                if (isMounted) {
+                if (isMounted.current) {
                     setContract(contractData);
                 }
             } catch (err) {
                 console.error("Erro ao detalhar contrato:", err);
-                if (isMounted) setError(true);
+                if (isMounted.current) setError(true);
             } finally {
-                if (isMounted) setIsLoadingContract(false);
-            }
-        };
-
-        const fetchEmpenhos = async () => {
-            try {
-                setIsLoadingEmpenhos(true);
-                console.log('contractId (route):', id);
-                const empenhosData = await empenhosService.listByContract(id);
-                console.log('empenhos raw response:', empenhosData);
-                if (isMounted) {
-                    setEmpenhos(empenhosData);
-                }
-            } catch (err) {
-                console.error("Erro ao carregar empenhos:", err);
-            } finally {
-                if (isMounted) setIsLoadingEmpenhos(false);
-            }
-        };
-
-        const fetchOfs = async () => {
-            try {
-                setIsLoadingOfs(true);
-                const ofsData = await ofsService.listByContract(id);
-                if (isMounted) {
-                    const issuedOfs = ofsData.filter(o => o.status === 'ISSUED');
-                    setContractOfs(ofsData);
-                    
-                    // Calcular montante reservado
-                    const totalReserved = issuedOfs.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-                    setReservedAmount(totalReserved);
-
-                    // Calcular quantidades reservadas por item
-                    const qtyMap = {};
-                    const secQtyMap = {}; // { itemId: { secId: qty } }
-
-                    issuedOfs.forEach(of => {
-                        const sid = of.secretariat_id;
-                        (of.items || []).forEach(item => {
-                            const iid = item.contract_item_id;
-                            if (iid) {
-                                qtyMap[iid] = (qtyMap[iid] || 0) + (item.quantity || 0);
-                                if (!secQtyMap[iid]) secQtyMap[iid] = {};
-                                if (sid) {
-                                    secQtyMap[iid][sid] = (secQtyMap[iid][sid] || 0) + (item.quantity || 0);
-                                }
-                            }
-                        });
-                    });
-                    setReservedQuantityPerItem(qtyMap);
-                    setReservedQuantityPerItemPerSec(secQtyMap);
-                }
-            } catch (err) {
-                console.error("Erro ao carregar OFs do contrato:", err);
-            } finally {
-                if (isMounted) setIsLoadingOfs(false);
-            }
-        };
-
-        const fetchItemsCount = async () => {
-            if (!tenantId || !id) return;
-            try {
-                const count = await contractItemsService.countContractItems(id, tenantId);
-                if (isMounted) setGlobalItemsCount(count);
-            } catch (err) {
-                console.error("Erro ao carregar contagem de itens:", err);
+                if (isMounted.current) setIsLoadingContract(false);
             }
         };
 
         if (id) {
             fetchContract();
-            fetchEmpenhos();
             fetchOfs();
             fetchHistory();
             loadSecretariats();
             fetchItemsCount();
         }
-
-        return () => { isMounted = false; };
     }, [id, tenantId]);
+
+    const fetchOfs = async () => {
+        try {
+            setIsLoadingOfs(true);
+            const ofsData = await ofsService.listByContract(id);
+            if (isMounted.current) {
+                const issuedOfs = ofsData.filter(o => o.status === 'ISSUED');
+                setContractOfs(ofsData);
+                
+                // Calcular montante reservado
+                const totalReserved = issuedOfs.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+                setReservedAmount(totalReserved);
+
+                // Calcular quantidades reservadas por item
+                const qtyMap = {};
+                const secQtyMap = {}; // { itemId: { secId: qty } }
+
+                issuedOfs.forEach(of => {
+                    const sid = of.secretariat_id;
+                    (of.items || []).forEach(item => {
+                        const iid = item.contract_item_id;
+                        if (iid) {
+                            qtyMap[iid] = (qtyMap[iid] || 0) + (item.quantity || 0);
+                            if (!secQtyMap[iid]) secQtyMap[iid] = {};
+                            if (sid) {
+                                secQtyMap[iid][sid] = (secQtyMap[iid][sid] || 0) + (item.quantity || 0);
+                            }
+                        }
+                    });
+                });
+                setReservedQuantityPerItem(qtyMap);
+                setReservedQuantityPerItemPerSec(secQtyMap);
+            }
+        } catch (err) {
+            console.error("Erro ao carregar OFs do contrato:", err);
+        } finally {
+            if (isMounted.current) setIsLoadingOfs(false);
+        }
+    };
+
+    const fetchItemsCount = async () => {
+        if (!tenantId || !id) return;
+        try {
+            const count = await contractItemsService.countContractItems(id, tenantId);
+            if (isMounted.current) setGlobalItemsCount(count);
+        } catch (err) {
+            console.error("Erro ao carregar contagem de itens:", err);
+        }
+    };
+
+    const fetchEmpenhos = async () => {
+        try {
+            setIsLoadingEmpenhos(true);
+            const data = await empenhosService.listByContract(id);
+            console.log('contractId:', id);
+            console.log('Empenhos retornados:', data);
+            setEmpenhos(data || []);
+        } catch (error) {
+            console.error('Erro ao buscar empenhos:', error);
+        } finally {
+            setIsLoadingEmpenhos(false);
+        }
+    };
+
+    useEffect(() => {
+        if (id) {
+            fetchEmpenhos();
+        }
+    }, [id]);
 
     const fetchItemsTab = async () => {
         if (!tenantId || !id || activeTab !== 'itens') return;
@@ -464,6 +473,13 @@ const ContractDetails = () => {
     useEffect(() => {
         fetchItemsTab();
     }, [id, tenantId, activeTab]);
+
+    // Sincroniza o contador global com o tamanho da lista sempre que carregar a aba de itens
+    useEffect(() => {
+        if (activeTab === 'itens' && items) {
+            setGlobalItemsCount(items.length);
+        }
+    }, [activeTab, items.length]);
 
     const loadAllocationsForItem = async (itemId) => {
         if (!tenantId) return;
@@ -624,9 +640,9 @@ const ContractDetails = () => {
             await contractItemsService.deleteContractItem(itemId, tenantId);
 
             // Recalcula e atualiza a lista dinamicamente
-            setGlobalItemsCount(prev => Math.max(0, prev - 1));
             const updatedItems = await contractItemsService.listContractItems(id, tenantId);
             setItems(updatedItems);
+            setGlobalItemsCount(updatedItems.length);
             showToast("Item removido", "success");
         } catch (err) {
             console.error(err);
@@ -637,25 +653,55 @@ const ContractDetails = () => {
     const handleGenerateOfClick = async () => {
         if (!contract || isCreatingOf) return;
 
-        // Se o contrato já tem uma secretaria definida, usamos ela direto
-        if (contract.secretariat_id) {
-            handleConfirmCreateOf(contract.secretariat_id);
-            return;
-        }
+        try {
+            // Identificar secretarias que possuem rateio/alocação neste contrato
+            const itemIds = items.map(i => i.id);
+            let pSecretariats = [];
 
-        // Se houver apenas uma secretaria cadastrada no sistema, usamos ela
-        if (secretariats.length === 1) {
-            handleConfirmCreateOf(secretariats[0].id);
-            return;
-        }
+            if (itemIds.length > 0) {
+                const allocs = await allocationsService.listAllocationsByItemIds(itemIds, tenantId);
+                const uniqueSecIds = [...new Set(allocs.filter(a => (a.quantity_allocated || 0) > 0).map(a => a.secretariat_id))];
+                pSecretariats = secretariats.filter(s => uniqueSecIds.includes(s.id));
+            }
 
-        // Caso contrário, abrimos o modal para seleção
-        setSelectedOfSecretariat('');
-        setIsOfOfModalOpen(true);
+            // Se não houver rateio, fallback para a secretaria do contrato ou todas
+            if (pSecretariats.length === 0) {
+                if (contract.secretariat_id) {
+                    pSecretariats = secretariats.filter(s => s.id === contract.secretariat_id);
+                } else {
+                    pSecretariats = secretariats;
+                }
+            }
+
+            setParticipatingSecretariats(pSecretariats);
+
+            // Reseta seleções
+            setSelectedOfSecretariat('');
+            setAvailableCommitments([]);
+            setSelectedOfCommitmentId('');
+
+            // Se houver apenas uma secretaria participante, já carrega os empenhos dela
+            if (pSecretariats.length === 1) {
+                const secId = pSecretariats[0].id;
+                setSelectedOfSecretariat(secId);
+                const filteredEmpenhos = empenhos.filter(e => e.secretariat_id === secId && e.status !== 'CANCELADO' && (e.current_balance || 0) > 0);
+                setAvailableCommitments(filteredEmpenhos);
+                if (filteredEmpenhos.length === 1) {
+                    setSelectedOfCommitmentId(filteredEmpenhos[0].id);
+                }
+            }
+
+            setIsOfOfModalOpen(true);
+        } catch (err) {
+            console.error("Erro ao preparar geração de OF:", err);
+            showToast("Erro ao preparar geração de OF", "error");
+        }
     };
 
-    const handleConfirmCreateOf = async (secId) => {
+    const handleConfirmCreateOf = async (secId, cmtId) => {
         const secretariatId = secId || selectedOfSecretariat;
+        const commitmentId = cmtId || selectedOfCommitmentId;
+
         if (!secretariatId) {
             showToast("Por favor, selecione uma secretaria.", "error");
             return;
@@ -664,11 +710,10 @@ const ContractDetails = () => {
         setIsCreatingOf(true);
         try {
             const today = new Date().toISOString().split('T')[0];
-            const newOf = await ofsService.createOf(tenantId, id, secretariatId, today);
+            const newOf = await ofsService.createOf(tenantId, id, secretariatId, today, commitmentId);
             
             showToast("Ordem de Fornecimento criada com sucesso!", "success");
             
-            // Pequeno delay para o usuário ver o feedback antes de redirecionar
             setTimeout(() => {
                 navigate(`/compras/ordens-fornecimento/${newOf.id}`);
             }, 800);
@@ -729,22 +774,23 @@ const ContractDetails = () => {
     };
 
     // Calculate specific stats based on rules
-    let commitValue = 0;
+    const totalEmpenhado = empenhos.reduce((acc, emp) => {
+        return acc + ((emp.initial_amount || 0) + (emp.added_amount || 0) - (emp.annulled_amount || 0));
+    }, 0);
+    
     let balanceValue = 0; // Saldo para OF (Empenhado - OFs)
     let contractBalanceValue = 0; // Saldo do Contrato (Total - Empenhado)
     let daysLeft = null;
     let isUrgent = false;
 
     if (contract) {
-        // 1. Empenhado = soma de todos os empenhos vinculados
-        commitValue = empenhos.reduce((sum, e) => sum + (e.value || 0), 0);
-        
-        // 2. Saldo Contrato = valor total - valor empenhado
-        contractBalanceValue = contract.totalValue - commitValue;
-        
-        // 3. Saldo para OF = valor empenhado - total das OFs
-        // reservedAmount já é a soma das OFs emitidas (calculado no side effect de fetchOfs)
-        balanceValue = commitValue - reservedAmount;
+        // Regra padronizada:
+        // Empenhado = soma dos empenhos vinculados (initial + added - annulled)
+        // Saldo Contrato = Total - Empenhado
+        // Saldo para OF = Empenhado - OFs
+
+        contractBalanceValue = contract.totalValue - totalEmpenhado;
+        balanceValue = totalEmpenhado - reservedAmount;
 
         daysLeft = getDaysLeft(contract.dateRange?.endDate);
         if (daysLeft !== null && daysLeft <= 30 && daysLeft >= 0) isUrgent = true;
@@ -927,7 +973,7 @@ const ContractDetails = () => {
                     <div className="cd-kpi-icon warning"><FileText size={20} /></div>
                     <div className="cd-kpi-data">
                         <span className="cd-kpi-label">Empenhado</span>
-                        <span className="cd-kpi-value warning" style={{ color: '#b45309' }}>{formatCurrency(commitValue)}</span>
+                        <span className="cd-kpi-value warning" style={{ color: '#b45309' }}>{formatCurrency(totalEmpenhado)}</span>
                     </div>
                 </div>
                 <div className="cd-kpi-card">
@@ -1135,7 +1181,7 @@ const ContractDetails = () => {
                                 <h3>Relação de Empenhos</h3>
                                 <div className="cd-info-chip">
                                     <span className="cd-info-chip-label">Total empenhado:</span>
-                                    <span className="cd-info-chip-value">{formatCurrency(commitValue)}</span>
+                                    <span className="cd-info-chip-value">{formatCurrency(totalEmpenhado)}</span>
                                 </div>
                             </div>
 
@@ -1146,15 +1192,17 @@ const ContractDetails = () => {
                                             <tr>
                                                 <th>Nº Empenho</th>
                                                 <th>Descrição / Objeto</th>
-                                                <th>Datas</th>
-                                                <th>Valor</th>
-                                                <th>Status</th>
+                                                <th style={{ textAlign: 'right' }}>Vlr Inicial</th>
+                                                <th style={{ textAlign: 'right' }}>Acréscimos</th>
+                                                <th style={{ textAlign: 'right' }}>Anulações</th>
+                                                <th style={{ textAlign: 'right' }}>Vlr Atual</th>
+                                                <th style={{ textAlign: 'center' }}>Status</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {isLoadingEmpenhos ? (
                                                 <tr>
-                                                    <td colSpan="5" className="loading-state">
+                                                    <td colSpan="7" className="loading-state">
                                                         <div className="loading-state-content" style={{ padding: '2rem 1rem', width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'stretch' }}>
                                                             <div className="skeleton" style={{ height: '40px', width: '100%', borderRadius: '4px' }}></div>
                                                             <div className="skeleton" style={{ height: '40px', width: '100%', borderRadius: '4px' }}></div>
@@ -1164,7 +1212,7 @@ const ContractDetails = () => {
                                                 </tr>
                                             ) : empenhos.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan="5" className="empty-state">
+                                                    <td colSpan="7" className="empty-state">
                                                         <div className="empty-state-content" style={{ padding: '3rem 0' }}>
                                                             <FileText size={40} style={{ color: 'var(--border-light)', marginBottom: '1rem' }} />
                                                             <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-primary)', fontSize: '1.1rem' }}>Nenhum empenho vinculado a este contrato</h4>
@@ -1173,36 +1221,33 @@ const ContractDetails = () => {
                                                     </td>
                                                 </tr>
                                             ) : (
-                                                empenhos.map(emp => (
-                                                    <tr key={emp.id}>
-                                                        <td>
-                                                            <span className="td-number" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{emp.number}</span>
-                                                        </td>
-                                                        <td>
-                                                            <span className="title-text" style={{ color: 'var(--text-secondary)' }} title={emp.description}>{emp.description}</span>
-                                                        </td>
-                                                        <td className="td-dates">
-                                                            <div>
-                                                                <span className="date-start">
-                                                                    Emissão: {formatDate(emp.issueDate)}
+                                                empenhos.map(emp => {
+                                                    const currentEmpValue = (emp.initial_amount || 0) + (emp.added_amount || 0) - (emp.annulled_amount || 0);
+                                                    return (
+                                                        <tr key={emp.id}>
+                                                            <td>
+                                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                                    <span className="td-number" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{emp.number}</span>
+                                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{formatDate(emp.issue_date || emp.issueDate)}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <span className="title-text" style={{ color: 'var(--text-secondary)' }} title={emp.notes || emp.description}>{emp.notes || emp.description}</span>
+                                                            </td>
+                                                            <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{formatCurrency(emp.initial_amount || 0)}</td>
+                                                            <td style={{ textAlign: 'right', color: '#16a34a' }}>{emp.added_amount > 0 ? `+ ${formatCurrency(emp.added_amount)}` : '-'}</td>
+                                                            <td style={{ textAlign: 'right', color: '#dc2626' }}>{emp.annulled_amount > 0 ? `- ${formatCurrency(emp.annulled_amount)}` : '-'}</td>
+                                                            <td style={{ textAlign: 'right' }}>
+                                                                <span className="val-total" style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{formatCurrency(currentEmpValue)}</span>
+                                                            </td>
+                                                            <td style={{ textAlign: 'center' }}>
+                                                                <span className={`status-badge ${emp.status.toLowerCase()}`}>
+                                                                    {emp.status}
                                                                 </span>
-                                                                {emp.paymentDate && (
-                                                                    <span className="date-end" style={{ color: 'var(--success-color-dark, #0f8b4d)' }}>
-                                                                        Pg: {formatDate(emp.paymentDate)}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                        <td className="td-values">
-                                                            <span className="val-total" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(emp.value)}</span>
-                                                        </td>
-                                                        <td>
-                                                            <span className={`status-badge ${emp.status.toLowerCase()}`}>
-                                                                {emp.status}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                ))
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
                                             )}
                                         </tbody>
                                     </table>
@@ -2221,45 +2266,74 @@ const ContractDetails = () => {
             {/* Modal de Seleção de Secretaria para OF */}
             {isOfOfModalOpen && (
                 <div className="modal-overlay">
-                    <div className="modal-content" style={{ maxWidth: '450px' }}>
+                    <div className="modal-content" style={{ maxWidth: '480px' }}>
                         <div className="modal-header">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <Landmark size={20} />
                                 </div>
                                 <div>
-                                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#0f172a' }}>Selecionar Secretaria</h3>
-                                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Escolha a secretaria responsável por esta OF</p>
+                                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#0f172a' }}>Gerar OF</h3>
+                                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Configure os dados de origem para a nova OF</p>
                                 </div>
                             </div>
-                            <button className="modal-close" onClick={() => setIsOfOfModalOpen(false)}>
+                            <button className="modal-close" onClick={() => setIsOfOfModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
                                 <X size={20} />
                             </button>
                         </div>
                         <div className="modal-body" style={{ padding: '1.5rem 2rem' }}>
-                            <div className="form-group" style={{ marginBottom: 0 }}>
+                            <div className="form-group" style={{ marginBottom: '1.25rem' }}>
                                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem', fontWeight: 500, color: '#475569' }}>Secretaria *</label>
                                 <select 
                                     value={selectedOfSecretariat} 
-                                    onChange={e => setSelectedOfSecretariat(e.target.value)}
+                                    onChange={e => {
+                                        const secId = e.target.value;
+                                        setSelectedOfSecretariat(secId);
+                                        const filtered = empenhos.filter(emp => emp.secretariat_id === secId && emp.status !== 'CANCELADO' && (emp.current_balance || 0) > 0);
+                                        setAvailableCommitments(filtered);
+                                        if (filtered.length === 1) {
+                                            setSelectedOfCommitmentId(filtered[0].id);
+                                        } else {
+                                            setSelectedOfCommitmentId('');
+                                        }
+                                    }}
                                     style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff' }}
                                     required
                                 >
                                     <option value="">Selecione uma secretaria...</option>
-                                    {secretariats.map(sec => (
+                                    {participatingSecretariats.map(sec => (
                                         <option key={sec.id} value={sec.id}>{sec.name}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem', fontWeight: 500, color: '#475569' }}>Vincular Empenho</label>
+                                <select 
+                                    value={selectedOfCommitmentId} 
+                                    onChange={e => setSelectedOfCommitmentId(e.target.value)}
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: selectedOfSecretariat ? '#fff' : '#f8fafc' }}
+                                    disabled={!selectedOfSecretariat}
+                                >
+                                    <option value="">Sem vínculo inicial (Rascunho)</option>
+                                    {availableCommitments.map(emp => (
+                                        <option key={emp.id} value={emp.id}>
+                                            {emp.number} - Saldo: {formatExactCurrency(emp.current_balance || 0)}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p style={{ margin: '8px 0 0 0', fontSize: '0.75rem', color: '#64748b' }}>
+                                    {availableCommitments.length === 0 && selectedOfSecretariat 
+                                        ? "Nenhum empenho com saldo disponível para esta secretaria."
+                                        : "Vincular um empenho agora acelera a emissão da OF."}
+                                </p>
                             </div>
                         </div>
                         <div className="modal-footer" style={{ padding: '1.25rem 2rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                             <button className="cd-btn-secondary" onClick={() => setIsOfOfModalOpen(false)}>Cancelar</button>
                             <button 
                                 className="cd-btn-primary" 
-                                onClick={() => {
-                                    handleConfirmCreateOf();
-                                    setIsOfOfModalOpen(false);
-                                }}
+                                onClick={() => handleConfirmCreateOf()}
                                 disabled={!selectedOfSecretariat || isCreatingOf}
                             >
                                 {isCreatingOf ? 'Gerando...' : 'Confirmar e Gerar'}
