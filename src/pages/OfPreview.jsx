@@ -118,9 +118,11 @@ const OfPreview = () => {
             </div>
 
             <div className="of-pdf-document">
-                {/* Cabeçalho Institucional - Stack Vertical */}
-                <div className="of-header-institutional">
-                    <img src={logoBezerros} alt="Prefeitura de Bezerros" className="header-logo" />
+                {/* Cabeçalho Institucional - Stack Vertical Garantido */}
+                <div className="of-header-institutional-vertical">
+                    <div className="logo-container-centered">
+                        <img src={logoBezerros} alt="Prefeitura de Bezerros" className="header-logo" />
+                    </div>
                     <div className="header-text-vertical">
                         <h1>PREFEITURA MUNICIPAL DE BEZERROS</h1>
                         <h2>SECRETARIA DE ADMINISTRAÇÃO</h2>
@@ -264,11 +266,11 @@ const OfPreview = () => {
                     <div className="signatures-container">
                         <div className="signature-box">
                             <div className="signature-line"></div>
-                            <span className="sig-name">{ofData.requester_name || selectedSigName || 'Assinatura'}</span>
-                            <span className="sig-role">{(selectedSigRole || ofData.requester_department || 'Responsável').toUpperCase()}</span>
-                            {(ofData.requester_registration || selectedSigReg) && (
+                            <span className="sig-name">{selectedSigName || ofData.requester_name || 'Assinatura'}</span>
+                            <span className="sig-role">{(selectedSigRole || ofData.requester_department || '').toUpperCase()}</span>
+                            {(selectedSigReg || ofData.requester_registration) && (
                                 <span className="sig-reg" style={{ display: 'block', fontSize: '8pt' }}>
-                                    Matrícula: {ofData.requester_registration || selectedSigReg}
+                                    Matrícula: {selectedSigReg || ofData.requester_registration}
                                 </span>
                             )}
                         </div>

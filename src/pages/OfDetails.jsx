@@ -317,14 +317,14 @@ const OfDetails = () => {
     };
 
     const handlePrintPdf = () => {
-        if (isDraft && !selectedSignatory) {
+        if (!selectedSignatory) {
             setSignatoryContext('preview');
             setIsSignatoryModalOpen(true);
             return;
         }
 
         let url = `/compras/of-preview/${id}`;
-        if (isDraft && selectedSignatory) {
+        if (selectedSignatory) {
             const params = new URLSearchParams();
             params.set('sigName', selectedSignatory.name || '');
             params.set('sigRole', selectedSignatory.role || '');

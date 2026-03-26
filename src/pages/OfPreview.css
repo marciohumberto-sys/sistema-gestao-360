@@ -96,25 +96,34 @@ body.of-preview-body {
     flex-direction: column;
 }
 
-.of-header-institutional {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 15px;
+.of-header-institutional-vertical {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px;
     margin-bottom: 25px;
     text-align: center;
     border-bottom: 2px solid #000;
     padding-bottom: 20px;
+    width: 100%;
+}
+
+.logo-container-centered {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin-bottom: 10px;
 }
 
 .header-logo {
     height: 80px;
 }
 
-.header-text-vertical h1 { font-size: 14pt; margin: 0; font-weight: 800; line-height: 1.2; text-transform: uppercase; }
-.header-text-vertical h2 { font-size: 11pt; margin: 4px 0; font-weight: 600; line-height: 1.2; text-transform: uppercase; }
-.header-text-vertical h3 { font-size: 10pt; margin: 0; font-weight: 500; line-height: 1.1; text-transform: uppercase; }
+.header-text-vertical { width: 100%; }
+.header-text-vertical h1 { font-size: 14pt; margin: 0; font-weight: 800; line-height: 1.2; text-transform: uppercase; width: 100%; }
+.header-text-vertical h2 { font-size: 11pt; margin: 2px 0; font-weight: 600; line-height: 1.2; text-transform: uppercase; width: 100%; }
+.header-text-vertical h3 { font-size: 10pt; margin: 0; font-weight: 500; line-height: 1.1; text-transform: uppercase; width: 100%; }
 
 .of-document-title {
     text-align: center;
