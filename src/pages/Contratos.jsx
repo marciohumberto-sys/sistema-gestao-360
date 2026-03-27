@@ -299,7 +299,7 @@ const Contratos = () => {
     const mapErrorToMessage = (error) => {
         const msg = error?.message || "";
         if (msg.includes('contracts_tenant_id_code_key')) {
-            return "Já existe um contrato com este código ou referência.";
+            return "Já existe um contrato com este código. Informe outro código para continuar.";
         }
         if (msg.includes('ofs_contract_id_fkey')) {
             return "Este contrato possui ordens de fornecimento vinculadas e não pode ser excluído.";
@@ -454,29 +454,36 @@ const Contratos = () => {
                 })
             };
 
+            const trimmedCode = formData.code?.trim();
+
             if (editingContract) {
                 // Objective 1: Check for duplicate code during update
-                if (formData.code) {
-                    const isDuplicate = await contractsService.checkDuplicateCode(formData.code, tenantId, editingContract.id);
+                if (trimmedCode) {
+                    const isDuplicate = await contractsService.checkDuplicateCode(trimmedCode, tenantId, editingContract.id);
                     if (isDuplicate) {
-                        setFeedback({ type: 'error', message: 'Já existe um contrato com este código ou referência.' });
+                        setFeedback({ type: 'error', message: 'Já existe um contrato com este código. Informe outro código para continuar.' });
                         setIsSubmitting(false);
                         return;
                     }
                 }
 
+                payload.code = trimmedCode || null;
+
                 await contractsService.update(editingContract.id, payload);
                 setFeedback({ type: 'success', message: 'Contrato atualizado com sucesso!' });
             } else {
                 // Objective 1: Check for duplicate code during creation
-                if (formData.code) {
-                    const isDuplicate = await contractsService.checkDuplicateCode(formData.code, tenantId);
+                if (trimmedCode) {
+                    const isDuplicate = await contractsService.checkDuplicateCode(trimmedCode, tenantId);
                     if (isDuplicate) {
-                        setFeedback({ type: 'error', message: 'Já existe um contrato com este código ou referência.' });
+                        setFeedback({ type: 'error', message: 'Já existe um contrato com este código. Informe outro código para continuar.' });
                         setIsSubmitting(false);
                         return;
                     }
                 }
+
+                payload.code = trimmedCode || null;
+                console.log("PAYLOAD_CREATE_CONTRACT:", { ...payload, tenantId });
 
                 const { error } = await contractsService.createContract(payload, tenantId);
                 if (error) throw error;
@@ -698,7 +705,7 @@ const Contratos = () => {
                                                     {contract.status}
                                                 </span>
                                             </td>
-                                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                            <td style={{ textAlign: 'right' }}>
                                                 <div className="action-buttons-group">
                                                     <button
                                                         className="action-btn edit"

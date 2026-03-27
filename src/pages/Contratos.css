@@ -179,8 +179,10 @@
 .data-table-wrapper {
     position: relative;
     width: 100%;
-    overflow-x: hidden; /* Forçar remoção da scrollbar horizontal no Desktop */
-    overflow-y: hidden;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden !important; /* Bloqueio definitivo de scroll horizontal */
+    overflow-y: auto; /* Mantém scroll vertical funcional */
     flex: 1;
     min-height: 0;
     min-width: 0;
@@ -191,14 +193,34 @@
     background: #ffffff;
 }
 
+/* Custom Scrollbar for Chrome/Safari */
+.data-table-wrapper::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.data-table-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.data-table-wrapper::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+.data-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
 /* Optional premium fade shadow at the bottom is achieved via the footer's shadow */
 
 .data-table {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     border-collapse: collapse;
     text-align: left;
     table-layout: fixed;
-    /* Tabela agora não deforma e cabe 100% no container Desktop */
 }
 
 .data-table th,
@@ -207,35 +229,38 @@
 }
 
 .data-table th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
     background: #f5f7f9;
     color: var(--text-primary);
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.02em;
-    padding: 0.875rem 1rem;
-    border-bottom: 1px solid #e2e8f0;
-    /* Clearer separation */
+    padding: 0.875rem 0.5rem; /* Padding reduzido para garantir o fit */
+    border-bottom: 2px solid #e2e8f0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    box-sizing: border-box;
 }
 
 /* Hard locking the column sizes */
 .data-table th:nth-child(1) {
-    width: 15% !important;
+    width: 16% !important;
 }
 
 .data-table th:nth-child(2) {
-    width: 40% !important; /* Espaço generoso para o fornecedor */
+    width: 31% !important;
 }
 
 .data-table th:nth-child(3) {
-    width: 11% !important;
+    width: 16% !important;
 }
 
 .data-table th:nth-child(4) {
-    width: 16% !important;
+    width: 18% !important;
 }
 
 .data-table th:nth-child(5) {
@@ -243,19 +268,18 @@
 }
 
 .data-table th:nth-child(6) {
-    width: 6% !important; /* Mínimo para os ícones */
+    width: 7% !important;
     text-align: right;
 }
 
 .data-table td {
-    padding: 0.4rem 1rem;
-    /* Reduced vertical padding for density */
+    padding: 0.4rem 0.5rem; /* Padding reduzido para garantir o fit */
     border-bottom: 1px solid #f1f5f9;
     color: var(--text-secondary);
     font-size: 0.8125rem;
-    /* Slightly smaller base font for density */
     vertical-align: middle;
     transition: background-color 0.15s ease;
+    box-sizing: border-box;
 }
 
 .data-table tbody tr:hover td {
@@ -381,9 +405,11 @@
     border-radius: var(--radius-full);
     font-size: 0.7rem;
     /* Reduced from 0.75rem */
-    font-weight: 600;
-    text-transform: uppercase;
     letter-spacing: 0.02em;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .status-badge.ativo {
@@ -442,7 +468,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 0.5rem;
+    gap: 0.35rem; /* Reduzido de 0.5rem para maior segurança */
 }
 
 .action-btn {

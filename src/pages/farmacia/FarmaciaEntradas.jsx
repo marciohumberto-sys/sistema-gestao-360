@@ -41,7 +41,7 @@ const FarmaciaEntradas = () => {
                     { data: batches },
                     { data: units }
                 ] = await Promise.all([
-                    supabase.from('inventory_items').select('id, name'),
+                    supabase.from('inventory_items').select('id, name, code, item_form'),
                     supabase.from('stock_movements').select('id, inventory_item_id, quantity, unit_id, batch_id, created_at, created_by, notes').eq('movement_type', 'ENTRY').order('created_at', { ascending: false }),
                     supabase.from('item_batches').select('id, expiration_date, batch_number'),
                     supabase.from('units').select('id, name')
@@ -111,7 +111,8 @@ const FarmaciaEntradas = () => {
                 id: m.id,
                 data: m.created_at, 
                 medicamento: itemObj.name || 'Desconhecido',
-                codigo: '-', // Placeholder seguro para layout sem expor nulos
+                codigo: itemObj.code || null,
+                item_form: itemObj.item_form || null,
                 lote: loteCalc,
                 validade: valCalc,
                 quantidade: m.quantity,
@@ -460,8 +461,42 @@ const FarmaciaEntradas = () => {
                                             {new Date(item.data).toLocaleDateString('pt-BR')}
                                         </td>
                                         <td className="farmacia-td-primary">
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{item.medicamento}</span>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                                                    {item.medicamento}
+                                                </span>
+                                                {(item.codigo || item.item_form) && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        {item.codigo && (
+                                                            <span style={{
+                                                                fontSize: '0.65rem',
+                                                                backgroundColor: 'var(--bg-body)',
+                                                                color: '#64748b',
+                                                                padding: '2px 6px',
+                                                                borderRadius: '4px',
+                                                                fontWeight: 700,
+                                                                border: '1px solid var(--border)',
+                                                                fontFamily: 'monospace'
+                                                            }}>
+                                                                {item.codigo}
+                                                            </span>
+                                                        )}
+                                                        {item.item_form && (
+                                                            <span style={{
+                                                                fontSize: '0.65rem',
+                                                                backgroundColor: 'var(--bg-body)',
+                                                                color: '#64748b',
+                                                                padding: '2px 6px',
+                                                                borderRadius: '4px',
+                                                                fontWeight: 600,
+                                                                border: '1px solid var(--border)',
+                                                                letterSpacing: '0.02em',
+                                                            }}>
+                                                                {item.item_form}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="farmacia-td-muted" style={{ fontWeight: 500, whiteSpace: 'nowrap', opacity: item.lote ? 1 : 0.3 }}>

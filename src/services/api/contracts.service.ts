@@ -99,13 +99,14 @@ class ContractsService {
     }
 
     async checkDuplicateCode(code: string, tenantId: string, excludeId?: string): Promise<boolean> {
-        if (!code || !tenantId) return false;
+        const trimmedCode = code?.trim();
+        if (!trimmedCode || !tenantId) return false;
         
         let query = supabase
             .from("contracts")
             .select("id")
             .eq("tenant_id", tenantId)
-            .eq("code", code);
+            .eq("code", trimmedCode);
 
         if (excludeId) {
             query = query.neq("id", excludeId);

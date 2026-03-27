@@ -118,6 +118,26 @@ const OfPreview = () => {
             </div>
 
             <div className="of-pdf-document">
+                {ofData.status === 'DRAFT' && (
+                    <div className="draft-watermark" style={{
+                        position: 'fixed',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%) rotate(-30deg)',
+                        fontSize: '80px',
+                        color: '#ff0000',
+                        opacity: 0.1,
+                        pointerEvents: 'none',
+                        zIndex: 9999,
+                        whiteSpace: 'nowrap',
+                        fontWeight: 'bold',
+                        textAlign: 'center',
+                        userSelect: 'none',
+                        textTransform: 'uppercase'
+                    }}>
+                        RASCUNHO - SEM VALOR LEGAL
+                    </div>
+                )}
                 {/* Cabeçalho Institucional - Stack Vertical Garantido */}
                 <div className="of-header-institutional-vertical">
                     <div className="logo-container-centered">

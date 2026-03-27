@@ -51,7 +51,7 @@ const FarmaciaEstoque = () => {
                     { data: batches },
                     { data: units }
                 ] = await Promise.all([
-                    supabase.from('inventory_items').select('id, name, minimum_stock, is_active'),
+                    supabase.from('inventory_items').select('id, name, code, item_form, minimum_stock, is_active'),
                     supabase.from('stock_movements').select('id, inventory_item_id, movement_type, quantity, batch_id, unit_id, created_at, created_by').eq('notes', 'massa_fake_dashboard').order('created_at', { ascending: false }),
                     supabase.from('item_batches').select('id, inventory_item_id, expiration_date, batch_number'),
                     supabase.from('units').select('id, name')
@@ -128,8 +128,8 @@ const FarmaciaEstoque = () => {
                 ...item,
                 id: item.id,
                 descricao: item.name,
-                codigo: '-',
-                unidade: unitName,
+                codigo: item.code || null,
+                unidade: item.item_form || null,
                 estoqueAtual: bAtual,
                 estoqueMinimo: bMinimo,
                 validade: minDateObj,
@@ -381,12 +381,42 @@ const FarmaciaEstoque = () => {
                                             onClick={() => setItemFoco(item)}
                                         >
                                             <td className="farmacia-td-primary">
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{item.descricao}</span>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <span className="farmacia-code-badge" style={{ margin: 0, fontSize: '10px', padding: '1px 4px' }}>{item.codigo}</span>
-                                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>• {item.unidade}</span>
-                                                    </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                                                        {item.descricao}
+                                                    </span>
+                                                    {(item.codigo || item.unidade) && (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            {item.codigo && (
+                                                                <span style={{
+                                                                    fontSize: '0.65rem',
+                                                                    backgroundColor: 'var(--bg-body)',
+                                                                    color: '#64748b',
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '4px',
+                                                                    fontWeight: 700,
+                                                                    border: '1px solid var(--border)',
+                                                                    fontFamily: 'monospace'
+                                                                }}>
+                                                                    {item.codigo}
+                                                                </span>
+                                                            )}
+                                                            {item.unidade && (
+                                                                <span style={{
+                                                                    fontSize: '0.65rem',
+                                                                    backgroundColor: 'var(--bg-body)',
+                                                                    color: '#64748b',
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '4px',
+                                                                    fontWeight: 600,
+                                                                    border: '1px solid var(--border)',
+                                                                    letterSpacing: '0.02em',
+                                                                }}>
+                                                                    {item.unidade}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td style={{ textAlign: 'right', fontWeight: 800, color: isZerado ? '#b91c1c' : (isAbaixoMin ? '#b45309' : 'var(--text-primary)'), fontSize: '1rem', position: 'relative' }}>
@@ -476,9 +506,15 @@ const FarmaciaEstoque = () => {
                                 </div>
                                 <div style={{ flex: 1 }}>
                                     <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>{itemFoco.descricao}</h3>
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        <span className="farmacia-code-badge" style={{ margin: 0 }}>{itemFoco.codigo}</span>
-                                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>Unidade: {itemFoco.unidade}</span>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                        {itemFoco.codigo && (
+                                            <span className="farmacia-code-badge" style={{ margin: 0 }}>{itemFoco.codigo}</span>
+                                        )}
+                                        {itemFoco.unidade && (
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                                Forma: {itemFoco.unidade}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>

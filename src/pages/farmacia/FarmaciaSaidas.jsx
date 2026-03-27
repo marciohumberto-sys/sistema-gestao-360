@@ -118,7 +118,7 @@ const FarmaciaSaidas = () => {
             ] = await Promise.all([
                 supabase
                     .from('inventory_items')
-                    .select('id, name, item_form'),
+                    .select('id, name, code, item_form'),
                 supabase
                     .from('stock_movements')
                     .select('id, inventory_item_id, quantity, unit_id, created_at, created_by, notes')
@@ -196,6 +196,8 @@ const FarmaciaSaidas = () => {
                 medicamento:    itemObj.name     ?? 'Desconhecido',
                 quantidade:     m.quantity,
                 unidade:        unitObj.name     ?? 'Desconhecida',
+                codigo:         itemObj.code     ?? null,
+                item_form:      itemObj.item_form ?? null,
                 responsavel,
                 acondicionamento: itemObj.item_form ?? '—',
                 observacao:     safeObs,
@@ -436,24 +438,42 @@ const FarmaciaSaidas = () => {
                                             })}
                                         </td>
                                         <td className="farmacia-td-primary">
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                 <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', lineHeight: 1.2 }}>
                                                     {item.medicamento}
                                                 </span>
-                                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                                    <span style={{
-                                                        fontSize: '0.65rem',
-                                                        backgroundColor: 'var(--bg-body)',
-                                                        color: '#64748b',
-                                                        padding: '2px 6px',
-                                                        borderRadius: '4px',
-                                                        fontWeight: 600,
-                                                        border: '1px solid var(--border)',
-                                                        letterSpacing: '0.02em',
-                                                    }}>
-                                                        {item.unidade}
-                                                    </span>
-                                                </div>
+                                                {(item.codigo || item.item_form) && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        {item.codigo && (
+                                                            <span style={{
+                                                                fontSize: '0.65rem',
+                                                                backgroundColor: 'var(--bg-body)',
+                                                                color: '#64748b',
+                                                                padding: '2px 6px',
+                                                                borderRadius: '4px',
+                                                                fontWeight: 700,
+                                                                border: '1px solid var(--border)',
+                                                                fontFamily: 'monospace'
+                                                            }}>
+                                                                {item.codigo}
+                                                            </span>
+                                                        )}
+                                                        {item.item_form && (
+                                                            <span style={{
+                                                                fontSize: '0.65rem',
+                                                                backgroundColor: 'var(--bg-body)',
+                                                                color: '#64748b',
+                                                                padding: '2px 6px',
+                                                                borderRadius: '4px',
+                                                                fontWeight: 600,
+                                                                border: '1px solid var(--border)',
+                                                                letterSpacing: '0.02em',
+                                                            }}>
+                                                                {item.item_form}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
                                         <td style={{ textAlign: 'right', fontWeight: 800, color: '#b91c1c', fontSize: '1.05rem' }}>

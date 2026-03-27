@@ -91,14 +91,13 @@ const FarmaciaSaidaModal = ({ isOpen, onClose }) => {
     const semEstoque  = med && estoque <= 0;
     const ruptura = med && (semEstoque || qty > estoque);
 
-    const isBtnDisabled = !med || !qty || Number(qty) <= 0 || ruptura;
+    const isBtnDisabled = !med || !qty || Number(qty) <= 0;
 
     // Submissão Orgânica para o Banco
     const handleConfirm = async () => {
         const newErrs = {};
         if (!med) newErrs.med = 'Selecione um medicamento';
         if (!qty || Number(qty) <= 0) newErrs.quantidade = 'Informe uma quantidade válida';
-        else if (ruptura) newErrs.quantidade = 'Saída excede o saldo físico';
 
         setErrors(newErrs);
 
@@ -257,17 +256,15 @@ const FarmaciaSaidaModal = ({ isOpen, onClose }) => {
                                 </div>
                             )}
 
-                            {ruptura && !semEstoque && !isFetchingBalance && (
-                                <div className="farmacia-alert-rupture-compact" style={{background: 'var(--color-danger)', color: '#fff', border: '1px solid #7f1d1d'}}>
-                                    <AlertTriangle size={14} color="#fff" />
-                                    <span style={{fontWeight: 600}}>ERRO: Saída excede o saldo disponível nesta unidade. Operação bloqueada.</span>
-                                </div>
-                            )}
-                            
-                            {semEstoque && !isFetchingBalance && (
-                                <div className="farmacia-alert-rupture-compact" style={{background: 'var(--color-danger)', color: '#fff'}}>
-                                    <AlertTriangle size={14} color="#fff" />
-                                    <span>Suspensão: Estoque do Medicamento completamente zerado nesta base.</span>
+                            {ruptura && !isFetchingBalance && (
+                                <div className="farmacia-alert-rupture-compact" style={{background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', border: '1px solid rgba(245, 158, 11, 0.25)'}}>
+                                    <AlertTriangle size={14} color="#d97706" />
+                                    <span style={{fontWeight: 600}}>
+                                        {semEstoque 
+                                            ? 'Atenção: Estoque completamente zerado nesta base. O registro será permitido.' 
+                                            : 'Atenção: Saída acima do saldo disponível. O estoque ficará negativo.'
+                                        }
+                                    </span>
                                 </div>
                             )}
 

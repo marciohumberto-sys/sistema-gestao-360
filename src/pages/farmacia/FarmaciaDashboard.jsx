@@ -234,7 +234,7 @@ const FarmaciaDashboard = () => {
                     // Fetch all real stock movements (to calculate true balance and today's flow)
                     const { data: movements, error: movError } = await supabase
                         .from('stock_movements')
-                        .select('id, inventory_item_id, movement_type, quantity, created_at, unit_id, batch_id, created_by');
+                        .select('id, inventory_item_id, movement_type, quantity, created_at, unit_id, batch_id, created_by, notes');
 
                     if (movError) throw movError;
 
@@ -318,14 +318,45 @@ const FarmaciaDashboard = () => {
                         
                         // Fase 3: Montagem do Feed Recente
                         const sortedMovs = [...movements].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 10);
-                        feedData = sortedMovs.map(m => ({
-                            id: m.id,
-                            tipo: m.movement_type === 'ENTRY' ? 'Entrada' : 'Saída',
-                            medicamento: itemsNameMap[m.inventory_item_id] || 'Removido',
-                            responsavel: m.created_by || '-', // Fallback neutro não mascarado (UUID ou hash)
-                            quantidade: m.movement_type === 'ENTRY' ? m.quantity : -m.quantity,
-                            data: m.created_at
-                        }));
+                        
+                        // Fallback: Busca nomes em user_tenants para os casos sem o hack das notas
+                        const userIds = [...new Set(sortedMovs.map(m => m.created_by))].filter(Boolean);
+                        const { data: usersData } = await supabase
+                            .from('user_tenants')
+                            .select('user_id, full_name, name')
+                            .in('user_id', userIds)
+                            .eq('tenant_id', tenantLink.tenant_id);
+
+                        const userMap = {};
+                        (usersData || []).forEach(u => userMap[u.user_id] = u.full_name || u.name);
+
+                        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+                        feedData = sortedMovs.map(m => {
+                            let responsavel = userMap[m.created_by] || m.created_by || 'Não informado';
+                            const notes = m.notes || '';
+                            
+                            // Prioridade 1: Lógica idêntica à tela de Saídas (metadado nas notas)
+                            if (notes.includes('||RESP:')) {
+                                const parts = notes.split('||RESP:');
+                                responsavel = parts[1]?.trim() || responsavel;
+                            }
+                            
+                            // Higienização rigorosa para "Não informado" em casos vazios, nulos ou UUIDs brutos
+                            const isUuid = typeof responsavel === 'string' && uuidRegex.test(responsavel);
+                            if (!responsavel || responsavel === '-' || responsavel === 'null' || responsavel === 'undefined' || isUuid) {
+                                responsavel = 'Não informado';
+                            }
+                            
+                            return {
+                                id: m.id,
+                                tipo: m.movement_type === 'ENTRY' ? 'Entrada' : 'Saída',
+                                medicamento: itemsNameMap[m.inventory_item_id] || 'Removido',
+                                responsavel,
+                                quantidade: m.movement_type === 'ENTRY' ? m.quantity : -m.quantity,
+                                data: m.created_at
+                            };
+                        });
                     }
 
                     let healthySkus = 0;
@@ -985,14 +1016,14 @@ const FarmaciaDashboard = () => {
                         </div>
                     </div>
                     <div className="farmacia-table-wrapper" style={{ border: 'none', flex: 1, borderRadius: 0, paddingBottom: '0.75rem' }}>
-                        <table className="farmacia-table">
+                        <table className="farmacia-table" style={{ tableLayout: 'fixed', width: '100%' }}>
                             <thead>
                                 <tr>
-                                    <th style={{ padding: '0.5rem 1rem' }}>Data</th>
-                                    <th style={{ padding: '0.5rem 1rem' }}>Tipo</th>
-                                    <th style={{ padding: '0.5rem 1rem' }}>Medicamento</th>
-                                    <th style={{ padding: '0.5rem 1rem' }}>Responsável</th>
-                                    <th style={{ padding: '0.5rem 1rem', textAlign: 'right' }}>Qtd</th>
+                                    <th style={{ padding: '0.5rem 1rem', width: '12%' }}>Data</th>
+                                    <th style={{ padding: '0.5rem 1rem', width: '15%' }}>Tipo</th>
+                                    <th style={{ padding: '0.5rem 1rem', width: '43%' }}>Medicamento</th>
+                                    <th style={{ padding: '0.5rem 1rem', width: '20%' }}>Responsável</th>
+                                    <th style={{ padding: '0.5rem 1rem', textAlign: 'right', width: '10%' }}>Qtd</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1030,10 +1061,22 @@ const FarmaciaDashboard = () => {
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="farmacia-td-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.84rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isHighlight ? 700 : 500 }}>
-                                                    {mov.medicamento}
+                                                <td className="farmacia-td-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.84rem', fontWeight: isHighlight ? 700 : 500 }}>
+                                                    <div style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mov.medicamento}>
+                                                        {mov.medicamento}
+                                                    </div>
                                                 </td>
-                                                <td style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>{mov.responsavel}</td>
+                                                <td style={{ 
+                                                    padding: '0.5rem 1rem', 
+                                                    fontSize: '0.82rem', 
+                                                    color: 'var(--text-muted)', 
+                                                    overflow: 'hidden', 
+                                                    textOverflow: 'ellipsis', 
+                                                    whiteSpace: 'nowrap',
+                                                    fontStyle: mov.responsavel === 'Não informado' ? 'italic' : 'normal'
+                                                }} title={mov.responsavel}>
+                                                    {mov.responsavel}
+                                                </td>
                                                 <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 700, fontSize: '0.85rem', color: mov.quantidade > 0 ? '#00967D' : '#ea580c' }}>
                                                     {mov.quantidade > 0 ? '+' : ''}{mov.quantidade}
                                                 </td>

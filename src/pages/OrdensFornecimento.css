@@ -18,11 +18,68 @@
     color: #ef4444;
 }
 
+/* Grid de Resumo Responsivo */
+.summary-cards-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 1.25rem !important;
+    margin-bottom: 2rem !important;
+}
+
+@media (max-width: 1200px) {
+    .summary-cards-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}
+
+@media (max-width: 600px) {
+    .summary-cards-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Filtros Responsivos */
+.filters-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 1rem !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+
+.filter-search {
+    flex: 2 1 300px !important;
+    min-width: 250px !important;
+}
+
+.filter-select {
+    flex: 1 1 180px !important;
+    min-width: 160px !important;
+    height: 42px !important;
+}
+
+/* Estabilização da Tabela */
+.table-section {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+}
+
+.data-table-wrapper {
+    flex: 1 !important;
+    min-height: 200px !important;
+    overflow-y: auto !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px 12px 0 0 !important;
+    padding-bottom: 2.5rem !important; /* Respiro inferior para evitar corte das últimas linhas */
+}
+
 /* Custom table format overrides for OFs */
-.data-table.ofs-table th:nth-child(1) { width: 15% !important; } /* OF Number */
+.data-table.ofs-table th:nth-child(1) { width: 12% !important; } /* OF Number */
 .data-table.ofs-table th:nth-child(2) { width: 25% !important; } /* Contract */
-.data-table.ofs-table th:nth-child(3) { width: 20% !important; } /* Secretaria */
-.data-table.ofs-table th:nth-child(4) { width: 12% !important; } /* Total Value */
+.data-table.ofs-table th:nth-child(3) { width: 22% !important; } /* Secretaria */
+.data-table.ofs-table th:nth-child(4) { width: 13% !important; } /* Total Value */
 .data-table.ofs-table th:nth-child(5) { width: 10% !important; } /* Status */
 .data-table.ofs-table th:nth-child(6) { width: 10% !important; } /* Date */
 .data-table.ofs-table th:nth-child(7) { width: 8% !important; text-align: center; }  /* Actions */

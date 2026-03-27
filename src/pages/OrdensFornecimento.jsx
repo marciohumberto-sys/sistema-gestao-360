@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, FileText, TrendingUp, Eye, FileCheck, AlertCircle, PlayCircle, XCircle, MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ofsService } from '../services/api/ofs.service';
@@ -29,6 +30,7 @@ const OrdensFornecimento = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [feedback, setFeedback] = useState(null);
     const [openActionMenuId, setOpenActionMenuId] = useState(null);
+    const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
 
     // Click outside handler for dropdown
     useEffect(() => {
@@ -247,8 +249,8 @@ const OrdensFornecimento = () => {
             <div className="main-content-card" style={{ padding: '1rem 1.5rem' }}>
                 {/* Filters Bar */}
                 <section className="filters-toolbar empenhos-compact-filters" style={{ paddingBottom: '0.75rem', marginBottom: '0', gap: '0.75rem', borderBottom: 'none' }}>
-                    <div className="filters-row" style={{ gap: '0.5rem' }}>
-                        <div className="filter-search" style={{ flex: '2 1 250px' }}>
+                    <div className="filters-row">
+                        <div className="filter-search">
                             <Search size={16} />
                             <input
                                 type="text"
@@ -371,36 +373,38 @@ const OrdensFornecimento = () => {
                                                         }}
                                                     >
                                                         <Eye size={18} />
-                                                        <span className="premium-tooltip">Visualizar</span>
                                                     </button>
 
-                                                    {/* More Actions Dropdown */}
+                                                    {/* More Actions Dropdown via Portal */}
                                                     <div className="action-menu-container" style={{ position: 'relative', display: 'flex' }}>
                                                         <button 
                                                             className="action-btn" 
                                                             style={{ color: '#64748b' }}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
+                                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                                setMenuPosition({
+                                                                    top: rect.bottom + window.scrollY + 4,
+                                                                    left: rect.right + window.scrollX - 160 // 160 is the minWidth
+                                                                });
                                                                 setOpenActionMenuId(openActionMenuId === of.id ? null : of.id);
                                                             }}
                                                         >
                                                             <MoreVertical size={18} />
-                                                            <span className="premium-tooltip">Operar OF</span>
                                                         </button>
                                                         
-                                                        {openActionMenuId === of.id && (
+                                                        {openActionMenuId === of.id && createPortal(
                                                             <div 
-                                                                className="action-dropdown"
+                                                                className="action-dropdown portal-dropdown"
                                                                 style={{
                                                                     position: 'absolute',
-                                                                    top: '100%',
-                                                                    right: 0,
-                                                                    marginTop: '4px',
+                                                                    top: `${menuPosition.top}px`,
+                                                                    left: `${menuPosition.left}px`,
                                                                     backgroundColor: '#fff',
                                                                     border: '1px solid #e2e8f0',
                                                                     borderRadius: '8px',
                                                                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                                                                    zIndex: 100,
+                                                                    zIndex: 9999,
                                                                     minWidth: '160px',
                                                                     display: 'flex',
                                                                     flexDirection: 'column',
@@ -409,7 +413,6 @@ const OrdensFornecimento = () => {
                                                             >
                                                                 <button 
                                                                     className="action-button icon-only" 
-                                                                    title="Visualizar OF"
                                                                     onClick={(e) => { e.stopPropagation(); navigate(`/compras/ordens-fornecimento/${of.id}`); }}
                                                                     style={{
                                                                         display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 16px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.875rem', color: '#4a5568'
@@ -452,7 +455,8 @@ const OrdensFornecimento = () => {
                                                                         Sem ações adicionais
                                                                     </div>
                                                                 )}
-                                                            </div>
+                                                            </div>,
+                                                            document.body
                                                         )}
                                                     </div>
                                                 </div>
