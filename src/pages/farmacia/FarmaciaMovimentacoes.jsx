@@ -88,7 +88,16 @@ const FarmaciaMovimentacoes = () => {
             let mappedType = m.movement_type;
             if (mappedType === 'ENTRY') mappedType = 'ENTRADA';
             if (mappedType === 'EXIT') mappedType = 'SAIDA';
-            if (mappedType === 'ADJUSTMENT') mappedType = 'AJUSTE'; // Parametrização Real
+            if (mappedType === 'ADJUSTMENT') mappedType = 'AJUSTE'; 
+
+            let responsavel = '—';
+            let safeObs = m.notes || '';
+            if (safeObs.includes('||RESP:')) {
+                const [obs, resp] = safeObs.split('||RESP:');
+                safeObs     = obs.trim();
+                responsavel = resp.trim() || '—';
+            }
+            if (!safeObs || safeObs === 'massa_fake_dashboard') safeObs = '—';
 
             return {
                 id: m.id,
@@ -97,10 +106,10 @@ const FarmaciaMovimentacoes = () => {
                 medicamento: itemObj.name || 'Desconhecido',
                 codigo: itemObj.code || '-',
                 quantidade: m.quantity,
-                acondicionamento: '—', // Hardcoded seguro - regra 5
-                responsavel: '—', // Hardcoded seguro - expurgo de UUIDs
+                acondicionamento: '—', 
+                responsavel: responsavel,
                 setor: unitObj.name || 'Desconhecida',
-                observacao: obs
+                observacao: safeObs
             };
         });
     }, [rawData]);
@@ -385,14 +394,10 @@ const FarmaciaMovimentacoes = () => {
                                                 <td style={{ fontSize: '0.85rem' }}>{item.setor}</td>
                                                 <td className="farmacia-td-muted" style={{ fontSize: '0.85rem' }}>{item.responsavel}</td>
                                                 <td 
-                                                    className="farmacia-td-muted" 
+                                                    className="farmacia-td-muted td-observacao" 
                                                     title={item.observacao && item.observacao !== '—' ? item.observacao : ''}
                                                     style={{ 
-                                                        maxWidth: '175px',
                                                         fontSize: '0.8rem', 
-                                                        whiteSpace: 'nowrap', 
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
                                                         fontStyle: item.observacao && item.observacao !== '—' ? 'normal' : 'italic', 
                                                         opacity: item.observacao === '—' ? 0.5 : 1,
                                                         paddingRight: '1.25rem'
