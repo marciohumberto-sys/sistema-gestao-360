@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, FileText, TrendingUp, Eye, FileCheck, AlertCircle, PlayCircle, XCircle, MoreVertical } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Search, FileText, TrendingUp, Eye, FileCheck, AlertCircle, PlayCircle, XCircle, MoreVertical, Plus } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ofsService } from '../services/api/ofs.service';
 import { contractsService } from '../services/api/contracts.service';
 import { secretariatsService } from '../services/api/secretariats.service';
 import { useTenant } from '../context/TenantContext';
 import { formatLocalDate } from '../utils/dateUtils';
+import NovaOfModal from './components/NovaOfModal';
 import './Contratos.css';
 import './OrdensFornecimento.css';
 
 const OrdensFornecimento = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { tenantId } = useTenant();
 
     // 1. Data State
@@ -31,6 +33,16 @@ const OrdensFornecimento = () => {
     const [feedback, setFeedback] = useState(null);
     const [openActionMenuId, setOpenActionMenuId] = useState(null);
     const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+    const [isNovaOfModalOpen, setIsNovaOfModalOpen] = useState(false);
+
+    // Listen to route state to open modal automatically
+    useEffect(() => {
+        if (location.state?.openModal === 'nova-of') {
+            setIsNovaOfModalOpen(true);
+            // Clear state so it doesn't reopen on refresh/navigation back
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state]);
 
     // Click outside handler for dropdown
     useEffect(() => {
@@ -473,6 +485,10 @@ const OrdensFornecimento = () => {
                     </div>
                 </section>
             </div>
+            <NovaOfModal 
+                isOpen={isNovaOfModalOpen}
+                onClose={() => setIsNovaOfModalOpen(false)}
+            />
         </div>
     );
 };

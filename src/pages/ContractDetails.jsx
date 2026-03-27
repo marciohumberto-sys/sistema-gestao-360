@@ -23,6 +23,7 @@ import {
     FileWarning,
     X
 } from 'lucide-react';
+import NovaOfModal from './components/NovaOfModal';
 import { contractsService } from '../services/api/contracts.service';
 import { empenhosService } from '../services/api/empenhos.service';
 import { contractItemsService } from '../services/api/contractItems.service';
@@ -120,11 +121,6 @@ const ContractDetails = () => {
 
     // OF Creation State
     const [isOfOfModalOpen, setIsOfOfModalOpen] = useState(false);
-    const [selectedOfSecretariat, setSelectedOfSecretariat] = useState('');
-    const [availableCommitments, setAvailableCommitments] = useState([]);
-    const [selectedOfCommitmentId, setSelectedOfCommitmentId] = useState('');
-    const [participatingSecretariats, setParticipatingSecretariats] = useState([]);
-    const [isCreatingOf, setIsCreatingOf] = useState(false);
 
     // Toast State
     const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
@@ -650,78 +646,9 @@ const ContractDetails = () => {
         }
     };
 
-    const handleGenerateOfClick = async () => {
-        if (!contract || isCreatingOf) return;
-
-        try {
-            // Identificar secretarias que possuem rateio/alocação neste contrato
-            const itemIds = items.map(i => i.id);
-            let pSecretariats = [];
-
-            if (itemIds.length > 0) {
-                const allocs = await allocationsService.listAllocationsByItemIds(itemIds, tenantId);
-                const uniqueSecIds = [...new Set(allocs.filter(a => (a.quantity_allocated || 0) > 0).map(a => a.secretariat_id))];
-                pSecretariats = secretariats.filter(s => uniqueSecIds.includes(s.id));
-            }
-
-            // Se não houver rateio, fallback para a secretaria do contrato ou todas
-            if (pSecretariats.length === 0) {
-                if (contract.secretariat_id) {
-                    pSecretariats = secretariats.filter(s => s.id === contract.secretariat_id);
-                } else {
-                    pSecretariats = secretariats;
-                }
-            }
-
-            setParticipatingSecretariats(pSecretariats);
-
-            // Reseta seleções
-            setSelectedOfSecretariat('');
-            setAvailableCommitments([]);
-            setSelectedOfCommitmentId('');
-
-            // Se houver apenas uma secretaria participante, já carrega os empenhos dela
-            if (pSecretariats.length === 1) {
-                const secId = pSecretariats[0].id;
-                setSelectedOfSecretariat(secId);
-                const filteredEmpenhos = empenhos.filter(e => e.secretariat_id === secId && e.status !== 'CANCELADO' && (e.current_balance || 0) > 0);
-                setAvailableCommitments(filteredEmpenhos);
-                if (filteredEmpenhos.length === 1) {
-                    setSelectedOfCommitmentId(filteredEmpenhos[0].id);
-                }
-            }
-
-            setIsOfOfModalOpen(true);
-        } catch (err) {
-            console.error("Erro ao preparar geração de OF:", err);
-            showToast("Erro ao preparar geração de OF", "error");
-        }
-    };
-
-    const handleConfirmCreateOf = async (secId, cmtId) => {
-        const secretariatId = secId || selectedOfSecretariat;
-        const commitmentId = cmtId || selectedOfCommitmentId;
-
-        if (!secretariatId) {
-            showToast("Por favor, selecione uma secretaria.", "error");
-            return;
-        }
-
-        setIsCreatingOf(true);
-        try {
-            const today = new Date().toISOString().split('T')[0];
-            const newOf = await ofsService.createOf(tenantId, id, secretariatId, today, commitmentId);
-            
-            showToast("Ordem de Fornecimento criada com sucesso!", "success");
-            
-            setTimeout(() => {
-                navigate(`/compras/ordens-fornecimento/${newOf.id}`);
-            }, 800);
-        } catch (err) {
-            console.error("Erro ao criar OF:", err);
-            showToast("Erro ao criar OF: " + (err.message || "Tente novamente mais tarde."), 'error');
-            setIsCreatingOf(false);
-        }
+    const handleGenerateOfClick = () => {
+        if (!contract) return;
+        setIsOfOfModalOpen(true);
     };
 
     const formatCurrency = (value) => {
@@ -901,12 +828,12 @@ const ContractDetails = () => {
 
                         <div className="cd-actions-dropdown-wrapper">
                             <button
-                                className={`cd-btn-primary ${contract.isPending || isCreatingOf ? 'is-blocked' : ''}`}
-                                disabled={contract.isPending || isCreatingOf}
+                                className={`cd-btn-primary ${contract.isPending ? 'is-blocked' : ''}`}
+                                disabled={contract.isPending}
                                 title={contract.isPending ? "Para gerar OF, cadastre pelo menos 1 item." : "Gerar Ordem de Fornecimento"}
                                 onClick={handleGenerateOfClick}
                             >
-                                {isCreatingOf ? 'Gerando...' : 'Gerar OF'}
+                                Gerar OF
                             </button>
                         </div>
 
@@ -2263,85 +2190,12 @@ const ContractDetails = () => {
                 </div>
             )}
 
-            {/* Modal de Seleção de Secretaria para OF */}
-            {isOfOfModalOpen && (
-                <div className="modal-overlay">
-                    <div className="modal-content" style={{ maxWidth: '480px' }}>
-                        <div className="modal-header">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Landmark size={20} />
-                                </div>
-                                <div>
-                                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#0f172a' }}>Gerar OF</h3>
-                                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Configure os dados de origem para a nova OF</p>
-                                </div>
-                            </div>
-                            <button className="modal-close" onClick={() => setIsOfOfModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="modal-body" style={{ padding: '1.5rem 2rem' }}>
-                            <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem', fontWeight: 500, color: '#475569' }}>Secretaria *</label>
-                                <select 
-                                    value={selectedOfSecretariat} 
-                                    onChange={e => {
-                                        const secId = e.target.value;
-                                        setSelectedOfSecretariat(secId);
-                                        const filtered = empenhos.filter(emp => emp.secretariat_id === secId && emp.status !== 'CANCELADO' && (emp.current_balance || 0) > 0);
-                                        setAvailableCommitments(filtered);
-                                        if (filtered.length === 1) {
-                                            setSelectedOfCommitmentId(filtered[0].id);
-                                        } else {
-                                            setSelectedOfCommitmentId('');
-                                        }
-                                    }}
-                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff' }}
-                                    required
-                                >
-                                    <option value="">Selecione uma secretaria...</option>
-                                    {participatingSecretariats.map(sec => (
-                                        <option key={sec.id} value={sec.id}>{sec.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem', fontWeight: 500, color: '#475569' }}>Vincular Empenho</label>
-                                <select 
-                                    value={selectedOfCommitmentId} 
-                                    onChange={e => setSelectedOfCommitmentId(e.target.value)}
-                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: selectedOfSecretariat ? '#fff' : '#f8fafc' }}
-                                    disabled={!selectedOfSecretariat}
-                                >
-                                    <option value="">Sem vínculo inicial (Rascunho)</option>
-                                    {availableCommitments.map(emp => (
-                                        <option key={emp.id} value={emp.id}>
-                                            {emp.number} - Saldo: {formatExactCurrency(emp.current_balance || 0)}
-                                        </option>
-                                    ))}
-                                </select>
-                                <p style={{ margin: '8px 0 0 0', fontSize: '0.75rem', color: '#64748b' }}>
-                                    {availableCommitments.length === 0 && selectedOfSecretariat 
-                                        ? "Nenhum empenho com saldo disponível para esta secretaria."
-                                        : "Vincular um empenho agora acelera a emissão da OF."}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="modal-footer" style={{ padding: '1.25rem 2rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                            <button className="cd-btn-secondary" onClick={() => setIsOfOfModalOpen(false)}>Cancelar</button>
-                            <button 
-                                className="cd-btn-primary" 
-                                onClick={() => handleConfirmCreateOf()}
-                                disabled={!selectedOfSecretariat || isCreatingOf}
-                            >
-                                {isCreatingOf ? 'Gerando...' : 'Confirmar e Gerar'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Modal de Seleção de Secretaria para OF (Shared Component) */}
+            <NovaOfModal 
+                isOpen={isOfOfModalOpen}
+                onClose={() => setIsOfOfModalOpen(false)}
+                initialContractId={id}
+            />
         </div >
     );
 };

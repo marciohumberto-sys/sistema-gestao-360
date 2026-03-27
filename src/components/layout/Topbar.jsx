@@ -42,8 +42,8 @@ const Topbar = () => {
         if (isFarmacia) {
             navigate('/farmacia/saidas', { state: { openModal: 'saida' } });
         } else {
-            // Comportamento atual mantido para Compras e demais
-            // (no momento o botão não possuía onClick associado no frontend)
+            // Gatilho global para Nova OF (Compras)
+            navigate('/compras/ordens-fornecimento', { state: { openModal: 'nova-of' } });
         }
     };
 

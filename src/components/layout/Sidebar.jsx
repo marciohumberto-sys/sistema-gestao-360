@@ -177,7 +177,7 @@ const Sidebar = ({ isPinned, togglePin }) => {
             {!isFarmacia && (
             <div className="sidebar-footer">
                 <div className="footer-actions">
-                    <button className="footer-btn btn-primary" title={!isPinned ? "Nova Ordem de Fornecimento" : ""} onClick={() => navigate('/compras/ordens-fornecimento')}>
+                    <button className="footer-btn btn-primary" title={!isPinned ? "Nova Ordem de Fornecimento" : ""} onClick={() => navigate('/compras/ordens-fornecimento', { state: { openModal: 'nova-of' } })}>
                         <Plus size={18} strokeWidth={2.5} className="footer-icon" />
                         <span className="footer-btn-label">Nova OF</span>
                     </button>
