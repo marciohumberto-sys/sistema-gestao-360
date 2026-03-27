@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
 import { useFarmacia } from '../FarmaciaContext';
 import { useTenant } from '../../../context/TenantContext';
+import { useAuth } from '../../../context/AuthContext';
+import { canWriteFarmacia } from '../../../utils/farmaciaAcl';
 import MedAutocomplete from '../components/MedAutocomplete';
+import FarmaciaAlertModal from '../components/FarmaciaAlertModal';
 import { supabase } from '../../../lib/supabase';
 import '../FarmaciaModal.css';
 
@@ -11,10 +14,13 @@ const def = { quantidade: '', lote: '', validade: '', documento: '', observacao:
 const FarmaciaEntradaModal = ({ isOpen, onClose }) => {
     const { unidadeAtiva, registrarEntrada } = useFarmacia();
     const { tenantId } = useTenant();
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const [form, setForm] = useState(def);
     const [med, setMed]   = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [errors, setErrors] = useState({});
+    const [alertConfig, setAlertConfig] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
     const loteRef = useRef(null);
     const valRef  = useRef(null);
@@ -63,6 +69,16 @@ const FarmaciaEntradaModal = ({ isOpen, onClose }) => {
     };
 
     const handleConfirm = async () => {
+        if (!canWriteFarmacia(role)) {
+            setAlertConfig({
+                isOpen: true,
+                title: 'Acesso restrito',
+                message: 'Seu perfil possui acesso apenas para visualização. Esta ação não está disponível.',
+                type: 'error'
+            });
+            return;
+        }
+
         const newErrs = {};
         if (!med) newErrs.med = 'Selecione um medicamento';
         if (!form.quantidade || Number(form.quantidade) <= 0) newErrs.quantidade = 'Informe uma quantidade válida';
@@ -328,6 +344,14 @@ const FarmaciaEntradaModal = ({ isOpen, onClose }) => {
                     </button>
                 </div>
             </div>
+
+            <FarmaciaAlertModal 
+                isOpen={alertConfig.isOpen} 
+                onClose={() => setAlertConfig(prev => ({ ...prev, isOpen: false }))}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+            />
         </div>
     );
 };

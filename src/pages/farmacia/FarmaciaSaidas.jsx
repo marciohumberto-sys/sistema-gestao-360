@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Search, Activity, Users, Pill, Package, ChevronDown } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Navigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { canAccessFarmacia, canWriteFarmacia } from '../../utils/farmaciaAcl';
 import { useFarmacia } from './FarmaciaContext';
 import FarmaciaUnitBadge from './FarmaciaUnitBadge';
 import { supabase } from '../../lib/supabase';
@@ -70,6 +72,10 @@ const readFiltersFromUrl = (searchParams, unidadeAtiva) => ({
 });
 
 const FarmaciaSaidas = () => {
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
+    const hasAccess = canAccessFarmacia(role, '/farmacia/saidas');
+
     const { setOpenModal, unidadeAtiva, dataRefreshKey } = useFarmacia();
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -151,6 +157,10 @@ const FarmaciaSaidas = () => {
     useEffect(() => {
         fetchData();
     }, [dataRefreshKey]);
+
+    if (!hasAccess) {
+        return <Navigate to="/farmacia/dashboard" replace />;
+    }
 
     // ── Mapeamento de dados ──────────────────────────────────────────────────
 
@@ -288,13 +298,15 @@ const FarmaciaSaidas = () => {
                             Atualizando...
                         </span>
                     )}
-                    <button
-                        className="farmacia-btn-primary"
-                        onClick={() => setOpenModal('saida')}
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                    >
-                        <Pill size={16} /> + Nova Saída
-                    </button>
+                    {canWriteFarmacia(role) && (
+                        <button
+                            className="farmacia-btn-primary"
+                            onClick={() => setOpenModal('saida')}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                        >
+                            <Pill size={16} /> + Nova Saída
+                        </button>
+                    )}
                     <FarmaciaUnitBadge />
                 </div>
             </header>

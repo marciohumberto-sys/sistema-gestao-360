@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Search, PackagePlus, Boxes, Clock, Pill, ArrowUpDown, ChevronDown, X, Calendar, ClipboardList, User, Hash, Info, FileText } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { canAccessFarmacia } from '../../utils/farmaciaAcl';
+import { canAccessFarmacia, canWriteFarmacia } from '../../utils/farmaciaAcl';
 import { useFarmacia } from './FarmaciaContext';
 import FarmaciaUnitBadge from './FarmaciaUnitBadge';
 import { supabase } from '../../lib/supabase';
@@ -216,9 +216,11 @@ const FarmaciaEntradas = () => {
                             Atualizando...
                         </span>
                     )}
-                    <button className="farmacia-btn-primary" onClick={() => setOpenModal('entrada')} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Pill size={16} /> + Nova Entrada
-                    </button>
+                    {canWriteFarmacia(role) && (
+                        <button className="farmacia-btn-primary" onClick={() => setOpenModal('entrada')} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Pill size={16} /> + Nova Entrada
+                        </button>
+                    )}
                     <FarmaciaUnitBadge />
                 </div>
             </header>

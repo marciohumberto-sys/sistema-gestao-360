@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Package, AlertTriangle, XCircle, Calendar, ChevronDown, Plus, Minus, Menu, ArrowUpDown, Ban } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { canAccessFarmacia } from '../../utils/farmaciaAcl';
+import { canAccessFarmacia, canWriteFarmacia } from '../../utils/farmaciaAcl';
 import { supabase } from '../../lib/supabase';
 import { useFarmacia } from './FarmaciaContext';
 import FarmaciaUnitBadge from './FarmaciaUnitBadge';
@@ -462,23 +462,27 @@ const FarmaciaEstoque = () => {
                                                 >
                                                     {isZerado ? 'SEM ESTOQUE' : (isAbaixoMin ? 'ABAIXO DO MÍNIMO' : 'NORMAL')}
                                                 </span>
+                                                                 <td style={{ textAlign: 'center' }}>
+                                                {canWriteFarmacia(role) ? (
+                                                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                                                        <button className="farmacia-action-icon" onClick={(e) => { e.stopPropagation(); setOpenModal('entrada'); }}>
+                                                            <Plus size={16} />
+                                                            <span className="premium-tooltip">Entrada rápida</span>
+                                                        </button>
+                                                        <button className="farmacia-action-icon" onClick={(e) => { e.stopPropagation(); setOpenModal('saida'); }}>
+                                                            <Minus size={16} />
+                                                            <span className="premium-tooltip">Saída rápida</span>
+                                                        </button>
+                                                        <button className="farmacia-action-icon" onClick={(e) => { e.stopPropagation(); setOpenModal('ajuste'); }}>
+                                                            <Menu size={16} />
+                                                            <span className="premium-tooltip">Mais opções</span>
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Somente leitura</span>
+                                                )}
                                             </td>
-                                            <td style={{ textAlign: 'center' }}>
-                                                <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                                                    <button className="farmacia-action-icon" onClick={(e) => { e.stopPropagation(); setOpenModal('entrada'); }}>
-                                                        <Plus size={16} />
-                                                        <span className="premium-tooltip">Entrada rápida</span>
-                                                    </button>
-                                                    <button className="farmacia-action-icon" onClick={(e) => { e.stopPropagation(); setOpenModal('saida'); }}>
-                                                        <Minus size={16} />
-                                                        <span className="premium-tooltip">Saída rápida</span>
-                                                    </button>
-                                                    <button className="farmacia-action-icon" onClick={(e) => { e.stopPropagation(); setOpenModal('ajuste'); }}>
-                                                        <Menu size={16} />
-                                                        <span className="premium-tooltip">Mais opções</span>
-                                                    </button>
-                                                </div>
-                                            </td>
+                             </td>
                                         </tr>
                                     );
                                 })

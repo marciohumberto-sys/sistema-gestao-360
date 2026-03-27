@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useFarmacia } from '../FarmaciaContext';
 import { useTenant } from '../../../context/TenantContext';
+import { useAuth } from '../../../context/AuthContext';
+import { canWriteFarmacia } from '../../../utils/farmaciaAcl';
 import { supabase } from '../../../lib/supabase';
 import { mockMotivosAjuste } from '../../../mocks/farmaciaMocks';
 import MedAutocomplete from '../components/MedAutocomplete';
+import FarmaciaAlertModal from '../components/FarmaciaAlertModal';
 import '../FarmaciaModal.css';
 
 const def = { quantidadeAnterior: '', quantidadeAjustada: '', motivo: '', observacao: '' };
@@ -12,9 +15,16 @@ const def = { quantidadeAnterior: '', quantidadeAjustada: '', motivo: '', observ
 const FarmaciaAjusteModal = ({ isOpen, onClose }) => {
     const { unidadeAtiva, estoqueLocal } = useFarmacia();
     const { tenantId } = useTenant();
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const [form, setForm] = useState(def);
     const [med, setMed]   = useState(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+
+    const showAlert = (title, message, type = 'info') => {
+        setAlertConfig({ isOpen: true, title, message, type });
+    };
 
     const qtyRef = useRef(null);
     const mtvRef = useRef(null);
@@ -78,11 +88,16 @@ const FarmaciaAjusteModal = ({ isOpen, onClose }) => {
     const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
 
     const handleConfirm = async () => {
+        if (!canWriteFarmacia(role)) {
+            showAlert('Acesso restrito', 'Seu perfil possui acesso apenas para visualização. Esta ação não está disponível.', 'error');
+            return;
+        }
+
         if (!med || !form.quantidadeAjustada || !form.motivo) return;
         
         const diff = (parseFloat(form.quantidadeAjustada) || 0) - (parseFloat(form.quantidadeAnterior) || 0);
         if (diff === 0) {
-            alert('A diferença é zero. Nenhuma alteração a registrar.');
+            showAlert('Aviso', 'A diferença é zero. Nenhuma alteração a registrar.', 'warning');
             return;
         }
 
@@ -125,14 +140,14 @@ const FarmaciaAjusteModal = ({ isOpen, onClose }) => {
                     onClose(true);
                 } else {
                     console.error('Erro detalhado no Supabase:', error);
-                    alert('Falha ao registrar ajuste no Supabase.');
+                    showAlert('Erro ao Salvar', 'Falha ao registrar ajuste no Supabase.', 'error');
                 }
             } else {
-                alert('Unidade não mapeada para ajuste.');
+                showAlert('Erro de Configuração', 'Unidade não mapeada para ajuste.', 'error');
             }
         } catch(e) {
             console.error(e);
-            alert('Erro inesperado ao registrar ajuste.');
+            showAlert('Erro Inesperado', 'Erro inesperado ao registrar ajuste.', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -354,6 +369,14 @@ const FarmaciaAjusteModal = ({ isOpen, onClose }) => {
                     </button>
                 </div>
             </div>
+
+            <FarmaciaAlertModal 
+                isOpen={alertConfig.isOpen} 
+                onClose={() => setAlertConfig(prev => ({ ...prev, isOpen: false }))}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+            />
         </div>
     );
 };

@@ -2,8 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { Search, Users, ShieldCheck, UserCheck, UserX, UserMinus, Plus, Edit2, XCircle, ShieldAlert, Check, ChevronDown, AlertTriangle, Trash2 } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { canAccessFarmacia } from '../../utils/farmaciaAcl';
+import { canAccessFarmacia, canManageFarmaciaUsers } from '../../utils/farmaciaAcl';
 import FarmaciaUnitBadge from './FarmaciaUnitBadge';
+import FarmaciaAlertModal from './components/FarmaciaAlertModal';
 import { getCurrentTenantId, fetchFarmaciaUsers, createFarmaciaUser, updateFarmaciaUser, toggleFarmaciaUserStatus, deleteFarmaciaUser } from '../../services/farmaciaUsers.service';
 import './FarmaciaPages.css';
 
@@ -26,6 +27,16 @@ const FarmaciaUsuarios = () => {
     const [deletingId, setDeletingId] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [userToDelete, setUserToDelete] = useState(null);
+    const [alertConfig, setAlertConfig] = useState({ 
+        isOpen: false, 
+        title: '', 
+        message: '', 
+        type: 'info' 
+    });
+
+    const showAlert = (title, message, type = 'info') => {
+        setAlertConfig({ isOpen: true, title, message, type });
+    };
 
     // Form State
     const [formData, setFormData] = useState({
@@ -82,6 +93,12 @@ const FarmaciaUsuarios = () => {
     }, []);
 
     const toggleStatusHandler = async (user) => {
+        // Proteção de Segurança (Fail-fast)
+        if (!canManageFarmaciaUsers(role)) {
+            showAlert('Acesso restrito', 'Seu perfil possui acesso apenas para visualização. Esta ação não está disponível.', 'error');
+            return;
+        }
+
         const tenantLinkId = user.user_tenant_id || user.id;
         const novoStatus = user.status === 'ATIVO' ? 'INATIVO' : 'ATIVO';
         const novoIsActive = novoStatus === 'ATIVO';
@@ -93,7 +110,7 @@ const FarmaciaUsuarios = () => {
             await toggleFarmaciaUserStatus(tenantLinkId, novoIsActive);
         } catch (e) {   
             console.error(e);
-            alert('Falha ao atualizar o status na nuvem.');
+            showAlert('Erro de Conexão', 'Falha ao atualizar o status na nuvem.', 'error');
             // Reverte fallback
             setUsuarios(prev => prev.map(u => u.id === user.id ? { ...u, status: user.status } : u));
         }
@@ -107,6 +124,12 @@ const FarmaciaUsuarios = () => {
     const confirmDeletion = async () => {
         if (!userToDelete || deletingId) return;
         
+        // Proteção de Segurança (Fail-fast)
+        if (!canManageFarmaciaUsers(role)) {
+            showAlert('Acesso restrito', 'Seu perfil possui acesso apenas para visualização. Esta ação não está disponível.', 'error');
+            return;
+        }
+
         setDeletingId(userToDelete.id);
         try {
             await deleteFarmaciaUser(userToDelete);
@@ -116,7 +139,7 @@ const FarmaciaUsuarios = () => {
             await carregarUsuarios();
         } catch (e) {
             console.error(e);
-            alert('Erro ao excluir o usuário: ' + (e.message || 'Falha na comunicação com o servidor.'));
+            showAlert('Erro na Exclusão', 'Erro ao excluir o usuário: ' + (e.message || 'Falha na comunicação com o servidor.'), 'error');
         } finally {
             setDeletingId(null);
             setTimeout(() => setToast(false), 3000);
@@ -125,6 +148,13 @@ const FarmaciaUsuarios = () => {
 
     const handleSave = async (e) => {
         e.preventDefault();
+        
+        // Proteção de Segurança (Fail-fast)
+        if (!canManageFarmaciaUsers(role)) {
+            showAlert('Acesso restrito', 'Seu perfil possui acesso apenas para visualização. Esta ação não está disponível.', 'error');
+            return;
+        }
+
         if (isSaving) return;
         setIsSaving(true);
         
@@ -154,7 +184,7 @@ const FarmaciaUsuarios = () => {
             setToast('Usuário salvo com sucesso!');
         } catch (e) {
             console.error(e);
-            alert('Erro ao salvar o usuário: ' + (e.message || 'Falha de comunicação BD.'));
+            showAlert('Erro ao Salvar', 'Erro ao salvar o usuário: ' + (e.message || 'Falha de comunicação BD.'), 'error');
         } finally {
             setIsSaving(false);
             setTimeout(() => setToast(false), 3000);
@@ -249,6 +279,7 @@ const FarmaciaUsuarios = () => {
                             <option value="Todos">Perfil: Todos</option>
                             <option value="GESTOR">Gestor</option>
                             <option value="OPERADOR">Operador</option>
+                            <option value="VISUALIZADOR">Visualizador</option>
                         </select>
                         <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                     </div>
@@ -344,10 +375,13 @@ const FarmaciaUsuarios = () => {
                                         <td>
                                             <span style={{ 
                                                 display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 700, padding: '4px 8px', borderRadius: '6px',
-                                                background: user.profile === 'GESTOR' ? 'rgba(5, 150, 105, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-                                                color: user.profile === 'GESTOR' ? '#059669' : '#3b82f6'
+                                                background: user.profile === 'GESTOR' ? 'rgba(5, 150, 105, 0.1)' : 
+                                                           (user.profile === 'OPERADOR' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(148, 163, 184, 0.1)'),
+                                                color: user.profile === 'GESTOR' ? '#059669' : 
+                                                       (user.profile === 'OPERADOR' ? '#3b82f6' : '#64748b')
                                             }}>
-                                                {user.profile === 'GESTOR' ? <ShieldCheck size={14} /> : <UserCheck size={14} />}
+                                                {user.profile === 'GESTOR' ? <ShieldCheck size={14} /> : 
+                                                 user.profile === 'OPERADOR' ? <UserCheck size={14} /> : <Search size={14} />}
                                                 {user.profile}
                                             </span>
                                         </td>
@@ -499,6 +533,7 @@ const FarmaciaUsuarios = () => {
                                             >
                                                 <option value="GESTOR">GESTOR (Farmacêutico Chefe)</option>
                                                 <option value="OPERADOR">OPERADOR (Auxiliar de Farmácia)</option>
+                                                <option value="VISUALIZADOR">VISUALIZADOR (Somente Leitura)</option>
                                             </select>
                                         </div>
 
@@ -550,11 +585,17 @@ const FarmaciaUsuarios = () => {
                                                     <li>Acesso a relatórios e inventário</li>
                                                     <li>Controle de ajustes administrativos</li>
                                                 </>
-                                            ) : (
+                                            ) : formData.profile === 'OPERADOR' ? (
                                                 <>
                                                     <li><strong>Visualização do dashboard</strong></li>
                                                     <li>Registro de saídas de medicamentos</li>
                                                     <li>Consulta de movimentações da unidade</li>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <li><strong>Consulta geral do módulo</strong></li>
+                                                    <li>Sem permissão de alteração</li>
+                                                    <li>Visualização de relatórios</li>
                                                 </>
                                             )}
                                         </ul>
@@ -666,6 +707,14 @@ const FarmaciaUsuarios = () => {
                     </div>
                 </div>
             )}
+
+            <FarmaciaAlertModal 
+                isOpen={alertConfig.isOpen} 
+                onClose={() => setAlertConfig(prev => ({ ...prev, isOpen: false }))}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+            />
         </div>
     );
 };
