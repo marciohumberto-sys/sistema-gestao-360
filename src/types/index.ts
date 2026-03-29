@@ -65,6 +65,7 @@ export interface DashboardMetrics {
     expiredContracts: number;
     totalValueSum: number;
     balanceValueSum: number;
+    comprometidoPercent: number;
 
     // UI specific mock extras required to not break dashboard static layout yet:
     ofsThisMonth: number;

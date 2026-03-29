@@ -3,12 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Bell, User, Plus, LogOut } from 'lucide-react';
 import { brandConfig } from '../../config/brand';
 import { useAuth } from '../../context/AuthContext';
+import { getLogoClickRedirectPath } from '../../utils/authUtils';
 
 const Topbar = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { authUser, logout } = useAuth();
-
+    const { authUser, logout, isSuperAdmin, accessibleModules, tenantLink } = useAuth();
+    
     // Derivar nome do usuário a exibir: full_name > name > login derivado do email
     const displayName = authUser?.user_metadata?.full_name
         || authUser?.user_metadata?.name
@@ -47,6 +48,16 @@ const Topbar = () => {
         }
     };
 
+    const handleLogoClick = () => {
+        const redirectPath = getLogoClickRedirectPath(
+            location.pathname,
+            isSuperAdmin,
+            accessibleModules,
+            tenantLink
+        );
+        navigate(redirectPath);
+    };
+
     return (
         <header className="topbar" style={{
             position: 'fixed', top: 0, left: 0, right: 0,
@@ -58,7 +69,19 @@ const Topbar = () => {
             padding: '0 1.5rem', zIndex: 50,
             transition: 'background-color 0.25s ease, box-shadow 0.25s ease'
         }}>
-            <div className="topbar-left" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+            <div 
+                className="topbar-left" 
+                onClick={handleLogoClick}
+                style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '1.5rem',
+                    cursor: 'pointer',
+                    transition: 'opacity 0.2s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+            >
                 <img src={brandConfig.logoPath} alt={`Logo da Prefeitura de ${brandConfig.cityName}`} style={{ maxHeight: '42px', objectFit: 'contain' }} />
                 <h1 style={{ fontSize: '22px', margin: 0, display: 'flex', gap: '6px', alignItems: 'center', letterSpacing: '-0.02em' }}>
                     <span style={{ fontWeight: 600, color: 'var(--text)' }}>Gestão Pública</span>

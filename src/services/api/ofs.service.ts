@@ -78,6 +78,46 @@ class OFsService {
             secretariat: item.secretariat ? (Array.isArray(item.secretariat) ? item.secretariat[0] : item.secretariat) : null
         }));
     }
+    async getConsumptionBySecretariat(tenantId: string): Promise<Array<{ label: string, value: number, color: string }>> {
+        if (!tenantId) return [];
+
+        // Fetches ALL of_items with its OF status and Secretariat name
+        // We filter by tenant_id and status != 'CANCELLED'
+        const { data, error } = await supabase
+            .from('of_items')
+            .select(`
+                total_price,
+                of:ofs!inner(
+                    status,
+                    tenant_id,
+                    secretariat:secretariats(name)
+                )
+            `)
+            .eq('of.tenant_id', tenantId)
+            .neq('of.status', 'CANCELLED');
+
+        if (error) throw error;
+
+        // Group by secretariat name and sum totals
+        const colors = ['#10B981', '#3B82F6', '#F59E0B', '#94A3B8', '#8B5CF6', '#EC4899'];
+        const groups: Record<string, number> = {};
+
+        (data || []).forEach((item: any) => {
+            const secName = item.of?.secretariat?.name || 'Não Informado';
+            groups[secName] = (groups[secName] || 0) + Number(item.total_price || 0);
+        });
+
+        const totalConsumption = Object.values(groups).reduce((acc, curr) => acc + curr, 0);
+
+        return Object.entries(groups)
+            .sort((a, b) => b[1] - a[1]) // Top consumption first
+            .map(([label, total], index) => ({
+                label,
+                total, // Absolute value in BRL
+                value: totalConsumption > 0 ? Math.round((total / totalConsumption) * 100) : 0, // Percentage for the bar
+                color: colors[index % colors.length]
+            }));
+    }
 
     async getById(id: string): Promise<OF> {
         const { data, error } = await supabase
@@ -354,10 +394,16 @@ class OFsService {
         if (err6) throw new Error("Erro ao marcar OF como emitida.");
     }
 
-    async cancelOf(id: string, tenantId: string): Promise<void> {
+    async cancelOf(id: string, tenantId: string, userId: string): Promise<void> {
         if (!tenantId) throw new Error("tenantId is required");
-        // We call the RPC cancel_of.
-        const { error } = await supabase.rpc('cancel_of', { p_of_id: id });
+        if (!userId) throw new Error("userId is required for cancellation auditing");
+
+        const { error } = await supabase.rpc('cancel_of', { 
+            p_of_id: id,
+            p_tenant_id: tenantId,
+            p_updated_by: userId
+        });
+        
         if (error) throw error;
     }
 }

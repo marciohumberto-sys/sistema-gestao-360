@@ -6,6 +6,8 @@ import { ofsService } from '../services/api/ofs.service';
 import { contractsService } from '../services/api/contracts.service';
 import { secretariatsService } from '../services/api/secretariats.service';
 import { useTenant } from '../context/TenantContext';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { formatLocalDate } from '../utils/dateUtils';
 import NovaOfModal from './components/NovaOfModal';
 import './Contratos.css';
@@ -15,6 +17,7 @@ const OrdensFornecimento = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { tenantId } = useTenant();
+    const { user } = useAuth();
 
     // 1. Data State
     const [ofs, setOfs] = useState([]);
@@ -127,9 +130,27 @@ const OrdensFornecimento = () => {
     };
 
     const handleCancelOf = async (ofId) => {
+        // [3][6] Obter userId via supabase.auth.getUser() para maior robustez
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const userId = authUser?.id;
+
+        if (!ofId || !tenantId || !userId) {
+            setFeedback({ type: 'error', message: 'Erro de sessão: IDs necessários não encontrados.' });
+            return;
+        }
+
         try {
             setIsSubmitting(true);
-            await ofsService.cancelOf(ofId, tenantId);
+            
+            // [6] Chamada RPC direta no front conforme solicitado
+            const { error: rpcError } = await supabase.rpc('cancel_of', {
+                p_of_id: ofId,
+                p_tenant_id: tenantId,
+                p_updated_by: userId,
+            });
+
+            if (rpcError) throw rpcError;
+
             setFeedback({ type: 'success', message: 'OF cancelada com sucesso!' });
             setTimeout(() => setFeedback(null), 3000);
             await loadData();

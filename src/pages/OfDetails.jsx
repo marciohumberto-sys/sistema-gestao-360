@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
+import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { ofsService } from '../services/api/ofs.service';
 import { commitmentsService } from '../services/api/commitments.service';
@@ -11,6 +12,7 @@ const OfDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { tenantId } = useTenant();
+    const { user } = useAuth();
 
     const [ofData, setOfData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -137,9 +139,14 @@ const OfDetails = () => {
     };
 
     const handleCancelOf = async () => {
+        if (!tenantId || !user?.id) {
+            setFeedback({ type: 'error', message: 'Erro de sessão: IDs necessários não encontrados.' });
+            return;
+        }
+
         try {
             setIsSubmitting(true);
-            await ofsService.cancelOf(id, tenantId);
+            await ofsService.cancelOf(id, tenantId, user.id);
             setFeedback({ type: 'success', message: 'OF cancelada com sucesso!' });
             await loadData();
         } catch (error) {

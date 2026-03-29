@@ -1,21 +1,31 @@
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FolderKanban, Pill, LogOut, ArrowRight, ShieldCheck, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { brandConfig } from '../config/brand';
+import { getLogoClickRedirectPath } from '../utils/authUtils';
 
 const Home = () => {
-    const { isSuperAdmin, accessibleModules, logout, authUser } = useAuth();
+    const { isSuperAdmin, accessibleModules, logout, authUser, tenantLink } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
 
-    // Regra CRÍTICA: Bouncer Automático para usuários monomódulo
+    // Regra CRÍTICA: Bloquear Hub para usuários comuns (Redirecionar para Dashboard)
     useEffect(() => {
-        if (!isSuperAdmin && accessibleModules && accessibleModules.length === 1) {
-            const mod = accessibleModules[0];
-            if (mod === 'FARMACIA') navigate('/farmacia/dashboard', { replace: true });
-            if (mod === 'COMPRAS') navigate('/compras/dashboard', { replace: true });
+        if (!isSuperAdmin) {
+            const redirectPath = getLogoClickRedirectPath(
+                location.pathname,
+                isSuperAdmin,
+                accessibleModules,
+                tenantLink
+            );
+            // Se o redirectPath ainda for '/home' (o que não deveria ocorrer para non-superadmin se houver permissões), 
+            // evite loop infinito, mas aqui a intenção é sempre tirar o comum do /home.
+            if (redirectPath !== '/home') {
+                navigate(redirectPath, { replace: true });
+            }
         }
-    }, [isSuperAdmin, accessibleModules, navigate]);
+    }, [isSuperAdmin, accessibleModules, tenantLink, navigate, location.pathname]);
 
     const hasFarmacia = isSuperAdmin || accessibleModules?.includes('FARMACIA');
     const hasCompras = isSuperAdmin || accessibleModules?.includes('COMPRAS');

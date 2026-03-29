@@ -150,143 +150,193 @@
     /* Força o alinhamento idêntico ao dashboard-grid */
 }
 
-/* --- KPIs EXECUTIVOS (SEÇÃO 2) --- */
+/* --- KPIs EXECUTIVOS PREMIUM AVANÇADOS (SEÇÃO 2) --- */
 .metric-card {
-    background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
-    /* Efeito tátil de luxo */
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 28px;
-    /* Mais respiro */
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
-    /* Sombra elegante uniforme */
+    background-color: #FFFFFF;
+    border: 1px solid rgba(15, 23, 42, 0.08); /* Borda para definição sutil */
+    border-radius: 12px;
+    padding: 2.25rem 2rem;
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.03),
+        0 4px 12px rgba(0, 0, 0, 0.03),
+        0 12px 24px -4px rgba(15, 23, 42, 0.04); /* Profundidade real */
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
-    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    justify-content: space-between;
+    min-height: 190px;
+    transition: all 0.25s ease; /* Transição linear e premium */
     position: relative;
-    overflow: hidden;
-    /* Evita que a marca d'água vaze da borda do card */
+    overflow: hidden; /* Clipe na assinatura superior */
 }
 
 .metric-card:hover {
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
-    /* Intensifica super leve */
-    transform: translateY(-3px);
-    /* Elevação exatos 2px */
-    border-color: rgba(15, 23, 42, 0.08);
+    transform: translateY(-4px); /* Elevação suave e estável */
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18); /* Sombra definida e profunda */
+    border-color: rgba(15, 23, 42, 0.15);
 }
 
+/* Assinatura Visual Superior (NPC Signature) */
+.metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px !important; /* Espessura base aumentada */
+    z-index: 10;
+    opacity: 0.9;
+    transition: height 0.2s ease, opacity 0.25s ease; /* Transição otimizada para o crescimento */
+    filter: blur(0.3px);
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.10),
+        0 3px 6px rgba(0, 0, 0, 0.06); /* Sombra em duas camadas solicitada */
+}
 
+.metric-card:hover::before {
+    height: 8px !important; /* Destaque máximo na interação */
+    opacity: 1;
+    box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.12),
+        0 4px 8px rgba(0, 0, 0, 0.08); /* Intensificação solicitada */
+}
+
+/* Personalidades Cromáticas (Otimização de Contraste) */
+.metric-card.status-stable { 
+    background-image: radial-gradient(circle at top right, rgba(16, 185, 129, 0.02) 0%, transparent 70%); 
+}
+.metric-card.status-stable::before {
+    background: linear-gradient(90deg, #10B981 0%, #34D399 50%, #10B981 100%);
+}
+
+.metric-card.status-reliable { 
+    background-image: radial-gradient(circle at top right, rgba(15, 74, 68, 0.03) 0%, transparent 70%);
+}
+.metric-card.status-reliable::before {
+    background: linear-gradient(90deg, #0F4A44 0%, #1A7A70 50%, #0F4A44 100%);
+}
+
+.metric-card.status-growth { 
+    background-image: radial-gradient(circle at top right, rgba(59, 130, 246, 0.02) 0%, transparent 70%); 
+}
+.metric-card.status-growth::before {
+    background: linear-gradient(90deg, #3B82F6 0%, #60A5FA 50%, #3B82F6 100%);
+}
+
+.metric-card.status-attention { 
+    background-image: radial-gradient(circle at top right, rgba(239, 68, 68, 0.02) 0%, transparent 70%);
+}
+.metric-card.status-attention::before {
+    background: linear-gradient(90deg, #EF4444 0%, #F87171 50%, #EF4444 100%);
+}
 
 .metric-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    border-bottom: 1px solid rgba(15, 23, 42, 0.04);
-    /* Soft divider */
-    padding-bottom: 0.85rem;
-    margin-bottom: 0.2rem;
+    align-items: center;
+    margin-bottom: 0.25rem;
 }
 
 .metric-title {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #6B7280;
-    /* Mais discreto 3.3 */
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #94A3B8;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.12em;
 }
 
 .metric-icon-wrapper {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    z-index: 2;
-    /* Fica acima da marca d'água */
-}
-
-/* MARCA D'ÁGUA SUTIL */
-.metric-watermark {
-    position: absolute;
-    right: -10px;
-    bottom: -15px;
     color: #94A3B8;
-    /* Cinza médio/claro (slate-400) */
-    opacity: 0.07;
-    /* Transparência exata pedida */
-    filter: blur(1px);
-    /* Blur sutil */
-    z-index: 1;
-    /* Atrás do conteúdo */
-    transform: rotate(-10deg);
-    pointer-events: none;
-    /* Não interfere no hover do card */
+    padding: 0.25rem;
+    transition: all 0.2s;
+    opacity: 0.4;
 }
 
-.metric-icon-wrapper.briefcase-icon {
-    background-color: var(--bg-muted);
-    color: #64748B;
-    /* Verde principal virou slate (menos saturação para o não-dominante) */
-}
-
-.metric-icon-wrapper.dollar-icon {
-    background-color: var(--bg-muted);
-    color: var(--color-secondary);
-    /* Este manteremos vivo se for o dominant, ou ajustar via JS. */
-}
-
-.metric-icon-wrapper.of-icon {
-    background-color: var(--bg-muted);
-    color: #64748B;
-    /* Reduzindo saturação dos outros ícones (azul virou slate) */
-}
-
-.metric-icon-wrapper.nf-icon {
-    background-color: var(--bg-muted);
-    color: #64748B;
-    /* Laranja virou slate */
+.metric-card:hover .metric-icon-wrapper {
+    color: var(--color-primary);
+    transform: scale(1.15) rotate(5deg);
+    opacity: 0.8;
 }
 
 .metric-value {
-    font-size: 2.97rem;
-    /* 8% maior que 2.75rem */
-    font-weight: 800;
-    /* Restaurado */
-    color: #0B1324;
-    line-height: 1.1;
-    letter-spacing: -0.04em;
-    margin-top: -1.25rem;
-    /* Cancelando completamente o gap do card pra colar no respiro natural do título */
+    font-size: 2.85rem;
+    font-weight: 900;
+    color: #0F172A;
+    line-height: 1;
+    letter-spacing: -0.05em;
+    margin: 1.25rem 0;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    text-shadow: 0 0 1px rgba(15, 23, 42, 0.1);
 }
+
+.metric-card:hover .metric-value {
+    transform: scale(1.03);
+    color: #000000;
+}
+
+/* Dominância do Saldo */
+.metric-card.status-reliable .metric-value {
+    font-size: clamp(2.4rem, 3vw, 2.85rem) !important;
+    color: #083344;
+    white-space: nowrap !important;
+    line-height: 1 !important;
+    margin-bottom: 0.25rem !important;
+}
+
+/* Novos componentes de corpo de métrica consolidada */
+.metric-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.metric-context {
+    font-size: 0.875rem;
+    color: #64748B;
+    font-weight: 500;
+    opacity: 0.85;
+    margin-top: -0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.metric-progress-container {
+    padding: 0.25rem 0 0.5rem 0;
+}
+
+.metric-progress-bar {
+    height: 6px;
+    background-color: #F1F5F9;
+    border-radius: 999px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.metric-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Cores dinâmicas da barra de execução */
+.metric-progress-fill.status-low { background-color: #22C55E; }     /* VERDE: < 50% */
+.metric-progress-fill.status-medium { background-color: #EAB308; }  /* AMARELO: 50-80% */
+.metric-progress-fill.status-high { background-color: #EF4444; }    /* VERMELHO: > 80% */
 
 .metric-footer {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.785rem;
-    /* Menor 3.3 */
+    gap: 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(226, 232, 240, 0.5);
     color: #64748B;
-    /* Mais Frio */
-    font-weight: 500;
 }
 
-.metric-footer.positive {
-    color: var(--color-secondary);
-}
+.metric-footer.positive { color: #10B981; }
+.metric-footer.warning { color: #D97706; }
+.metric-footer.danger { color: #DC2626; }
 
-.metric-footer.negative {
-    color: #DC2626;
-}
-
-/* Tailwind Red-600 */
-.metric-footer.neutral {
-    color: var(--text-muted);
-}
+.metric-watermark { display: none; }
 
 /* --- BLOCO OPERACIONAL E GERAL (SEÇÕES 3 E 4) --- */
 .dashboard-card {
@@ -300,6 +350,8 @@
     flex-direction: column;
     gap: 1.5rem;
     transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative; /* Necessário para z-index do tooltip */
+    overflow: visible !important; /* Essencial para tooltip lateral BI profissional */
 }
 
 .dashboard-card:hover {
@@ -652,9 +704,8 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    /* Gap inferior do cabeçalho reduzido */
     padding: 1rem 1.25rem;
-    /* Reduzindo do padrão para baixar a altura total */
+    overflow: visible !important; /* Essencial para tooltip flutuante */
 }
 
 .queue-list {
@@ -672,12 +723,10 @@
     display: flex;
     align-items: center;
     padding: 0.5rem 1rem;
-    /* Padding espremido para alinhar ao card vizinho */
     background-color: transparent;
     border: 1px solid rgba(15, 23, 42, 0.06);
-    /* Voltar para borda completa suave */
     border-radius: 10px;
-    /* Voltar a ser card em vez de linha reta */
+    position: relative; /* Base para tooltip HUD */
     transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -801,10 +850,10 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1.5rem;
+    gap: 0.5rem;
     color: var(--text-muted);
     font-size: 0.85rem;
-    padding: 3rem 0;
+    padding: 0.5rem 0 1rem 0;
     background-color: transparent;
     /* Limpo, sem fundo diferente do box original */
     border-radius: 8px;
@@ -863,4 +912,915 @@
     }
 
     /* more scroll room */
+}
+/* --- DASHBOARD PREMIUM STYLES --- */
+
+/* Animations */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse-critical {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes chartFill {
+    from { transform: scaleX(0); opacity: 0; }
+    to { transform: scaleX(1); opacity: 1; }
+}
+
+.animate-fade-in-up {
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    opacity: 0;
+}
+
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
+
+/* Borda superior via ::before (Signature Line) garantindo espessura consistente */
+.metric-card.status-positive,
+.metric-card.status-neutral,
+.metric-card.status-warning,
+.metric-card.status-danger { border-top: none; }
+
+.alert-pulse-icon {
+    animation: pulse-critical 2s infinite ease-in-out;
+    color: #EF4444;
+}
+
+.alert-action-hint {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-left: 0.5rem;
+    padding-left: 0.5rem;
+    border-left: 1px solid var(--border);
+    opacity: 0.8;
+}
+
+.situation-block {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.situation-mini-card {
+    background-color: #FFFFFF;
+    padding: 1.15rem 1.25rem 1.15rem 1.5rem; /* Ajuste no padding para o acento lateral */
+    border-radius: 14px;
+    border: 1px solid rgba(15, 23, 42, 0.05);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Micro Acento Lateral NPCs Secundários */
+.situation-mini-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2.5px;
+    opacity: 0.3;
+    transition: opacity 0.25s ease;
+}
+
+.situation-mini-card:nth-child(1)::before { background-color: #10B981; }
+.situation-mini-card:nth-child(2)::before { background-color: #F59E0B; }
+.situation-mini-card:nth-child(3):before { background-color: #EF4444; }
+
+.situation-mini-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
+    border-color: rgba(15, 23, 42, 0.08);
+}
+
+.situation-mini-card:hover::before {
+    opacity: 0.6; /* Aumenta a presença do acento no hover */
+}
+
+/* Identidade Tonal Suavizada por Status no Hover */
+.situation-mini-card:nth-child(1):hover { background-color: rgba(0, 150, 125, 0.03); }
+.situation-mini-card:nth-child(2):hover { background-color: rgba(245, 158, 11, 0.03); }
+.situation-mini-card:nth-child(3):hover { background-color: rgba(239, 68, 68, 0.03); }
+
+/* Ícone Reativo NPCs Secundários */
+.situation-mini-card:hover .situation-icon {
+    transform: scale(1.03);
+    filter: saturate(1.4) brightness(1.1);
+    transition: all 0.25s ease;
+}
+
+.situation-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.situation-info h4 {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.situation-info span {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #0F172A; /* Slate 900 para máximo contraste */
+    display: block;
+    line-height: 1.2;
+}
+
+.insight-card {
+    background: rgba(0, 150, 125, 0.04);
+    border: 1px dashed rgba(0, 150, 125, 0.3);
+    padding: 1.25rem;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.insight-text {
+    font-size: 0.9rem;
+    color: #0f4a44;
+    line-height: 1.5;
+    font-weight: 500;
+}
+
+/* --- REORGANIZATION REFINEMENTS --- */
+
+/* --- PULSE ANIMATION FOR CRITICAL ICONS --- */
+
+/* Pulse animation for critical icons */
+@keyframes icon-pulse {
+    0% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0)); }
+    50% { transform: scale(1.2); filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.4)); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0)); }
+}
+
+.pendency-icon-pulse {
+    animation: icon-pulse 2s infinite ease-in-out;
+    color: #EF4444;
+}
+
+/* --- PREMIUM REFINEMENTS (FINAL) --- */
+
+/* --- SEÇÃO INFERIOR COMBINADA (FILA + INSIGHTS) --- */
+.bottom-grid-container {
+    display: grid;
+    grid-template-columns: 2.5fr 1.2fr; /* Nova proporção 67.5% / 32.5% */
+    gap: 20px;
+    margin-top: 1rem;
+    align-items: stretch; /* Alinhamento por estiramento para igualar alturas */
+}
+
+@media (max-width: 1024px) {
+    .bottom-grid-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+.smart-insight-card {
+    background: linear-gradient(145deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.03) 100%) !important;
+    border: 1px solid rgba(59, 130, 246, 0.22) !important;
+    padding: 20px 24px !important; 
+    border-radius: 14px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important; /* Distribui conteúdo entre topo e base */
+    gap: 1.15rem !important; 
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.02) !important;
+    position: relative !important;
+    overflow: hidden !important;
+    height: 100% !important; /* Ocupa 100% da altura da linha do grid */
+    width: 100% !important;
+    min-width: 320px !important;
+    max-width: 400px !important;
+    transition: all 0.3s ease !important;
+}
+
+.insight-watermark {
+    position: absolute !important;
+    right: -25px !important;
+    top: 55% !important;
+    transform: translateY(-50%) rotate(-5deg) !important;
+    opacity: 0.04 !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+    color: var(--color-primary) !important;
+}
+
+.smart-insight-card::after {
+    content: '';
+    position: absolute;
+    right: -20px;
+    bottom: -20px;
+    width: 120px;
+    height: 120px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.05) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.smart-insight-card h3 {
+    font-size: 0.85rem !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.12em !important;
+    color: var(--color-primary) !important;
+    margin: 0 0 0.35rem 0 !important;
+    border-bottom: 1px solid rgba(59, 130, 246, 0.18) !important;
+    padding-bottom: 0.5rem !important;
+}
+
+.insight-item {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.35rem !important;
+    padding-bottom: 0.85rem !important;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.05) !important;
+}
+
+.insight-item:last-of-type {
+    border-bottom: none !important;
+    padding-bottom: 0 !important;
+}
+
+.insight-tag {
+    font-size: 0.65rem !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    color: var(--color-primary) !important;
+    background: rgba(59, 130, 246, 0.08) !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    align-self: flex-start !important;
+}
+
+.insight-item-title {
+    font-size: 0.95rem !important;
+    font-weight: 700 !important;
+    color: #475569 !important;
+    transition: color 0.3s ease !important;
+}
+
+/* Modificadores de Cor (Padrão Farmácia) */
+.insight-item.success .insight-tag {
+    color: #00967D !important;
+    background: rgba(0, 150, 125, 0.1) !important;
+}
+.insight-item.success .insight-item-title {
+    color: #065F46 !important;
+}
+
+.insight-item.danger .insight-tag {
+    color: #EF4444 !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+}
+.insight-item.danger .insight-item-title {
+    color: #B91C1C !important;
+}
+
+.insight-item-desc {
+    font-size: 0.85rem !important;
+    color: #475569 !important;
+    line-height: 1.4 !important;
+}
+
+.insight-footer {
+    margin-top: auto !important;
+    padding-top: 0.85rem !important;
+    font-size: 0.82rem !important;
+    font-weight: 700 !important;
+    color: #0F172A !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+}
+
+.insight-highlight {
+    color: #0F172A !important;
+    font-weight: 850 !important;
+    background-color: rgba(59, 130, 246, 0.08) !important;
+    padding: 0.05rem 0.35rem !important;
+    border-radius: 4px !important;
+    white-space: nowrap !important;
+    display: inline-block !important;
+    line-height: 1.2 !important;
+}
+
+/* --- QUEUE ITEM REFINEMENTS (PREMIUM HOVER) --- */
+.queue-item {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    cursor: pointer !important;
+}
+
+.queue-item:hover {
+    border-color: rgba(16, 185, 129, 0.2) !important;
+    transform: translateY(-4px) scale(1.002) !important;
+    background: #E2E8F0 !important; /* Cinza robusto para contraste inconfundível */
+    box-shadow: 
+        0 12px 28px -5px rgba(15, 23, 42, 0.08),
+        0 4px 12px -2px rgba(0, 150, 125, 0.05) !important;
+}
+
+.queue-item:hover .queue-status-indicator {
+    opacity: 1 !important;
+    transform: scaleY(1.1) !important;
+    filter: saturate(1.5) brightness(1.2) !important;
+}
+
+/* Reação coordenada e destacada do botão no hover do item */
+.queue-item:hover .queue-action {
+    background-color: #007a64 !important; /* Verde ativo institucional */
+    transform: translateY(-2px) scale(1.02) !important;
+    filter: brightness(1.1) !important;
+    box-shadow: 0 6px 16px rgba(0, 150, 125, 0.3) !important;
+}
+
+.queue-action {
+    background-color: var(--color-primary) !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 0.5rem 1rem !important;
+    font-size: 0.8rem !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: 0 2px 4px rgba(0, 150, 125, 0.1) !important;
+}
+
+/* Hover direto no botão para feedback tátil */
+.queue-action:hover {
+    background-color: #005a4a !important; /* Verde profundo para clique */
+    transform: scale(0.96) !important;
+    box-shadow: 0 4px 12px rgba(0, 150, 125, 0.45) !important;
+}
+
+
+/* analytical charts */
+.analytical-chart { 
+    width: 100%; 
+    padding: 0.15rem 0.5rem 0.18rem 0.5rem; /* Base mais justa, sem área morta */
+}
+
+.bar-list { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 0.95rem; /* Respiro extra suave (+5px) para legibilidade premium */
+}
+
+.bar-row { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 0.2rem; /* Aproxima label da barra */
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    position: relative;
+}
+
+.bar-row:hover {
+    transform: translateY(-1px);
+}
+
+/* Container para centralização do tooltip sobre a área de dados */
+.bar-area-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.bar-tooltip {
+    position: absolute !important;
+    top: 50% !important; 
+    left: 45% !important; /* Recalibrado para centralização axial no traço */
+    bottom: auto !important;
+    transform: translate(-50%, -50%) scale(0.95) !important;
+    background: rgba(15, 23, 42, 0.98) !important;
+    backdrop-filter: blur(8px) !important;
+    padding: 10px 14px !important;
+    border-radius: 8px !important;
+    z-index: 9999 !important;
+    width: auto !important;
+    min-width: 210px !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transition: 
+        opacity 0.2s ease, 
+        visibility 0.2s ease, 
+        transform 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important; 
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    align-items: stretch !important; 
+    text-align: left !important;
+    white-space: normal !important; /* Permitir quebra se objeto for longo */
+}
+
+/* Remoção do ponteiro para visual HUD limpo e profissional */
+.bar-tooltip::after {
+    display: none !important;
+}
+
+.tooltip-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+}
+
+.bar-row:hover .bar-tooltip {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translate(-50%, -50%) scale(1) !important;
+}
+
+.tooltip-title {
+    color: #FFFFFF;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.tooltip-value {
+    color: #10B981; /* Verde Sistema */
+    font-size: 0.85rem;
+    font-weight: 900;
+}
+
+.tooltip-desc {
+    color: rgba(148, 163, 184, 0.85); /* Opacidade reduzida */
+    font-size: 0.72rem;
+    line-height: 1.4;
+    margin: 4px 0 8px 0;
+    max-width: 280px;
+    white-space: normal;
+    text-align: center;
+}
+
+/* Tooltip HUD para Fila do Dia */
+.queue-tooltip {
+    position: absolute;
+    bottom: 105%;
+    left: 50%;
+    transform: translate(-50%, 10px) scale(0.95);
+    background: rgba(15, 23, 42, 0.98);
+    backdrop-filter: blur(10px);
+    padding: 12px 16px;
+    border-radius: 10px;
+    z-index: 9999;
+    width: auto;
+    min-width: 220px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.queue-item:hover .queue-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, 0) scale(1);
+}
+
+.bar-label { 
+    display: flex; 
+    justify-content: space-between; 
+    font-size: 0.78rem; /* Ligeiramente menor */
+    color: var(--text-muted); 
+    text-transform: uppercase; 
+    letter-spacing: 0.05em; 
+}
+
+.label-name {
+    font-weight: 700 !important;
+    color: #1E293B !important;
+}
+
+.label-percentage {
+    font-weight: 800 !important;
+    color: #0F172A !important;
+    background: rgba(15, 23, 42, 0.05);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.72rem;
+}
+
+.bar-track { 
+    height: 14px; /* Aumentado para 14px para presença visual máxima */
+    background: rgba(15, 23, 42, 0.04); 
+    border-radius: 7px; /* Acompanha o aumento da altura */
+    overflow: hidden; 
+}
+
+.bar-fill { 
+    height: 100%; 
+    border-radius: 0 7px 7px 0; 
+    transform-origin: left; 
+}
+
+/* Destaque para a maior secretaria */
+.bar-max .bar-fill {
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+    filter: saturate(1.2) brightness(1.05);
+}
+
+.bar-max .label-percentage {
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+}
+
+/* --- GRÁFICO DE DISTRIBUIÇÃO DE EXECUÇÃO (SIMPLE VERTICAL BARS) --- */
+/* --- GRÁFICO DE DISTRIBUIÇÃO DE EXECUÇÃO (RECHARTS BAR CHART) --- */
+.bar-chart-recharts-container {
+    width: 100%;
+    height: 215px;
+    margin-top: 2px;
+    position: relative;
+    padding-bottom: 2px;
+}
+
+.recharts-cartesian-grid-horizontal line {
+    stroke: rgba(148, 163, 184, 0.1);
+}
+
+.recharts-bar-rectangle:hover {
+    filter: brightness(1.08);
+    transition: filter 0.2s ease;
+}
+
+/* Tooltip HUD v4.2 - High Contrast */
+.bar-tooltip-hud {
+    background: rgba(15, 23, 42, 0.98);
+    backdrop-filter: blur(14px);
+    padding: 12px 16px;
+    border-radius: 10px;
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.12);
+    border: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+    min-width: 155px;
+    transform: translateY(-8px);
+    animation: tooltipAppear 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes tooltipAppear {
+    from { opacity: 0; transform: translateY(0) scale(0.96); }
+    to { opacity: 1; transform: translateY(-8px) scale(1); }
+}
+
+.tooltip-title {
+    font-size: 0.65rem;
+    font-weight: 900;
+    color: #FFFFFF;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    padding-bottom: 8px;
+}
+
+.tooltip-hud-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+}
+
+.hud-label {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.65);
+    font-weight: 500;
+}
+
+.hud-value {
+    font-size: 0.8rem;
+    color: #FFFFFF;
+    font-weight: 700;
+}
+
+.hud-value.secondary {
+    color: #10B981;
+}
+
+.recharts-text.recharts-label {
+    pointer-events: none;
+}
+
+.trend-badge.positive {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 700;
+    border: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+@keyframes dash { to { stroke-dashoffset: 0; } }
+
+/* [FIX DEFINITIVO] Shell/Wrapper/Empty para Recharts evitar width(-1)/height(-1) */
+.execution-chart-shell {
+    width: 100%;
+    min-height: 260px;
+    position: relative;
+    border-radius: 8px;
+    background-color: rgba(15, 23, 42, 0.02);
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.execution-chart-wrapper {
+    width: 100%;
+    height: 260px;
+    min-height: 260px;
+    position: relative;
+    display: block;
+}
+
+.execution-chart-empty {
+    width: 100%;
+    height: 260px;
+    min-height: 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: var(--text-muted);
+}
+
+.execution-chart-empty p {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* --- DRAWER DE PENDÊNCIAS (SEÇÃO 7) --- */
+.drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 9000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.drawer-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.drawer-content {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 420px;
+    height: 100vh;
+    background-color: #FFFFFF;
+    box-shadow: -10px 0 40px rgba(0, 0, 0, 0.15);
+    z-index: 9001;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer-overlay.open .drawer-content {
+    transform: translateX(0);
+}
+
+.drawer-header {
+    padding: 1.75rem 2rem;
+    border-bottom: 1px solid #F1F5F9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #FFFFFF;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.drawer-header-title h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0F172A;
+}
+
+.drawer-header-title p {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.875rem;
+    color: #64748B;
+}
+
+.drawer-close-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background-color: #F8FAFC;
+    color: #64748B;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.drawer-close-btn:hover {
+    background-color: #F1F5F9;
+    color: #0F172A;
+    transform: rotate(90deg);
+}
+
+.drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+}
+
+.pendency-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.pendency-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #F1F5F9;
+}
+
+.pendency-section-header h3 {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.pendency-section.critical .pendency-section-header h3 { color: #EF4444; }
+.pendency-section.warning .pendency-section-header h3 { color: #F59E0B; }
+.pendency-section.operational .pendency-section-header h3 { color: #3B82F6; }
+
+.pendency-section.critical .pendency-section-header { border-bottom-color: rgba(239, 68, 68, 0.1); }
+.pendency-section.warning .pendency-section-header { border-bottom-color: rgba(245, 158, 11, 0.1); }
+.pendency-section.operational .pendency-section-header { border-bottom-color: rgba(59, 130, 246, 0.1); }
+
+.pendency-card {
+    background-color: #FFFFFF;
+    border: 1px solid #F1F5F9;
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    transition: all 0.2s;
+}
+
+.pendency-card:hover {
+    border-color: #E2E8F0;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+    transform: translateY(-2px);
+}
+
+.pendency-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.pendency-card-header h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0F172A;
+    line-height: 1.4;
+}
+
+.pendency-card-header p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #64748B;
+    line-height: 1.5;
+}
+
+.pendency-badge {
+    align-self: flex-start;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.critical .pendency-badge { background-color: rgba(239, 68, 68, 0.1); color: #EF4444; }
+.warning .pendency-badge { background-color: rgba(245, 158, 11, 0.1); color: #B45309; }
+.operational .pendency-badge { background-color: rgba(59, 130, 246, 0.1); color: #2563EB; }
+
+.pendency-action-btn {
+    width: 100%;
+    padding: 0.65rem;
+    border-radius: 8px;
+    border: 1px solid #F1F5F9;
+    background-color: #F8FAFC;
+    color: #0F172A;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+}
+
+.pendency-action-btn:hover {
+    background-color: #F1F5F9;
+    border-color: #E2E8F0;
+}
+
+.drawer-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+    color: #94A3B8;
+    gap: 1rem;
+}
+
+.drawer-empty-state p {
+    font-size: 0.95rem;
+    font-weight: 500;
+    max-width: 180px;
+    line-height: 1.5;
+}
+
+/* Scrollbar personalizada para o Drawer */
+.drawer-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.drawer-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.drawer-body::-webkit-scrollbar-thumb {
+    background: #E2E8F0;
+    border-radius: 10px;
+}
+
+.drawer-body::-webkit-scrollbar-thumb:hover {
+    background: #CBD5E1;
 }

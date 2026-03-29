@@ -73,3 +73,39 @@ export const getPostLoginRedirectPath = (tenantLink, isSuperAdmin, accessibleMod
 
     return '/home';
 };
+
+/**
+ * Retorna o caminho de redirecionamento correto ao clicar na logo, 
+ * baseando-se no contexto atual do usuário e permissões.
+ */
+export const getLogoClickRedirectPath = (pathname, isSuperAdmin, accessibleModules, tenantLink) => {
+    // 1. SuperAdmin sempre vai para o Hub / Home
+    if (isSuperAdmin) return '/home';
+
+    // 2. Se o usuário estiver dentro de um módulo, redirecionar para o dashboard desse módulo
+    if (pathname?.startsWith('/farmacia')) return MODULE_ROUTES.FARMACIA;
+    if (pathname?.startsWith('/compras')) return MODULE_ROUTES.COMPRAS;
+
+    // 3. Fora de contexto, aplicar regra de fallback:
+    
+    // Fallback 1: Último módulo acessado (persistido localmente)
+    const lastModule = localStorage.getItem('last_module');
+    if (lastModule && accessibleModules?.includes(lastModule)) {
+        return MODULE_ROUTES[lastModule];
+    }
+
+    // Fallback 2: Módulo padrão definido no perfil (user_tenants)
+    const defaultModule = tenantLink?.default_module;
+    if (defaultModule && accessibleModules?.includes(defaultModule)) {
+        return MODULE_ROUTES[defaultModule];
+    }
+
+    // Fallback 3: Primeira permissão disponível
+    if (accessibleModules && accessibleModules.length > 0) {
+        const firstModule = accessibleModules[0];
+        return MODULE_ROUTES[firstModule] || '/home';
+    }
+
+    // Se tudo falhar, /home (que no App.jsx redirecionará conforme auth se necessário)
+    return '/home';
+};

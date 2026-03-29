@@ -1,0 +1,195 @@
+.dashboard-hero {
+    background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 20px;
+    padding: 2.5rem;
+    box-shadow: 0 25px 55px rgba(15, 23, 42, 0.12), 0 10px 20px rgba(15, 23, 42, 0.05);
+    display: grid;
+    grid-template-columns: 1.2fr 2.5fr 1.3fr;
+    gap: 3rem;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 2.5rem;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* --- COLUNA 1: STATUS --- */
+.hero-status-area {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    border-right: 2px solid rgba(226, 232, 240, 0.5);
+    padding-right: 2rem;
+}
+
+.hero-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.status-badge-hero {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.75rem;
+    border-radius: 16px;
+    font-size: 1.5rem;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    width: fit-content;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.status-badge-hero.controlled {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+    border: 1.5px solid rgba(16, 185, 129, 0.2);
+}
+
+.status-badge-hero.attention {
+    background: rgba(245, 158, 11, 0.1);
+    color: #D97706;
+    border: 1.5px solid rgba(245, 158, 11, 0.2);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.1);
+}
+
+.status-badge-hero.critical {
+    background: rgba(239, 68, 68, 0.1);
+    color: #DC2626;
+    border: 1.5px solid rgba(239, 68, 68, 0.2);
+    box-shadow: 0 0 25px rgba(239, 68, 68, 0.15);
+}
+
+/* --- COLUNA 2: INDICADORES --- */
+.hero-indicators-area {
+    display: flex;
+    justify-content: space-around;
+    gap: 2rem;
+}
+
+.hero-indicator-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.25rem;
+}
+
+.indicator-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #94A3B8;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.indicator-value {
+    font-size: 2.75rem;
+    font-weight: 800;
+    color: #0F172A;
+    line-height: 1;
+    letter-spacing: -0.05em;
+    margin: 0.25rem 0;
+}
+
+.indicator-secondary {
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.indicator-secondary.up { color: #10B981; }
+.indicator-secondary.down { color: #EF4444; }
+.indicator-secondary.neutral { color: #64748B; }
+
+/* --- COLUNA 3: AÇÃO --- */
+.hero-action-area {
+    background: #FFFFFF;
+    padding: 1.75rem;
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+    border: 1px solid rgba(226, 232, 240, 0.4);
+}
+
+.hero-action-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #0F172A;
+}
+
+.hero-action-text {
+    font-size: 0.9rem;
+    color: #475569;
+    line-height: 1.4;
+    font-weight: 500;
+}
+
+.hero-cta-btn {
+    width: 100%;
+    padding: 1rem;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    transition: all 0.2s;
+}
+
+.hero-cta-btn.primary-action {
+    background-color: var(--color-primary);
+    color: #FFFFFF;
+    box-shadow: 0 4px 15px rgba(15, 74, 68, 0.2);
+}
+
+.hero-cta-btn:hover {
+    transform: translateY(-3px);
+    filter: brightness(1.1);
+    box-shadow: 0 8px 25px rgba(15, 74, 68, 0.3);
+}
+
+/* --- RESPONSIVIDADE --- */
+@media (max-width: 1200px) {
+    .dashboard-hero {
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+    }
+    .hero-action-area {
+        grid-column: span 2;
+    }
+    .hero-status-area {
+        border-right: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-hero {
+        grid-template-columns: 1fr;
+        padding: 2rem;
+    }
+    .hero-action-area {
+        grid-column: span 1;
+    }
+    .hero-indicators-area {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2.5rem;
+        padding-left: 1rem;
+    }
+    .hero-indicator-item {
+        align-items: flex-start;
+        text-align: left;
+    }
+}

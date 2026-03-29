@@ -392,18 +392,35 @@ class ContractsService {
         let expiringCount = 0;
         let expiredCount = 0;
         let totalValSum = 0;
-        let balanceValSum = 0;
         let totalPending = 0;
 
         contracts.forEach(c => {
             totalValSum += c.totalValue;
-            balanceValSum += c.balanceValue;
 
             if (c.status === 'ATIVO') activeCount++;
             if (c.status === 'VENCENDO') expiringCount++;
             if (c.status === 'VENCIDO') expiredCount++;
             if (c.isPending) totalPending++;
         });
+
+        // 2. Query Financial Metrics via RPC (Atenção: rpc 'get_compras_dashboard_financeiro')
+        let balanceValSumCount = 0;
+        let totalValSumCount = totalValSum; // fallback inicial
+        let compPercent = 0;
+
+        try {
+            const { data: rpcData } = await supabase.rpc('get_compras_dashboard_financeiro');
+            const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+
+            if (row) {
+                balanceValSumCount = Number(row.saldo_total ?? 0);
+                totalValSumCount = Number(row.contrato_total ?? 0);
+                compPercent = Number(row.comprometido_percent ?? 0);
+            }
+        } catch (err) {
+            console.error("Critical failure calling financial RPC:", err);
+            balanceValSumCount = 0;
+        }
 
         const now = new Date();
         const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -419,7 +436,6 @@ class ContractsService {
         }
 
         const { data: ofsData, error: ofsError } = await ofsQuery.gte('issue_date', startOfLastMonth);
-        console.log("DASHBOARD OFS DEBUG ->", ofsData, "ERROR ->", ofsError);
 
         let ofsThisMonth = 0;
         let ofsLastMonth = 0;
@@ -449,8 +465,9 @@ class ContractsService {
             totalContracts: contracts.length,
             expiringContracts: expiringCount,
             expiredContracts: expiredCount,
-            totalValueSum: totalValSum,
-            balanceValueSum: balanceValSum,
+            totalValueSum: totalValSumCount,
+            balanceValueSum: balanceValSumCount,
+            comprometidoPercent: compPercent,
             totalPendingContracts: totalPending,
             ofsThisMonth: ofsThisMonth,
             ofsChangePercentage: ofsChangePercentage,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
+    Home,
     LayoutDashboard,
     ShoppingCart,
     FileText,
@@ -35,18 +36,18 @@ const MENU_ITEMS = [
         ]
     },
     {
-        section: 'Operacional',
-        items: [
-            { path: '/compras/ordens-fornecimento', icon: ShoppingCart, label: 'Ordens de Fornecimento' },
-            { path: '/compras/notas-fiscais', icon: FileText, label: 'Notas Fiscais' }
-        ]
-    },
-    {
         section: 'Gestão',
         items: [
             { path: '/compras/contratos', icon: Briefcase, label: 'Contratos' },
             { path: '/compras/empenhos', icon: FileBadge, label: 'Empenhos' },
+            { path: '/compras/ordens-fornecimento', icon: ShoppingCart, label: 'Ordens de Fornecimento' },
             { path: '/compras/aditivos', icon: Files, label: 'Aditivos' }
+        ]
+    },
+    {
+        section: 'Execução',
+        items: [
+            { path: '/compras/notas-fiscais', icon: FileText, label: 'Notas Fiscais' }
         ]
     },
     {
@@ -139,6 +140,33 @@ const Sidebar = ({ isPinned, togglePin }) => {
                         <div className="sidebar-section-title">
                             {group.section}
                         </div>
+                        
+                        {/* Inserir Home no topo da seção Principal apenas para SuperAdmin */}
+                        {isSuperAdmin && group.section === 'Principal' && (
+                            <NavLink
+                                to="/home"
+                                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''} ${!isPinned ? 'has-flyout' : ''}`}
+                            >
+                                {({ isActive }) => (
+                                    <>
+                                        <Home 
+                                            className="nav-icon" 
+                                            size={20} 
+                                            strokeWidth={isActive ? 2.5 : 2.0} 
+                                            style={{ opacity: isActive ? 1.0 : 0.65 }}
+                                        />
+                                        <span className="nav-label">Home</span>
+                                        {!isPinned && (
+                                            <div className="flyout">
+                                                <span className="flyout-section">{group.section}</span>
+                                                <span className="flyout-label">Home</span>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </NavLink>
+                        )}
+
                         {group.items.map((item) => (
                             <NavLink
                                 key={item.path}
