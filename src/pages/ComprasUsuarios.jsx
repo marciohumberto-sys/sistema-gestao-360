@@ -176,7 +176,7 @@ const ComprasUsuarios = () => {
             }
             await carregarDados();
             closeModal();
-            setToast('Usuário salvo com sucesso!');
+            setToast(editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso. Senha inicial: Admin@123');
         } catch (e) {
             console.error(e);
             alert('Erro ao salvar o usuário: ' + (e.message || 'Falha de comunicação.'));

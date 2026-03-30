@@ -106,7 +106,7 @@ export const fetchComprasUsers = async (tenantId) => {
  * Cria um usuário via Edge Function com provisionamento completo para o módulo COMPRAS.
  */
 export const createComprasUser = async (tenantId, userData) => {
-    const tempPassword = 'Compras@123';
+    const tempPassword = 'Admin@123';
 
     const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-user`,

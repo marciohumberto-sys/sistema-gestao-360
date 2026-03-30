@@ -313,34 +313,62 @@ const Dashboard = () => {
                     <span>Atenção Sugerida:</span>
                 </div>
                 <div className="alerts-chips">
-                    {metrics.expiringContracts > 0 && (
-                        <div className="alert-group">
-                            <button className="alert-chip warning">
-                                <AlertTriangle size={14} />
-                                {metrics.expiringContracts} Contratos vencendo (30 dias)
-                            </button>
-                            <span className="alert-action-hint">→ Revisar prazos</span>
-                        </div>
-                    )}
-                    {metrics.totalPendingContracts > 0 && (
-                        <div className="alert-group">
-                            <button
-                                className="alert-chip danger"
-                                onClick={() => navigate('/compras/contratos?pending=1')}
-                            >
-                                <AlertCircle size={14} />
-                                {metrics.totalPendingContracts} Contratos com pendência
-                            </button>
-                            <span className="alert-action-hint">→ Regularizar itens</span>
-                        </div>
-                    )}
-                    <div className="alert-group">
-                        <button className="alert-chip info">
-                            <AlertCircle size={14} />
-                            Saúde excedeu 85% da cota
-                        </button>
-                        <span className="alert-action-hint">→ Avaliar contratos de saúde</span>
-                    </div>
+                    {(() => {
+                        const criticalBalanceContracts = contracts.filter(c => {
+                            const total = c.totalValue || 0;
+                            const balance = c.balanceValue || 0;
+                            if (total === 0) return false;
+                            return ((total - balance) / total) * 100 >= 85;
+                        });
+
+                        const hasAnyAlert = metrics.expiringContracts > 0 || metrics.totalPendingContracts > 0 || criticalBalanceContracts.length > 0;
+
+                        if (!hasAnyAlert) {
+                            return (
+                                <div className="alert-group">
+                                    <button className="alert-chip" style={{ background: 'var(--bg-muted-light)', color: 'var(--text-secondary)', border: '1px solid var(--border)', cursor: 'default' }}>
+                                        <CheckCircle2 size={14} style={{ color: 'var(--text-muted)' }} />
+                                        Nenhuma pendência crítica no momento.
+                                    </button>
+                                </div>
+                            );
+                        }
+
+                        return (
+                            <>
+                                {metrics.expiringContracts > 0 && (
+                                    <div className="alert-group">
+                                        <button className="alert-chip warning">
+                                            <AlertTriangle size={14} />
+                                            {metrics.expiringContracts} Contratos vencendo (30 dias)
+                                        </button>
+                                        <span className="alert-action-hint">→ Revisar prazos</span>
+                                    </div>
+                                )}
+                                {metrics.totalPendingContracts > 0 && (
+                                    <div className="alert-group">
+                                        <button
+                                            className="alert-chip danger"
+                                            onClick={() => navigate('/compras/contratos?pending=1')}
+                                        >
+                                            <AlertCircle size={14} />
+                                            {metrics.totalPendingContracts} Contratos com pendência
+                                        </button>
+                                        <span className="alert-action-hint">→ Regularizar itens</span>
+                                    </div>
+                                )}
+                                {criticalBalanceContracts.length > 0 && (
+                                    <div className="alert-group">
+                                        <button className="alert-chip danger" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                            <AlertTriangle size={14} />
+                                            {criticalBalanceContracts.length} contrato(s) com consumo elevado (&gt;= 85%)
+                                        </button>
+                                        <span className="alert-action-hint">→ Avaliar aditivos ou renovação</span>
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })()}
                 </div>
             </div>
 
@@ -567,11 +595,25 @@ const Dashboard = () => {
                             <p className="insight-item-desc">O volume de OFs emitidas este mês (<span className="insight-highlight">{metrics.ofsThisMonth}</span>) supera a média do último trimestre.</p>
                         </div>
 
-                        <div className="insight-item danger">
-                            <span className="insight-tag">Saldo Crítico</span>
-                            <span className="insight-item-title">Esgotamento em <span className="insight-highlight">45 dias</span></span>
-                            <p className="insight-item-desc">A projeção compromete o saldo de <span className="insight-highlight">R$ {((metrics.balanceValueSum || 0) / 1000000).toFixed(1)}M</span> nos contratos próximos do limite.</p>
-                        </div>
+                        {(() => {
+                            const lowBalanceContracts = contracts.filter(c => {
+                                const total = c.totalValue || 0;
+                                const balance = c.balanceValue || 0;
+                                if (total === 0) return false;
+                                return ((total - balance) / total) * 100 >= 85;
+                            });
+
+                            if (lowBalanceContracts.length > 0) {
+                                return (
+                                    <div className="insight-item danger">
+                                        <span className="insight-tag">Consumo Elevado</span>
+                                        <span className="insight-item-title"><span className="insight-highlight">{lowBalanceContracts.length}</span> Contrato(s) Crítico(s)</span>
+                                        <p className="insight-item-desc">A projeção atual alerta para contratos que já consumiram <span className="insight-highlight">85% ou mais</span> do saldo limite.</p>
+                                    </div>
+                                );
+                            }
+                            return null;
+                        })()}
 
                         <div className="insight-footer">
                             → Avaliar aditivos para contratos abaixo de 15%.
@@ -680,9 +722,7 @@ const ExecutionBarChart = ({ contracts = [] }) => {
         const total = c.totalValue || 0;
         const balance = c.balanceValue || 0;
         if (total === 0) return 0;
-        const realExec = ((total - balance) / total) * 100;
-        // Demonstração visual se a base estiver zerada (mock id-based)
-        return realExec > 0 ? realExec : (parseInt(c.id?.substring(0,2), 16) % 100) || 0;
+        return ((total - balance) / total) * 100;
     };
 
     useEffect(() => {
