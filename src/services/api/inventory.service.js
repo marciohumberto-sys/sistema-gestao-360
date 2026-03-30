@@ -42,43 +42,78 @@ export const inventoryService = {
         if (payload.item_type === 'MEDICAMENTO') prefix = 'MD';
         else if (payload.item_type === 'INSUMO') prefix = 'IN';
 
-        // 3. Buscar o maior código atual com este string (ex: 'MD0005')
-        const { data: latest } = await supabase
+        // 3. Buscar todos os códigos atuais com este prefixo para calcular o maior numericamente
+        const { data: allCodesData, error: allCodesError } = await supabase
             .from('inventory_items')
             .select('code')
             .eq('tenant_id', payload.tenant_id)
-            .ilike('code', `${prefix}%`)
-            .order('code', { ascending: false })
-            .limit(1);
+            .ilike('code', `${prefix}%`);
 
-        let newNumber = 1;
-        if (latest && latest.length > 0 && latest[0].code) {
-            const numPart = latest[0].code.replace(prefix, '');
-            const parsed = parseInt(numPart, 10);
-            if (!isNaN(parsed)) {
-                newNumber = parsed + 1;
-            }
+        if (allCodesError) throw allCodesError;
+
+        let maxNumber = 0;
+        
+        if (allCodesData && allCodesData.length > 0) {
+            allCodesData.forEach(item => {
+                if (item.code) {
+                    const numPart = item.code.substring(prefix.length);
+                    const parsed = parseInt(numPart, 10);
+                    if (!isNaN(parsed) && parsed > maxNumber) {
+                        maxNumber = parsed;
+                    }
+                }
+            });
         }
         
-        // Formata para 3-4 dígitos dependendo, melhor padronizar em 4 dígitos: MD0001
-        const newCode = `${prefix}${String(newNumber).padStart(4, '0')}`;
+        let newNumber = maxNumber + 1;
+        // Formata para mínimo de 3 dígitos: MD001, MD131, MD1000
+        let newCode = `${prefix}${String(newNumber).padStart(3, '0')}`;
 
-        // 4. Montar Payload
-        const insertPayload = {
-            ...payload,
-            name: normalizedName,
-            code: newCode,
-            is_active: true
-        };
+        console.log(`[DEBUG] Prefix: ${prefix}, Highest Number: ${maxNumber}, Extracted From: all codes, Final Code: ${newCode}`);
 
-        // 5. Inserir
-        const { data, error } = await supabase
-            .from('inventory_items')
-            .insert([insertPayload])
-            .select()
-            .single();
+        // 4. Implementar um retry simples em caso de colisão no insert
+        let attempts = 0;
+        const maxAttempts = 5;
+        let finalData = null;
+        let lastError = null;
 
-        if (error) throw error;
-        return data;
+        while (attempts < maxAttempts) {
+            const insertPayload = {
+                ...payload,
+                name: normalizedName,
+                code: newCode,
+                is_active: true
+            };
+
+            const { data, error } = await supabase
+                .from('inventory_items')
+                .insert([insertPayload])
+                .select()
+                .single();
+
+            if (error) {
+                lastError = error;
+                // Supabase (PostgreSQL) unique constraint violation code is '23505'
+                if (error.code === '23505' || (error.message && error.message.includes('already exists'))) {
+                    attempts++;
+                    console.log(`[DEBUG] Colisão detectada ao inserir código ${newCode} (Tentativa ${attempts} de ${maxAttempts})`);
+                    newNumber++;
+                    newCode = `${prefix}${String(newNumber).padStart(3, '0')}`;
+                    continue;
+                } else {
+                    throw error;
+                }
+            } else {
+                finalData = data;
+                break;
+            }
+        }
+
+        if (!finalData) {
+            console.error("[DEBUG] Falha ao tentar criar código único após várias tentativas:", lastError);
+            throw new Error("Não foi possível gerar um código único após múltiplas tentativas. Verifique com o suporte.");
+        }
+
+        return finalData;
     }
 };
