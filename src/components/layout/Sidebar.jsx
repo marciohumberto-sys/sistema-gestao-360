@@ -40,8 +40,7 @@ const MENU_ITEMS = [
         items: [
             { path: '/compras/contratos', icon: Briefcase, label: 'Contratos' },
             { path: '/compras/empenhos', icon: FileBadge, label: 'Empenhos' },
-            { path: '/compras/ordens-fornecimento', icon: ShoppingCart, label: 'Ordens de Fornecimento' },
-            { path: '/compras/aditivos', icon: Files, label: 'Aditivos' }
+            { path: '/compras/ordens-fornecimento', icon: ShoppingCart, label: 'Ordens de Fornecimento' }
         ]
     },
     {

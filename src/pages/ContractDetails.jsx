@@ -12,15 +12,11 @@ import {
     AlertCircle,
     CheckCircle,
     Landmark,
+    FileWarning,
+    AlertTriangle,
     Trash2,
     Plus,
-    Edit2,
-    ShieldAlert,
-    AlertTriangle,
-    UploadCloud,
-    ExternalLink,
-    Download,
-    FileWarning,
+    FilePlus,
     X
 } from 'lucide-react';
 import NovaOfModal from './components/NovaOfModal';
@@ -121,6 +117,24 @@ const ContractDetails = () => {
 
     // OF Creation State
     const [isOfOfModalOpen, setIsOfOfModalOpen] = useState(false);
+
+    // Contract Acts State
+    const [isLoadingActs, setIsLoadingActs] = useState(false);
+    const [isAtoModalOpen, setIsAtoModalOpen] = useState(false);
+    const [isSubmittingAto, setIsSubmittingAto] = useState(false);
+    const [isConfirmDeleteAtoModalOpen, setIsConfirmDeleteAtoModalOpen] = useState(false);
+    const [atoToDeleteId, setAtoToDeleteId] = useState(null);
+    const [isDeletingAto, setIsDeletingAto] = useState(false);
+    const [contractActs, setContractActs] = useState([]);
+    const [atoFormData, setAtoFormData] = useState({
+        act_type: 'ADITIVO',
+        title: '',
+        purpose: '',
+        act_date: getTodayLocalDateString(),
+        validity_start: '',
+        validity_end: '',
+        notes: ''
+    });
 
     // Toast State
     const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
@@ -340,6 +354,61 @@ const ContractDetails = () => {
         }
     };
 
+    const fetchContractActs = async () => {
+        try {
+            setIsLoadingActs(true);
+            const acts = await contractsService.listContractActs(id);
+            if (isMounted.current) {
+                setContractActs(acts);
+            }
+        } catch (err) {
+            console.error("Erro ao carregar atos contratuais:", err);
+        } finally {
+            if (isMounted.current) setIsLoadingActs(false);
+        }
+    };
+
+    const handleDeleteAto = (atoId) => {
+        setAtoToDeleteId(atoId);
+        setIsConfirmDeleteAtoModalOpen(true);
+    };
+
+    const confirmDeleteAto = async () => {
+        if (!atoToDeleteId) return;
+        setIsDeletingAto(true);
+        try {
+            await contractsService.removeContractAct(atoToDeleteId);
+            showToast("Ato contratual removido com sucesso!");
+            setIsConfirmDeleteAtoModalOpen(false);
+            setAtoToDeleteId(null);
+            fetchContractActs();
+            fetchHistory();
+        } catch (err) {
+            console.error(err);
+            showToast("Erro ao remover ato contratual", "error");
+        } finally {
+            setIsDeletingAto(false);
+        }
+    };
+
+    const handleAtoSubmit = async (e) => {
+        e.preventDefault();
+        if (!tenantId || !id) return;
+        setIsSubmittingAto(true);
+        try {
+            await contractsService.createContractAct(tenantId, id, atoFormData);
+            showToast("Ato contratual registrado com sucesso!");
+            setIsAtoModalOpen(false);
+            fetchContractActs();
+            fetchHistory();
+        } catch (err) {
+            console.error(err);
+            showToast("Erro ao registrar ato contratual", "error");
+        } finally {
+            setIsSubmittingAto(false);
+        }
+    };
+
     useEffect(() => {
         const fetchContract = async () => {
             try {
@@ -363,6 +432,7 @@ const ContractDetails = () => {
             fetchHistory();
             loadSecretariats();
             fetchItemsCount();
+            fetchContractActs();
         }
     }, [id, tenantId]);
 
@@ -825,6 +895,21 @@ const ContractDetails = () => {
 
                     <div className="cd-header-actions">
                         <button className="cd-btn-secondary" onClick={handleEditClick}>Editar</button>
+                        <button className="cd-btn-ato" onClick={() => {
+                            setAtoFormData({
+                                act_type: 'ADITIVO',
+                                title: '',
+                                purpose: '',
+                                act_date: getTodayLocalDateString(),
+                                validity_start: '',
+                                validity_end: '',
+                                notes: ''
+                            });
+                            setIsAtoModalOpen(true);
+                        }}>
+                            <FilePlus size={18} />
+                            Ato Contratual
+                        </button>
 
                         <div className="cd-actions-dropdown-wrapper">
                             <button
@@ -968,7 +1053,13 @@ const ContractDetails = () => {
                         className={`cd-tab-btn ${activeTab === 'aditivos' ? 'active' : ''}`}
                         onClick={() => setActiveTab('aditivos')}
                     >
-                        Aditivos <span className="cd-tab-count">0</span>
+                        Aditivos <span className="cd-tab-count">{contractActs.filter(a => a.act_type === 'ADITIVO').length}</span>
+                    </button>
+                    <button
+                        className={`cd-tab-btn ${activeTab === 'apostilamentos' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('apostilamentos')}
+                    >
+                        Apostilamentos <span className="cd-tab-count">{contractActs.filter(a => a.act_type === 'APOSTILAMENTO').length}</span>
                     </button>
                     <button
                         className={`cd-tab-btn ${activeTab === 'historico' ? 'active' : ''}`}
@@ -1183,14 +1274,157 @@ const ContractDetails = () => {
                         </div>
                     )}
 
-                    {/* ADITIVOS TAB (Placeholder) */}
-                    {activeTab === 'aditivos' && (
-                        <div className="cd-placeholder-tab">
-                            <Calendar size={40} />
-                            <h4>Sem termos aditivos</h4>
-                            <p>Qualquer prorrogação de prazo ou acréscimo de valor será listado nesta aba.</p>
-                        </div>
-                    )}
+                    {/* ADITIVOS TAB */}
+                    {activeTab === 'aditivos' && (() => {
+                        const aditivos = contractActs.filter(a => a.act_type === 'ADITIVO');
+                        if (isLoadingActs) return <div className="cd-tab-panel"><div style={{ padding: '2rem', textAlign: 'center' }}>Carregando aditivos...</div></div>;
+                        
+                        if (aditivos.length === 0) {
+                            return (
+                                <div className="cd-placeholder-tab">
+                                    <FileText size={40} />
+                                    <h4>Nenhum Aditivo Cadastrado</h4>
+                                    <p>As modificações formais que alteram o valor ou prazo deste contrato aparecerão aqui.</p>
+                                </div>
+                            );
+                        }
+                        
+                        return (
+                            <div className="cd-tab-panel">
+                                <div className="cd-tab-panel-header">
+                                    <h3>Termos Aditivos</h3>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    {aditivos.map(ato => (
+                                        <div key={ato.id} style={{ border: '1px solid var(--border-light)', borderRadius: '12px', background: '#fff', padding: '1rem 1.25rem', position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                            <div style={{ flex: 1 }}>
+                                                {/* Linha principal: Título do ato */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+                                                    <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem', fontWeight: 700 }}>{ato.title}</h4>
+                                                    <div className="status-badge success" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>Aditivo</div>
+                                                </div>
+
+                                                {/* Linha secundária: Finalidade */}
+                                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: '0 0 0.5rem 0', lineHeight: '1.4' }}>{ato.purpose}</p>
+                                                
+                                                {/* Linha auxiliar: Data e Vigência */}
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                                        <Calendar size={12} />
+                                                        <span>Assinado em: <strong>{formatDate(ato.act_date)}</strong></span>
+                                                    </div>
+                                                    
+                                                    {(ato.validity_start || ato.validity_end) && (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem', background: '#f8fafc', padding: '0.2rem 0.6rem', borderRadius: '4px', border: '1px solid #edf2f7' }}>
+                                                            {ato.validity_start && <span>Vigência: <strong>{formatDate(ato.validity_start)}</strong></span>}
+                                                            {ato.validity_start && ato.validity_end && <span style={{ opacity: 0.3 }}>|</span>}
+                                                            {ato.validity_end && <span>Até: <strong>{formatDate(ato.validity_end)}</strong></span>}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Observações: apenas se existir */}
+                                                {ato.notes && (
+                                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem', fontStyle: 'italic', background: '#fffcf5', padding: '0.4rem 0.75rem', borderRadius: '6px', borderLeft: '2px solid #fbbf24' }}>
+                                                        <strong>Obs:</strong> {ato.notes}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Botão excluir: canto direito */}
+                                            <div style={{ marginLeft: '1rem' }} className="cd-list-btn-wrapper">
+                                                <button 
+                                                    onClick={() => handleDeleteAto(ato.id)}
+                                                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.5rem', borderRadius: '6px', display: 'flex', transition: 'all 0.2s' }}
+                                                    onMouseOver={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = '#fef2f2'; }}
+                                                    onMouseOut={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none'; }}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                                <span className="cd-list-tooltip">Excluir ato</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* APOSTILAMENTOS TAB */}
+                    {activeTab === 'apostilamentos' && (() => {
+                        const apostilamentos = contractActs.filter(a => a.act_type === 'APOSTILAMENTO');
+                        if (isLoadingActs) return <div className="cd-tab-panel"><div style={{ padding: '2rem', textAlign: 'center' }}>Carregando apostilamentos...</div></div>;
+                        
+                        if (apostilamentos.length === 0) {
+                            return (
+                                <div className="cd-placeholder-tab">
+                                    <FileText size={40} />
+                                    <h4>Nenhum Apostilamento Cadastrado</h4>
+                                    <p>Retificações, atualizações e ajustes que não modificam a estrutura do contrato aparecerão aqui.</p>
+                                </div>
+                            );
+                        }
+                        
+                        return (
+                            <div className="cd-tab-panel">
+                                <div className="cd-tab-panel-header">
+                                    <h3>Apostilamentos</h3>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    {apostilamentos.map(ato => (
+                                        <div key={ato.id} style={{ border: '1px solid var(--border-light)', borderRadius: '12px', background: '#fff', padding: '1rem 1.25rem', position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                            <div style={{ flex: 1 }}>
+                                                {/* Linha principal: Título do ato */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+                                                    <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem', fontWeight: 700 }}>{ato.title}</h4>
+                                                    <div className="status-badge" style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>Apostilamento</div>
+                                                </div>
+
+                                                {/* Linha secundária: Finalidade */}
+                                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: '0 0 0.5rem 0', lineHeight: '1.4' }}>{ato.purpose}</p>
+                                                
+                                                {/* Linha auxiliar: Data e Vigência */}
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                                        <Calendar size={12} />
+                                                        <span>Registrado em: <strong>{formatDate(ato.act_date)}</strong></span>
+                                                    </div>
+                                                    
+                                                    {(ato.validity_start || ato.validity_end) && (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem', background: '#f8fafc', padding: '0.2rem 0.6rem', borderRadius: '4px', border: '1px solid #edf2f7' }}>
+                                                            {ato.validity_start && <span>Vigência: <strong>{formatDate(ato.validity_start)}</strong></span>}
+                                                            {ato.validity_start && ato.validity_end && <span style={{ opacity: 0.3 }}>|</span>}
+                                                            {ato.validity_end && <span>Até: <strong>{formatDate(ato.validity_end)}</strong></span>}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Observações: apenas se existir */}
+                                                {ato.notes && (
+                                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem', fontStyle: 'italic', background: '#fafafa', padding: '0.4rem 0.75rem', borderRadius: '6px', borderLeft: '2px solid #cbd5e1' }}>
+                                                        <strong>Obs:</strong> {ato.notes}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Botão excluir: canto direito */}
+                                            <div style={{ marginLeft: '1rem' }} className="cd-list-btn-wrapper">
+                                                <button 
+                                                    onClick={() => handleDeleteAto(ato.id)}
+                                                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.5rem', borderRadius: '6px', display: 'flex', transition: 'all 0.2s' }}
+                                                    onMouseOver={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = '#fef2f2'; }}
+                                                    onMouseOut={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none'; }}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                                <span className="cd-list-tooltip">Excluir ato</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {/* HISTORICO TAB (Real Timeline) */}
                     {activeTab === 'historico' && (
@@ -2190,12 +2424,165 @@ const ContractDetails = () => {
                 </div>
             )}
 
+            {/* Modal Ato Contratual */}
+            {isAtoModalOpen && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10,37,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(2px)' }} onClick={() => setIsAtoModalOpen(false)}>
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', maxWidth: '640px', maxHeight: '90vh', background: '#ffffff', borderRadius: '16px', boxShadow: '0 4px 40px rgba(0,0,0,0.2)', border: '1px solid #e2e8f0', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ background: '#e0f2fe', padding: '0.5rem', borderRadius: '8px', color: '#0284c7' }}>
+                                    <FileText size={20} />
+                                </div>
+                                <div>
+                                    <h4 style={{ margin: '0 0 0.125rem 0', color: 'var(--text-primary)', fontSize: '1.125rem', fontWeight: 700 }}>Registrar Ato Contratual</h4>
+                                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Aditivos ou apostilamentos referentes a este contrato</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsAtoModalOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex' }}><X size={20} /></button>
+                        </div>
+
+                        <div style={{ padding: '1.5rem 2rem', overflowY: 'auto' }}>
+                            <form id="atoContratualForm" onSubmit={handleAtoSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) 2fr', gap: '1rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>Tipo de Ato *</label>
+                                        <select
+                                            required
+                                            value={atoFormData.act_type}
+                                            onChange={e => setAtoFormData({ ...atoFormData, act_type: e.target.value })}
+                                            style={{ width: '100%', height: '42px', padding: '0 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#f8fafc' }}
+                                        >
+                                            <option value="ADITIVO">Aditivo</option>
+                                            <option value="APOSTILAMENTO">Apostilamento</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>Data do Ato *</label>
+                                        <input
+                                            required
+                                            type="date"
+                                            value={atoFormData.act_date}
+                                            onChange={e => setAtoFormData({ ...atoFormData, act_date: e.target.value })}
+                                            style={{ width: '100%', height: '42px', padding: '0 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                        />
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>Título / Identificação do Ato *</label>
+                                    <input
+                                        required
+                                        type="text"
+                                        placeholder="Ex: 1º Termo Aditivo de Prazo"
+                                        value={atoFormData.title}
+                                        onChange={e => setAtoFormData({ ...atoFormData, title: e.target.value })}
+                                        style={{ width: '100%', height: '42px', padding: '0 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>Finalidade / Objeto *</label>
+                                    <textarea
+                                        required
+                                        rows="3"
+                                        placeholder="Descreva detalhadamente o que este ato altera ou acrescenta..."
+                                        value={atoFormData.purpose}
+                                        onChange={e => setAtoFormData({ ...atoFormData, purpose: e.target.value })}
+                                        style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                                    />
+                                </div>
+
+                                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>Início da Nova Vigência <span style={{color: '#94a3b8', fontSize: '0.75rem'}}>(opcional)</span></label>
+                                        <input
+                                            type="date"
+                                            value={atoFormData.validity_start}
+                                            onChange={e => setAtoFormData({ ...atoFormData, validity_start: e.target.value })}
+                                            style={{ width: '100%', height: '42px', padding: '0 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>Fim da Nova Vigência <span style={{color: '#94a3b8', fontSize: '0.75rem'}}>(opcional)</span></label>
+                                        <input
+                                            type="date"
+                                            value={atoFormData.validity_end}
+                                            onChange={e => setAtoFormData({ ...atoFormData, validity_end: e.target.value })}
+                                            style={{ width: '100%', height: '42px', padding: '0 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>Observações <span style={{color: '#94a3b8', fontSize: '0.75rem'}}>(opcional)</span></label>
+                                    <textarea
+                                        rows="2"
+                                        placeholder="Informações adicionais irrelevantes à finalidade principal..."
+                                        value={atoFormData.notes}
+                                        onChange={e => setAtoFormData({ ...atoFormData, notes: e.target.value })}
+                                        style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontFamily: 'inherit' }}
+                                    />
+                                </div>
+                            </form>
+                        </div>
+
+                        <div style={{ padding: '1.25rem 2rem', borderTop: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                            <button type="button" className="cd-btn-secondary" onClick={() => setIsAtoModalOpen(false)}>Cancelar</button>
+                            <button type="submit" form="atoContratualForm" className="cd-btn-primary" disabled={isSubmittingAto}>
+                                {isSubmittingAto ? 'Salvando...' : 'Salvar Ato Contratual'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Modal de Seleção de Secretaria para OF (Shared Component) */}
             <NovaOfModal 
                 isOpen={isOfOfModalOpen}
                 onClose={() => setIsOfOfModalOpen(false)}
                 initialContractId={id}
             />
+            {/* Modal de confirmação de exclusão de Ato */}
+            {isConfirmDeleteAtoModalOpen && (
+                <div className="modal-overlay">
+                    <div className="modal-content" style={{ maxWidth: '480px' }}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">
+                                <AlertTriangle size={20} style={{ color: 'var(--danger-color, #d92d20)' }} />
+                                Excluir Ato Contratual
+                            </h3>
+                            <button className="modal-close-btn" onClick={() => setIsConfirmDeleteAtoModalOpen(false)}>
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="modal-body" style={{ padding: '2rem' }}>
+                            <p style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.05rem', fontWeight: 500 }}>
+                                Tem certeza que deseja excluir este ato contratual?
+                            </p>
+                            <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)', fontSize: '0.95rem' }}>
+                                Esta ação não poderá ser desfeita.
+                            </p>
+                        </div>
+                        <div className="modal-footer">
+                            <button 
+                                className="cd-btn-secondary" 
+                                onClick={() => setIsConfirmDeleteAtoModalOpen(false)}
+                                disabled={isDeletingAto}
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                className="cd-btn-primary" 
+                                style={{ background: '#dc2626' }}
+                                onClick={confirmDeleteAto}
+                                disabled={isDeletingAto}
+                            >
+                                {isDeletingAto ? 'Excluindo...' : 'Excluir'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

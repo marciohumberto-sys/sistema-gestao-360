@@ -276,6 +276,49 @@
     border: 1px solid #e2e8f0;
 }
 
+/* Common List Tooltip */
+.cd-list-btn-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.cd-list-btn-wrapper:hover .cd-list-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.cd-list-tooltip {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%) translateY(5px);
+    background: #1e293b;
+    color: #ffffff;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.cd-list-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #1e293b;
+}
+
 .cd-header-main {
     display: flex;
     justify-content: space-between;
@@ -477,6 +520,33 @@
 .cd-btn-secondary:hover {
     background: #f8fafc;
     border-color: #94a3b8;
+}
+
+.cd-btn-ato {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #ffffff;
+    color: var(--color-secondary);
+    border: 1px solid var(--color-secondary);
+    border-radius: 10px;
+    padding: 0 1.25rem;
+    height: 44px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cd-btn-ato:hover {
+    background: #f0fdfa; /* Extremely subtle teal fill */
+    border-color: var(--color-secondary);
+    box-shadow: 0 2px 8px rgba(0, 150, 125, 0.08);
+    transform: translateY(-1px);
+}
+
+.cd-btn-ato svg {
+    color: var(--color-secondary);
 }
 
 .cd-action-icon-btn {

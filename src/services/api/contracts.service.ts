@@ -486,6 +486,78 @@ class ContractsService {
         if (error) throw error;
         return data;
     }
+
+    async createContractAct(tenantId: string, contractId: string, input: any) {
+        const payload = {
+            tenant_id: tenantId,
+            contract_id: contractId,
+            act_type: input.act_type,
+            title: input.title,
+            purpose: input.purpose,
+            act_date: input.act_date,
+            validity_start: input.validity_start || null,
+            validity_end: input.validity_end || null,
+            notes: input.notes || null
+        };
+        const { data, error } = await supabase.from('contract_acts').insert([payload]).select().single();
+        if (error) throw error;
+
+        // Inserir no histórico existente da aplicação
+        await supabase.from("contract_history").insert({
+            contract_id: contractId,
+            tenant_id: tenantId,
+            event_type: input.act_type.toLowerCase(),
+            event_title: `Novo ${input.act_type === 'ADITIVO' ? 'Aditivo' : 'Apostilamento'}: ${input.title}`,
+            event_description: input.purpose,
+            event_date: input.act_date
+        });
+
+        return data;
+    }
+
+    async listContractActs(contractId: string) {
+        const { data, error } = await supabase
+            .from('contract_acts')
+            .select('*')
+            .eq('contract_id', contractId)
+            .order('act_date', { ascending: false });
+            
+        if (error) throw error;
+        return data;
+    }
+
+    async removeContractAct(id: string) {
+        // Primeiro busca o ato para saber os detalhes que foram persistidos no histórico
+        const { data: actToDel, error: fetchError } = await supabase
+            .from('contract_acts')
+            .select('*')
+            .eq('id', id)
+            .single();
+            
+        if (fetchError || !actToDel) throw fetchError || new Error("Ato não encontrado");
+
+        const historyTitle = `Novo ${actToDel.act_type === 'ADITIVO' ? 'Aditivo' : 'Apostilamento'}: ${actToDel.title}`;
+
+        // Exclui o ato contratual
+        const { error } = await supabase
+            .from('contract_acts')
+            .delete()
+            .eq('id', id);
+            
+        if (error) throw error;
+
+        // Exclui cirurgicamente o evento correspondente no histórico (match pelos exatos campos criados)
+        await supabase
+            .from("contract_history")
+            .delete()
+            .match({
+                contract_id: actToDel.contract_id,
+                tenant_id: actToDel.tenant_id,
+                event_type: actToDel.act_type.toLowerCase(),
+                event_title: historyTitle,
+                event_date: actToDel.act_date
+            });
+    }
 }
 
 export const contractsService = new ContractsService();
