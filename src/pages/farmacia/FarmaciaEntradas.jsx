@@ -83,7 +83,16 @@ const FarmaciaEntradas = () => {
 
             let loteCalc = batchObj.batch_number || null;
             let valCalc = batchObj.expiration_date || null;
-            let obsText = m.notes || '';
+            let rawNotes = m.notes || '';
+            let obsText = rawNotes;
+            let responsavelCalc = '—';
+            
+            if (rawNotes.includes('||RESP:')) {
+                const [leftObs, rightResp] = rawNotes.split('||RESP:');
+                obsText = leftObs.trim();
+                responsavelCalc = rightResp.trim() || '—';
+            }
+
             let docCalc = null;
 
             if (obsText) {
@@ -117,7 +126,7 @@ const FarmaciaEntradas = () => {
                 validade: valCalc,
                 quantidade: m.quantity,
                 unidade: unitObj.name || 'Desconhecida',
-                responsavel: '—', // Omissão rígida de Auth UUID
+                responsavel: responsavelCalc,
                 documento: docCalc,
                 observacao: obsText
             };

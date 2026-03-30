@@ -17,12 +17,14 @@ const highlightMatch = (text, query) => {
 /**
  * MedAutocomplete — Busca orgânica ligada ao Supabase 'inventory_items'
  */
-const MedAutocomplete = ({ value, onSelect, placeholder = 'Buscar medicamento / material...', autoFocus, className = '' }) => {
+const MedAutocomplete = ({ value, onSelect, placeholder = 'Buscar medicamento / material...', autoFocus, className = '', allowAdd = false, onAddNewItem }) => {
     const [busca, setBusca]   = useState('');
     const [aberto, setAberto] = useState(false);
     const [dropdownStyles, setDropdownStyles] = useState({});
     const [sugestoes, setSugestoes] = useState([]);
     const [activeIndex, setActiveIndex] = useState(-1);
+    const [isSearching, setIsSearching] = useState(false);
+    const [hasSearched, setHasSearched] = useState(false);
     
     const wrapperRef          = useRef(null);
     const inputRef            = useRef(null);
@@ -39,7 +41,10 @@ const MedAutocomplete = ({ value, onSelect, placeholder = 'Buscar medicamento / 
     }, [autoFocus]);
 
     useEffect(() => {
-        if (!aberto) return;
+        if (!aberto) {
+            setHasSearched(false);
+            return;
+        }
         const h = e => {
             if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setAberto(false);
         };
@@ -50,8 +55,8 @@ const MedAutocomplete = ({ value, onSelect, placeholder = 'Buscar medicamento / 
     // Resgate dinâmico do Banco
     useEffect(() => {
         const fetchItems = async () => {
-
             if (busca.trim().length > 1) {
+                setIsSearching(true);
                 const { data } = await supabase
                     .from('inventory_items')
                     .select('id, name, code')
@@ -67,15 +72,25 @@ const MedAutocomplete = ({ value, onSelect, placeholder = 'Buscar medicamento / 
                     }));
                     setSugestoes(mapped);
                     setActiveIndex(-1);
+                } else {
+                    setSugestoes([]);
                 }
+                setIsSearching(false);
+                setHasSearched(true);
             } else {
                 setSugestoes([]);
                 setActiveIndex(-1);
+                setIsSearching(false);
+                setHasSearched(false);
             }
         };
 
         const timerId = setTimeout(() => fetchItems(), 350);
-        return () => clearTimeout(timerId);
+        return () => {
+            clearTimeout(timerId);
+            setIsSearching(true); // Assuming typing, avoid brief "not found" flash
+            setHasSearched(false);
+        };
     }, [busca]);
 
     useEffect(() => {
@@ -106,7 +121,7 @@ const MedAutocomplete = ({ value, onSelect, placeholder = 'Buscar medicamento / 
     };
 
     useEffect(() => {
-        if (aberto && sugestoes.length > 0) {
+        if (aberto && (sugestoes.length > 0 || (hasSearched && sugestoes.length === 0 && allowAdd))) {
             updatePosition();
             window.addEventListener('scroll', updatePosition, true);
             window.addEventListener('resize', updatePosition);
@@ -115,7 +130,7 @@ const MedAutocomplete = ({ value, onSelect, placeholder = 'Buscar medicamento / 
                 window.removeEventListener('resize', updatePosition);
             };
         }
-    }, [aberto, sugestoes.length]);
+    }, [aberto, sugestoes.length, hasSearched, allowAdd]);
 
     const handleKeyDown = (e) => {
         if (!aberto || sugestoes.length === 0) return;
@@ -206,6 +221,58 @@ const MedAutocomplete = ({ value, onSelect, placeholder = 'Buscar medicamento / 
                         </li>
                     ))}
                 </ul>,
+                document.body
+            )}
+            
+            {/* Empty State / Add New Item Block */}
+            {aberto && hasSearched && !isSearching && sugestoes.length === 0 && busca.trim().length > 1 && createPortal(
+                <div className="farmacia-autocomplete-list premium-autocomplete-list" style={{...dropdownStyles, padding: '12px', textAlign: 'center'}}>
+                    <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                        Nenhum item encontrado.
+                    </p>
+                    {allowAdd && (
+                        <button
+                            type="button"
+                            onMouseDown={(e) => {
+                                e.preventDefault(); 
+                                e.stopPropagation(); 
+                            }}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                console.log("[DEBUG] MedAutocomplete - onClick: Cadastrar novo item", busca);
+                                if (onAddNewItem) {
+                                    onAddNewItem(busca);
+                                }
+                                setAberto(false);
+                            }}
+                            style={{
+                                width: '100%',
+                                padding: '8px',
+                                background: 'rgba(0, 150, 125, 0.08)',
+                                color: 'var(--color-primary)',
+                                border: '1px solid rgba(0, 150, 125, 0.2)',
+                                borderRadius: '6px',
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px'
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.background = 'rgba(0, 150, 125, 0.15)';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.background = 'rgba(0, 150, 125, 0.08)';
+                            }}
+                        >
+                            + Cadastrar novo item
+                        </button>
+                    )}
+                </div>,
                 document.body
             )}
         </div>

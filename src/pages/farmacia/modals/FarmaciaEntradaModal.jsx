@@ -6,6 +6,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { canWriteFarmacia } from '../../../utils/farmaciaAcl';
 import MedAutocomplete from '../components/MedAutocomplete';
 import FarmaciaAlertModal from '../components/FarmaciaAlertModal';
+import CadastroRapidoItemModal from './CadastroRapidoItemModal';
 import { supabase } from '../../../lib/supabase';
 import '../FarmaciaModal.css';
 
@@ -21,6 +22,8 @@ const FarmaciaEntradaModal = ({ isOpen, onClose }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [errors, setErrors] = useState({});
     const [alertConfig, setAlertConfig] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+    const [isCadastroRapidoOpen, setIsCadastroRapidoOpen] = useState(false);
+    const [cadastroSearchText, setCadastroSearchText] = useState('');
 
     const loteRef = useRef(null);
     const valRef  = useRef(null);
@@ -101,6 +104,10 @@ const FarmaciaEntradaModal = ({ isOpen, onClose }) => {
             // 1. Contexto do Usuário
             const { data: authData } = await supabase.auth.getUser();
             const user_id = authData?.user?.id;
+            const user_meta = authData?.user?.user_metadata || {};
+            const responsible_name = user_meta.full_name
+                || user_meta.name
+                || (authData?.user?.email ? authData.user.email.split('@')[0].replace('.', ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Farmacêutico');
 
             // 2. Contexto da Unidade e Secretaria
             const { data: unitData } = await supabase.from('units')
@@ -154,7 +161,8 @@ const FarmaciaEntradaModal = ({ isOpen, onClose }) => {
                 if (form.documento?.trim()) extInfos.push(`NF/Doc: ${form.documento.trim()}`);
                 if (form.observacao?.trim()) extInfos.push(`Obs: ${form.observacao.trim()}`);
                 
-                const finalNotes = extInfos.length > 0 ? extInfos.join(' | ') : null;
+                let textNotes = extInfos.length > 0 ? extInfos.join(' | ') : '';
+                const finalNotes = textNotes ? `${textNotes}||RESP:${responsible_name}` : `||RESP:${responsible_name}`;
 
                 const payload = {
                     tenant_id: tenantId,
@@ -198,161 +206,185 @@ const FarmaciaEntradaModal = ({ isOpen, onClose }) => {
     };
 
     return (
-        <div className="farmacia-modal-overlay" onMouseDown={e => e.target === e.currentTarget && onClose(false)}>
-            <div className="farmacia-modal">
-                <div className="farmacia-modal-header">
-                    <div>
-                        <h2 className="farmacia-modal-title">Registrar Nova Entrada</h2>
-                        <span className="farmacia-modal-subtitle">Unidade: {unidadeAtiva?.label || 'UPA'}</span>
+        <>
+            <div className="farmacia-modal-overlay" onMouseDown={e => e.target === e.currentTarget && onClose(false)}>
+                <div className="farmacia-modal">
+                    <div className="farmacia-modal-header">
+                        <div>
+                            <h2 className="farmacia-modal-title">Registrar Nova Entrada</h2>
+                            <span className="farmacia-modal-subtitle">Unidade: {unidadeAtiva?.label || 'UPA'}</span>
+                        </div>
+                        <button className="farmacia-modal-close" onClick={() => onClose(false)}><X size={18} /></button>
                     </div>
-                    <button className="farmacia-modal-close" onClick={() => onClose(false)}><X size={18} /></button>
-                </div>
-                <div className="farmacia-modal-body">
-                    <div className="farmacia-modal-grid">
-                        {/* Medicamento - Largura Total */}
-                        <div className="farmacia-form-group col-span-2">
-                            <label className="farmacia-form-label farmacia-label-lg">Medicamento / Material <span style={{ color: 'var(--color-danger)', fontWeight: 'bold' }}>*</span></label>
-                            <div style={{ borderRadius: '8px', transition: 'all 0.2s ease', ...getErrorStyle(errors.med) }}>
-                                <MedAutocomplete value={med} onSelect={m => { setMed(m); setErrors(p => ({ ...p, med: null })); }} autoFocus placeholder="Buscar medicamento..." />
-                            </div>
-                            {errors.med && <span style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: 600, display: 'block', marginTop: '4px' }}>{errors.med}</span>}
-                            
-                            {/* Bloco Contextual do Medicamento - Refinado para abrigar a Identidade do Item */}
-                            {med && (
-                                <div style={{ 
-                                    marginTop: '10px', padding: '12px 14px', 
-                                    background: 'rgba(0, 150, 125, 0.04)', borderRadius: '8px', 
-                                    border: '1px solid rgba(0, 150, 125, 0.12)', fontSize: '0.8rem',
-                                    display: 'flex', flexDirection: 'column', gap: '6px', color: 'var(--text-muted)',
-                                    animation: 'farmacia-fade-in 0.2s ease-out'
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{med.descricao}</span>
-                                        {med.codigo !== '-' && <span style={{ fontFamily: 'monospace', opacity: 0.7, fontSize: '0.8rem' }}>{med.codigo}</span>}
-                                    </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', paddingTop: '2px' }}>
-                                        <div><span style={{ fontWeight: 500 }}>Estoque:</span> <strong style={{ color: 'var(--color-primary)', marginLeft: '4px' }}>156</strong></div>
-                                        <div><span style={{ fontWeight: 500 }}>Último Lote:</span> <strong style={{ color: 'var(--text-primary)', marginLeft: '4px' }}>LT-2026-065</strong></div>
-                                        <div><span style={{ fontWeight: 500 }}>Última Validade:</span> <strong style={{ color: 'var(--text-primary)', marginLeft: '4px' }}>12/2027</strong></div>
-                                    </div>
+                    <div className="farmacia-modal-body">
+                        <div className="farmacia-modal-grid">
+                            {/* Medicamento - Largura Total */}
+                            <div className="farmacia-form-group col-span-2">
+                                <label className="farmacia-form-label farmacia-label-lg">Medicamento / Material <span style={{ color: 'var(--color-danger)', fontWeight: 'bold' }}>*</span></label>
+                                <div style={{ borderRadius: '8px', transition: 'all 0.2s ease', ...getErrorStyle(errors.med) }}>
+                                    <MedAutocomplete 
+                                        value={med} 
+                                        onSelect={m => { setMed(m); setErrors(p => ({ ...p, med: null })); }} 
+                                        autoFocus 
+                                        placeholder="Buscar medicamento..." 
+                                        allowAdd={canWriteFarmacia(role)}
+                                        onAddNewItem={(searchText) => {
+                                            console.log("[DEBUG] FarmaciaEntradaModal: onAddNewItem triggered. Abrindo modal para:", searchText);
+                                            setCadastroSearchText(searchText);
+                                            setIsCadastroRapidoOpen(true);
+                                        }}
+                                    />
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Linha 1: Lote | Validade */}
-                        <div className="farmacia-form-group">
-                            <label className="farmacia-form-label">Lote <span style={{ color: 'var(--color-danger)', fontWeight: 'bold' }}>*</span></label>
-                            <input 
-                                ref={loteRef} 
-                                type="text" 
-                                name="lote" 
-                                className="farmacia-form-input" 
-                                value={form.lote} 
-                                onChange={handle} 
-                                onKeyDown={e => handleKeyDown(e, valRef)} 
-                                placeholder="Ex: LT-2026-065" 
-                                style={getErrorStyle(errors.lote)}
-                            />
-                            {errors.lote && <span style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: 600, display: 'block', marginTop: '4px' }}>{errors.lote}</span>}
-                        </div>
-                        <div className="farmacia-form-group">
-                            <label className="farmacia-form-label">Validade <span style={{ color: 'var(--color-danger)', fontWeight: 'bold' }}>*</span></label>
-                            <input 
-                                ref={valRef} 
-                                type="date" 
-                                name="validade" 
-                                className="farmacia-form-input" 
-                                value={form.validade} 
-                                onChange={handle} 
-                                onKeyDown={e => handleKeyDown(e, qtdRef)} 
-                                style={getErrorStyle(errors.validade)}
-                            />
-                            {errors.validade && <span style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: 600, display: 'block', marginTop: '4px' }}>{errors.validade}</span>}
-                        </div>
-                        
-                        {/* Linha 2: Quantidade | Documento */}
-                        <div className="farmacia-form-group">
-                            <label className="farmacia-form-label">Quantidade <span style={{ color: 'var(--color-danger)', fontWeight: 'bold' }}>*</span></label>
-                            <div className="farmacia-qty-row">
-                                <input 
-                                    ref={qtdRef} 
-                                    type="number" 
-                                    name="quantidade" 
-                                    className="farmacia-form-input" 
-                                    value={form.quantidade} 
-                                    onChange={handle} 
-                                    onKeyDown={e => handleKeyDown(e, 'submit')} 
-                                    min="1" 
-                                    style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--color-primary)', padding: '0.5rem 0.75rem', ...getErrorStyle(errors.quantidade) }}
-                                />
+                                {errors.med && <span style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: 600, display: 'block', marginTop: '4px' }}>{errors.med}</span>}
+                                
+                                {/* Bloco Contextual do Medicamento - Refinado para abrigar a Identidade do Item */}
                                 {med && (
-                                    <div className="farmacia-qty-unit-badge" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: 600 }}>
-                                        {med.unidade || 'UN'}
+                                    <div style={{ 
+                                        marginTop: '10px', padding: '12px 14px', 
+                                        background: 'rgba(0, 150, 125, 0.04)', borderRadius: '8px', 
+                                        border: '1px solid rgba(0, 150, 125, 0.12)', fontSize: '0.8rem',
+                                        display: 'flex', flexDirection: 'column', gap: '6px', color: 'var(--text-muted)',
+                                        animation: 'farmacia-fade-in 0.2s ease-out'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{med.descricao}</span>
+                                            {med.codigo !== '-' && <span style={{ fontFamily: 'monospace', opacity: 0.7, fontSize: '0.8rem' }}>{med.codigo}</span>}
+                                        </div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', paddingTop: '2px' }}>
+                                            <div><span style={{ fontWeight: 500 }}>Estoque:</span> <strong style={{ color: 'var(--color-primary)', marginLeft: '4px' }}>156</strong></div>
+                                            <div><span style={{ fontWeight: 500 }}>Último Lote:</span> <strong style={{ color: 'var(--text-primary)', marginLeft: '4px' }}>LT-2026-065</strong></div>
+                                            <div><span style={{ fontWeight: 500 }}>Última Validade:</span> <strong style={{ color: 'var(--text-primary)', marginLeft: '4px' }}>12/2027</strong></div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
-                            {errors.quantidade && <span style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: 600, display: 'block', marginTop: '4px' }}>{errors.quantidade}</span>}
-                        </div>
-                        <div className="farmacia-form-group" style={{ opacity: 0.85 }}>
-                            <label className="farmacia-form-label" style={{ fontSize: '0.68rem' }}>NF / Documento (opcional)</label>
-                            <input 
-                                ref={docRef} 
-                                type="text" 
-                                name="documento" 
-                                className="farmacia-form-input" 
-                                value={form.documento} 
-                                onChange={handle} 
-                                onKeyDown={e => handleKeyDown(e, obsRef)} 
-                                placeholder="P-12345" 
-                                style={{ fontSize: '0.85rem' }}
-                            />
-                        </div>
 
-                        {/* Linha 3: Observação em largura total */}
-                        <div className="farmacia-form-group col-span-2" style={{ opacity: 0.85 }}>
-                            <label className="farmacia-form-label" style={{ fontSize: '0.68rem' }}>Observação <span style={{ fontWeight: 400 }}>(Opcional)</span></label>
-                            <textarea 
-                                ref={obsRef} 
-                                name="observacao" 
-                                className="farmacia-form-textarea" 
-                                value={form.observacao} 
-                                onChange={handle} 
-                                onKeyDown={e => handleKeyDown(e, 'submit')} 
-                                placeholder="Observações operacionais..." 
-                                style={{ fontSize: '0.85rem', minHeight: '60px' }}
-                            />
+                            {/* Linha 1: Lote | Validade */}
+                            <div className="farmacia-form-group">
+                                <label className="farmacia-form-label">Lote <span style={{ color: 'var(--color-danger)', fontWeight: 'bold' }}>*</span></label>
+                                <input 
+                                    ref={loteRef} 
+                                    type="text" 
+                                    name="lote" 
+                                    className="farmacia-form-input" 
+                                    value={form.lote} 
+                                    onChange={handle} 
+                                    onKeyDown={e => handleKeyDown(e, valRef)} 
+                                    placeholder="Ex: LT-2026-065" 
+                                    style={getErrorStyle(errors.lote)}
+                                />
+                                {errors.lote && <span style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: 600, display: 'block', marginTop: '4px' }}>{errors.lote}</span>}
+                            </div>
+                            <div className="farmacia-form-group">
+                                <label className="farmacia-form-label">Validade <span style={{ color: 'var(--color-danger)', fontWeight: 'bold' }}>*</span></label>
+                                <input 
+                                    ref={valRef} 
+                                    type="date" 
+                                    name="validade" 
+                                    className="farmacia-form-input" 
+                                    value={form.validade} 
+                                    onChange={handle} 
+                                    onKeyDown={e => handleKeyDown(e, qtdRef)} 
+                                    style={getErrorStyle(errors.validade)}
+                                />
+                                {errors.validade && <span style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: 600, display: 'block', marginTop: '4px' }}>{errors.validade}</span>}
+                            </div>
+                            
+                            {/* Linha 2: Quantidade | Documento */}
+                            <div className="farmacia-form-group">
+                                <label className="farmacia-form-label">Quantidade <span style={{ color: 'var(--color-danger)', fontWeight: 'bold' }}>*</span></label>
+                                <div className="farmacia-qty-row">
+                                    <input 
+                                        ref={qtdRef} 
+                                        type="number" 
+                                        name="quantidade" 
+                                        className="farmacia-form-input" 
+                                        value={form.quantidade} 
+                                        onChange={handle} 
+                                        onKeyDown={e => handleKeyDown(e, 'submit')} 
+                                        min="1" 
+                                        style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--color-primary)', padding: '0.5rem 0.75rem', ...getErrorStyle(errors.quantidade) }}
+                                    />
+                                    {med && (
+                                        <div className="farmacia-qty-unit-badge" style={{ background: 'var(--bg-muted)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                            {med.unidade || 'UN'}
+                                        </div>
+                                    )}
+                                </div>
+                                {errors.quantidade && <span style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: 600, display: 'block', marginTop: '4px' }}>{errors.quantidade}</span>}
+                            </div>
+                            <div className="farmacia-form-group" style={{ opacity: 0.85 }}>
+                                <label className="farmacia-form-label" style={{ fontSize: '0.68rem' }}>NF / Documento (opcional)</label>
+                                <input 
+                                    ref={docRef} 
+                                    type="text" 
+                                    name="documento" 
+                                    className="farmacia-form-input" 
+                                    value={form.documento} 
+                                    onChange={handle} 
+                                    onKeyDown={e => handleKeyDown(e, obsRef)} 
+                                    placeholder="P-12345" 
+                                    style={{ fontSize: '0.85rem' }}
+                                />
+                            </div>
+
+                            {/* Linha 3: Observação em largura total */}
+                            <div className="farmacia-form-group col-span-2" style={{ opacity: 0.85 }}>
+                                <label className="farmacia-form-label" style={{ fontSize: '0.68rem' }}>Observação <span style={{ fontWeight: 400 }}>(Opcional)</span></label>
+                                <textarea 
+                                    ref={obsRef} 
+                                    name="observacao" 
+                                    className="farmacia-form-textarea" 
+                                    value={form.observacao} 
+                                    onChange={handle} 
+                                    onKeyDown={e => handleKeyDown(e, 'submit')} 
+                                    placeholder="Observações operacionais..." 
+                                    style={{ fontSize: '0.85rem', minHeight: '60px' }}
+                                />
+                            </div>
                         </div>
+                    </div>
+
+                    {errors.submit && (
+                        <div style={{ margin: '0 1.5rem 1rem', padding: '0.75rem', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.08)', color: 'var(--color-danger)', fontSize: '0.85rem', fontWeight: 600, border: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <AlertTriangle size={16} />
+                            {errors.submit}
+                        </div>
+                    )}
+
+                    <div className="farmacia-modal-footer">
+                        <button className="farmacia-modal-btn-cancel" onClick={() => onClose(false)} disabled={isSaving}>Cancelar</button>
+                        <button 
+                            className="farmacia-modal-btn-confirm farmacia-action-saida" 
+                            onClick={handleConfirm} 
+                            style={{ padding: '0.6rem 2rem' }}
+                            disabled={isSaving}
+                        >
+                            {isSaving ? 'Registrando...' : 'Registrar Entrada'}
+                        </button>
                     </div>
                 </div>
 
-                {errors.submit && (
-                    <div style={{ margin: '0 1.5rem 1rem', padding: '0.75rem', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.08)', color: 'var(--color-danger)', fontSize: '0.85rem', fontWeight: 600, border: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <AlertTriangle size={16} />
-                        {errors.submit}
-                    </div>
-                )}
-
-                <div className="farmacia-modal-footer">
-                    <button className="farmacia-modal-btn-cancel" onClick={() => onClose(false)} disabled={isSaving}>Cancelar</button>
-                    <button 
-                        className="farmacia-modal-btn-confirm farmacia-action-saida" 
-                        onClick={handleConfirm} 
-                        style={{ padding: '0.6rem 2rem' }}
-                        disabled={isSaving}
-                    >
-                        {isSaving ? 'Registrando...' : 'Registrar Entrada'}
-                    </button>
-                </div>
+                <FarmaciaAlertModal 
+                    isOpen={alertConfig.isOpen} 
+                    onClose={() => setAlertConfig(prev => ({ ...prev, isOpen: false }))}
+                    title={alertConfig.title}
+                    message={alertConfig.message}
+                    type={alertConfig.type}
+                />
             </div>
 
-            <FarmaciaAlertModal 
-                isOpen={alertConfig.isOpen} 
-                onClose={() => setAlertConfig(prev => ({ ...prev, isOpen: false }))}
-                title={alertConfig.title}
-                message={alertConfig.message}
-                type={alertConfig.type}
+            <CadastroRapidoItemModal
+                isOpen={isCadastroRapidoOpen}
+                onClose={() => setIsCadastroRapidoOpen(false)}
+                initialName={cadastroSearchText}
+                onSuccess={(newItem) => {
+                    setMed(newItem);
+                    setErrors(p => ({ ...p, med: null }));
+                    setIsCadastroRapidoOpen(false);
+                }}
             />
-        </div>
+        </>
     );
 };
 
