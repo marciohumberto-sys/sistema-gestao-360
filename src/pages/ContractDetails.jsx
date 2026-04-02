@@ -17,7 +17,8 @@ import {
     Trash2,
     Plus,
     FilePlus,
-    X
+    X,
+    Edit2
 } from 'lucide-react';
 import NovaOfModal from './components/NovaOfModal';
 import { contractsService } from '../services/api/contracts.service';
