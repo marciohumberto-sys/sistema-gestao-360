@@ -13,7 +13,7 @@ import '../FarmaciaModal.css';
 const def = { quantidade: '', lote: '', validade: '', documento: '', observacao: '' };
 
 const FarmaciaEntradaModal = ({ isOpen, onClose }) => {
-    const { unidadeAtiva, registrarEntrada } = useFarmacia();
+    const { unidadeAtiva, isUnitResolved, registrarEntrada } = useFarmacia();
     const { tenantId } = useTenant();
     const { tenantLink, isSuperAdmin } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
@@ -82,6 +82,12 @@ const FarmaciaEntradaModal = ({ isOpen, onClose }) => {
             return;
         }
 
+        // Bloqueia gravação se a unidade ainda não foi resolvida ou não existe
+        if (!isUnitResolved || !unidadeAtiva?.id) {
+            setErrors({ submit: 'Unidade ativa não identificada. Verifique seu perfil de acesso.' });
+            return;
+        }
+
         const newErrs = {};
         if (!med) newErrs.med = 'Selecione um medicamento';
         if (!form.quantidade || Number(form.quantidade) <= 0) newErrs.quantidade = 'Informe uma quantidade válida';
@@ -110,14 +116,15 @@ const FarmaciaEntradaModal = ({ isOpen, onClose }) => {
                 || (authData?.user?.email ? authData.user.email.split('@')[0].replace('.', ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Farmacêutico');
 
             // 2. Contexto da Unidade e Secretaria
+            // Usa o UUID real da unidade resolvida no contexto — sem busca por label
             const { data: unitData } = await supabase.from('units')
-                .select('id, secretariat_id') // Tentativa de resgatar FK direta
-                .ilike('name', unidadeAtiva?.label || 'UPA')
+                .select('id, secretariat_id')
+                .eq('id', unidadeAtiva.id)
                 .single();
 
             let targetSecretariatId = unitData?.secretariat_id;
 
-            // Se a tabela units não pussuir FK direta pra secretaria, busca a principal do Tenant como fallback
+            // Se units não tiver FK direta para secretaria, busca a principal do Tenant
             if (!targetSecretariatId) {
                 const { data: secData } = await supabase.from('secretariats')
                     .select('id')
@@ -212,7 +219,7 @@ const FarmaciaEntradaModal = ({ isOpen, onClose }) => {
                     <div className="farmacia-modal-header">
                         <div>
                             <h2 className="farmacia-modal-title">Registrar Nova Entrada</h2>
-                            <span className="farmacia-modal-subtitle">Unidade: {unidadeAtiva?.label || 'UPA'}</span>
+                            <span className="farmacia-modal-subtitle">Unidade: {unidadeAtiva?.label || '...'}</span>
                         </div>
                         <button className="farmacia-modal-close" onClick={() => onClose(false)}><X size={18} /></button>
                     </div>

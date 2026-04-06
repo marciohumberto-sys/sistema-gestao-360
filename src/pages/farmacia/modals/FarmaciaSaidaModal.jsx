@@ -10,7 +10,7 @@ import { supabase } from '../../../lib/supabase';
 import '../FarmaciaModal.css';
 
 const FarmaciaSaidaModal = ({ isOpen, onClose }) => {
-    const { unidadeAtiva } = useFarmacia();
+    const { unidadeAtiva, isUnitResolved } = useFarmacia();
     const { tenantId } = useTenant();
     const { tenantLink, isSuperAdmin } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
@@ -64,22 +64,20 @@ const FarmaciaSaidaModal = ({ isOpen, onClose }) => {
     // Cálculo Tático de Saldo - Real Data
     useEffect(() => {
         const fetchBalance = async () => {
-            if (med?.id && unidadeAtiva?.label) {
+            if (med?.id && unidadeAtiva?.id) {
                 setIsFetchingBalance(true);
                 try {
-                    const { data: unitData } = await supabase.from('units').select('id').ilike('name', unidadeAtiva.label).single();
-                    if (unitData) {
-                        const { data: moves } = await supabase.from('stock_movements')
-                            .select('quantity')
-                            .eq('inventory_item_id', med.id)
-                            .eq('unit_id', unitData.id);
-                        
-                        if (moves) {
-                            const dbBalance = moves.reduce((sum, mv) => sum + mv.quantity, 0);
-                            setEstoqueReal(dbBalance);
-                        } else {
-                            setEstoqueReal(0);
-                        }
+                    // Usa UUID direto — sem busca por label
+                    const { data: moves } = await supabase.from('stock_movements')
+                        .select('quantity')
+                        .eq('inventory_item_id', med.id)
+                        .eq('unit_id', unidadeAtiva.id);
+                    
+                    if (moves) {
+                        const dbBalance = moves.reduce((sum, mv) => sum + mv.quantity, 0);
+                        setEstoqueReal(dbBalance);
+                    } else {
+                        setEstoqueReal(0);
                     }
                 } catch(e) {
                     console.error('Falha ao auditar saldo base.', e);
@@ -111,6 +109,12 @@ const FarmaciaSaidaModal = ({ isOpen, onClose }) => {
             return;
         }
 
+        // Bloqueia gravação se a unidade ainda não foi resolvida ou não existe
+        if (!isUnitResolved || !unidadeAtiva?.id) {
+            setErrors({ submit: 'Unidade ativa não identificada. Verifique seu perfil de acesso.' });
+            return;
+        }
+
         const newErrs = {};
         if (!med) newErrs.med = 'Selecione um medicamento';
         if (!qty || Number(qty) <= 0) newErrs.quantidade = 'Informe uma quantidade válida';
@@ -135,9 +139,10 @@ const FarmaciaSaidaModal = ({ isOpen, onClose }) => {
                 || (authData?.user?.email ? authData.user.email.split('@')[0].replace('.', ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Farmacêutico');
 
             // Contexto da Unidade e Secretaria
+            // Usa UUID direto — sem busca por label
             const { data: unitData } = await supabase.from('units')
                 .select('id, secretariat_id')
-                .ilike('name', unidadeAtiva?.label || 'UPA')
+                .eq('id', unidadeAtiva.id)
                 .single();
 
             let targetSecretariatId = unitData?.secretariat_id;
@@ -198,7 +203,7 @@ const FarmaciaSaidaModal = ({ isOpen, onClose }) => {
                 <div className="farmacia-modal-header">
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <h2 className="farmacia-modal-title" style={{ fontSize: '1.25rem' }}>Dispensação de Medicamentos</h2>
-                        <span className="farmacia-modal-subtitle">Unidade: <strong style={{ color: 'var(--color-primary)' }}>{unidadeAtiva?.label || 'Farmácia Central'}</strong></span>
+                        <span className="farmacia-modal-subtitle">Unidade: <strong style={{ color: 'var(--color-primary)' }}>{unidadeAtiva?.label || '...'}</strong></span>
                     </div>
                     <button className="farmacia-modal-close" onClick={() => onClose(false)}><X size={18} /></button>
                 </div>

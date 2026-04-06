@@ -13,7 +13,7 @@ import '../FarmaciaModal.css';
 const def = { quantidadeAnterior: '', quantidadeAjustada: '', motivo: '', observacao: '' };
 
 const FarmaciaAjusteModal = ({ isOpen, onClose }) => {
-    const { unidadeAtiva, estoqueLocal } = useFarmacia();
+    const { unidadeAtiva, isUnitResolved, estoqueLocal } = useFarmacia();
     const { tenantId } = useTenant();
     const { tenantLink, isSuperAdmin } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
@@ -56,21 +56,19 @@ const FarmaciaAjusteModal = ({ isOpen, onClose }) => {
 
     useEffect(() => {
         const fetchBalance = async () => {
-            if (med?.id && unidadeAtiva?.label) {
+            if (med?.id && unidadeAtiva?.id) {
                 try {
-                    const { data: unitData } = await supabase.from('units').select('id').ilike('name', unidadeAtiva.label).single();
-                    if (unitData) {
-                        const { data: moves } = await supabase.from('stock_movements')
-                            .select('quantity')
-                            .eq('inventory_item_id', med.id)
-                            .eq('unit_id', unitData.id);
-                        
-                        if (moves) {
-                            const dbBalance = moves.reduce((sum, mv) => sum + mv.quantity, 0);
-                            setForm(prev => ({ ...prev, quantidadeAnterior: String(dbBalance) }));
-                        } else {
-                            setForm(prev => ({ ...prev, quantidadeAnterior: '0' }));
-                        }
+                    // Usa UUID direto para buscar o saldo da unidade correta
+                    const { data: moves } = await supabase.from('stock_movements')
+                        .select('quantity')
+                        .eq('inventory_item_id', med.id)
+                        .eq('unit_id', unidadeAtiva.id);
+                    
+                    if (moves) {
+                        const dbBalance = moves.reduce((sum, mv) => sum + mv.quantity, 0);
+                        setForm(prev => ({ ...prev, quantidadeAnterior: String(dbBalance) }));
+                    } else {
+                        setForm(prev => ({ ...prev, quantidadeAnterior: '0' }));
                     }
                 } catch(e) {
                     console.error('Falha ao auditar saldo base.', e);
@@ -93,6 +91,12 @@ const FarmaciaAjusteModal = ({ isOpen, onClose }) => {
             return;
         }
 
+        // Bloqueia gravação se a unidade ainda não foi resolvida ou não existe
+        if (!isUnitResolved || !unidadeAtiva?.id) {
+            showAlert('Unidade não identificada', 'Sua unidade ativa não foi identificada. Verifique seu perfil de acesso.', 'error');
+            return;
+        }
+
         if (!med || !form.quantidadeAjustada || !form.motivo) return;
         
         const diff = (parseFloat(form.quantidadeAjustada) || 0) - (parseFloat(form.quantidadeAnterior) || 0);
@@ -108,9 +112,10 @@ const FarmaciaAjusteModal = ({ isOpen, onClose }) => {
             const { data: authData } = await supabase.auth.getUser();
             const user_id = authData?.user?.id;
 
+            // Usa UUID direto — sem busca por label para evitar ambiguidade
             const { data: unitData } = await supabase.from('units')
                 .select('id, secretariat_id')
-                .ilike('name', unidadeAtiva?.label || 'UPA')
+                .eq('id', unidadeAtiva.id)
                 .single();
 
             let targetSecretariatId = unitData?.secretariat_id;
@@ -185,7 +190,7 @@ const FarmaciaAjusteModal = ({ isOpen, onClose }) => {
                 <div className="farmacia-modal-header">
                     <div>
                         <h2 className="farmacia-modal-title">Novo Ajuste</h2>
-                        <span className="farmacia-modal-subtitle">Ajuste em {unidadeAtiva?.label || 'UPA'}</span>
+                        <span className="farmacia-modal-subtitle">Ajuste em {unidadeAtiva?.label || '...'}</span>
                     </div>
                     <button className="farmacia-modal-close" onClick={() => onClose(false)}><X size={18} /></button>
                 </div>
