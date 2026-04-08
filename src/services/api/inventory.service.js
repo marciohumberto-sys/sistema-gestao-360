@@ -115,5 +115,47 @@ export const inventoryService = {
         }
 
         return finalData;
+    },
+
+    /**
+     * Fluxo Edição: Atualiza os dados de um item existente
+     */
+    async updateItemFast(itemId, payload, tenantId) {
+        if (!payload.name) throw new Error("Nome do item é obrigatório.");
+        
+        const normalizedName = payload.name.trim().replace(/\s+/g, ' ').toUpperCase();
+
+        // 1. Checar duplicidade de nome (ignora colisão com o próprio item)
+        const { data: existing } = await supabase
+            .from('inventory_items')
+            .select('id')
+            .eq('tenant_id', tenantId)
+            .ilike('name', normalizedName)
+            .neq('id', itemId)
+            .limit(1);
+
+        if (existing && existing.length > 0) {
+            throw new Error("Já existe outro item com esse nome.");
+        }
+
+        const updatePayload = {
+            ...payload,
+            name: normalizedName
+        };
+
+        const { data, error } = await supabase
+            .from('inventory_items')
+            .update(updatePayload)
+            .eq('id', itemId)
+            .eq('tenant_id', tenantId)
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Erro ao atualizar item:", error);
+            throw new Error("Falha ao atualizar o item.");
+        }
+
+        return data;
     }
 };

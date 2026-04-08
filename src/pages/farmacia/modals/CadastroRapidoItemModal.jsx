@@ -6,7 +6,7 @@ import { inventoryService } from '../../../services/api/inventory.service';
 import { supabase } from '../../../lib/supabase';
 import '../FarmaciaModal.css';
 
-const CadastroRapidoItemModal = ({ isOpen, onClose, onSuccess, initialName = '' }) => {
+const CadastroRapidoItemModal = ({ isOpen, onClose, onSuccess, initialName = '', mode = 'create', itemData = null }) => {
     const { tenantId } = useTenant();
     const [categories, setCategories] = useState([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -27,24 +27,41 @@ const CadastroRapidoItemModal = ({ isOpen, onClose, onSuccess, initialName = '' 
     // Toggle advanced section
     const [showAdvanced, setShowAdvanced] = useState(false);
 
+    const isEdit = mode === 'edit';
+
     useEffect(() => {
         if (isOpen) {
-            setFormData({
-                name: initialName,
-                item_type: 'MEDICAMENTO',
-                category_id: '',
-                unit_of_measure: 'UN',
-                controls_batch: true,
-                controls_expiration: true,
-                minimum_stock: '',
-                item_form: '',
-                notes: ''
-            });
-            setShowAdvanced(false);
+            if (isEdit && itemData) {
+                setFormData({
+                    name: itemData.descricao || itemData.name || '',
+                    item_type: itemData.item_type || 'MEDICAMENTO',
+                    category_id: itemData.category_id || '',
+                    unit_of_measure: itemData.unidade_medida || itemData.unit_of_measure || 'UN',
+                    controls_batch: itemData.controls_batch !== undefined ? itemData.controls_batch : true,
+                    controls_expiration: itemData.controls_expiration !== undefined ? itemData.controls_expiration : true,
+                    minimum_stock: itemData.estoqueMinimo || itemData.minimum_stock || '',
+                    item_form: itemData.formato || itemData.item_form || '',
+                    notes: itemData.notes || ''
+                });
+                setShowAdvanced(true);
+            } else {
+                setFormData({
+                    name: initialName,
+                    item_type: 'MEDICAMENTO',
+                    category_id: '',
+                    unit_of_measure: 'UN',
+                    controls_batch: true,
+                    controls_expiration: true,
+                    minimum_stock: '',
+                    item_form: '',
+                    notes: ''
+                });
+                setShowAdvanced(false);
+            }
             setErrors({});
             fetchCategories();
         }
-    }, [isOpen, initialName, tenantId]);
+    }, [isOpen, initialName, itemData, mode, tenantId]);
 
     const fetchCategories = async () => {
         try {
@@ -106,14 +123,25 @@ const CadastroRapidoItemModal = ({ isOpen, onClose, onSuccess, initialName = '' 
                 notes: formData.notes
             };
 
-            const newItem = await inventoryService.createItemFast(payload);
+            let resultItem;
+            if (isEdit && itemData) {
+                // Remove some values from payload not updated or update standard mode
+                const updatePayload = { ...payload };
+                resultItem = await inventoryService.updateItemFast(itemData.id, updatePayload, tenantId);
+            } else {
+                resultItem = await inventoryService.createItemFast(payload);
+            }
             
             // Map the item the same way MedAutocomplete maps the suggestions
+            // Plus keep the raw fields updated for FarmaciaEstoque cache merge
             const mappedItem = {
-                id: newItem.id,
-                codigo: newItem.code || '-',
-                descricao: newItem.name,
-                unidade: newItem.unit_of_measure || 'UN'
+                ...resultItem,
+                id: resultItem.id,
+                codigo: resultItem.code || '-',
+                descricao: resultItem.name,
+                unidade: resultItem.unit_of_measure || 'UN',
+                unit_of_measure: resultItem.unit_of_measure,
+                item_form: resultItem.item_form
             };
 
             onSuccess(mappedItem);
@@ -130,8 +158,8 @@ const CadastroRapidoItemModal = ({ isOpen, onClose, onSuccess, initialName = '' 
             <div className="farmacia-modal" style={{ maxWidth: '500px' }}>
                 <div className="farmacia-modal-header" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-light)' }}>
                     <div>
-                        <h2 className="farmacia-modal-title" style={{ fontSize: '1.15rem' }}>Cadastrar Novo Item</h2>
-                        <span className="farmacia-modal-subtitle">Cadastro rápido (Módulo Farmácia)</span>
+                        <h2 className="farmacia-modal-title" style={{ fontSize: '1.15rem' }}>{isEdit ? 'Editar Item' : 'Cadastrar Novo Item'}</h2>
+                        <span className="farmacia-modal-subtitle">{isEdit ? 'Alterar configurações do item' : 'Cadastro rápido (Módulo Farmácia)'}</span>
                     </div>
                     <button className="farmacia-modal-close" onClick={onClose} disabled={isSaving}>
                         <X size={18} />
@@ -189,14 +217,27 @@ const CadastroRapidoItemModal = ({ isOpen, onClose, onSuccess, initialName = '' 
 
                         <div className="farmacia-form-group">
                             <label className="farmacia-form-label">Unidade de Medida <span style={{ color: 'var(--color-danger)' }}>*</span></label>
-                            <input 
-                                type="text" 
+                            <select 
                                 name="unit_of_measure" 
                                 className="farmacia-form-input" 
                                 value={formData.unit_of_measure} 
                                 onChange={handleChange} 
-                                placeholder="Ex: CX, FR, UN" 
-                            />
+                                style={errors.unit_of_measure ? { borderColor: 'var(--color-danger)' } : {}}
+                            >
+                                {formData.unit_of_measure && !['UN', 'CX', 'FR', 'AMP', 'PCT', 'RL', 'KIT', 'ML', 'L'].includes(formData.unit_of_measure) && (
+                                    <option value={formData.unit_of_measure}>{formData.unit_of_measure} (Legado)</option>
+                                )}
+                                <option value="UN">UN</option>
+                                <option value="CX">CX</option>
+                                <option value="FR">FR</option>
+                                <option value="AMP">AMP</option>
+                                <option value="PCT">PCT</option>
+                                <option value="RL">RL</option>
+                                <option value="KIT">KIT</option>
+                                <option value="ML">ML</option>
+                                <option value="L">L</option>
+                            </select>
+                            {errors.unit_of_measure && <span style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: 600 }}>{errors.unit_of_measure}</span>}
                         </div>
 
                         {/* Seção Opcional */}
@@ -295,7 +336,7 @@ const CadastroRapidoItemModal = ({ isOpen, onClose, onSuccess, initialName = '' 
                         disabled={isSaving}
                     >
                         <Save size={16} />
-                        {isSaving ? 'Cadastrando...' : 'Cadastrar novo item'}
+                        {isSaving ? (isEdit ? 'Salvando...' : 'Cadastrando...') : (isEdit ? 'Salvar alterações' : 'Cadastrar novo item')}
                     </button>
                 </div>
             </div>

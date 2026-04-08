@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Package, AlertTriangle, XCircle, Calendar, ChevronDown, Plus, Minus, Menu, ArrowUpDown, Ban } from 'lucide-react';
+import { Search, Package, AlertTriangle, XCircle, Calendar, ChevronDown, Plus, Minus, Menu, ArrowUpDown, Ban, Pencil } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessFarmacia, canWriteFarmacia } from '../../utils/farmaciaAcl';
 import { supabase } from '../../lib/supabase';
 import { useFarmacia } from './FarmaciaContext';
 import FarmaciaUnitBadge from './FarmaciaUnitBadge';
+import CadastroRapidoItemModal from './modals/CadastroRapidoItemModal';
 import './FarmaciaPages.css';
 
 // Calcula data limite para alertas de validade (60 dias conforme novo requisito)
@@ -27,6 +28,10 @@ const FarmaciaEstoque = () => {
     const { unidadeAtiva, setOpenModal } = useFarmacia();
     const [animated, setAnimated] = useState(false);
     
+    // Modal Edit State
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [itemToEdit, setItemToEdit] = useState(null);
+
     const [busca, setBusca] = useState('');
     const [unidadeFiltro, setUnidadeFiltro] = useState(unidadeAtiva?.label || 'Todos');
     const [statusFiltro, setStatusFiltro] = useState('Todos');
@@ -51,8 +56,8 @@ const FarmaciaEstoque = () => {
                     { data: batches },
                     { data: units }
                 ] = await Promise.all([
-                    supabase.from('inventory_items').select('id, name, code, item_form, minimum_stock, is_active'),
-                    supabase.from('stock_movements').select('id, inventory_item_id, movement_type, quantity, batch_id, unit_id, created_at, created_by').eq('notes', 'massa_fake_dashboard').order('created_at', { ascending: false }),
+                    supabase.from('inventory_items').select('id, name, code, item_form, minimum_stock, is_active, item_type, category_id, unit_of_measure, controls_batch, controls_expiration, notes'),
+                    supabase.from('stock_movements').select('id, inventory_item_id, movement_type, quantity, batch_id, unit_id, created_at, created_by').order('created_at', { ascending: false }),
                     supabase.from('item_batches').select('id, inventory_item_id, expiration_date, batch_number'),
                     supabase.from('units').select('id, name')
                 ]);
@@ -93,8 +98,7 @@ const FarmaciaEstoque = () => {
         const batchBalance = {};
         
         validMovements.forEach(m => {
-            const qty = Number(m.quantity) || 0;
-            const net = m.movement_type === 'ENTRY' ? qty : -qty;
+            const net = Number(m.quantity) || 0; // DB already stores exits natively as negative
             itemBalance[m.inventory_item_id] = (itemBalance[m.inventory_item_id] || 0) + net;
             if (m.batch_id) {
                 batchBalance[m.batch_id] = (batchBalance[m.batch_id] || 0) + net;
@@ -129,7 +133,8 @@ const FarmaciaEstoque = () => {
                 id: item.id,
                 descricao: item.name,
                 codigo: item.code || null,
-                unidade: item.item_form || null,
+                unidade_medida: item.unit_of_measure || null,
+                formato: item.item_form || null,
                 estoqueAtual: bAtual,
                 estoqueMinimo: bMinimo,
                 validade: minDateObj,
@@ -350,7 +355,7 @@ const FarmaciaEstoque = () => {
                                 </th>
                                 <th style={{ width: '8%' }}>Unidade</th>
                                 <th style={{ width: '14%' }}>Status</th>
-                                <th style={{ textAlign: 'center', width: '12%' }}>Ações</th>
+                                <th style={{ textAlign: 'right', width: '12%' }}>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -385,7 +390,7 @@ const FarmaciaEstoque = () => {
                                                     <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', lineHeight: 1.2 }}>
                                                         {item.descricao}
                                                     </span>
-                                                    {(item.codigo || item.unidade) && (
+                                                    {(item.codigo || item.item_type || item.unidade_medida || item.formato) && (
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                             {item.codigo && (
                                                                 <span style={{
@@ -401,7 +406,7 @@ const FarmaciaEstoque = () => {
                                                                     {item.codigo}
                                                                 </span>
                                                             )}
-                                                            {item.unidade && (
+                                                            {item.item_type && (
                                                                 <span style={{
                                                                     fontSize: '0.65rem',
                                                                     backgroundColor: 'var(--bg-body)',
@@ -412,7 +417,34 @@ const FarmaciaEstoque = () => {
                                                                     border: '1px solid var(--border)',
                                                                     letterSpacing: '0.02em',
                                                                 }}>
-                                                                    {item.unidade}
+                                                                    {item.item_type === 'MATERIAL' || item.item_type === 'INSUMO' ? 'MATERIAL/INSUMO' : item.item_type}
+                                                                </span>
+                                                            )}
+                                                            {item.unidade_medida && (
+                                                                <span style={{
+                                                                    fontSize: '0.65rem',
+                                                                    backgroundColor: 'var(--bg-body)',
+                                                                    color: '#6b7280',
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '4px',
+                                                                    fontWeight: 600,
+                                                                    border: '1px solid var(--border)',
+                                                                }}>
+                                                                    {item.unidade_medida}
+                                                                </span>
+                                                            )}
+                                                            {item.formato && (
+                                                                <span style={{
+                                                                    fontSize: '0.65rem',
+                                                                    backgroundColor: 'var(--bg-body)',
+                                                                    color: '#64748b',
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '4px',
+                                                                    fontWeight: 600,
+                                                                    border: '1px solid var(--border)',
+                                                                    letterSpacing: '0.02em',
+                                                                }}>
+                                                                    {item.formato}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -462,9 +494,10 @@ const FarmaciaEstoque = () => {
                                                 >
                                                     {isZerado ? 'SEM ESTOQUE' : (isAbaixoMin ? 'ABAIXO DO MÍNIMO' : 'NORMAL')}
                                                 </span>
-                                                                 <td style={{ textAlign: 'center' }}>
+                                            </td>
+                                            <td style={{ padding: '0.5rem 1rem' }}>
                                                 {canWriteFarmacia(role) ? (
-                                                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', whiteSpace: 'nowrap' }}>
                                                         <button className="farmacia-action-icon" onClick={(e) => { e.stopPropagation(); setOpenModal('entrada'); }}>
                                                             <Plus size={16} />
                                                             <span className="premium-tooltip">Entrada rápida</span>
@@ -477,12 +510,21 @@ const FarmaciaEstoque = () => {
                                                             <Menu size={16} />
                                                             <span className="premium-tooltip">Mais opções</span>
                                                         </button>
+                                                        <button className="farmacia-action-icon" onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            setItemToEdit(item);
+                                                            setEditModalOpen(true);
+                                                        }}>
+                                                            <Pencil size={16} />
+                                                            <span className="premium-tooltip">Editar produto</span>
+                                                        </button>
                                                     </div>
                                                 ) : (
-                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Somente leitura</span>
+                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', whiteSpace: 'nowrap' }}>
+                                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Somente leitura</span>
+                                                    </div>
                                                 )}
                                             </td>
-                             </td>
                                         </tr>
                                     );
                                 })
@@ -514,9 +556,14 @@ const FarmaciaEstoque = () => {
                                         {itemFoco.codigo && (
                                             <span className="farmacia-code-badge" style={{ margin: 0 }}>{itemFoco.codigo}</span>
                                         )}
-                                        {itemFoco.unidade && (
+                                        {itemFoco.formato && (
                                             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                                                Forma: {itemFoco.unidade}
+                                                Forma: {itemFoco.formato}
+                                            </span>
+                                        )}
+                                        {itemFoco.unidade_medida && (
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                                Unidade: {itemFoco.unidade_medida}
                                             </span>
                                         )}
                                     </div>
@@ -570,7 +617,7 @@ const FarmaciaEstoque = () => {
                                                         </div>
                                                     </div>
                                                     <div style={{ textAlign: 'right' }}>
-                                                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: isEntry ? '#16a34a' : '#dc2626' }}>{isEntry ? '+' : '-'}{mov.quantity} {itemFoco.unidade}</div>
+                                                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: isEntry ? '#16a34a' : '#dc2626' }}>{isEntry ? '+' : '-'}{mov.quantity} {itemFoco.unidade_medida || 'UN'}</div>
                                                         <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{new Date(mov.created_at).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}</div>
                                                     </div>
                                                 </div>
@@ -583,6 +630,36 @@ const FarmaciaEstoque = () => {
                     </div>
                 </div>
             )}
+
+            {/* Modal de Edição Herdado */}
+            <CadastroRapidoItemModal
+                isOpen={editModalOpen}
+                onClose={() => { setEditModalOpen(false); setItemToEdit(null); }}
+                mode="edit"
+                itemData={itemToEdit}
+                onSuccess={(updatedItem) => {
+                    setEditModalOpen(false);
+                    setItemToEdit(null);
+                    // Atualiza localmente a cache
+                    setRawData(prev => ({
+                        ...prev,
+                        items: prev.items.map(i => i.id === updatedItem.id ? { 
+                            ...i, 
+                            name: updatedItem.descricao, 
+                            unit_of_measure: updatedItem.unit_of_measure,
+                            item_form: updatedItem.item_form,
+                            category_id: updatedItem.category_id,
+                            item_type: updatedItem.item_type,
+                            controls_batch: updatedItem.controls_batch,
+                            controls_expiration: updatedItem.controls_expiration,
+                            minimum_stock: updatedItem.minimum_stock,
+                            notes: updatedItem.notes
+                        } : i)
+                    }));
+                    // E se fosse possível, chamar fetchRealData() silenciosamente. 
+                    // Como não extraímos p/ func externa a ref, rely on reactive update.
+                }}
+            />
         </div>
     );
 };

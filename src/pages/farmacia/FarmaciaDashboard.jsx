@@ -1047,21 +1047,16 @@ const FarmaciaDashboard = () => {
                                             }}
                                                 onMouseEnter={e => e.currentTarget.style.background = isHighlight ? 'var(--bg-muted)' : 'var(--bg-muted-light)'}
                                                 onMouseLeave={e => e.currentTarget.style.background = isHighlight ? 'var(--bg-muted)' : 'transparent'}>
-                                                <td className="farmacia-td-muted" style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                                                <td className="farmacia-td-muted" style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                     {new Date(mov.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                                                 </td>
-                                                <td style={{ padding: '0.5rem 1rem' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <span className={`farmacia-badge badge-tipo badge-tipo-${mov.tipo.toLowerCase()}`}
-                                                            style={{ fontSize: '0.7rem', padding: '0.12rem 0.4rem' }}>
-                                                            {mov.tipo}
-                                                        </span>
-                                                        {isHighlight && (
-                                                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--color-primary)', background: 'rgba(59, 130, 246, 0.1)', padding: '2px 4px', borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Maior</span>
-                                                        )}
-                                                    </div>
+                                                <td style={{ padding: '0.5rem 1rem', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                                    <span className={`farmacia-badge badge-tipo badge-tipo-${mov.tipo.toLowerCase()}`}
+                                                        style={{ fontSize: '0.7rem', padding: '0.12rem 0.4rem', flexShrink: 0 }}>
+                                                        {mov.tipo}
+                                                    </span>
                                                 </td>
-                                                <td className="farmacia-td-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.84rem', fontWeight: isHighlight ? 700 : 500 }}>
+                                                <td className="farmacia-td-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.84rem', fontWeight: 500, overflow: 'hidden' }}>
                                                     <div style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mov.medicamento}>
                                                         {mov.medicamento}
                                                     </div>
@@ -1077,8 +1072,17 @@ const FarmaciaDashboard = () => {
                                                 }} title={mov.responsavel}>
                                                     {mov.responsavel}
                                                 </td>
-                                                <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 700, fontSize: '0.85rem', color: mov.quantidade > 0 ? '#00967D' : '#ea580c' }}>
-                                                    {mov.quantidade > 0 ? '+' : ''}{mov.quantidade}
+                                                <td style={{ padding: '0.5rem 1rem', overflow: 'hidden' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                                                        <span style={{ fontWeight: 700, fontSize: '0.85rem', color: mov.quantidade > 0 ? '#00967D' : '#ea580c', whiteSpace: 'nowrap' }}>
+                                                            {mov.quantidade > 0 ? '+' : ''}{mov.quantidade}
+                                                        </span>
+                                                        {isHighlight && (
+                                                            <span style={{ fontSize: '0.62rem', fontWeight: 500, color: 'var(--text-muted)', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                                                                maior do dia
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
