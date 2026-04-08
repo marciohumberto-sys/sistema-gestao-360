@@ -3,8 +3,13 @@
 .empenho-details-container {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-    padding-bottom: 2rem;
+    gap: 1.25rem; /* Gap levemente reduzido para coesão */
+    padding-bottom: 1rem;
+    overflow-y: auto; /* Scroll "global" da página do empenho */
+    overflow-x: hidden;
+    /* Ajuste cirúrgico para a barra de rolagem colar na borda direita: */
+    margin-right: -1.5rem; 
+    padding-right: 1.5rem;
 }
 
 .ed-header-card {
@@ -67,7 +72,7 @@
     display: flex;
     gap: 2rem;
     border-bottom: 1px solid #e2e8f0;
-    margin-top: 1rem;
+    margin-top: 0.25rem; /* Ajuste cirúrgico: reduzido para evitar espaçamento duplo com o gap do container */
 }
 
 .ed-tab {
@@ -98,8 +103,62 @@
     background: #ffffff;
     border-radius: 16px;
     border: 1px solid #e2e8f0;
-    padding: 1.5rem 2rem;
-    min-height: 300px;
+    /* Ajuste Micro: Top 0.75rem, Laterais mais justas 0.5rem, Bottom nulo/0.25rem */
+    padding: 0.75rem 0.5rem 0.25rem 0.5rem; 
+    height: auto;
+    min-height: auto; /* Remove min-height: 300px limitante */
+    overflow: visible;
+    /* Anula parte do "gap" global do flex container puxando o card levemente pra cima (mais perto das abas) */
+    margin-top: -0.5rem; 
+}
+
+/* 
+ * Ajuste dos Summary Cards para forçar a permanência na mesma linha 
+ * e dar resize adequado flexível. 
+ */
+.empenho-details-container .summary-cards-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 0.875rem !important;
+}
+
+.empenho-details-container .summary-card {
+    min-width: 0 !important; /* Desativa min-width de componentes genéricos */
+    padding: 1rem 0.85rem !important; /* Padding mais enxuto */
+}
+
+/* Força nowrap nos labels de valores dos cards superores para não quebrarem o layout */
+.empenho-details-container .summary-card-value {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    font-size: 1.05rem !important; /* Levemente menor para acomodar valores altos confortavelmente */
+}
+
+/* Remover barra de rolagem e limitação de altura da tabela */
+.empenho-details-container .data-table-wrapper {
+    overflow: visible !important;
+    max-height: none !important;
+    min-height: auto !important; /* Garante fechamento do container junto dos dados */
+    height: auto !important;
+    border: none !important;
+    background: transparent !important; /* Evita quadros brancos residuais por baixo da tabela se houver gap */
+}
+
+/* Aumentar espaçamento e respiro das linhas na tabela (refinado) */
+.empenho-details-container .data-table td {
+    padding-top: 0.625rem !important;
+    padding-bottom: 0.625rem !important;
+}
+
+.empenho-details-container .data-table th {
+    padding-top: 0.625rem !important;
+    padding-bottom: 0.625rem !important;
+}
+
+/* Coluna de Ação (Ícone) encostada na borda direita do card */
+.empenho-details-container .data-table th:last-child,
+.empenho-details-container .data-table td:last-child {
+    padding-right: 0.25rem !important;
 }
 
 .movement-type-badge {

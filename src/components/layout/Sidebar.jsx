@@ -208,7 +208,7 @@ const Sidebar = ({ isPinned, togglePin }) => {
                         <Plus size={18} strokeWidth={2.5} className="footer-icon" />
                         <span className="footer-btn-label">Nova OF</span>
                     </button>
-                    <button className="footer-btn btn-secondary" title={!isPinned ? "Registrar Nota Fiscal" : ""} onClick={() => navigate('/compras/notas-fiscais')}>
+                    <button className="footer-btn btn-secondary" title={!isPinned ? "Registrar Nota Fiscal" : ""} onClick={() => navigate('/compras/notas-fiscais', { state: { openModal: 'nova-nf' } })}>
                         <FilePlus size={18} strokeWidth={2} className="footer-icon" />
                         <span className="footer-btn-label">Registrar NF</span>
                     </button>

@@ -44,6 +44,13 @@ const EmpenhoDetails = () => {
         return () => { isMounted = false; };
     }, [id, tenantId]);
 
+    useEffect(() => {
+        if (!isLoading) {
+            console.log('[DEBUG] movimentacoes.length:', movements.length);
+            console.log('[DEBUG] ofsVinculadas.length:', linkedOfs.length);
+        }
+    }, [isLoading, movements, linkedOfs]);
+
     const handleCreateOf = async () => {
         if (!commitment || isCreatingOf) return;
         setIsCreatingOf(true);
@@ -257,7 +264,8 @@ const EmpenhoDetails = () => {
                             <p>Este empenho ainda não possui histórico financeiro.</p>
                         </div>
                     ) : (
-                        <table className="data-table" style={{ width: '100%' }}>
+                        <div className="data-table-wrapper">
+                            <table className="data-table" style={{ width: '100%' }}>
                             <thead>
                                 <tr>
                                     <th>Data</th>
@@ -358,6 +366,7 @@ const EmpenhoDetails = () => {
                                 })()}
                             </tbody>
                         </table>
+                        </div>
                     )
                 )}
 
@@ -369,8 +378,9 @@ const EmpenhoDetails = () => {
                             <p>Este empenho ainda não foi utilizado para emissão de Ordens de Fornecimento.</p>
                         </div>
                     ) : (
-                        <table className="data-table" style={{ width: '100%' }}>
-                            <thead>
+                        <div className="data-table-wrapper">
+                            <table className="data-table" style={{ width: '100%' }}>
+                                <thead>
                                 <tr>
                                     <th>Número</th>
                                     <th>Status</th>
@@ -406,6 +416,7 @@ const EmpenhoDetails = () => {
                                 ))}
                             </tbody>
                         </table>
+                        </div>
                     )
                 )}
             </div>
