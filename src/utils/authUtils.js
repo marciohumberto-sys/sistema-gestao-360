@@ -8,44 +8,56 @@ export const normalizeEmail = (login, pathname, moduleContext) => {
     
     // Regras prioritárias (Exceções Fixas)
     if (trimmedLogin === 'marcio.humberto') {
-        const normalized = 'marcio.humberto@gmail.com';
-        console.log(`[AUTH DEBUG] Login Normalizado (Exceção Marcio): ${login} -> ${normalized}`);
-        return normalized;
+        console.log(`[AUTH DEBUG] Login Normalizado (Exceção Marcio)`);
+        return ['marcio.humberto@gmail.com'];
     }
 
     if (trimmedLogin === 'samara.raquel') {
-        const normalized = 'samara.raquel@compras.local';
-        console.log(`[AUTH DEBUG] Login Normalizado (Exceção Samara): ${login} -> ${normalized}`);
-        return normalized;
+        console.log(`[AUTH DEBUG] Login Normalizado (Exceção Samara)`);
+        return ['samara.raquel@compras.local'];
     }
 
-    // Priorizar context explícito (passado por state do ProtectedRoute ou manually)
+    // 1. Priorizar context explícito (passado por state do ProtectedRoute ou URL pura)
     let domain = '';
     let contextName = '';
 
     if (moduleContext === 'COMPRAS' || pathname?.includes('/compras')) {
         domain = '@compras.local';
-        contextName = 'Compras';
+        contextName = 'Compras (Rota/Contexto)';
     } else if (moduleContext === 'FARMACIA' || pathname?.includes('/farmacia')) {
         domain = '@farmacia.local';
-        contextName = 'Farmácia';
+        contextName = 'Farmácia (Rota/Contexto)';
     }
 
-    // Se nenhum contexto for detectado, ainda assim não podemos retornar vazio para o Supabase
-    // então usaremos Farmácia como último recurso, mas logando o "chute".
+    // 2. Se contexto primário falhar, tentamos o localStorage
     if (!domain) {
-        domain = '@farmacia.local';
-        contextName = 'Não detectado (Fallback Farmácia)';
+        const lastModule = localStorage.getItem('last_module');
+        if (lastModule === 'COMPRAS') {
+            domain = '@compras.local';
+            contextName = 'Compras (Storage)';
+        } else if (lastModule === 'FARMACIA') {
+            domain = '@farmacia.local';
+            contextName = 'Farmácia (Storage)';
+        }
+    }
+
+    console.log(`[AUTH DEBUG] Login Digitado: ${login}`);
+    console.log(`[AUTH DEBUG] Rota / Contexto Solicitado: ${pathname || 'Vazio'} / ${moduleContext || 'Vazio'}`);
+
+    // 3. Se AINDA assim não houver domínio explícito (ex: aba anônima), NÃO FORÇAR farmacia.
+    // Em vez de mascarar a intenção do usuário, devolvemos listagem estrita pra fallback duplo e controlado.
+    if (!domain) {
+        console.log(`[AUTH DEBUG] Situação sem contexto. Preparando fallback inteligente duplo.`);
+        const fallbackList = [`${trimmedLogin}@compras.local`, `${trimmedLogin}@farmacia.local`];
+        console.log(`[AUTH DEBUG] Logando com array de contingência: ${fallbackList.join(', ')}`);
+        return fallbackList;
     }
 
     const normalizedEmail = `${trimmedLogin}${domain}`;
-    console.log(`[AUTH DEBUG] Login Digitado: ${login}`);
-    console.log(`[AUTH DEBUG] Pathname de Referência: ${pathname || 'Nenhum'}`);
-    console.log(`[AUTH DEBUG] Contexto Real Recebido: ${moduleContext || 'Nenhum'}`);
-    console.log(`[AUTH DEBUG] Domínio Escolhido: ${domain}`);
+    console.log(`[AUTH DEBUG] Domínio Resolvido Explicitamente via [${contextName}]: ${domain}`);
     console.log(`[AUTH DEBUG] Login Normalizado Final: ${normalizedEmail}`);
     
-    return normalizedEmail;
+    return [normalizedEmail];
 };
 
 export const getPostLoginRedirectPath = (tenantLink, isSuperAdmin, accessibleModules, userEmail) => {

@@ -47,17 +47,45 @@ const Login = () => {
         try {
             const moduleContext = location.state?.moduleContext;
             const fromPathname = location.state?.from?.pathname;
-            const emailFormatted = normalizeEmail(loginStr, fromPathname, moduleContext);
+            const emailsToTry = normalizeEmail(loginStr, fromPathname, moduleContext);
             
-            await authService.login(emailFormatted, password);
-            // O auth listener no AuthContext atualizará o estado automaticamente e disparará o redirect
-        } catch (err) {
-            console.error('Erro no login:', err);
-            if (err.message === 'Invalid login credentials') {
-                setErrorMsg('Usuário ou senha incorretos.');
-            } else {
-                setErrorMsg('Ocorreu um erro ao tentar fazer login na base do Supabase.');
+            let lastError = null;
+            let success = false;
+
+            for (let i = 0; i < emailsToTry.length; i++) {
+                const currentEmail = emailsToTry[i];
+                console.log(`[AUTH DEBUG] Tentativa ${i + 1}/${emailsToTry.length} com email: ${currentEmail}`);
+                
+                try {
+                    await authService.login(currentEmail, password);
+                    success = true;
+                    console.log(`[AUTH DEBUG] Sucesso na tentativa com o email: ${currentEmail}`);
+                    break; // Sucesso: listener do AuthContext atualizará o estado e disparará o redirect
+                } catch (err) {
+                    lastError = err;
+                    if (err.message === 'Invalid login credentials' || err.code === 'invalid_credentials') {
+                        console.log(`[AUTH DEBUG] Falha na tentativa com ${currentEmail}. Erro: credenciais inválidas.`);
+                        // Se houver mais e-mails no array (fallback), o loop continua. Se acabou, vai pro fim.
+                    } else {
+                        // Erro estrutural ou de rede (timeout, banco offline), não fará fallback cego. Rejeita.
+                        console.error(`[AUTH DEBUG] Erro não mapeável durante a tentativa com ${currentEmail}:`, err);
+                        throw err;
+                    }
+                }
             }
+
+            // Após verificar as possibilidades (seja 1 ou dupla)
+            if (!success && lastError) {
+                if (lastError.message === 'Invalid login credentials' || lastError.code === 'invalid_credentials') {
+                    setErrorMsg('Usuário ou senha incorretos.');
+                } else {
+                    setErrorMsg('Ocorreu um erro ao tentar fazer login na base do Supabase.');
+                }
+                setLoading(false);
+            }
+        } catch (err) {
+            console.error('[AUTH DEBUG] Erro fatal no fluxo de login:', err);
+            setErrorMsg('Ocorreu um erro grave ao comunicar com a plataforma.');
             setLoading(false);
         }
     };
