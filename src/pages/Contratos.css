@@ -248,28 +248,30 @@
 
 /* Hard locking the column sizes */
 .data-table th:nth-child(1) {
-    width: 16% !important;
+    width: 41% !important;
 }
 
 .data-table th:nth-child(2) {
-    width: 31% !important;
+    width: 23% !important;
 }
 
 .data-table th:nth-child(3) {
-    width: 16% !important;
+    width: 10% !important;
 }
 
 .data-table th:nth-child(4) {
-    width: 18% !important;
-}
-
-.data-table th:nth-child(5) {
     width: 12% !important;
 }
 
-.data-table th:nth-child(6) {
-    width: 7% !important;
+.data-table th:nth-child(5) {
+    width: 8% !important;
+}
+
+.data-table th:nth-child(6),
+.data-table td:nth-child(6) {
+    width: 6% !important;
     text-align: right;
+    padding-left: 1rem !important;
 }
 
 .data-table td {
