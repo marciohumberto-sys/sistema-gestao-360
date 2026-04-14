@@ -18,7 +18,8 @@ import {
     Plus,
     FilePlus,
     X,
-    Edit2
+    Edit2,
+    ShieldAlert
 } from 'lucide-react';
 import NovaOfModal from './components/NovaOfModal';
 import { contractsService } from '../services/api/contracts.service';
