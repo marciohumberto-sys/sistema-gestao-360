@@ -142,7 +142,7 @@ class OFsService {
                     secretariat:secretariats(name)
                 ), 
                 secretariat:secretariats(name), 
-                items:of_items(*, contract_item:contract_items(item_number)), 
+                items:of_items(*, contract_item:contract_items(item_number, marca)), 
                 commitment:commitments(id, number, current_balance, status)
             `)
             .eq('id', id)
@@ -260,6 +260,52 @@ class OFsService {
                 unit_price_snapshot: updates.unit_price_snapshot
             })
             .eq('id', itemId)
+            .eq('tenant_id', tenantId);
+
+        if (error) throw error;
+    }
+
+    async deleteOf(ofId: string, tenantId: string): Promise<void> {
+        if (!tenantId) throw new Error("tenant_id is required");
+
+        // 1. Check if any of_items for this OF have linked invoice_items
+        //    (FK: invoice_items.of_item_id -> of_items.id)
+        const { data: ofItemIds, error: idsError } = await supabase
+            .from('of_items')
+            .select('id')
+            .eq('of_id', ofId)
+            .eq('tenant_id', tenantId);
+
+        if (idsError) throw new Error('Erro ao verificar itens da OF.');
+
+        if (ofItemIds && ofItemIds.length > 0) {
+            const ids = ofItemIds.map((r: any) => r.id);
+            const { data: linkedInvoiceItems, error: linkError } = await supabase
+                .from('invoice_items')
+                .select('id')
+                .in('of_item_id', ids)
+                .limit(1);
+
+            if (linkError) throw new Error('Erro ao verificar vínculos de notas fiscais.');
+
+            if (linkedInvoiceItems && linkedInvoiceItems.length > 0) {
+                throw new Error('Não é possível excluir este rascunho porque existem itens de nota fiscal vinculados.');
+            }
+        }
+
+        // 2. Safe to delete: remove items first, then the OF
+        const { error: itemsError } = await supabase
+            .from('of_items')
+            .delete()
+            .eq('of_id', ofId)
+            .eq('tenant_id', tenantId);
+
+        if (itemsError) throw itemsError;
+
+        const { error } = await supabase
+            .from('ofs')
+            .delete()
+            .eq('id', ofId)
             .eq('tenant_id', tenantId);
 
         if (error) throw error;

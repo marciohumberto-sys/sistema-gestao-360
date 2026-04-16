@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, FileText, TrendingUp, Eye, FileCheck, AlertCircle, PlayCircle, XCircle, MoreVertical, Plus } from 'lucide-react';
+import { Search, FileText, TrendingUp, Eye, FileCheck, AlertCircle, PlayCircle, XCircle, MoreVertical, Plus, Trash2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ofsService } from '../services/api/ofs.service';
 import { contractsService } from '../services/api/contracts.service';
@@ -37,6 +37,7 @@ const OrdensFornecimento = () => {
     const [openActionMenuId, setOpenActionMenuId] = useState(null);
     const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
     const [isNovaOfModalOpen, setIsNovaOfModalOpen] = useState(false);
+    const [ofToDelete, setOfToDelete] = useState(null); // id of OF to delete
 
     // Listen to route state to open modal automatically
     useEffect(() => {
@@ -161,6 +162,29 @@ const OrdensFornecimento = () => {
         } finally {
             setIsSubmitting(false);
             setOpenActionMenuId(null);
+        }
+    };
+
+    const handleDeleteOf = async (ofId) => {
+        setOpenActionMenuId(null);
+        setOfToDelete(ofId);
+    };
+
+    const confirmDeleteOf = async () => {
+        if (!ofToDelete) return;
+        try {
+            setIsSubmitting(true);
+            await ofsService.deleteOf(ofToDelete, tenantId);
+            setOfToDelete(null);
+            setFeedback({ type: 'success', message: 'Rascunho de OF excluído com sucesso!' });
+            setTimeout(() => setFeedback(null), 3000);
+            await loadData();
+        } catch (error) {
+            console.error('Erro ao excluir OF:', error);
+            setOfToDelete(null);
+            setFeedback({ type: 'error', message: error.message || 'Erro ao excluir o rascunho.' });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -469,6 +493,23 @@ const OrdensFornecimento = () => {
                                                                     </button>
                                                                 )}
 
+                                                                {of.status === 'DRAFT' && (
+                                                                    <>
+                                                                        <div style={{ height: '1px', background: '#f1f5f9', margin: '2px 0' }} />
+                                                                        <button 
+                                                                            onClick={(e) => { e.stopPropagation(); handleDeleteOf(of.id); }}
+                                                                            disabled={isSubmitting}
+                                                                            style={{
+                                                                                display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 16px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.875rem', color: '#b91c1c', opacity: isSubmitting ? 0.5 : 1
+                                                                            }}
+                                                                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
+                                                                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                                        >
+                                                                            <Trash2 size={16} /> Excluir Rascunho
+                                                                        </button>
+                                                                    </>
+                                                                )}
+
                                                                 {of.status === 'ISSUED' && (
                                                                     <button 
                                                                         onClick={(e) => { e.stopPropagation(); handleCancelOf(of.id); }}
@@ -510,6 +551,36 @@ const OrdensFornecimento = () => {
                 isOpen={isNovaOfModalOpen}
                 onClose={() => setIsNovaOfModalOpen(false)}
             />
+
+            {/* Modal Confirmar Exclusão de Rascunho */}
+            {ofToDelete && (
+                <div className="modal-overlay" onClick={() => setOfToDelete(null)}>
+                    <div className="modal-content" style={{ maxWidth: '400px' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ padding: '2rem', textAlign: 'center' }}>
+                            <div style={{ background: '#fef2f2', width: '64px', height: '64px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto', color: '#ef4444' }}>
+                                <Trash2 size={32} />
+                            </div>
+                            <h3 style={{ margin: '0 0 0.75rem 0', color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: 700 }}>Excluir rascunho de OF?</h3>
+                            <p style={{ margin: '0 0 2rem 0', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.6' }}>
+                                Tem certeza que deseja excluir este rascunho? Esta ação não pode ser desfeita.
+                            </p>
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setOfToDelete(null)} disabled={isSubmitting}>
+                                    Cancelar
+                                </button>
+                                <button
+                                    className="btn-primary"
+                                    style={{ flex: 1, background: '#ef4444', color: 'white', border: 'none' }}
+                                    onClick={confirmDeleteOf}
+                                    disabled={isSubmitting}
+                                >
+                                    {isSubmitting ? 'Excluindo...' : 'Excluir rascunho'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -251,12 +251,13 @@ const OfPreview = () => {
                     <table className="items-table">
                         <thead>
                             <tr>
-                                <th style={{ width: '50px' }}>Item</th>
+                                <th style={{ width: '45px' }}>Item</th>
                                 <th>Discriminação</th>
-                                <th style={{ width: '80px' }}>Acond.</th>
-                                <th style={{ width: '60px' }}>Qtd. Total</th>
-                                <th style={{ width: '100px' }}>Val. Unit.</th>
-                                <th style={{ width: '110px' }}>Val. Total</th>
+                                <th style={{ width: '90px' }}>Marca</th>
+                                <th style={{ width: '75px' }}>Acond.</th>
+                                <th style={{ width: '55px' }}>Qtd.</th>
+                                <th style={{ width: '95px' }}>Val. Unit.</th>
+                                <th style={{ width: '105px' }}>Val. Total</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -264,6 +265,7 @@ const OfPreview = () => {
                                 <tr key={item.id}>
                                     <td style={{ textAlign: 'center' }}>{item.contract_item?.item_number || item.item_number || '-'}</td>
                                     <td>{item.description}</td>
+                                    <td style={{ textAlign: 'center' }}>{item.contract_item?.marca || item.marca_snapshot || '-'}</td>
                                     <td style={{ textAlign: 'center' }}>{item.unit}</td>
                                     <td style={{ textAlign: 'center' }}>{item.quantity}</td>
                                     <td style={{ textAlign: 'right' }}>{formatCurrency(item.unit_price)}</td>
@@ -273,7 +275,7 @@ const OfPreview = () => {
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colSpan="5" style={{ textAlign: 'right', fontWeight: 'bold' }}>TOTAL GERAL</td>
+                                <td colSpan="6" style={{ textAlign: 'right', fontWeight: 'bold' }}>TOTAL GERAL</td>
                                 <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(ofData.total_amount)}</td>
                             </tr>
                         </tfoot>

@@ -40,6 +40,7 @@ const OfDetails = () => {
     const [isSignatoryModalOpen, setIsSignatoryModalOpen] = useState(false);
     const [selectedSignatory, setSelectedSignatory] = useState(null);
     const [signatoryContext, setSignatoryContext] = useState('emission'); // 'emission' or 'preview'
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
 
     const loadData = async () => {
         if (!tenantId || !id) return;
@@ -158,6 +159,27 @@ const OfDetails = () => {
         }
     };
 
+    const handleDeleteOf = async () => {
+        setShowDeleteModal(true);
+    };
+
+    const confirmDeleteOf = async () => {
+        try {
+            setIsSubmitting(true);
+            setShowDeleteModal(false);
+            await ofsService.deleteOf(id, tenantId);
+            setFeedback({ type: 'success', message: 'OF excluída com sucesso!' });
+            setTimeout(() => {
+                navigate('/compras/contratos');
+            }, 1000);
+        } catch (error) {
+            console.error(error);
+            setFeedback({ type: 'error', message: error.message || 'Erro ao excluir a OF.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     const handleAddItem = async (e) => {
         e.preventDefault();
         try {
@@ -176,25 +198,35 @@ const OfDetails = () => {
             }
 
             const allocatedQty = Number(allocation.quantity_allocated || 0);
-            
-            // Calculate consumed from other OFs
+            // Calculate consumed from other OFs (finding all matched items, not just the first one)
             let consumedQty = 0;
             otherOfs.forEach(of => {
                 if (of.id === id) return; // Skip current OF
-                const item = of.items?.find(i => i.contract_item_id === selectedContractItemId);
-                if (item) {
-                    consumedQty += Number(item.quantity || 0);
-                }
+                const matched = of.items?.filter(i => i.contract_item_id === selectedContractItemId) || [];
+                matched.forEach(i => consumedQty += Number(i.quantity || 0));
             });
 
+            // ALSO add consumption from CURRENT OF's other rows
+            if (ofData && ofData.items) {
+                const currentOfMatched = ofData.items.filter(i => i.contract_item_id === selectedContractItemId && i.id !== editItemId);
+                currentOfMatched.forEach(it => consumedQty += Number(it.quantity || 0));
+            }
+
+            // Always validate if requested Qty surpasses what's left
             if (editItemId) {
                 const currentItem = ofData.items.find(i => i.id === editItemId);
-                // If quantity hasn't increased, no need for intensive balance check
                 if (requestedQty > (currentItem?.quantity || 0)) {
                     if (allocatedQty - consumedQty < requestedQty) {
-                        throw new Error(`Quantidade informada excede o saldo disponível deste item no contrato (Disponível: ${allocatedQty - consumedQty}).`);
+                        throw new Error(`Quantidade informada excede o saldo disponível deste item no contrato (Disponível: ${Math.max(0, allocatedQty - consumedQty)}).`);
                     }
                 }
+            } else {
+                if (allocatedQty - consumedQty < requestedQty) {
+                    throw new Error(`Quantidade informada excede o saldo disponível deste item no contrato (Disponível: ${Math.max(0, allocatedQty - consumedQty)}).`);
+                }
+            }
+
+            if (editItemId) {
 
                 await ofsService.updateOfItem(editItemId, tenantId, {
                     ...newItemObj,
@@ -627,15 +659,26 @@ const OfDetails = () => {
                             {(items.length === 0) && (
                                 <span style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 500 }}>Adicione ao menos um item para emitir a OF.</span>
                             )}
-                            <button 
-                                className="btn-primary" 
-                                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                                onClick={handleIssueOf}
-                                disabled={isSubmitting || items.length === 0 || !commitment}
-                                title={!commitment ? "Vincule um empenho antes de emitir" : (items.length === 0 ? "Adicione ao menos um item antes de emitir" : "")}
-                            >
-                                <Play size={16} fill="currentColor" /> {isSubmitting ? 'Emitindo...' : 'Emitir Reserva (OF)'}
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                <button 
+                                    className="btn-secondary" 
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#b91c1c', borderColor: '#fca5a5', background: '#fef2f2' }}
+                                    onClick={handleDeleteOf}
+                                    disabled={isSubmitting}
+                                    title="Excluir este rascunho permanentemente"
+                                >
+                                    <Trash2 size={15} /> Excluir Rascunho
+                                </button>
+                                <button 
+                                    className="btn-primary" 
+                                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                                    onClick={handleIssueOf}
+                                    disabled={isSubmitting || items.length === 0 || !commitment}
+                                    title={!commitment ? "Vincule um empenho antes de emitir" : (items.length === 0 ? "Adicione ao menos um item antes de emitir" : "")}
+                                >
+                                    <Play size={16} fill="currentColor" /> {isSubmitting ? 'Emitindo...' : 'Emitir Reserva (OF)'}
+                                </button>
+                            </div>
                         </div>
                     )}
                     
@@ -723,12 +766,18 @@ const OfDetails = () => {
                                                         const alloc = allocations.find(a => a.contract_item_id === newItemObj.contract_item_id);
                                                         if (!alloc) return '0';
                                                         let consumed = 0;
+                                                        // Other OFs (same contract + secretariat)
                                                         otherOfs.forEach(of => {
-                                                            if (of.id === id) return;
-                                                            const it = of.items?.find(i => i.contract_item_id === newItemObj.contract_item_id);
-                                                            if (it) consumed += Number(it.quantity || 0);
+                                                            if (of.id === id) return; // skip current OF
+                                                            const matched = of.items?.filter(i => i.contract_item_id === newItemObj.contract_item_id) || [];
+                                                            matched.forEach(x => consumed += Number(x.quantity || 0));
                                                         });
-                                                        return Math.floor(Number(alloc.quantity_allocated || 0) - consumed);
+                                                        // Other rows in the CURRENT OF (excluding the item being edited)
+                                                        if (ofData && ofData.items) {
+                                                            const currentOfMatched = ofData.items.filter(i => i.contract_item_id === newItemObj.contract_item_id && i.id !== editItemId);
+                                                            currentOfMatched.forEach(it => consumed += Number(it.quantity || 0));
+                                                        }
+                                                        return Math.max(0, Math.floor(Number(alloc.quantity_allocated || 0) - consumed));
                                                     })()}
                                                 </span>
                                             </div>
@@ -870,6 +919,36 @@ const OfDetails = () => {
                                     : (isSubmitting ? 'Emitindo...' : 'Confirmar e Emitir OF')
                                 }
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Confirmar Exclusão de Rascunho */}
+            {showDeleteModal && (
+                <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }} onClick={() => setShowDeleteModal(false)}>
+                    <div className="modal-content" style={{ background: 'white', borderRadius: '12px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ padding: '2rem', textAlign: 'center' }}>
+                            <div style={{ background: '#fef2f2', width: '64px', height: '64px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto', color: '#ef4444' }}>
+                                <Trash2 size={32} />
+                            </div>
+                            <h3 style={{ margin: '0 0 0.75rem 0', color: '#0f172a', fontSize: '1.25rem', fontWeight: 700 }}>Excluir rascunho de OF?</h3>
+                            <p style={{ margin: '0 0 2rem 0', color: '#475569', fontSize: '0.95rem', lineHeight: '1.6' }}>
+                                Tem certeza que deseja excluir este rascunho? Esta ação não pode ser desfeita.
+                            </p>
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowDeleteModal(false)} disabled={isSubmitting}>
+                                    Cancelar
+                                </button>
+                                <button
+                                    className="btn-primary"
+                                    style={{ flex: 1, background: '#ef4444', color: 'white', border: 'none' }}
+                                    onClick={confirmDeleteOf}
+                                    disabled={isSubmitting}
+                                >
+                                    {isSubmitting ? 'Excluindo...' : 'Excluir rascunho'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
