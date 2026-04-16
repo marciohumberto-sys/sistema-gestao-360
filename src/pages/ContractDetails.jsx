@@ -68,9 +68,10 @@ const ContractDetails = () => {
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
     const [isSubmittingItem, setIsSubmittingItem] = useState(false);
     const [itemFormData, setItemFormData] = useState({
-        item_number: '', description: '', brand: '', unit: '', unit_price: '', total_quantity: ''
+        item_number: '', description: '', marca: '', unit: '', unit_price: '', total_quantity: '', legacy_consumed_quantity: ''
     });
     const [editingItemId, setEditingItemId] = useState(null);
+    const [hasLegacyConsumption, setHasLegacyConsumption] = useState(false);
 
     // Rateio UI State
     const [allocationForm, setAllocationForm] = useState({}); // { secretariatId: quantity }
@@ -639,10 +640,11 @@ const ContractDetails = () => {
                 contract_id: id,
                 item_number: itemFormData.item_number,
                 description: itemFormData.description,
-                brand: itemFormData.brand,
+                marca: itemFormData.marca,
                 unit: itemFormData.unit,
                 unit_price: parseFloat(itemFormData.unit_price) || 0,
-                total_quantity: parseFloat(itemFormData.total_quantity) || 0
+                total_quantity: parseFloat(itemFormData.total_quantity) || 0,
+                legacy_consumed_quantity: parseFloat(itemFormData.legacy_consumed_quantity) || 0
             };
 
             if (editingItemId) {
@@ -669,7 +671,8 @@ const ContractDetails = () => {
 
     const handleQuickAddItem = () => {
         setActiveTab('itens');
-        setItemFormData({ item_number: '', description: '', brand: '', unit: '', unit_price: '', total_quantity: '' });
+        setItemFormData({ item_number: '', description: '', marca: '', unit: '', unit_price: '', total_quantity: '', legacy_consumed_quantity: '' });
+        setHasLegacyConsumption(false);
         setEditingItemId(null);
         setIsItemModalOpen(true);
     };
@@ -1510,7 +1513,8 @@ const ContractDetails = () => {
                             <div className="cd-tab-panel-header">
                                 <h3>Itens do Contrato</h3>
                                 <button className="cd-btn-primary" onClick={() => {
-                                    setItemFormData({ item_number: '', description: '', brand: '', unit: '', unit_price: '', total_quantity: '' });
+                                    setItemFormData({ item_number: '', description: '', marca: '', unit: '', unit_price: '', total_quantity: '', legacy_consumed_quantity: '' });
+                                    setHasLegacyConsumption(false);
                                     setEditingItemId(null);
                                     setIsItemModalOpen(true);
                                 }}>
@@ -1544,7 +1548,7 @@ const ContractDetails = () => {
                                                 items.map(item => {
                                                     const allocSum = allocationsSummaryByItemId[item.id] || 0;
                                                     const qTotal = item.total_quantity || 0;
-                                                    const diff = qTotal - allocSum;
+                                                    const diff = qTotal - (item.legacy_consumed_quantity || 0) - allocSum;
                                                     const isPending = qTotal > 0 && diff !== 0;
 
                                                     const qReserved = reservedQuantityPerItem[item.id] || 0;
@@ -1568,9 +1572,9 @@ const ContractDetails = () => {
                                                                     <div style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: '0.875rem', lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.description}>
                                                                         {item.description}
                                                                     </div>
-                                                                    {item.brand && (
+                                                                    {item.marca && (
                                                                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                                                                            Marca: {item.brand}
+                                                                            Marca: {item.marca}
                                                                         </div>
                                                                     )}
                                                                 </td>
@@ -1603,11 +1607,13 @@ const ContractDetails = () => {
                                                                                 setItemFormData({
                                                                                     item_number: item.item_number || '',
                                                                                     description: item.description,
-                                                                                    brand: item.brand || '',
+                                                                                    marca: item.marca || '',
                                                                                     unit: item.unit || '',
                                                                                     unit_price: item.unit_price || '',
-                                                                                    total_quantity: item.total_quantity || ''
+                                                                                    total_quantity: item.total_quantity || '',
+                                                                                    legacy_consumed_quantity: item.legacy_consumed_quantity || ''
                                                                                 });
+                                                                                setHasLegacyConsumption(!!item.legacy_consumed_quantity && item.legacy_consumed_quantity > 0);
                                                                                 setEditingItemId(item.id);
                                                                                 setIsItemModalOpen(true);
                                                                             }}
@@ -1686,7 +1692,7 @@ const ContractDetails = () => {
                                                 const val = parseInt(allocationForm[sec.id], 10);
                                                 totalAlocado += isNaN(val) ? 0 : val;
                                             });
-                                            const diff = Math.round(((item.total_quantity || 0) - totalAlocado) * 100) / 100;
+                                            const diff = Math.round(((item.total_quantity || 0) - (item.legacy_consumed_quantity || 0) - totalAlocado) * 100) / 100;
 
                                             return (
                                                 <div style={{ display: 'flex', gap: '1rem', background: '#f8fafc', padding: '0.6rem 1rem', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '0.75rem', flexShrink: 0 }}>
@@ -1733,7 +1739,7 @@ const ContractDetails = () => {
                                                 }
                                             });
 
-                                            const diff = (item.total_quantity || 0) - totalAlocado;
+                                            const diff = (item.total_quantity || 0) - (item.legacy_consumed_quantity || 0) - totalAlocado;
                                             const isSaveDisabled = (item.total_quantity > 0 && diff !== 0) || isSavingAllocations;
 
                                             const handleAddAllocation = () => {
@@ -1878,7 +1884,7 @@ const ContractDetails = () => {
                                     {(() => {
                                         let totalAlocado = 0;
                                         Object.values(allocationForm).forEach(val => totalAlocado += (parseInt(val, 10) || 0));
-                                        const diff = Math.round(((item.total_quantity || 0) - totalAlocado) * 100) / 100;
+                                        const diff = Math.round(((item.total_quantity || 0) - (item.legacy_consumed_quantity || 0) - totalAlocado) * 100) / 100;
                                         const isSaveDisabled = (item.total_quantity > 0 && diff !== 0) || isSavingAllocations;
                                         return (
                                             <button
@@ -1960,7 +1966,7 @@ const ContractDetails = () => {
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                                 </button>
                             </div>
-                            <form onSubmit={submitItemModal} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                            <form onSubmit={submitItemModal} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Nº do Item (opcional)</label>
                                     <input style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)' }} type="number" step="1" min="0" value={itemFormData.item_number} onChange={e => {
@@ -1971,7 +1977,7 @@ const ContractDetails = () => {
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Descrição (obrigatório)</label>
                                     <textarea
-                                        style={{ width: '100%', minHeight: '100px', padding: '0.75rem 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit' }}
+                                        style={{ width: '100%', minHeight: '80px', padding: '0.75rem 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit' }}
                                         required
                                         value={itemFormData.description}
                                         onChange={e => setItemFormData({ ...itemFormData, description: e.target.value })}
@@ -1980,7 +1986,7 @@ const ContractDetails = () => {
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Marca (opcional)</label>
-                                    <input style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)' }} type="text" placeholder="Ex: Multilaser, Dell, etc." value={itemFormData.brand} onChange={e => setItemFormData({ ...itemFormData, brand: e.target.value })} />
+                                    <input style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)' }} type="text" placeholder="Ex: Multilaser, Dell, etc." value={itemFormData.marca} onChange={e => setItemFormData({ ...itemFormData, marca: e.target.value })} />
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', alignItems: 'flex-end' }}>
                                     <div>
@@ -2005,19 +2011,59 @@ const ContractDetails = () => {
                                         />
                                     </div>
                                 </div>
-                                <div style={{ margin: '0.5rem 0', padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ marginTop: '0.25rem' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={hasLegacyConsumption} 
+                                            onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                setHasLegacyConsumption(checked);
+                                                if (!checked) {
+                                                    setItemFormData(prev => ({ ...prev, legacy_consumed_quantity: '' }));
+                                                }
+                                            }}
+                                            style={{ width: '14px', height: '14px', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
+                                        />
+                                        <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-primary)' }}>Item já possui consumo anterior</span>
+                                    </label>
+                                    
+                                    {hasLegacyConsumption && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '1rem', alignItems: 'flex-end', marginTop: '0.75rem', animation: 'fadeIn 0.2s ease-in-out' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.375rem' }}>Quantidade já consumida</label>
+                                                <input style={{ width: '100%', height: '38px', padding: '0 0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', color: 'var(--text-primary)', textAlign: 'center', fontSize: '0.875rem' }} type="number" step="1" min="0" value={itemFormData.legacy_consumed_quantity} onChange={e => {
+                                                    const val = parseInt(e.target.value, 10);
+                                                    setItemFormData({ ...itemFormData, legacy_consumed_quantity: isNaN(val) ? '' : val });
+                                                }} />
+                                            </div>
+                                            <div style={{ padding: '0 0.75rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '38px' }}>
+                                                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Disponível para rateio:</span>
+                                                <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                                    {Math.max(0, (parseFloat(itemFormData.total_quantity) || 0) - (parseFloat(itemFormData.legacy_consumed_quantity) || 0))}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ marginTop: '0.25rem', padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Total estimado:</span>
                                     <span style={{ fontSize: '1.125rem', color: 'var(--text-primary)', fontWeight: 600 }}>
                                         {formatExactCurrency((parseFloat(itemFormData.total_quantity) || 0) * (parseFloat(itemFormData.unit_price) || 0))}
                                     </span>
                                 </div>
+                                {(hasLegacyConsumption && parseFloat(itemFormData.legacy_consumed_quantity) > parseFloat(itemFormData.total_quantity)) && (
+                                    <div style={{ fontSize: '0.8125rem', color: '#dc2626', fontWeight: 500, textAlign: 'right' }}>
+                                        A quantidade já consumida não pode ser maior que a quantidade total.
+                                    </div>
+                                )}
                                 <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
                                     <button type="button" className="cd-btn-secondary" onClick={() => setIsItemModalOpen(false)}>Cancelar</button>
                                     <button
                                         type="submit"
                                         className="cd-btn-primary"
-                                        disabled={isSubmittingItem || !itemFormData.description?.trim() || !itemFormData.unit?.trim() || !itemFormData.total_quantity || parseFloat(itemFormData.total_quantity) <= 0 || !itemFormData.unit_price || parseFloat(itemFormData.unit_price) <= 0}
-                                        style={{ opacity: (isSubmittingItem || !itemFormData.description?.trim() || !itemFormData.unit?.trim() || !itemFormData.total_quantity || parseFloat(itemFormData.total_quantity) <= 0 || !itemFormData.unit_price || parseFloat(itemFormData.unit_price) <= 0) ? 0.6 : 1 }}
+                                        disabled={isSubmittingItem || !itemFormData.description?.trim() || !itemFormData.unit?.trim() || !itemFormData.total_quantity || parseFloat(itemFormData.total_quantity) <= 0 || !itemFormData.unit_price || parseFloat(itemFormData.unit_price) <= 0 || (hasLegacyConsumption && parseFloat(itemFormData.legacy_consumed_quantity) > parseFloat(itemFormData.total_quantity))}
+                                        style={{ opacity: (isSubmittingItem || !itemFormData.description?.trim() || !itemFormData.unit?.trim() || !itemFormData.total_quantity || parseFloat(itemFormData.total_quantity) <= 0 || !itemFormData.unit_price || parseFloat(itemFormData.unit_price) <= 0 || (hasLegacyConsumption && parseFloat(itemFormData.legacy_consumed_quantity) > parseFloat(itemFormData.total_quantity))) ? 0.6 : 1 }}
                                     >
                                         {isSubmittingItem ? 'Salvando...' : 'Salvar Item'}
                                     </button>

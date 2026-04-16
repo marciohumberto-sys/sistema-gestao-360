@@ -9,6 +9,8 @@ export interface ContractItem {
     unit?: string;
     unit_price?: number;
     total_quantity?: number;
+    legacy_consumed_quantity?: number;
+    marca?: string;
     created_at: string;
 }
 
