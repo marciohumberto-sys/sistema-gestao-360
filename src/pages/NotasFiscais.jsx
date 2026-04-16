@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, FileText, TrendingUp, Eye, FileCheck, AlertCircle, Plus, PenSquare } from 'lucide-react';
+import { Search, FileText, TrendingUp, Eye, FileCheck, AlertCircle, Plus, PenSquare, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { invoicesService } from '../services/api/invoices.service';
 import { useTenant } from '../context/TenantContext';
@@ -25,6 +25,8 @@ const NotasFiscais = () => {
     // Modals
     const [isNovaNfModalOpen, setIsNovaNfModalOpen] = useState(false);
     const [edicaoNfId, setEdicaoNfId] = useState(null);
+    const [nfToDelete, setNfToDelete] = useState(null); // invoice object to delete
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [feedback, setFeedback] = useState(null);
 
     const loadData = async () => {
@@ -55,7 +57,25 @@ const NotasFiscais = () => {
 
     const showFeedback = (type, message) => {
         setFeedback({ type, message });
-        setTimeout(() => setFeedback(null), 3000);
+        if (type === 'success') setTimeout(() => setFeedback(null), 3000);
+        // errors stay visible until user acts
+    };
+
+    const handleDeleteNf = async () => {
+        if (!nfToDelete) return;
+        try {
+            setIsSubmitting(true);
+            await invoicesService.deleteInvoice(nfToDelete.id, tenantId);
+            setNfToDelete(null);
+            showFeedback('success', 'Nota fiscal excluída com sucesso!');
+            await loadData();
+        } catch (error) {
+            console.error('Erro ao excluir NF:', error);
+            setNfToDelete(null);
+            showFeedback('error', error.message || 'Erro ao excluir a nota fiscal.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const formatCurrency = (value) => {
@@ -169,6 +189,16 @@ const NotasFiscais = () => {
                 }}>
                     {feedback.type === 'success' ? <FileCheck size={24} /> : <AlertCircle size={24} />}
                     <span style={{ fontWeight: 500 }}>{feedback.message}</span>
+                    {feedback.type === 'error' && (
+                        <button
+                            onClick={() => setFeedback(null)}
+                            style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.8)', cursor: 'pointer', padding: '2px 4px', marginLeft: '8px', display: 'flex', alignItems: 'center' }}
+                            onMouseOver={e => e.currentTarget.style.color = 'white'}
+                            onMouseOut={e => e.currentTarget.style.color = 'rgba(255,255,255,0.8)'}
+                        >
+                            ×
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -262,6 +292,15 @@ const NotasFiscais = () => {
                                                         <Eye size={16} />
                                                     </button>
                                                 )}
+                                                <button
+                                                    style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', width: '32px', height: '32px', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                                                    title="Excluir Nota Fiscal"
+                                                    onClick={() => setNfToDelete(inv)}
+                                                    onMouseOver={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#b91c1c'; }}
+                                                    onMouseOut={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444'; }}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -293,6 +332,44 @@ const NotasFiscais = () => {
                     loadData();
                 }}
             />
+
+            {/* Modal Confirmar Exclusão de NF */}
+            {nfToDelete && (
+                <div className="modal-overlay" onClick={() => setNfToDelete(null)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+                    <div className="modal-content" style={{ background: 'white', borderRadius: '12px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ padding: '2rem', textAlign: 'center' }}>
+                            <div style={{ background: '#fef2f2', width: '64px', height: '64px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto', color: '#ef4444' }}>
+                                <Trash2 size={32} />
+                            </div>
+                            <h3 style={{ margin: '0 0 0.75rem 0', color: '#0f172a', fontSize: '1.25rem', fontWeight: 700 }}>Excluir nota fiscal</h3>
+                            <p style={{ margin: '0 0 0.5rem 0', color: '#475569', fontSize: '0.95rem', lineHeight: '1.6' }}>
+                                Tem certeza que deseja excluir esta nota fiscal? Esta ação não pode ser desfeita.
+                            </p>
+                            <p style={{ margin: '0 0 2rem 0', color: '#64748b', fontSize: '0.85rem' }}>
+                                NF <strong>{nfToDelete.number}</strong>
+                            </p>
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                <button
+                                    className="btn-secondary"
+                                    style={{ flex: 1 }}
+                                    onClick={() => setNfToDelete(null)}
+                                    disabled={isSubmitting}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    className="btn-primary"
+                                    style={{ flex: 1, background: '#ef4444', color: 'white', border: 'none' }}
+                                    onClick={handleDeleteNf}
+                                    disabled={isSubmitting}
+                                >
+                                    {isSubmitting ? 'Excluindo...' : 'Excluir nota fiscal'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

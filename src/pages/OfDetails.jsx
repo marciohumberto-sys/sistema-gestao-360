@@ -41,6 +41,9 @@ const OfDetails = () => {
     const [selectedSignatory, setSelectedSignatory] = useState(null);
     const [signatoryContext, setSignatoryContext] = useState('emission'); // 'emission' or 'preview'
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [isEditingNumber, setIsEditingNumber] = useState(false);
+    const [editNumberValue, setEditNumberValue] = useState('');
+    const [isSavingNumber, setIsSavingNumber] = useState(false);
 
     const loadData = async () => {
         if (!tenantId || !id) return;
@@ -177,6 +180,50 @@ const OfDetails = () => {
             setFeedback({ type: 'error', message: error.message || 'Erro ao excluir a OF.' });
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleStartEditNumber = () => {
+        setEditNumberValue(ofData?.number || '');
+        setIsEditingNumber(true);
+    };
+
+    const handleSaveNumber = async () => {
+        const trimmed = editNumberValue.trim();
+        if (!trimmed) {
+            setFeedback({ type: 'error', message: 'O número da OF não pode ser vazio.' });
+            setTimeout(() => setFeedback(null), 3000);
+            return;
+        }
+        if (trimmed === ofData.number) {
+            setIsEditingNumber(false);
+            return;
+        }
+        try {
+            setIsSavingNumber(true);
+            // Check for duplicate number in ofs table
+            const { data: existing, error: checkErr } = await supabase
+                .from('ofs')
+                .select('id')
+                .eq('tenant_id', tenantId)
+                .eq('number', trimmed)
+                .neq('id', id)
+                .limit(1);
+            if (checkErr) throw new Error('Erro ao verificar duplicidade do número.');
+            if (existing && existing.length > 0) {
+                throw new Error(`Já existe uma OF com o número "${trimmed}". Informe um número único.`);
+            }
+            await ofsService.updateOf(id, tenantId, { number: trimmed });
+            setIsEditingNumber(false);
+            setFeedback({ type: 'success', message: 'Número da OF atualizado com sucesso!' });
+            setTimeout(() => setFeedback(null), 3000);
+            await loadData();
+        } catch (error) {
+            console.error(error);
+            setFeedback({ type: 'error', message: error.message || 'Erro ao salvar o número.' });
+            setTimeout(() => setFeedback(null), 4000);
+        } finally {
+            setIsSavingNumber(false);
         }
     };
 
@@ -466,7 +513,49 @@ const OfDetails = () => {
                 <div className="ed-header-info">
                     <h1 className="ed-title">
                         <FileText size={24} style={{ color: '#3b82f6' }} />
-                        Reserva de Saldo (OF nº {ofData.number})
+                        {isDraft && isEditingNumber ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 500, color: '#64748b' }}>Reserva de Saldo (OF nº</span>
+                                <input
+                                    autoFocus
+                                    value={editNumberValue}
+                                    onChange={e => setEditNumberValue(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') handleSaveNumber(); if (e.key === 'Escape') setIsEditingNumber(false); }}
+                                    style={{ padding: '2px 8px', border: '1px solid #3b82f6', borderRadius: '6px', fontSize: '1rem', fontWeight: 600, width: '160px', color: '#0f172a', outline: 'none' }}
+                                    disabled={isSavingNumber}
+                                />
+                                <span style={{ fontSize: '0.9rem', fontWeight: 500, color: '#64748b' }}>)</span>
+                                <button
+                                    onClick={handleSaveNumber}
+                                    disabled={isSavingNumber}
+                                    style={{ padding: '3px 10px', borderRadius: '6px', background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                                >
+                                    {isSavingNumber ? 'Salvando...' : 'OK'}
+                                </button>
+                                <button
+                                    onClick={() => setIsEditingNumber(false)}
+                                    disabled={isSavingNumber}
+                                    style={{ padding: '3px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: '0.8rem' }}
+                                >
+                                    ×
+                                </button>
+                            </span>
+                        ) : (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                Reserva de Saldo (OF nº {ofData.number})
+                                {isDraft && (
+                                    <button
+                                        onClick={handleStartEditNumber}
+                                        title="Editar número da OF"
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '2px 4px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', fontSize: '0.75rem' }}
+                                        onMouseOver={e => e.currentTarget.style.color = '#3b82f6'}
+                                        onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}
+                                    >
+                                        ✎
+                                    </button>
+                                )}
+                            </span>
+                        )}
                     </h1>
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                         <span className={`status-badge ${(ofData.status || 'draft').toLowerCase()}`}>

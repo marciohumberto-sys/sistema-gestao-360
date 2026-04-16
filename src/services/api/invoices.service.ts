@@ -181,6 +181,36 @@ class InvoicesService {
         return invoiceData;
     }
 
+    async deleteInvoice(id: string, tenantId: string): Promise<void> {
+        if (!tenantId) throw new Error('tenantId is required');
+
+        // 1. Check for linked invoice_items (FK dependency)
+        const { data: items, error: itemsCheckErr } = await supabase
+            .from('invoice_items')
+            .select('id')
+            .eq('invoice_id', id)
+            .eq('tenant_id', tenantId)
+            .limit(1);
+
+        if (itemsCheckErr) throw new Error('Erro ao verificar itens da nota fiscal.');
+
+        if (items && items.length > 0) {
+            throw new Error(
+                'Esta nota fiscal possui itens vinculados e não pode ser excluída. ' +
+                'Remova os itens antes de excluir a nota fiscal.'
+            );
+        }
+
+        // 2. Safe to delete header
+        const { error } = await supabase
+            .from('invoices')
+            .delete()
+            .eq('id', id)
+            .eq('tenant_id', tenantId);
+
+        if (error) throw error;
+    }
+
     async updateComplementaryData(id: string, tenantId: string, updates: any): Promise<void> {
         if (!tenantId) throw new Error("tenantId is required");
 
