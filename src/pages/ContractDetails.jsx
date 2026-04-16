@@ -68,7 +68,7 @@ const ContractDetails = () => {
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
     const [isSubmittingItem, setIsSubmittingItem] = useState(false);
     const [itemFormData, setItemFormData] = useState({
-        item_number: '', description: '', unit: '', unit_price: '', total_quantity: ''
+        item_number: '', description: '', brand: '', unit: '', unit_price: '', total_quantity: ''
     });
     const [editingItemId, setEditingItemId] = useState(null);
 
@@ -639,6 +639,7 @@ const ContractDetails = () => {
                 contract_id: id,
                 item_number: itemFormData.item_number,
                 description: itemFormData.description,
+                brand: itemFormData.brand,
                 unit: itemFormData.unit,
                 unit_price: parseFloat(itemFormData.unit_price) || 0,
                 total_quantity: parseFloat(itemFormData.total_quantity) || 0
@@ -668,7 +669,7 @@ const ContractDetails = () => {
 
     const handleQuickAddItem = () => {
         setActiveTab('itens');
-        setItemFormData({ item_number: '', description: '', unit: '', unit_price: '', total_quantity: '' });
+        setItemFormData({ item_number: '', description: '', brand: '', unit: '', unit_price: '', total_quantity: '' });
         setEditingItemId(null);
         setIsItemModalOpen(true);
     };
@@ -725,7 +726,7 @@ const ContractDetails = () => {
 
     const formatCurrency = (value) => {
         if (value === undefined || value === null) return '-';
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
     };
 
     const formatExactCurrency = (value) => {
@@ -888,14 +889,14 @@ const ContractDetails = () => {
                     <div>
                         <div className="cd-title-group" style={{ marginBottom: '0.25rem' }}>
                             <h1 className="cd-title" style={{ fontSize: '1.5rem', fontWeight: 700 }}>{contract.number} — {contract.title}</h1>
-                            <span className={`status-badge-lg ${contract.status.toLowerCase()}`}>
-                                {contract.status}
-                            </span>
                         </div>
                         <p className="cd-supplier-name" style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{contract.supplierName}</p>
                     </div>
 
-                    <div className="cd-header-actions">
+                    <div className="cd-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <span className={`status-badge-lg ${contract.status.toLowerCase()}`}>
+                            {contract.status}
+                        </span>
                         <button className="cd-btn-secondary" onClick={handleEditClick}>Editar</button>
                         <button className="cd-btn-ato" onClick={() => {
                             setAtoFormData({
@@ -1509,7 +1510,7 @@ const ContractDetails = () => {
                             <div className="cd-tab-panel-header">
                                 <h3>Itens do Contrato</h3>
                                 <button className="cd-btn-primary" onClick={() => {
-                                    setItemFormData({ item_number: '', description: '', unit: '', unit_price: '', total_quantity: '' });
+                                    setItemFormData({ item_number: '', description: '', brand: '', unit: '', unit_price: '', total_quantity: '' });
                                     setEditingItemId(null);
                                     setIsItemModalOpen(true);
                                 }}>
@@ -1564,9 +1565,14 @@ const ContractDetails = () => {
                                                                     <span>{item.item_number || '-'}</span>
                                                                 </td>
                                                                 <td style={{ textAlign: 'left' }}>
-                                                                    <div style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: '0.875rem', lineHeight: '1.4' }} title={item.description}>
+                                                                    <div style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: '0.875rem', lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.description}>
                                                                         {item.description}
                                                                     </div>
+                                                                    {item.brand && (
+                                                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                                                                            Marca: {item.brand}
+                                                                        </div>
+                                                                    )}
                                                                 </td>
                                                                 <td style={{ textAlign: 'right', fontWeight: 500 }}>{item.total_quantity}</td>
                                                                 <td style={{ textAlign: 'right', fontWeight: 600, color: '#1d4ed8' }}>{qReserved > 0 ? qReserved : '-'}</td>
@@ -1597,6 +1603,7 @@ const ContractDetails = () => {
                                                                                 setItemFormData({
                                                                                     item_number: item.item_number || '',
                                                                                     description: item.description,
+                                                                                    brand: item.brand || '',
                                                                                     unit: item.unit || '',
                                                                                     unit_price: item.unit_price || '',
                                                                                     total_quantity: item.total_quantity || ''
@@ -1971,7 +1978,11 @@ const ContractDetails = () => {
                                         placeholder="Detalhes completos do item..."
                                     />
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Marca (opcional)</label>
+                                    <input style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)' }} type="text" placeholder="Ex: Multilaser, Dell, etc." value={itemFormData.brand} onChange={e => setItemFormData({ ...itemFormData, brand: e.target.value })} />
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', alignItems: 'flex-end' }}>
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Unidade (obrigatório)</label>
                                         <input style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)', textAlign: 'center' }} required type="text" placeholder="Ex: UN, KG" value={itemFormData.unit} onChange={e => setItemFormData({ ...itemFormData, unit: e.target.value })} />

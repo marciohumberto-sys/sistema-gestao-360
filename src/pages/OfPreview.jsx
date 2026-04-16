@@ -260,9 +260,9 @@ const OfPreview = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {items.map((item, index) => (
+                            {items.map((item) => (
                                 <tr key={item.id}>
-                                    <td style={{ textAlign: 'center' }}>{index + 1}</td>
+                                    <td style={{ textAlign: 'center' }}>{item.contract_item?.item_number || item.item_number || '-'}</td>
                                     <td>{item.description}</td>
                                     <td style={{ textAlign: 'center' }}>{item.unit}</td>
                                     <td style={{ textAlign: 'center' }}>{item.quantity}</td>

@@ -205,17 +205,13 @@ const OfDetails = () => {
                 await ofsService.recalculateOfTotal(id, tenantId);
                 setFeedback({ type: 'success', message: 'Item atualizado.' });
             } else {
-                let nextItemNumber = "1";
-                if (ofData && ofData.items && ofData.items.length > 0) {
-                    const maxNumber = Math.max(...ofData.items.map(item => Number(item.item_number) || 0));
-                    nextItemNumber = String(maxNumber + 1);
-                }
+                let actualItemNumber = newItemObj.item_number || "1";
 
                 await ofsService.addOfItem({
                     tenant_id: tenantId,
                     of_id: id,
                     contract_item_id: newItemObj.contract_item_id,
-                    item_number: nextItemNumber,
+                    item_number: actualItemNumber,
                     description: newItemObj.description,
                     unit: newItemObj.unit || 'UN',
                     quantity: requestedQty,
@@ -567,9 +563,11 @@ const OfDetails = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {items.map((item) => (
+                                {items.map((item) => {
+                                    const contractItem = contractItems.find(c => c.id === item.contract_item_id);
+                                    return (
                                     <tr key={item.id}>
-                                        <td style={{ textAlign: 'center' }}>{item.item_number}</td>
+                                        <td style={{ textAlign: 'center' }}>{contractItem?.item_number || item.item_number || '-'}</td>
                                         <td>{item.description}</td>
                                         <td style={{ textAlign: 'center' }}>{item.unit}</td>
                                         <td style={{ textAlign: 'right' }}>{item.quantity}</td>
@@ -603,7 +601,8 @@ const OfDetails = () => {
                                             </td>
                                         )}
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
