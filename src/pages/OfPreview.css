@@ -368,32 +368,91 @@ body.of-preview-body {
 @media print {
     @page {
         size: A4;
-        margin: 0;
+        margin: 1.5cm 1cm;
     }
 
-    body {
+    html, body {
         background-color: white !important;
         margin: 0 !important;
         padding: 0 !important;
+        height: auto !important;
+        overflow: visible !important;
     }
-    
-    .of-preview-controls {
+
+    .of-preview-controls,
+    .sig-modal-overlay,
+    .draft-watermark {
         display: none !important;
     }
 
     .of-preview-container {
         padding: 0 !important;
+        margin: 0 !important;
         display: block !important;
+        width: 100% !important;
     }
 
+    /* THE KEY FIX: remove fixed height, allow natural flow across pages */
     .of-pdf-document {
         box-shadow: none !important;
         width: 100% !important;
-        padding: 1.5cm 1cm !important;
-        height: 297mm;
+        min-height: unset !important;
+        height: auto !important;         /* was 297mm – this caused clipping */
+        overflow: visible !important;
+        padding: 0 !important;           /* margin is handled by @page */
         margin: 0 !important;
+        display: block !important;       /* was flex – flex blocks page splitting */
+        page-break-after: auto;
+        break-after: auto;
     }
 
+    /* Keep header together */
+    .of-header-institutional-vertical {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    /* Keep info blocks together when possible, but allow breaks between them */
+    .info-block {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    /* Table: allow rows to break across pages, repeat header on each page */
+    .items-table {
+        page-break-inside: auto;
+        break-inside: auto;
+    }
+
+    .items-table thead {
+        display: table-header-group; /* repeats on every page */
+    }
+
+    .items-table tfoot {
+        display: table-footer-group;
+    }
+
+    .items-table tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    /* Keep signatures and footer together, push to next page if not enough space */
+    .signatures-container {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        page-break-before: auto;
+        break-before: auto;
+        margin-top: 40px;
+    }
+
+    .document-footer {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        margin-top: 20px; /* was auto – auto breaks in paged context */
+    }
+
+    /* Ensure backgrounds print correctly */
     .bg-light { background-color: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .secretariat-box { background-color: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .items-table th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
