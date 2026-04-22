@@ -41,9 +41,7 @@ const OfPreview = () => {
             if (!tenantId || !id) return;
             try {
                 setIsLoading(true);
-                console.log('OF preview id:', id);
                 const data = await ofsService.getById(id);
-                console.log('OF preview data:', data);
                 
                 if (data.items) {
                     data.items.sort((a, b) => (Number(a.item_number) || 0) - (Number(b.item_number) || 0));
@@ -138,7 +136,7 @@ const OfPreview = () => {
                         RASCUNHO - SEM VALOR LEGAL
                     </div>
                 )}
-                {/* Cabeçalho Institucional - Stack Vertical Garantido */}
+                
                 <div className="of-header-institutional-vertical">
                     <div className="logo-container-centered">
                         <img src={logoBezerros} alt="Prefeitura de Bezerros" className="header-logo" />
@@ -150,12 +148,10 @@ const OfPreview = () => {
                     </div>
                 </div>
 
-                {/* Título da OF */}
                 <div className="of-document-title">
                     ORDEM DE FORNECIMENTO Nº {ofData.number || '___/____'}
                 </div>
 
-                {/* Blocos de Informação em Grid de 2 colunas para economizar espaço se necessário, mas aqui usaremos blocos empilhados como no modelo */}
                 <div className="of-info-blocks">
                     <div className="info-block border-full">
                         <div className="grid-3-col">
@@ -247,63 +243,70 @@ const OfPreview = () => {
                     <div className="secretariat-box border-full">
                         {secretariat?.name || 'NÃO INFORMADA'}
                     </div>
-
-                    <table className="items-table">
-                        <thead>
-                            <tr>
-                                <th style={{ width: '45px' }}>Item</th>
-                                <th>Discriminação</th>
-                                <th style={{ width: '90px' }}>Marca</th>
-                                <th style={{ width: '75px' }}>Acond.</th>
-                                <th style={{ width: '55px' }}>Qtd.</th>
-                                <th style={{ width: '95px' }}>Val. Unit.</th>
-                                <th style={{ width: '105px' }}>Val. Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {items.map((item) => (
-                                <tr key={item.id}>
-                                    <td style={{ textAlign: 'center' }}>{item.contract_item?.item_number || item.item_number || '-'}</td>
-                                    <td>{item.description}</td>
-                                    <td style={{ textAlign: 'center' }}>{item.contract_item?.marca || item.marca_snapshot || '-'}</td>
-                                    <td style={{ textAlign: 'center' }}>{item.unit}</td>
-                                    <td style={{ textAlign: 'center' }}>{item.quantity}</td>
-                                    <td style={{ textAlign: 'right' }}>{formatCurrency(item.unit_price)}</td>
-                                    <td style={{ textAlign: 'right' }}>{formatCurrency(item.total_price)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colSpan="6" style={{ textAlign: 'right', fontWeight: 'bold' }}>TOTAL GERAL</td>
-                                <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(ofData.total_amount)}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-
-                    <div className="date-location" style={{ textAlign: 'center', marginTop: '40px' }}>
-                        Bezerros-PE, {formatDateExtensive(null, true)}
-                    </div>
-
-                    <div className="signatures-container">
-                        <div className="signature-box">
-                            <div className="signature-line"></div>
-                            <span className="sig-name">{selectedSigName || ofData.requester_name || 'Assinatura'}</span>
-                            <span className="sig-role">{(selectedSigRole || ofData.requester_department || '').toUpperCase()}</span>
-                            {(selectedSigReg || ofData.requester_registration) && (
-                                <span className="sig-reg" style={{ display: 'block', fontSize: '8pt' }}>
-                                    Matrícula: {selectedSigReg || ofData.requester_registration}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="document-footer">
-                        <p>Prefeitura Municipal de Bezerros – Central de Compras</p>
-                        <p>Praça Duque de Caxias, s/n - Centro - Bezerros/PE - CEP: 55660-000</p>
-                        <p>CNPJ: 10.091.510/0001-75 - E-mail: centraldecomprasbezerros@gmail.com</p>
-                    </div>
                 </div>
+
+                <table className="items-table">
+                    <thead>
+                        <tr>
+                            <th style={{ width: '45px' }}>Item</th>
+                            <th>Discriminação</th>
+                            <th style={{ width: '90px' }}>Marca</th>
+                            <th style={{ width: '75px' }}>Acond.</th>
+                            <th style={{ width: '55px' }}>Qtd.</th>
+                            <th style={{ width: '95px' }}>Val. Unit.</th>
+                            <th style={{ width: '105px' }}>Val. Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {items.map((item) => (
+                            <tr key={item.id}>
+                                <td style={{ textAlign: 'center' }}>{item.contract_item?.item_number || item.item_number || '-'}</td>
+                                <td>{item.description}</td>
+                                <td style={{ textAlign: 'center' }}>{item.contract_item?.marca || item.marca_snapshot || '-'}</td>
+                                <td style={{ textAlign: 'center' }}>{item.unit}</td>
+                                <td style={{ textAlign: 'center' }}>{item.quantity}</td>
+                                <td style={{ textAlign: 'right' }}>{formatCurrency(item.unit_price)}</td>
+                                <td style={{ textAlign: 'right' }}>{formatCurrency(item.total_price)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    
+                    {/* Final Block: Grouping the Total + Footer in a single tbody prevents them from being split natively by the browser */}
+                    <tbody className="final-block-tbody">
+                        <tr>
+                            <td colSpan="6" style={{ textAlign: 'right', fontWeight: 'bold' }}>TOTAL GERAL</td>
+                            <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(ofData.total_amount)}</td>
+                        </tr>
+                        <tr>
+                            <td colSpan="7" style={{ border: 'none', padding: 0 }}>
+                                <div style={{ paddingTop: '30px' }}>
+                                    <div className="date-location">
+                                        Bezerros-PE, {formatDateExtensive(null, true)}
+                                    </div>
+
+                                    <div className="signatures-container">
+                                        <div className="signature-box">
+                                            <div className="signature-line"></div>
+                                            <span className="sig-name">{selectedSigName || ofData.requester_name || 'Assinatura'}</span>
+                                            <span className="sig-role">{(selectedSigRole || ofData.requester_department || '').toUpperCase()}</span>
+                                            {(selectedSigReg || ofData.requester_registration) && (
+                                                <span className="sig-reg" style={{ display: 'block', fontSize: '8pt' }}>
+                                                    Matrícula: {selectedSigReg || ofData.requester_registration}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="document-footer">
+                                        <p>Prefeitura Municipal de Bezerros – Central de Compras</p>
+                                        <p>Praça Duque de Caxias, s/n - Centro - Bezerros/PE - CEP: 55660-000</p>
+                                        <p>CNPJ: 10.091.510/0001-75 - E-mail: centraldecomprasbezerros@gmail.com</p>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             {/* Modal de Assinante */}
@@ -323,7 +326,6 @@ const OfPreview = () => {
                                         checked={selectedSigRole === opt.label}
                                         onChange={(e) => {
                                             setSelectedSigRole(e.target.value);
-                                            // Se for um dos fiscais do contrato, tenta pegar o nome real
                                             if (opt.id === 'gestor') setSelectedSigName(contract?.manager_name || '');
                                             else if (opt.id === 'fiscal_tecnico') setSelectedSigName(contract?.technical_inspector_name || '');
                                             else if (opt.id === 'fiscal_adm') setSelectedSigName(contract?.administrative_inspector_name || '');

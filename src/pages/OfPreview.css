@@ -89,11 +89,12 @@ body.of-preview-body {
     background: white;
     width: 210mm;
     min-height: 297mm;
-    padding: 1.5cm 2cm;
+    padding: 15mm 20mm;
     box-sizing: border-box;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-    display: flex;
-    flex-direction: column;
+    display: block; /* CRITICAL: Must be block, NOT flex, for print pagination to work natively */
+    position: relative;
+    margin: 0 auto;
 }
 
 .of-header-institutional-vertical {
@@ -134,14 +135,13 @@ body.of-preview-body {
 }
 
 .of-info-blocks {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    display: block; /* Block layout ensures safe pagination */
 }
 
 .info-block {
     padding: 8px 12px;
     font-size: 9pt;
+    margin-bottom: 10px;
 }
 
 .border-full { border: 1px solid #000; }
@@ -217,15 +217,12 @@ body.of-preview-body {
 
 .date-location {
     text-align: center;
-    margin-top: 40px;
     font-size: 10pt;
 }
 
 .signatures-container {
-    margin-top: 50px;
     display: flex;
     justify-content: center;
-    page-break-inside: avoid;
 }
 
 .signature-box {
@@ -252,13 +249,12 @@ body.of-preview-body {
 }
 
 .document-footer {
-    margin-top: auto;
-    padding-top: 20px;
     text-align: center;
     font-size: 7.5pt;
     color: #444;
     border-top: 1px solid #ccc;
     line-height: 1.4;
+    padding-top: 15px;
 }
 
 .document-footer p { margin: 0; }
@@ -368,7 +364,7 @@ body.of-preview-body {
 @media print {
     @page {
         size: A4;
-        margin: 1.5cm 1cm;
+        margin: 15mm 15mm; /* Apply margin natively via page to maximize space */
     }
 
     html, body {
@@ -392,64 +388,46 @@ body.of-preview-body {
         width: 100% !important;
     }
 
-    /* THE KEY FIX: remove fixed height, allow natural flow across pages */
     .of-pdf-document {
         box-shadow: none !important;
         width: 100% !important;
         min-height: unset !important;
-        height: auto !important;         /* was 297mm – this caused clipping */
+        height: auto !important;
         overflow: visible !important;
-        padding: 0 !important;           /* margin is handled by @page */
+        padding: 0 !important; /* Padding is handled by @page margins natively */
         margin: 0 !important;
-        display: block !important;       /* was flex – flex blocks page splitting */
+        display: block !important; /* MUST BE BLOCK */
         page-break-after: auto;
         break-after: auto;
     }
 
-    /* Keep header together */
-    .of-header-institutional-vertical {
-        page-break-inside: avoid;
-        break-inside: avoid;
-    }
-
-    /* Keep info blocks together when possible, but allow breaks between them */
+    /* Prevent breaking inside critical blocks */
+    .of-header-institutional-vertical,
     .info-block {
         page-break-inside: avoid;
         break-inside: avoid;
     }
 
-    /* Table: allow rows to break across pages, repeat header on each page */
+    /* Table settings for perfect native pagination */
     .items-table {
         page-break-inside: auto;
         break-inside: auto;
     }
 
     .items-table thead {
-        display: table-header-group; /* repeats on every page */
+        display: table-header-group; /* Repeats native header on new pages */
     }
 
-    .items-table tfoot {
-        display: table-footer-group;
-    }
-
+    /* Row break prevention */
     .items-table tr {
         page-break-inside: avoid;
         break-inside: avoid;
     }
 
-    /* Keep signatures and footer together, push to next page if not enough space */
-    .signatures-container {
+    /* Keep final block body together */
+    .final-block-tbody {
         page-break-inside: avoid;
         break-inside: avoid;
-        page-break-before: auto;
-        break-before: auto;
-        margin-top: 40px;
-    }
-
-    .document-footer {
-        page-break-inside: avoid;
-        break-inside: avoid;
-        margin-top: 20px; /* was auto – auto breaks in paged context */
     }
 
     /* Ensure backgrounds print correctly */
