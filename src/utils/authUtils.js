@@ -5,56 +5,26 @@ export const MODULE_ROUTES = {
 
 export const normalizeEmail = (login, pathname, moduleContext) => {
     const trimmedLogin = login.trim().toLowerCase();
+
+    console.log(`[AUTH DEBUG] Login Digitado: ${login}`);
+
+    // Se o usuário digitou um email completo com @, respeitar exatamente o valor digitado
+    if (trimmedLogin.includes('@')) {
+        console.log(`[AUTH DEBUG] Login com domínio detectado. Usando literal: ${trimmedLogin}`);
+        return [trimmedLogin];
+    }
     
-    // Regras prioritárias (Exceções Fixas)
+    // Regra prioritária (Exceção Fixa)
     if (trimmedLogin === 'marcio.humberto') {
         console.log(`[AUTH DEBUG] Login Normalizado (Exceção Marcio)`);
         return ['marcio.humberto@gmail.com'];
     }
 
-    if (trimmedLogin === 'samara.raquel') {
-        console.log(`[AUTH DEBUG] Login Normalizado (Exceção Samara)`);
-        return ['samara.raquel@compras.local'];
-    }
-
-    // 1. Priorizar context explícito (passado por state do ProtectedRoute ou URL pura)
-    let domain = '';
-    let contextName = '';
-
-    if (moduleContext === 'COMPRAS' || pathname?.includes('/compras')) {
-        domain = '@compras.local';
-        contextName = 'Compras (Rota/Contexto)';
-    } else if (moduleContext === 'FARMACIA' || pathname?.includes('/farmacia')) {
-        domain = '@farmacia.local';
-        contextName = 'Farmácia (Rota/Contexto)';
-    }
-
-    // 2. Se contexto primário falhar, tentamos o localStorage
-    if (!domain) {
-        const lastModule = localStorage.getItem('last_module');
-        if (lastModule === 'COMPRAS') {
-            domain = '@compras.local';
-            contextName = 'Compras (Storage)';
-        } else if (lastModule === 'FARMACIA') {
-            domain = '@farmacia.local';
-            contextName = 'Farmácia (Storage)';
-        }
-    }
-
-    console.log(`[AUTH DEBUG] Login Digitado: ${login}`);
-    console.log(`[AUTH DEBUG] Rota / Contexto Solicitado: ${pathname || 'Vazio'} / ${moduleContext || 'Vazio'}`);
-
-    // 3. Se AINDA assim não houver domínio explícito (ex: aba anônima), NÃO FORÇAR farmacia.
-    // Em vez de mascarar a intenção do usuário, devolvemos listagem estrita pra fallback duplo e controlado.
-    if (!domain) {
-        console.log(`[AUTH DEBUG] Situação sem contexto. Preparando fallback inteligente duplo.`);
-        const fallbackList = [`${trimmedLogin}@compras.local`, `${trimmedLogin}@farmacia.local`];
-        console.log(`[AUTH DEBUG] Logando com array de contingência: ${fallbackList.join(', ')}`);
-        return fallbackList;
-    }
-
+    // Normalizar padrão para @sistema.local
+    const domain = '@sistema.local';
     const normalizedEmail = `${trimmedLogin}${domain}`;
-    console.log(`[AUTH DEBUG] Domínio Resolvido Explicitamente via [${contextName}]: ${domain}`);
+    
+    console.log(`[AUTH DEBUG] Domínio Resolvido Padrão: ${domain}`);
     console.log(`[AUTH DEBUG] Login Normalizado Final: ${normalizedEmail}`);
     
     return [normalizedEmail];

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FolderKanban, Pill, LogOut, ArrowRight, ShieldCheck, User } from 'lucide-react';
+import { FolderKanban, Pill, LogOut, ArrowRight, ShieldCheck, User, Target } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { brandConfig } from '../config/brand';
 import { getLogoClickRedirectPath } from '../utils/authUtils';
@@ -29,6 +29,7 @@ const Home = () => {
 
     const hasFarmacia = isSuperAdmin || accessibleModules?.includes('FARMACIA');
     const hasCompras = isSuperAdmin || accessibleModules?.includes('COMPRAS');
+    const hasPlanejamento = isSuperAdmin || accessibleModules?.includes('PLANEJAMENTO_ESTRATEGICO');
 
     const handleLogout = async () => {
         await logout();
@@ -80,7 +81,7 @@ const Home = () => {
             </header>
 
             {/* Hub Central de Módulos */}
-            <main style={{ flex: 1, padding: '5rem 2rem', maxWidth: '1000px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column' }}>
+            <main style={{ flex: 1, padding: '4rem 2rem', maxWidth: '1280px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column' }}>
                 
                 <div style={{ marginBottom: '3.5rem' }}>
                     <h1 style={{ fontSize: '2.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem', letterSpacing: '-0.03em' }}>
@@ -91,7 +92,7 @@ const Home = () => {
                     </p>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
                     
                     {/* Card Compras */}
                     {hasCompras && (
@@ -115,6 +116,17 @@ const Home = () => {
                         />
                     )}
 
+                    {/* Card Planejamento */}
+                    {hasPlanejamento && (
+                        <ModuleCard 
+                            title="Planejamento Estratégico"
+                            description="Monitoramento executivo de ações, gestão de metas, resolução de pendências e visão estratégica intersetorial."
+                            icon={Target}
+                            color="#8b5cf6"
+                            onClick={() => navigate('/planejamento/dashboard')}
+                        />
+                    )}
+
                 </div>
             </main>
         </div>
@@ -129,11 +141,11 @@ const ModuleCard = ({ title, description, icon: Icon, color, onClick }) => {
             style={{ 
                 backgroundColor: '#fff', 
                 borderRadius: '16px', 
-                padding: '2.5rem', 
+                padding: '2rem', 
                 cursor: 'pointer', 
                 display: 'flex', 
                 flexDirection: 'column', 
-                gap: '1.5rem', 
+                gap: '1.25rem', 
                 transition: 'all 0.2s ease-out', 
                 boxShadow: '0 10px 30px rgba(0,0,0,0.04)', 
                 position: 'relative', 

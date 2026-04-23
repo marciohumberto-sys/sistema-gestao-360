@@ -23,6 +23,8 @@ import {
     ArrowLeftRight,
     SlidersHorizontal,
     Pill,
+    Target,
+    Activity,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessFarmacia } from '../../utils/farmaciaAcl';
@@ -96,13 +98,38 @@ const FARMACIA_MENU_ITEMS = [
     }
 ];
 
+// Menu contextual do módulo Planejamento
+const PLANEJAMENTO_MENU_ITEMS = [
+    {
+        section: 'Principal',
+        items: [
+            { path: '/planejamento/dashboard', icon: LayoutDashboard, label: 'Dashboard' }
+        ]
+    },
+    {
+        section: 'Monitoramento',
+        items: [
+            { path: '/planejamento/acoes', icon: Target, label: 'Ações' },
+            { path: '/planejamento/atualizacoes', icon: Activity, label: 'Atualizações' },
+            { path: '/planejamento/entraves', icon: AlertTriangle, label: 'Entraves' }
+        ]
+    },
+    {
+        section: 'Administração',
+        items: [
+            { path: '/planejamento/usuarios', icon: Users, label: 'Usuários' }
+        ]
+    }
+];
+
 const Sidebar = ({ isPinned, togglePin }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { tenantLink, isSuperAdmin } = useAuth();
     
     const isFarmacia = location.pathname.startsWith('/farmacia');
-    const activeMenu = isFarmacia ? FARMACIA_MENU_ITEMS : MENU_ITEMS;
+    const isPlanejamento = location.pathname.startsWith('/planejamento');
+    const activeMenu = isFarmacia ? FARMACIA_MENU_ITEMS : (isPlanejamento ? PLANEJAMENTO_MENU_ITEMS : MENU_ITEMS);
     
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
 
@@ -120,9 +147,15 @@ const Sidebar = ({ isPinned, togglePin }) => {
         <aside className={`sidebar ${isPinned ? 'pinned' : 'compact'}`}>
             <div className="sidebar-header">
                 {isFarmacia && isPinned && (
-                    <span className="sidebar-module-label">
+                    <span className="sidebar-module-label" style={{ color: '#059669', background: 'rgba(5, 150, 105, 0.1)' }}>
                         <Pill size={13} strokeWidth={2} />
                         Farmácia
+                    </span>
+                )}
+                {isPlanejamento && isPinned && (
+                    <span className="sidebar-module-label" style={{ color: '#a78bfa', background: 'rgba(167, 139, 250, 0.15)' }}>
+                        <Target size={13} strokeWidth={2} />
+                        Planejamento
                     </span>
                 )}
                 <button
@@ -201,7 +234,7 @@ const Sidebar = ({ isPinned, togglePin }) => {
                 ))}
             </div>
 
-            {!isFarmacia && (
+            {!isFarmacia && !isPlanejamento && (
             <div className="sidebar-footer">
                 <div className="footer-actions">
                     <button className="footer-btn btn-primary" title={!isPinned ? "Nova Ordem de Fornecimento" : ""} onClick={() => navigate('/compras/ordens-fornecimento', { state: { openModal: 'nova-of' } })}>

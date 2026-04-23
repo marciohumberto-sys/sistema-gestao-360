@@ -36,6 +36,11 @@ import FarmaciaRelatorios from './pages/farmacia/FarmaciaRelatorios';
 import FarmaciaUsuarios from './pages/farmacia/FarmaciaUsuarios';
 import ComprasUsuarios from './pages/ComprasUsuarios';
 
+// Módulo Planejamento
+import PlanejamentoDashboard from './pages/planejamento/PlanejamentoDashboard';
+import AcoesList from './pages/planejamento/AcoesList';
+import AcaoDetails from './pages/planejamento/AcaoDetails';
+
 // Helper para redirecionamento dinâmico do preview
 const OfPreviewRedirect = () => {
   const { id } = useParams();
@@ -120,6 +125,17 @@ function App() {
                       <Route path="relatorios" element={<FarmaciaRelatorios />} />
                       <Route path="usuarios" element={<FarmaciaUsuarios />} />
                     </Route>
+                  </Route>
+
+                  {/* --- Galho Restrito: PLANEJAMENTO ESTRATÉGICO --- */}
+                  <Route path="planejamento" element={<ProtectedRoute module="PLANEJAMENTO_ESTRATEGICO" />}>
+                    <Route index element={<Navigate to="dashboard" replace />} />
+                    <Route path="dashboard" element={<PlanejamentoDashboard />} />
+                    <Route path="acoes" element={<AcoesList />} />
+                    <Route path="acoes/:id" element={<AcaoDetails />} />
+                    <Route path="atualizacoes" element={<AcoesList />} />
+                    <Route path="entraves" element={<AcoesList />} />
+                    <Route path="usuarios" element={<AcoesList />} />
                   </Route>
 
                 </Route>
