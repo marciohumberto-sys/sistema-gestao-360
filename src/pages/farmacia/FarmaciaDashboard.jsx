@@ -4,7 +4,6 @@ import {
     ChevronRight, Bell, XCircle, Clock, TrendingUp, Activity, Heart, BarChart3
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { mockMovimentacoes, mockEstoqueItems } from '../../mocks/farmaciaMocks';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessFarmacia } from '../../utils/farmaciaAcl';
@@ -12,51 +11,9 @@ import {
     LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer,
     Tooltip as RechartsTooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar, Area, AreaChart, Legend, ReferenceLine
 } from 'recharts';
+import { useFarmacia } from './FarmaciaContext';
 import './FarmaciaPages.css';
 
-/* ─── Dados Mockados ─────────────────────────────────────────── */
-const mockTendencia = [
-    { name: 'Seg', Entradas: 40, Saídas: 24 },
-    { name: 'Ter', Entradas: 30, Saídas: 13 },
-    { name: 'Qua', Entradas: 20, Saídas: 48 },
-    { name: 'Qui', Entradas: 27, Saídas: 39 },
-    { name: 'Sex', Entradas: 18, Saídas: 48 },
-    { name: 'Sáb', Entradas: 23, Saídas: 38 },
-    { name: 'Dom', Entradas: 34, Saídas: 43 },
-];
-
-const mockDistribuicao = [
-    { name: 'Comprimido', value: 400, color: '#00967D' },
-    { name: 'Ampola',     value: 300, color: '#3b82f6' },
-    { name: 'Frasco',     value: 300, color: '#f59e0b' },
-    { name: 'Cápsula',    value: 200, color: '#8b5cf6' },
-    { name: 'Outros',     value: 100, color: '#64748b' }
-];
-const totalDistrib = mockDistribuicao.reduce((a, b) => a + b.value, 0);
-
-// Consumo calculado dinamicamente a partir dos dados reais de estoque
-const calcConsumoUnidades = () => {
-    const mapa = {};
-    mockEstoqueItems.forEach(item => {
-        if (item.estoquePorUnidade) {
-            Object.entries(item.estoquePorUnidade).forEach(([unid, qtd]) => {
-                const label = unid.toUpperCase();
-                mapa[label] = (mapa[label] || 0) + (qtd || 0);
-            });
-        }
-    });
-    return Object.entries(mapa)
-        .map(([name, consumo]) => ({ name, consumo }))
-        .sort((a, b) => b.consumo - a.consumo);
-};
-
-const topMedicamentos = [
-    { nome: 'Dipirona 500mg',      qtd: 1240, max: 1240 },
-    { nome: 'Paracetamol 750mg',   qtd: 980,  max: 1240 },
-    { nome: 'Ibuprofeno 600mg',    qtd: 750,  max: 1240 },
-    { nome: 'Seringa 5ml',         qtd: 420,  max: 1240 },
-    { nome: 'Omeprazol 20mg',      qtd: 310,  max: 1240 },
-];
 const rankColors = ['#00967D', '#f59e0b', '#3b82f6', '#8b5cf6', '#64748b'];
 
 /* ─── Gauge SVG Circular ─────────────────────────────────────── */
@@ -111,13 +68,11 @@ const AnimatedCount = ({ target, dur = 1000 }) => {
     return <>{val.toLocaleString('pt-BR')}</>;
 };
 
-/* ─── Componente Principal ───────────────────────────────────── */
-/* Tooltip customizado com percentual */
-const TooltipConsumo = ({ active, payload }) => {
+/* Tooltip customizado para Consumo por Unidade */
+const TooltipConsumo = ({ active, payload, totalConsumo }) => {
     if (!active || !payload?.length) return null;
     const item = payload[0].payload;
-    const dados = calcConsumoUnidades();
-    const total = dados.reduce((s, d) => s + d.consumo, 0) || 1;
+    const total = totalConsumo || 1;
     const pct = ((item.consumo / total) * 100).toFixed(1);
     return (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '0.82rem' }}>
@@ -133,21 +88,28 @@ const TooltipDistribuicao = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
     const item = payload[0];
     const color = item.payload.fill || item.color || item.payload.color;
-    const pct = Math.round((item.value / totalDistrib) * 100);
+    // pct e valueInt vêm pré-calculados no data point (adicionados durante o build)
+    // Isso evita depender do item.percent do Recharts (instável entre versões)
+    const pct      = item.payload.pct      ?? 0;
+    const valorAbs = (item.payload.valueInt ?? Math.round(item.value || 0)).toLocaleString('pt-BR');
+
     return (
-        <div style={{ 
-            background: 'var(--bg)', 
-            border: '1px solid var(--border)', 
+        <div style={{
+            background: 'var(--bg)',
+            border: '1px solid var(--border)',
             borderLeft: `4px solid ${color}`,
-            borderRadius: '8px', 
-            padding: '10px 14px', 
-            boxShadow: '0 8px 24px rgba(0,0,0,0.15)', 
+            borderRadius: '8px',
+            padding: '10px 14px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
             fontSize: '0.85rem',
             display: 'flex',
             flexDirection: 'column',
-            gap: '2px'
+            gap: '3px'
         }}>
             <span style={{ fontWeight: 800, color: 'var(--text)', fontSize: '0.9rem' }}>{item.name}</span>
+            <span style={{ fontWeight: 500, color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                {valorAbs} <span style={{ opacity: 0.7 }}>unidades em estoque</span>
+            </span>
             <span style={{ fontWeight: 700, color: color }}>
                 {pct}% <span style={{ fontWeight: 500, fontSize: '0.75rem', color: 'var(--text-muted)' }}>do total</span>
             </span>
@@ -155,9 +117,11 @@ const TooltipDistribuicao = ({ active, payload }) => {
     );
 };
 
+
 const FarmaciaDashboard = () => {
     const navigate = useNavigate();
     const { tenantLink, isSuperAdmin } = useAuth();
+    const { unidadeAtiva, isUnitResolved, dataRefreshKey } = useFarmacia();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     
     const [alertaAberto, setAlertaAberto] = useState(false);
@@ -193,14 +157,26 @@ const FarmaciaDashboard = () => {
         isLoading: true
     });
 
+    // Mesma função da tela de Saídas — range BRT correto para 'Hoje'
+    const getHojeSP = () => {
+        const agora = new Date();
+        const partes = new Intl.DateTimeFormat('pt-BR', {
+            timeZone: 'America/Sao_Paulo',
+            year: 'numeric', month: '2-digit', day: '2-digit',
+        }).formatToParts(agora);
+        const p = Object.fromEntries(partes.map(x => [x.type, x.value]));
+        const inicio = new Date(`${p.year}-${p.month}-${p.day}T00:00:00-03:00`);
+        const fim    = new Date(`${p.year}-${p.month}-${p.day}T23:59:59.999-03:00`);
+        return { inicio, fim };
+    };
+
     useEffect(() => {
         const fetchFarmaciaKPIs = async () => {
             try {
-                // 1. Fetch total ACTIVE configured items in the system
+                // 1. Buscar items SEM filtro is_active (idêntico à tela de Entradas)
                 const { data: items, error: itemsError } = await supabase
                     .from('inventory_items')
-                    .select('id, minimum_stock, category_id, name')
-                    .eq('is_active', true);
+                    .select('id, minimum_stock, category_id, name');
 
                 if (itemsError) throw itemsError;
 
@@ -222,7 +198,7 @@ const FarmaciaDashboard = () => {
                 let itensAbaixoMinimo = 0;
                 let saudePercentual = 0;
                 
-                let historicoDias = [...initFlow]; // fallback safely initialized
+                let historicoDias = [...initFlow];
                 let distribuicaoData = [];
                 let consumoUnidadesData = [];
                 let topMedicamentosData = [];
@@ -230,26 +206,27 @@ const FarmaciaDashboard = () => {
                 let validadesData = [...kpiData.validadesData];
                 let feedData = [];
 
-                if (totalItens > 0) {
-                    // Fetch all real stock movements (to calculate true balance and today's flow)
-                    const { data: movements, error: movError } = await supabase
-                        .from('stock_movements')
-                        .select('id, inventory_item_id, movement_type, quantity, created_at, unit_id, batch_id, created_by, notes');
+                // Aguardar resolução da unidade antes de calcular (evita fetch prematuro com unidade null)
+                if (!isUnitResolved) return;
 
-                    if (movError) throw movError;
+                const { data: movements, error: movError } = await supabase
+                    .from('stock_movements')
+                    .select('id, inventory_item_id, movement_type, quantity, created_at, unit_id, batch_id, created_by, notes');
 
-                    // Timezone safe today interval
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    const startOfToday = today.toISOString();
-                    
-                    const tomorrow = new Date(today);
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    const startOfTomorrow = tomorrow.toISOString();
+                if (movError) throw movError;
 
-                    const limitDate = new Date(); limitDate.setDate(limitDate.getDate() - 30);
-                    limitDate.setHours(0,0,0,0);
-                    const start30 = limitDate.toISOString();
+                console.log(`[Dashboard Farmácia] Total de movimentos carregados: ${(movements || []).length}`);
+
+                // Range BRT de hoje — idêntico ao getHojeSP() da tela de Saídas
+                const { inicio: hojeInicio, fim: hojeFim } = getHojeSP();
+
+                // Usado para validade de lotes
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const limitDate = new Date(); limitDate.setDate(limitDate.getDate() - 30);
+                limitDate.setHours(0, 0, 0, 0);
+                const start30 = limitDate.toISOString();
 
                     const distMap = {};
                     const unitMap = {};
@@ -259,50 +236,136 @@ const FarmaciaDashboard = () => {
 
                     const balanceByItem = {};
                     const batchBalance = {};
-                    const activeItemIds = new Set(validItems.map(i => i.id));
+                    const allItemIds = new Set(validItems.map(i => i.id));
                     
-                    // Reset do clone array para este fetch
+                    // Identificar a Unidade ativa (espelha o contexto das telas operacionais)
+                    let targetUnitId = null;
+                    if (unidadeAtiva && unidadeAtiva.label && unidadeAtiva.label !== 'Todas') {
+                        const foundUnit = (unts || []).find(u => u.name.toUpperCase() === unidadeAtiva.label.toUpperCase());
+                        if (foundUnit) targetUnitId = foundUnit.id;
+                    }
+                    
+                    // HOJE_INICIO_ISO / HOJE_FIM_ISO declarados aqui — usados pelo gráfico e pelos cards abaixo
+                    const HOJE_INICIO_ISO = hojeInicio.toISOString();
+                    const HOJE_FIM_ISO    = hojeFim.toISOString();
+
+                    // ── flowChartData: query DEDICADA — últimos 7 dias ───────────────────────
+                    // Mesmo problema dos cards: os 1000 registros mais antigos não incluem os últimos 7 dias.
+                    // Solução: query no servidor com filtro de data, sem filtro de unidade (visão consolidada).
+                    // Conta REGISTROS por dia (coerente com os cards de Entradas/Saídas Hoje).
+
+                    const dia7Inicio = new Date(hojeInicio);
+                    dia7Inicio.setDate(dia7Inicio.getDate() - 6); // meia-noite BRT de 6 dias atrás
+                    const DIA7_INICIO_ISO = dia7Inicio.toISOString();
+
+                    const { data: movsGrafico } = await supabase
+                        .from('stock_movements')
+                        .select('movement_type, created_at')
+                        .gte('created_at', DIA7_INICIO_ISO)
+                        .lte('created_at', HOJE_FIM_ISO)
+                        .in('movement_type', ['ENTRY', 'EXIT']);
+
+                    console.log('[Dashboard Gráfico] Total movimentos 7 dias:', (movsGrafico || []).length);
+                    console.log('[Dashboard Gráfico] ENTRY no intervalo:', (movsGrafico || []).filter(m => m.movement_type === 'ENTRY').length);
+                    console.log('[Dashboard Gráfico] EXIT no intervalo:', (movsGrafico || []).filter(m => m.movement_type === 'EXIT').length);
+
+                    // Montar os 7 dias com chave BRT via Intl (mesmo padrão usado no forEach original)
                     historicoDias = [];
                     for (let i = 6; i >= 0; i--) {
-                        const d = new Date(); d.setDate(d.getDate() - i);
+                        const d = new Date(hojeInicio);
+                        d.setDate(d.getDate() - i);
+                        const p = Object.fromEntries(
+                            new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
+                                .formatToParts(d).map(x => [x.type, x.value])
+                        );
                         historicoDias.push({
-                            _ref: `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`,
+                            _ref: `${p.year}-${p.month}-${p.day}`,
                             name: diasTraduzidos[d.getDay()],
                             Entradas: 0, Saídas: 0
                         });
                     }
+                    console.log('[Dashboard Gráfico] Chave exemplo (hoje):', historicoDias[6]?._ref);
+
+                    // Distribuir movimentos por dia — conta registros (não quantidade de itens)
+                    (movsGrafico || []).forEach(m => {
+                        const p = Object.fromEntries(
+                            new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
+                                .formatToParts(new Date(m.created_at)).map(x => [x.type, x.value])
+                        );
+                        const movKey = `${p.year}-${p.month}-${p.day}`;
+                        const diaAlvo = historicoDias.find(h => h._ref === movKey);
+                        if (diaAlvo) {
+                            if (m.movement_type === 'ENTRY') diaAlvo.Entradas += 1;
+                            else if (m.movement_type === 'EXIT') diaAlvo['Saídas'] += 1;
+                        }
+                    });
+
+                    console.log('[Dashboard Gráfico] Série final:', JSON.stringify(historicoDias.map(d => ({ dia: d._ref, E: d.Entradas, S: d['Saídas'] }))));
+                    // ─────────────────────────────────────────────────────────────────────────
                     
+
+
+                    console.log('[Dashboard] Primeiro created_at da lista:', movements?.[0]?.created_at ?? 'nenhum');
+                    console.log('[Dashboard] Início do dia BRT:', HOJE_INICIO_ISO);
+                    console.log('[Dashboard] Fim do dia BRT:  ', HOJE_FIM_ISO);
+
+                    const entryMovsTotal = (movements || []).filter(m => m.movement_type === 'ENTRY');
+                    console.log('[Dashboard] ENTRY antes do filtro de data:', entryMovsTotal.length);
+
+                    // Dashboard = visão gerencial consolidada — SEM filtro de unidade
+                    // UPA (57) + UMSJ (1) = 58 → card mostra 58, independente da unidade selecionada
+                    const { count: entradasHojeCount, error: entradasErr } = await supabase
+                        .from('stock_movements')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('movement_type', 'ENTRY')
+                        .gte('created_at', HOJE_INICIO_ISO)
+                        .lte('created_at', HOJE_FIM_ISO);
+                    if (!entradasErr && entradasHojeCount !== null) {
+                        entradasHoje = entradasHojeCount;
+                    }
+                    console.log('[Dashboard] ENTRY hoje (todas as unidades):', entradasHoje);
+
+                    // ── saidasHoje: mesma lógica de entradasHoje, filtro EXIT ───────────────
+                    const exitMovsTotal = (movements || []).filter(m => m.movement_type === 'EXIT');
+                    console.log('[Dashboard] EXIT antes do filtro de data:', exitMovsTotal.length);
+
+                    const { count: saidasHojeCount, error: saidasErr } = await supabase
+                        .from('stock_movements')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('movement_type', 'EXIT')
+                        .gte('created_at', HOJE_INICIO_ISO)
+                        .lte('created_at', HOJE_FIM_ISO);
+                    if (!saidasErr && saidasHojeCount !== null) {
+                        saidasHoje = saidasHojeCount;
+                    }
+                    console.log('[Dashboard] EXIT hoje (todas as unidades):', saidasHoje);
+                    // ─────────────────────────────────────────────────────────────────────────
+
                     if (movements) {
+                        // HOJE_ISO mantida apenas para compatibilidade dos outros cálculos do forEach
+                        const HOJE_ISO = new Date().toISOString().split('T')[0];
+
                         movements.forEach(m => {
-                            // Focus only on active items to build balance
-                            if (!activeItemIds.has(m.inventory_item_id)) return;
-                            
-                            const isToday = m.created_at >= startOfToday && m.created_at < startOfTomorrow;
+                            if (targetUnitId && m.unit_id !== targetUnitId) return;
+
+                            const dataObj = new Date(m.created_at);
+                            const isToday = dataObj >= hojeInicio && dataObj <= hojeFim;
+
                             const qty = Number(m.quantity) || 0;
                             const itemId = m.inventory_item_id;
 
-                            // Atualizar gráfico local de 7 dias
-                            const movDate = new Date(m.created_at);
-                            const refKey = `${movDate.getFullYear()}-${movDate.getMonth()}-${movDate.getDate()}`;
-                            const diaAlvo = historicoDias.find(h => h._ref === refKey);
-                            if (diaAlvo) {
-                                if (m.movement_type === 'ENTRY') diaAlvo.Entradas += qty;
-                                else if (m.movement_type === 'EXIT') diaAlvo.Saídas += Math.abs(qty);
-                            }
+                            // diaAlvo removido — historicoDias agora é alimentado pela query dedicada acima
 
-                            if (!balanceByItem[itemId]) {
-                                balanceByItem[itemId] = 0;
-                            }
+                            if (!balanceByItem[itemId]) balanceByItem[itemId] = 0;
 
                             if (m.movement_type === 'ENTRY') {
                                 balanceByItem[itemId] += qty;
-                                if (isToday) entradasHoje += qty;
+                                // entradasHoje já calculado via query dedicada acima — não incrementar aqui
                             } else if (m.movement_type === 'EXIT') {
-                                balanceByItem[itemId] += qty; // Native DB logic: Exits are already negative!
-                                if (isToday) saidasHoje += Math.abs(qty);
+                                balanceByItem[itemId] += qty;
+                                // saidasHoje já calculado via query dedicada acima — não incrementar aqui
                             }
 
-                            // Fase 2: Consumo por Unidade e Ranking (Apenas últimos 30 dias)
                             if (m.movement_type === 'EXIT' && m.created_at >= start30) {
                                 if (m.unit_id) {
                                     unitMap[m.unit_id] = (unitMap[m.unit_id] || 0) + Math.abs(qty);
@@ -310,39 +373,25 @@ const FarmaciaDashboard = () => {
                                 itemExitMap[itemId] = (itemExitMap[itemId] || 0) + Math.abs(qty);
                             }
 
-                            // Fase 3: Cálculo do balanço por Lote Físico
                             if (m.batch_id) {
                                 batchBalance[m.batch_id] = (batchBalance[m.batch_id] || 0) + qty;
                             }
                         });
-                        
-                        // Fase 3: Montagem do Feed Recente
+
+                        console.log(`[Dashboard Farmácia] Resultado final — EntradasHoje=${entradasHoje} SaídasHoje=${saidasHoje}`);
+
                         const sortedMovs = [...movements].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 10);
-                        
-                        // Fallback: Busca nomes em user_tenants para os casos sem o hack das notas
-                        const userIds = [...new Set(sortedMovs.map(m => m.created_by))].filter(Boolean);
-                        const { data: usersData } = await supabase
-                            .from('user_tenants')
-                            .select('user_id, full_name, name')
-                            .in('user_id', userIds)
-                            .eq('tenant_id', tenantLink.tenant_id);
-
-                        const userMap = {};
-                        (usersData || []).forEach(u => userMap[u.user_id] = u.full_name || u.name);
-
                         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
                         feedData = sortedMovs.map(m => {
-                            let responsavel = userMap[m.created_by] || m.created_by || 'Não informado';
+                            let responsavel = m.created_by || 'Não informado';
                             const notes = m.notes || '';
                             
-                            // Prioridade 1: Lógica idêntica à tela de Saídas (metadado nas notas)
                             if (notes.includes('||RESP:')) {
                                 const parts = notes.split('||RESP:');
                                 responsavel = parts[1]?.trim() || responsavel;
                             }
                             
-                            // Higienização rigorosa para "Não informado" em casos vazios, nulos ou UUIDs brutos
                             const isUuid = typeof responsavel === 'string' && uuidRegex.test(responsavel);
                             if (!responsavel || responsavel === '-' || responsavel === 'null' || responsavel === 'undefined' || isUuid) {
                                 responsavel = 'Não informado';
@@ -358,16 +407,36 @@ const FarmaciaDashboard = () => {
                             };
                         });
                     }
+                    // ── itensCriticos: balanço COMPLETO via query dedicada ──────────────────
+                    // Motivo: balanceByItem é construído dos 1000 registros mais antigos do fetch principal.
+                    // Com banco grande, o balanço fica incompleto → saldo parece OK mas item está crítico.
+                    // Solução: buscar TODOS os movimentos com payload mínimo (3 campos) para calcular
+                    // o saldo real de cada item, idêntico ao FarmaciaEstoque (DB exits = negativos).
+                    const { data: allMovsBalance, error: balanceErr } = await supabase
+                        .from('stock_movements')
+                        .select('inventory_item_id, movement_type, quantity')
+                        .limit(100000); // payload leve: só 3 campos
+
+                    const balanceCompleto = {};
+                    const batchBalanceCompleto = {}; // batchBalance real — sem limite de 1000
+                    (allMovsBalance || []).forEach(m => {
+                        const net = Number(m.quantity) || 0; // EXITs já são negativos no banco (mesmo que FarmaciaEstoque ln.101)
+                        balanceCompleto[m.inventory_item_id] = (balanceCompleto[m.inventory_item_id] || 0) + net;
+                    });
+
+                    console.log('[Dashboard] Total itens cadastrados:', validItems.length);
+                    console.log('[Dashboard] Itens com balanço calculado:', Object.keys(balanceCompleto).length);
 
                     let healthySkus = 0;
                     let totalMonitorado = 0;
+                    const exemplosCriticos = [];
 
                     validItems.forEach(item => {
-                        const hasMovements = balanceByItem.hasOwnProperty(item.id);
-                        if (!hasMovements) return;
+                        // Usa balanceCompleto (todos os movimentos) em vez de balanceByItem (limitado a 1000)
+                        const balance = balanceCompleto[item.id] ?? null;
+                        if (balance === null) return; // item sem nenhuma movimentação — não monitora
 
                         totalMonitorado += 1;
-                        const balance = balanceByItem[item.id] || 0;
                         const minStock = Number(item.minimum_stock) || 0;
 
                         if (balance === 0) {
@@ -378,23 +447,45 @@ const FarmaciaDashboard = () => {
 
                         if (balance <= minStock) {
                             itensCriticos += 1;
+                            if (exemplosCriticos.length < 3) {
+                                exemplosCriticos.push({ nome: item.name, balance, minStock });
+                            }
                         } else {
                             healthySkus += 1;
                         }
 
-                        // Fase 2: Distribuição
-                        if (balance > 0) {
-                            distMap[item.category_id] = (distMap[item.category_id] || 0) + balance;
+                        // distMap usa balanceCompleto (todos os movimentos, sem limite de 1000)
+                        const balRef = balanceCompleto[item.id] || 0;
+                        if (balRef > 0) {
+                            distMap[item.category_id] = (distMap[item.category_id] || 0) + balRef;
                         }
                     });
 
+                    console.log('[Dashboard] Itens críticos encontrados:', itensCriticos);
+                    if (exemplosCriticos.length > 0) {
+                        console.log('[Dashboard] Exemplos de itens críticos:', exemplosCriticos.map(e => `${e.nome} (saldo=${e.balance}, mín=${e.minStock})`).join(' | '));
+                    }
+                    // ─────────────────────────────────────────────────────────────────────────
+
                     saudePercentual = totalMonitorado > 0 ? Math.round((healthySkus / totalMonitorado) * 100) : 0;
 
-                    // Fase 3: Validades baseadas no array batches + saldo calculados
                     if (batches) {
+                        // batchBalanceCompleto: saldo real de cada lote (todos os movimentos, sem limite)
+                        // Precisamos de batch_id no allMovsBalance — fetch complementar
+                        const { data: allMovsBatch } = await supabase
+                            .from('stock_movements')
+                            .select('batch_id, quantity')
+                            .not('batch_id', 'is', null)
+                            .limit(100000);
+                        (allMovsBatch || []).forEach(m => {
+                            const net = Number(m.quantity) || 0;
+                            if (m.batch_id) batchBalanceCompleto[m.batch_id] = (batchBalanceCompleto[m.batch_id] || 0) + net;
+                        });
+
                         let critico = 0, atencao = 0, monitorar = 0;
                         batches.forEach(b => {
-                            if ((batchBalance[b.id] || 0) > 0 && b.expiration_date) {
+                            // Usa batchBalanceCompleto em vez de batchBalance (limitado a 1000 registros antigos)
+                            if ((batchBalanceCompleto[b.id] || 0) > 0 && b.expiration_date) {
                                 const expDate = new Date(b.expiration_date);
                                 const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
                                 if (diffDays <= 30) critico++;
@@ -403,27 +494,97 @@ const FarmaciaDashboard = () => {
                             }
                         });
                         const totalB = critico + atencao + monitorar || 1;
-                        validadesData[0] = { ...validadesData[0], qtd: critico, pct: Math.round((critico/totalB)*100) };
-                        validadesData[1] = { ...validadesData[1], qtd: atencao, pct: Math.round((atencao/totalB)*100) };
+                        validadesData[0] = { ...validadesData[0], qtd: critico,   pct: Math.round((critico/totalB)*100)  };
+                        validadesData[1] = { ...validadesData[1], qtd: atencao,   pct: Math.round((atencao/totalB)*100)  };
                         validadesData[2] = { ...validadesData[2], qtd: monitorar, pct: Math.round((monitorar/totalB)*100) };
                     }
 
-                    // Fase 2: Construções dos Arrays Finais
-                    const distribuicaoDataRaws = Object.keys(distMap).map(id => ({ name: catMap[id] || 'Sem Categoria', value: distMap[id] })).sort((a, b) => b.value - a.value);
+                    const distribuicaoDataRaws = Object.keys(distMap)
+                        .map(id => ({ name: catMap[id] || 'Sem Categoria', value: distMap[id] }))
+                        .sort((a, b) => b.value - a.value);
+
+                    // Debug: resumo da distribuição
+                    const totalGeral = distribuicaoDataRaws.reduce((s, c) => s + c.value, 0) || 1;
+                    console.log('[Dashboard Distribuição] Total geral de estoque:', totalGeral);
+                    distribuicaoDataRaws.forEach(cat => {
+                        console.log(`  Categoria: ${cat.name} | Saldo: ${cat.value} | Pct: ${Math.round((cat.value / totalGeral) * 100)}%`);
+                    });
+
                     distribuicaoData = distribuicaoDataRaws.slice(0, 4);
                     if (distribuicaoDataRaws.length > 4) {
-                        distribuicaoData.push({ name: 'Outros', value: distribuicaoDataRaws.slice(4).reduce((s, c) => s + c.value, 0) });
+                        const outrosValue = distribuicaoDataRaws.slice(4).reduce((s, c) => s + c.value, 0);
+                        distribuicaoData.push({ name: 'Outros', value: outrosValue });
                     }
                     const colors = ['#00967D', '#3b82f6', '#f59e0b', '#8b5cf6', '#64748b'];
-                    distribuicaoData.forEach((d, i) => d.color = colors[i % colors.length]);
+                    // Recalcular totalGeral sobre os dados finais (inclui "Outros" consolidado)
+                    const totalGeralFinal = distribuicaoData.reduce((s, d) => s + d.value, 0) || 1;
+                    distribuicaoData.forEach((d, i) => {
+                        d.color   = colors[i % colors.length];
+                        d.pct     = Math.round((d.value / totalGeralFinal) * 100); // percentual pronto para o tooltip
+                        d.valueInt = Math.round(d.value);                           // inteiro sem casas decimais
+                        console.log(`[Dashboard Distrib] ${d.name}: ${d.valueInt} un | ${d.pct}% do total (total=${Math.round(totalGeralFinal)})`);
+                    });
+                    // ── consumoUnidadesData: query DEDICADA — EXITs últimos 30 dias ────────────
+                    // Motivo: unitMap é construído no forEach dos 1000 registros mais antigos.
+                    // EXITs recentes ficam além do limite → gráfico fica zerado.
+                    // Solução: query dedicada com filtro de data e tipo no servidor.
+                    const { data: exitsUlt30, error: exitsErr } = await supabase
+                        .from('stock_movements')
+                        .select('unit_id, quantity')
+                        .eq('movement_type', 'EXIT')
+                        .gte('created_at', start30);
 
-                    consumoUnidadesData = Object.keys(unitMap).map(id => ({ name: unitsMap[id] || 'Desconhecida', consumo: unitMap[id] })).sort((a, b) => b.consumo - a.consumo).slice(0, 5);
+                    const unitMapDedicado = {};
+                    (exitsUlt30 || []).forEach(m => {
+                        if (m.unit_id) {
+                            unitMapDedicado[m.unit_id] = (unitMapDedicado[m.unit_id] || 0) + Math.abs(Number(m.quantity) || 0);
+                        }
+                    });
 
-                    const topMedicamentosDataRaw = Object.keys(itemExitMap).map(id => ({ nome: itemsNameMap[id] || 'Item Removido', qtd: itemExitMap[id] })).sort((a, b) => b.qtd - a.qtd).slice(0, 5);
+                    console.log('[Dashboard Consumo] Total EXITs últimos 30d:', (exitsUlt30 || []).length);
+                    Object.entries(unitMapDedicado).forEach(([uid, consumo]) => {
+                        console.log(`  Unidade: ${unitsMap[uid] || uid} | Consumo: ${Math.round(consumo)}`);
+                    });
+
+                    consumoUnidadesData = Object.keys(unitMapDedicado)
+                        .map(id => ({ name: unitsMap[id] || 'Desconhecida', consumo: unitMapDedicado[id] }))
+                        .sort((a, b) => b.consumo - a.consumo)
+                        .slice(0, 5);
+
+                    console.log('[Dashboard Consumo] Série final:', JSON.stringify(consumoUnidadesData.map(u => ({ unidade: u.name, consumo: Math.round(u.consumo) }))));
+                    // ─────────────────────────────────────────────────────────────────────────
+
+                    // ── topMedicamentosData: query DEDICADA — Itens mais movimentados (30d) ─────
+                    // Motivo: itemExitMap era preenchido no forEach dos 1000 registros mais antigos.
+                    // Solução: buscar movimentações (ENTRY e EXIT) dos últimos 30 dias no servidor.
+                    const { data: movsTop30 } = await supabase
+                        .from('stock_movements')
+                        .select('inventory_item_id, quantity')
+                        .gte('created_at', start30);
+
+                    const movTotalMap = {};
+                    (movsTop30 || []).forEach(m => {
+                        const itemId = m.inventory_item_id;
+                        if (itemId) {
+                            movTotalMap[itemId] = (movTotalMap[itemId] || 0) + Math.abs(Number(m.quantity) || 0);
+                        }
+                    });
+
+                    console.log('[Dashboard Movimentados] Total de registros 30d:', (movsTop30 || []).length);
+
+                    const topMedicamentosDataRaw = Object.keys(movTotalMap)
+                        .map(id => ({ 
+                            nome: itemsNameMap[id] || 'Item Removido', 
+                            qtd: movTotalMap[id] 
+                        }))
+                        .sort((a, b) => b.qtd - a.qtd)
+                        .slice(0, 5);
+
+                    console.log('[Dashboard Movimentados] Top 5 itens:', JSON.stringify(topMedicamentosDataRaw));
+
                     const maxQtd = topMedicamentosDataRaw[0]?.qtd || 1;
                     topMedicamentosData = topMedicamentosDataRaw.map(d => ({ ...d, max: maxQtd }));
 
-                    // Insights Data
                     const totalSaidas30d = consumoUnidadesData.reduce((s, u) => s + u.consumo, 0) || 1;
                     const topUnit = consumoUnidadesData[0];
                     const pctUnit = topUnit ? Math.round((topUnit.consumo / totalSaidas30d) * 100) : 0;
@@ -435,9 +596,19 @@ const FarmaciaDashboard = () => {
                         insight2: topCat ? { tag: 'Maior Volume Físico', name: topCat.name, desc: `${topCat.value.toLocaleString('pt-BR')} itens no depósito em tempo real`, color: '#3b82f6' } : null,
                         insight3: topItem ? { tag: 'Alta Dispensação', name: topItem.nome, desc: `${topItem.qtd.toLocaleString('pt-BR')} saídas nos últimos 30d`, color: '#ea580c' } : null
                     };
-                }
 
-                // Delete _ref prop cleanly
+                    // ── Debug: resumo consolidado do badge de alertas ─────────────────────────
+                    const alertasValidade  = validadesData[0]?.qtd || 0; // lotes 0-30 dias
+                    const alertasZerado    = itensSemEstoque;             // saldo === 0
+                    const alertasAbaixoMin = itensAbaixoMinimo;           // 0 < saldo <= minStock
+                    const totalAlertas     = alertasValidade + alertasZerado + alertasAbaixoMin;
+                    console.log('[Dashboard Badge] Alertas por tipo:');
+                    console.log('  Validade próxima (0-30d):', alertasValidade);
+                    console.log('  Estoque zerado:          ', alertasZerado);
+                    console.log('  Abaixo do mínimo:        ', alertasAbaixoMin);
+                    console.log('  TOTAL DO BADGE:          ', totalAlertas);
+                    // ─────────────────────────────────────────────────────────────────────────
+
                 const chartDataLimpo = historicoDias.map(({ name, Entradas, Saídas }) => ({ name, Entradas, Saídas }));
 
                 setKpiData({
@@ -465,7 +636,7 @@ const FarmaciaDashboard = () => {
         };
 
         fetchFarmaciaKPIs();
-    }, []);
+    }, [isUnitResolved, unidadeAtiva, dataRefreshKey]);
 
     // Fade-in animation for bars on scroll visibility
     useEffect(() => {
@@ -502,8 +673,6 @@ const FarmaciaDashboard = () => {
     const saudeCor = saudePercentual < 70 ? '#ef4444' : saudePercentual <= 85 ? '#f59e0b' : '#10b981';
     const saudeLabel = saudePercentual < 70 ? 'Crítico' : saudePercentual <= 85 ? 'Atenção' : 'Saudável';
 
-    // Consumo por unidade — calculado dinamicamente
-    const consumoUnidades = useMemo(() => calcConsumoUnidades(), []);
 
     // Cálculo da média semanal para o Hero Chart
     const mediaMovimentacoes = useMemo(() => {
@@ -620,8 +789,8 @@ const FarmaciaDashboard = () => {
                                             </div>
                                             <div>
                                                 <div style={{ fontSize: '0.83rem', fontWeight: 700, color: '#dc2626' }}>
-                                                    {itensSemEstoque === 1 
-                                                        ? `${mockEstoqueItems.find(i => i.status === 'SEM_ESTOQUE')?.nome || '1 item'} sem estoque` 
+                                                    {itensSemEstoque === 1
+                                                        ? `1 item sem estoque`
                                                         : `${itensSemEstoque} itens sem estoque`}
                                                 </div>
                                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>Reposição imediata recomendada.</div>
@@ -643,7 +812,7 @@ const FarmaciaDashboard = () => {
                                             <div>
                                                 <div style={{ fontSize: '0.83rem', fontWeight: 700, color: '#b45309' }}>
                                                     {itensAbaixoMinimo === 1
-                                                        ? `${mockEstoqueItems.find(i => i.status === 'ABAIXO_MINIMO')?.nome || '1 item'} abaixo do mínimo`
+                                                        ? `1 item abaixo do mínimo`
                                                         : `${itensAbaixoMinimo} itens abaixo do mínimo`}
                                                 </div>
                                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>Análise de reabastecimento sugerida.</div>
@@ -999,20 +1168,22 @@ const FarmaciaDashboard = () => {
                             </button>
                         </div>
                         
-                        {/* Resumo do Dia */}
+                        {/* Resumo do Dia — dados reais derivados do kpiData */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.78rem', backgroundColor: 'var(--bg-muted-light)', padding: '0.4rem 0.6rem', borderRadius: '6px' }}>
                             <span style={{ fontWeight: 600, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.7rem' }}>Hoje:</span>
                             <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                                 <ArrowLeftRight size={12} color="#00967D" />
-                                <span style={{ fontWeight: 600, color: '#00967D' }}>+620</span> <span style={{ color: 'var(--text-muted)' }}>entradas</span>
+                                <span style={{ fontWeight: 600, color: '#00967D' }}>+{kpiData.entradasHoje}</span> <span style={{ color: 'var(--text-muted)' }}>entradas</span>
                             </div>
                             <div style={{ height: '12px', width: '1px', backgroundColor: 'var(--border)' }}></div>
                             <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                                 <ArrowLeftRight size={12} color="#ea580c" style={{ transform: 'scaleX(-1)' }} />
-                                <span style={{ fontWeight: 600, color: '#ea580c' }}>-75</span> <span style={{ color: 'var(--text-muted)' }}>saídas</span>
+                                <span style={{ fontWeight: 600, color: '#ea580c' }}>-{kpiData.saidasHoje}</span> <span style={{ color: 'var(--text-muted)' }}>saídas</span>
                             </div>
                             <div style={{ height: '12px', width: '1px', backgroundColor: 'var(--border)' }}></div>
-                            <span style={{ fontWeight: 600, color: '#00967D', background: 'rgba(0, 150, 125, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>Saldo positivo</span>
+                            <span style={{ fontWeight: 600, color: kpiData.entradasHoje >= kpiData.saidasHoje ? '#00967D' : '#ea580c', background: kpiData.entradasHoje >= kpiData.saidasHoje ? 'rgba(0,150,125,0.1)' : 'rgba(234,88,12,0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                                {kpiData.entradasHoje >= kpiData.saidasHoje ? 'Saldo positivo' : 'Saldo negativo'}
+                            </span>
                         </div>
                     </div>
                     <div className="farmacia-table-wrapper" style={{ border: 'none', flex: 1, borderRadius: 0, paddingBottom: '0.75rem' }}>
