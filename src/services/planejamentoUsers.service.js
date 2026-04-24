@@ -83,13 +83,19 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
                 email: row.email || '',
                 profile: role,
                 status: (row.is_active === true || row.status === 'ATIVO') ? 'ATIVO' : 'INATIVO',
-                secretariat_name: userSecretariatMap[userId] || row.secretariat_name || 'Planejamento e Inovação',
+                secretariat_name: row.secretariat_name || userSecretariatMap[userId] || 'Planejamento e Inovação',
                 modulo: 'Planejamento Estratégico'
             });
         }
     });
 
-    return Array.from(uniqueUsers.values());
+    // Ajuste fino solicitado para Osvaldo Albanez (vinculo institucional Saúde)
+    return Array.from(uniqueUsers.values()).map(u => {
+        if (u.email && u.email.toLowerCase().includes('osvaldo.albanez')) {
+            return { ...u, secretariat_name: 'Saúde' };
+        }
+        return u;
+    });
 };
 
 /**
