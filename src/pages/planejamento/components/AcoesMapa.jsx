@@ -52,8 +52,9 @@ const HoverManager = ({ pontos, hoveredPoint, setHoveredPoint }) => {
                     <div style={{ fontSize: '0.75rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                         <span><strong style={{ color: '#1e293b' }}>Status:</strong> {hoveredPoint.status.replace('_', ' ')}</span>
                         <span><strong style={{ color: '#1e293b' }}>Progresso:</strong> {hoveredPoint.progresso}%</span>
-                        <div style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px solid #f1f5f9', color: '#94a3b8', fontSize: '0.7rem' }}>
-                            {hoveredPoint.municipio}
+                        <span><strong style={{ color: '#1e293b' }}>Local:</strong> {hoveredPoint.bairro}</span>
+                        <div style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px solid #f1f5f9', color: '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>
+                            {hoveredPoint.secretaria}
                         </div>
                     </div>
                 </div>
@@ -76,61 +77,95 @@ const AcoesMapa = ({ data }) => {
         );
     }
 
-    // Coordenadas base de Bezerros/PE
-    const MUNICIPALITY_CENTER = [-8.234579290991197, -35.75168297069541];
-    
-    const pontosGeorreferenciados = [
+    // Coordenadas base de Bezerros/PE e mapeamento de bairros
+    const MUNICIPALITY_CENTER = [-8.234579, -35.751683];
+
+    const BAIRRO_COORDINATES = {
+        'Centro': [-8.234579, -35.751683],
+        'Bairro Novo': [-8.236400, -35.750200],
+        'Santo Amaro': [-8.231200, -35.753500],
+        'Cruzeiro': [-8.233500, -35.756800],
+        'Gameleira': [-8.238200, -35.752100],
+        'São Sebastião': [-8.235100, -35.748500],
+        'Retiro': [-8.240500, -35.745800]
+    };
+
+    const STATUS_COLORS = {
+        'CONCLUIDA': '#10b981',
+        'EM_ANDAMENTO': '#8b5cf6',
+        'EM_RISCO': '#ef4444',
+        'PARALISADA': '#f59e0b',
+        'NAO_INICIADA': '#94a3b8'
+    };
+
+    const acoesMockadas = [
         {
-            id: 'acao-1',
-            lat: -8.234579290991197 + 0.002,
-            lng: -35.75168297069541 + 0.003,
-            title: 'Implantar portal integrado de transparência',
+            id: 'm-1',
+            title: 'Cozinha Comunitária – Gameleira',
+            bairro: 'Gameleira',
             status: 'EM_ANDAMENTO',
-            progresso: 35,
-            municipio: 'Centro - Bezerros/PE',
-            color: '#8b5cf6'
+            progresso: 45,
+            secretaria: 'Sec. de Assistência Social'
         },
         {
-            id: 'acao-2',
-            lat: -8.234579290991197 - 0.003,
-            lng: -35.75168297069541 + 0.001,
-            title: 'Reforma da Unidade Básica de Saúde',
+            id: 'm-2',
+            title: 'Pavimentação de Vias – Bairro Novo',
+            bairro: 'Bairro Novo',
             status: 'CONCLUIDA',
             progresso: 100,
-            municipio: 'Bairro Novo - Bezerros/PE',
-            color: '#10b981'
+            secretaria: 'Sec. de Infraestrutura'
         },
         {
-            id: 'acao-3',
-            lat: -8.234579290991197 + 0.004,
-            lng: -35.75168297069541 - 0.002,
-            title: 'Ampliação da rede de iluminação pública',
+            id: 'm-3',
+            title: 'Iluminação LED – Centro',
+            bairro: 'Centro',
+            status: 'EM_ANDAMENTO',
+            progresso: 80,
+            secretaria: 'Sec. de Serviços Públicos'
+        },
+        {
+            id: 'm-4',
+            title: 'Reforma UBS – Santo Amaro',
+            bairro: 'Santo Amaro',
             status: 'EM_RISCO',
-            progresso: 45,
-            municipio: 'Santo Amaro - Bezerros/PE',
-            color: '#ef4444'
+            progresso: 30,
+            secretaria: 'Sec. de Saúde'
         },
         {
-            id: 'acao-4',
-            lat: -8.234579290991197 - 0.001,
-            lng: -35.75168297069541 - 0.004,
-            title: 'Regularização de cadastro habitacional',
+            id: 'm-5',
+            title: 'Quadra Poliesportiva – Cruzeiro',
+            bairro: 'Cruzeiro',
             status: 'PARALISADA',
-            progresso: 20,
-            municipio: 'Cruzeiro - Bezerros/PE',
-            color: '#f59e0b'
+            progresso: 15,
+            secretaria: 'Sec. de Esportes'
         },
         {
-            id: 'acao-5',
-            lat: -8.234579290991197 + 0.001,
-            lng: -35.75168297069541 - 0.001,
-            title: 'Capacitação de servidores municipais',
+            id: 'm-6',
+            title: 'Centro de Inovação – São Sebastião',
+            bairro: 'São Sebastião',
             status: 'NAO_INICIADA',
             progresso: 0,
-            municipio: 'Centro Administrativo - Bezerros/PE',
-            color: '#94a3b8'
+            secretaria: 'Sec. de Planejamento'
+        },
+        {
+            id: 'm-7',
+            title: 'Creche Municipal – Retiro',
+            bairro: 'Retiro',
+            status: 'EM_ANDAMENTO',
+            progresso: 60,
+            secretaria: 'Sec. de Educação'
         }
     ];
+
+    const pontosGeorreferenciados = acoesMockadas.map(acao => {
+        const coords = BAIRRO_COORDINATES[acao.bairro] || MUNICIPALITY_CENTER;
+        return {
+            ...acao,
+            lat: coords[0],
+            lng: coords[1],
+            color: STATUS_COLORS[acao.status] || '#94a3b8'
+        };
+    });
 
     const zoom = 14;
 
