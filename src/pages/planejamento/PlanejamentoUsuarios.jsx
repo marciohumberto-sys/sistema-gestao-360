@@ -18,6 +18,7 @@ import {
 import { 
     getCurrentTenantId, 
     fetchPlanejamentoUsers,
+    createPlanejamentoUser,
     updatePlanejamentoUser,
     togglePlanejamentoUserStatus,
     deletePlanejamentoUser
@@ -149,18 +150,24 @@ const PlanejamentoUsuarios = () => {
 
         try {
             const loginParsed = formData.login.trim().toLowerCase();
-            const emailParsed = `${loginParsed}@planejamento.local`;
+            const emailParsed = `${loginParsed}@sistema.local`;
             
             const payload = { 
                 ...formData, 
                 email: emailParsed 
             };
 
-            const targetId = editingUser.user_tenant_id || editingUser.id;
-            await updatePlanejamentoUser(targetId, payload);
+            if (editingUser) {
+                const targetId = editingUser.user_tenant_id || editingUser.id;
+                await updatePlanejamentoUser(targetId, payload);
+                setToast('Usuário atualizado com sucesso!');
+            } else {
+                const tenantId = await getCurrentTenantId();
+                await createPlanejamentoUser(tenantId, payload);
+                setToast('Usuário criado com sucesso. Senha inicial: Admin@123');
+            }
             
             await carregarDados();
-            setToast('Usuário atualizado com sucesso!');
             closeModal();
         } catch (err) {
             console.error(err);

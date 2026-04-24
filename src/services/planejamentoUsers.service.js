@@ -99,6 +99,39 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
 };
 
 /**
+ * Cria um usuário via Edge Function (manage-user) para o módulo PLANEJAMENTO_ESTRATEGICO.
+ */
+export const createPlanejamentoUser = async (tenantId, userData) => {
+    const tempPassword = 'Admin@123';
+
+    const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-user`,
+        {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({
+                email: userData.email,
+                password: tempPassword,
+                name: userData.name,
+                role: userData.profile,
+                is_active: userData.status === 'ATIVO',
+                tenant_id: tenantId,
+                module_key: 'PLANEJAMENTO_ESTRATEGICO',
+                secretariat_name: 'Planejamento e Inovação'
+            })
+        }
+    );
+
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Erro ao criar usuário');
+
+    return { success: true, user_id: result.user_id };
+};
+
+/**
  * Atualiza um usuário via Edge Function (manage-user) para o módulo PLANEJAMENTO_ESTRATEGICO.
  */
 export const updatePlanejamentoUser = async (userTenantId, userData) => {
