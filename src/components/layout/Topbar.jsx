@@ -20,6 +20,7 @@ const Topbar = () => {
 
     const isFarmacia = location.pathname.startsWith('/farmacia');
     const isCompras = location.pathname.startsWith('/compras');
+    const isPlanejamento = location.pathname.startsWith('/planejamento');
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -36,11 +37,18 @@ const Topbar = () => {
         navigate('/login');
     };
 
-    const tooltipText = isFarmacia ? "Nova Saída" : "Nova Ordem de Fornecimento";
-    const ariaLabelTex = isFarmacia ? "Nova Saída" : "Nova Ordem de Fornecimento";
+    const tooltipText = isPlanejamento 
+        ? "Criar nova ação" 
+        : isFarmacia 
+            ? "Nova Saída" 
+            : "Nova Ordem de Fornecimento";
+
+    const ariaLabelTex = tooltipText;
 
     const handleActionClick = () => {
-        if (isFarmacia) {
+        if (isPlanejamento) {
+            navigate('/planejamento/acoes', { state: { openModal: 'nova-acao' } });
+        } else if (isFarmacia) {
             navigate('/farmacia/saidas', { state: { openModal: 'saida' } });
         } else {
             // Gatilho global para Nova OF (Compras)

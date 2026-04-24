@@ -6,8 +6,37 @@ import 'leaflet/dist/leaflet.css';
 const HoverManager = ({ pontos, hoveredPoint, setHoveredPoint }) => {
     const map = useMap();
 
+    const getStatusStyle = (status) => {
+        const styles = {
+            'CONCLUIDA': { label: 'Concluída', bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981' },
+            'EM_ANDAMENTO': { label: 'Em Andamento', bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' },
+            'EM_RISCO': { label: 'Em Risco', bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' },
+            'PARALISADA': { label: 'Paralisada', bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' },
+            'NAO_INICIADA': { label: 'Não Iniciada', bg: 'rgba(148, 163, 184, 0.1)', color: '#64748b' },
+            'CANCELADA': { label: 'Cancelada', bg: 'rgba(71, 85, 105, 0.1)', color: '#475569' }
+        };
+        return styles[status] || styles['NAO_INICIADA'];
+    };
+
     return (
         <>
+            <style>{`
+                @keyframes tooltipEnter {
+                    from { opacity: 0; transform: scale(0.96) translateY(5px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                }
+                @keyframes progressGrow {
+                    from { width: 0; }
+                    to { width: var(--progress-width); }
+                }
+                .map-tooltip {
+                    animation: tooltipEnter 0.18s ease-out forwards;
+                }
+                .tooltip-progress-fill {
+                    animation: progressGrow 0.6s ease-out forwards;
+                }
+            `}</style>
+
             {pontos.map((ponto) => (
                 <CircleMarker
                     key={ponto.id}
@@ -30,37 +59,109 @@ const HoverManager = ({ pontos, hoveredPoint, setHoveredPoint }) => {
             ))}
 
             {hoveredPoint && (
-                <div style={{
-                    position: 'absolute',
-                    // Lógica de posicionamento inteligente para evitar cortes
-                    left: hoveredPoint.x > 200 ? hoveredPoint.x - 210 : hoveredPoint.x + 20,
-                    top: hoveredPoint.y > 150 ? hoveredPoint.y - 140 : hoveredPoint.y + 20,
-                    zIndex: 1000,
-                    width: '190px',
-                    backgroundColor: 'white',
-                    borderRadius: '8px',
-                    padding: '12px',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                    border: '1px solid #e2e8f0',
-                    pointerEvents: 'none',
-                    borderLeft: `4px solid ${hoveredPoint.color}`,
-                    transition: 'all 0.1s ease-out'
-                }}>
-                    <strong style={{ color: '#0f172a', display: 'block', fontSize: '0.85rem', marginBottom: '6px', lineHeight: '1.2' }}>
+                <div 
+                    className="map-tooltip"
+                    style={{
+                        position: 'absolute',
+                        left: hoveredPoint.x > 200 ? hoveredPoint.x - 225 : hoveredPoint.x + 20,
+                        top: hoveredPoint.y > 150 ? hoveredPoint.y - 150 : hoveredPoint.y + 20,
+                        zIndex: 1000,
+                        width: '210px',
+                        backgroundColor: 'white',
+                        borderRadius: '10px',
+                        padding: '16px',
+                        boxShadow: '0 15px 30px -5px rgba(0, 0, 0, 0.15), 0 8px 12px -3px rgba(0, 0, 0, 0.1)',
+                        border: '1px solid #e2e8f0',
+                        pointerEvents: 'none',
+                        borderLeft: `5px solid ${hoveredPoint.color}`,
+                    }}
+                >
+                    <strong style={{ color: '#0f172a', display: 'block', fontSize: '0.9rem', marginBottom: '10px', fontWeight: 600, lineHeight: '1.3' }}>
                         {hoveredPoint.title}
                     </strong>
-                    <div style={{ fontSize: '0.75rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        <span><strong style={{ color: '#1e293b' }}>Status:</strong> {hoveredPoint.status.replace('_', ' ')}</span>
-                        <span><strong style={{ color: '#1e293b' }}>Progresso:</strong> {hoveredPoint.progresso}%</span>
-                        <span><strong style={{ color: '#1e293b' }}>Local:</strong> {hoveredPoint.bairro}</span>
-                        <div style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px solid #f1f5f9', color: '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>
-                            {hoveredPoint.secretaria}
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {/* Status Badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Status:</span>
+                            {(() => {
+                                const s = getStatusStyle(hoveredPoint.status);
+                                return (
+                                    <span style={{ 
+                                        backgroundColor: s.bg, 
+                                        color: s.color, 
+                                        fontSize: '0.65rem', 
+                                        padding: '2px 8px', 
+                                        borderRadius: '100px', 
+                                        fontWeight: 700,
+                                        border: `1px solid ${s.color}20`,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.02em'
+                                    }}>
+                                        {s.label}
+                                    </span>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Progresso com Barra */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Progresso:</span>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b' }}>{hoveredPoint.progresso}%</span>
+                            </div>
+                            <div style={{ width: '100%', height: '5px', backgroundColor: '#f1f5f9', borderRadius: '100px', overflow: 'hidden' }}>
+                                <div 
+                                    className="tooltip-progress-fill"
+                                    style={{ 
+                                        height: '100%', 
+                                        backgroundColor: hoveredPoint.color,
+                                        '--progress-width': `${hoveredPoint.progresso}%`
+                                    }} 
+                                />
+                            </div>
+                        </div>
+
+                        {/* Informações Extras */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.75rem' }}>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                                <span style={{ color: '#64748b', fontWeight: 500 }}>Local:</span>
+                                <span style={{ color: '#1e293b', fontWeight: 600 }}>{hoveredPoint.bairro}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                                <span style={{ color: '#64748b', fontWeight: 500 }}>Responsável:</span>
+                                <span style={{ color: '#1e293b', fontWeight: 600 }}>{hoveredPoint.responsavel}</span>
+                            </div>
+                        </div>
+
+                        {/* Divisor e Secretaria */}
+                        <div style={{ marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #f1f5f9' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b' }}>
+                                <span style={{ fontSize: '0.8rem' }}>🏛</span>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                    {hoveredPoint.secretaria && hoveredPoint.secretaria !== 'Não informada' && !hoveredPoint.secretaria.toLowerCase().startsWith('secretaria') 
+                                        ? `Secretaria de ${hoveredPoint.secretaria}` 
+                                        : hoveredPoint.secretaria}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
         </>
     );
+};
+
+const formatStatus = (status) => {
+    const map = {
+        'NAO_INICIADA': 'Não Iniciada',
+        'EM_ANDAMENTO': 'Em Andamento',
+        'CONCLUIDA': 'Concluída',
+        'EM_RISCO': 'Em Risco',
+        'PARALISADA': 'Paralisada',
+        'CANCELADA': 'Cancelada'
+    };
+    return map[status] || status.replace('_', ' ');
 };
 
 const AcoesMapa = ({ data }) => {
@@ -77,7 +178,6 @@ const AcoesMapa = ({ data }) => {
         );
     }
 
-    // Coordenadas base de Bezerros/PE e mapeamento de bairros
     const MUNICIPALITY_CENTER = [-8.234579, -35.751683];
 
     const BAIRRO_COORDINATES = {
@@ -86,84 +186,23 @@ const AcoesMapa = ({ data }) => {
         'Santo Amaro': [-8.231200, -35.753500],
         'Cruzeiro': [-8.233500, -35.756800],
         'Gameleira': [-8.238200, -35.752100],
-        'São Sebastião': [-8.235100, -35.748500],
-        'Retiro': [-8.240500, -35.745800]
+        'São Sebastião': [-8.235100, -34.748500], // Ajustado para não cair no mar
+        'Retiro': [-8.240500, -35.745800],
+        'Zona Rural': [-8.255000, -35.720000],
+        'São Pedro': [-8.225000, -35.780000]
     };
 
-    const STATUS_COLORS = {
-        'CONCLUIDA': '#10b981',
-        'EM_ANDAMENTO': '#8b5cf6',
-        'EM_RISCO': '#ef4444',
-        'PARALISADA': '#f59e0b',
-        'NAO_INICIADA': '#94a3b8'
-    };
-
-    const acoesMockadas = [
-        {
-            id: 'm-1',
-            title: 'Cozinha Comunitária – Gameleira',
-            bairro: 'Gameleira',
-            status: 'EM_ANDAMENTO',
-            progresso: 45,
-            secretaria: 'Sec. de Assistência Social'
-        },
-        {
-            id: 'm-2',
-            title: 'Pavimentação de Vias – Bairro Novo',
-            bairro: 'Bairro Novo',
-            status: 'CONCLUIDA',
-            progresso: 100,
-            secretaria: 'Sec. de Infraestrutura'
-        },
-        {
-            id: 'm-3',
-            title: 'Iluminação LED – Centro',
-            bairro: 'Centro',
-            status: 'EM_ANDAMENTO',
-            progresso: 80,
-            secretaria: 'Sec. de Serviços Públicos'
-        },
-        {
-            id: 'm-4',
-            title: 'Reforma UBS – Santo Amaro',
-            bairro: 'Santo Amaro',
-            status: 'EM_RISCO',
-            progresso: 30,
-            secretaria: 'Sec. de Saúde'
-        },
-        {
-            id: 'm-5',
-            title: 'Quadra Poliesportiva – Cruzeiro',
-            bairro: 'Cruzeiro',
-            status: 'PARALISADA',
-            progresso: 15,
-            secretaria: 'Sec. de Esportes'
-        },
-        {
-            id: 'm-6',
-            title: 'Centro de Inovação – São Sebastião',
-            bairro: 'São Sebastião',
-            status: 'NAO_INICIADA',
-            progresso: 0,
-            secretaria: 'Sec. de Planejamento'
-        },
-        {
-            id: 'm-7',
-            title: 'Creche Municipal – Retiro',
-            bairro: 'Retiro',
-            status: 'EM_ANDAMENTO',
-            progresso: 60,
-            secretaria: 'Sec. de Educação'
-        }
-    ];
-
-    const pontosGeorreferenciados = acoesMockadas.map(acao => {
+    const pontosGeorreferenciados = (data || []).map((acao, idx) => {
         const coords = BAIRRO_COORDINATES[acao.bairro] || MUNICIPALITY_CENTER;
+        
+        // Jitter determinístico baseado no index para evitar sobreposição total
+        const latOffset = (Math.sin(idx * 1.5) * 0.0015);
+        const lngOffset = (Math.cos(idx * 1.5) * 0.0015);
+
         return {
             ...acao,
-            lat: coords[0],
-            lng: coords[1],
-            color: STATUS_COLORS[acao.status] || '#94a3b8'
+            lat: coords[0] + latOffset,
+            lng: coords[1] + lngOffset
         };
     });
 

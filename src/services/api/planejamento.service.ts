@@ -2,9 +2,10 @@ import { supabase } from '../../lib/supabase';
 
 class PlanejamentoService {
     async getDashboardData(tenantId: string) {
-        // OVERRIDE TEMPORÁRIO PARA DIAGNÓSTICO (Forçando o tenant validado no Supabase)
-        const activeTenantId = '6e9e8e54-c9ec-42cf-a2a2-6f5e0ae8d832';
-        if (!activeTenantId) return null;
+        if (!tenantId) return null;
+        
+        // module_id fixo do módulo PLANEJAMENTO_ESTRATEGICO
+        const MODULE_ID = '2d53a6f6-5638-45bc-a87e-1ab5d88d6134';
 
         const [
             { data: actions, error: errActions },
@@ -13,11 +14,11 @@ class PlanejamentoService {
             { data: axes, error: errAxes },
             { data: secretariats, error: errSecs }
         ] = await Promise.all([
-            supabase.from('planning_actions').select('*').eq('tenant_id', activeTenantId),
-            supabase.from('planning_action_updates').select('*').eq('tenant_id', activeTenantId).order('update_date', { ascending: false }),
-            supabase.from('planning_action_issues').select('*').eq('tenant_id', activeTenantId),
-            supabase.from('planning_axes').select('*').eq('tenant_id', activeTenantId).order('display_order', { ascending: true }),
-            supabase.from('secretariats').select('*').eq('tenant_id', activeTenantId)
+            supabase.from('planning_actions').select('*').eq('tenant_id', tenantId).eq('module_id', MODULE_ID),
+            supabase.from('planning_action_updates').select('*').eq('tenant_id', tenantId).order('update_date', { ascending: false }),
+            supabase.from('planning_action_issues').select('*').eq('tenant_id', tenantId),
+            supabase.from('planning_axes').select('*').eq('tenant_id', tenantId).order('display_order', { ascending: true }),
+            supabase.from('secretariats').select('*').eq('tenant_id', tenantId)
         ]);
 
         if (errActions) { console.error('Erro ações:', errActions); throw errActions; }
@@ -27,8 +28,8 @@ class PlanejamentoService {
         if (errSecs) { console.error('Erro secs:', errSecs); throw errSecs; }
 
         console.log('--- DIAGNÓSTICO PLANEJAMENTO DASHBOARD ---');
-        console.log('Tenant recebido do Auth:', tenantId);
-        console.log('Tenant forçado na query:', activeTenantId);
+        console.log('Tenant:', tenantId);
+        console.log('Module:', MODULE_ID);
         console.log(`Qtd planning_actions: ${actions?.length || 0} | updates: ${updates?.length || 0} | issues: ${issues?.length || 0} | axes: ${axes?.length || 0}`);
 
         const safeActions = actions || [];
@@ -212,49 +213,27 @@ class PlanejamentoService {
             }))
             .slice(0, 5);
 
-        // --- 8. Agregação para o Mapa ---
-        const mapaDataMap = new Map();
-        
-        safeSecretariats.forEach((sec, idx) => {
-            // Centro em Bezerros/PE (-8.2342, -35.7963)
-            // Pequeno deslocamento determinístico para evitar sobreposição total e criar uma visualização limpa
-            const lat = -8.2342 + (Math.sin(idx * 1.5) * 0.008);
-            const lng = -35.7963 + (Math.cos(idx * 1.5) * 0.008);
+        // --- 8. Dados para o Mapa (Ações Individuais) ---
+        const mapaAgregado = safeActions.map(action => {
+            const sec = safeSecretariats.find(s => s.id === action.secretariat_id);
+            const risk = actionsMap.get(action.id)?.riskStatus || 'OK';
             
-            mapaDataMap.set(sec.id, {
-                secretariaId: sec.id,
-                nome: sec.name,
-                lat,
-                lng,
-                total: 0,
-                concluidas: 0,
-                emAndamento: 0,
-                naoIniciadas: 0,
-                emRisco: 0,
-                color: '#64748b'
-            });
-        });
+            let color = '#94a3b8'; // Neutro
+            if (risk === 'CRITICO' || action.status === 'EM_RISCO') color = '#ef4444';
+            else if (action.status === 'CONCLUIDA') color = '#10b981';
+            else if (action.status === 'EM_ANDAMENTO') color = '#8b5cf6';
+            else if (action.status === 'PARALISADA') color = '#f59e0b';
 
-        Array.from(actionsMap.values()).forEach(action => {
-            if (action.secretariat_id && mapaDataMap.has(action.secretariat_id)) {
-                const mapEntry = mapaDataMap.get(action.secretariat_id);
-                mapEntry.total++;
-                if (action.status === 'CONCLUIDA') mapEntry.concluidas++;
-                else if (action.status === 'EM_ANDAMENTO') mapEntry.emAndamento++;
-                else if (action.status === 'NAO_INICIADA') mapEntry.naoIniciadas++;
-                
-                if (action.riskStatus === 'CRITICO' || action.riskStatus === 'ATENCAO') {
-                    mapEntry.emRisco++;
-                }
-            }
-        });
-
-        const mapaAgregado = Array.from(mapaDataMap.values()).filter(m => m.total > 0).map(m => {
-            let color = '#64748b'; // Neutro
-            if (m.emRisco > 0) color = '#f43f5e'; // Vermelho (Risco)
-            else if (m.emAndamento > 0) color = '#9f7aea'; // Roxo (Andamento)
-            else if (m.concluidas > 0) color = '#10b981'; // Verde (Concluídas)
-            return { ...m, color };
+            return {
+                id: action.id,
+                title: action.title,
+                bairro: action.neighborhood || 'Centro',
+                status: action.status,
+                progresso: action.progress_percent || 0,
+                secretaria: sec?.name || 'Não informada',
+                responsavel: action.responsible_name || 'Não informado',
+                color
+            };
         });
 
         const finalData = {
