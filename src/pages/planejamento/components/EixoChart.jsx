@@ -35,15 +35,15 @@ const EixoChart = ({ data: distribuicaoEixos }) => {
     return (
         <div className="dashboard-card animate-fade-in-up delay-200" style={{ height: '100%' }}>
             <h2 className="card-title">Distribuição por Eixo</h2>
-            <div style={{ width: '100%', height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '100%', height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
                             data={distribuicaoEixos}
                             cx="50%"
                             cy="50%"
-                            innerRadius={75}
-                            outerRadius={105}
+                            innerRadius={85}
+                            outerRadius={120}
                             paddingAngle={3}
                             dataKey="value"
                             isAnimationActive={true}

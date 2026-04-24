@@ -125,7 +125,7 @@ const PLANEJAMENTO_MENU_ITEMS = [
 const Sidebar = ({ isPinned, togglePin }) => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { tenantLink, isSuperAdmin } = useAuth();
+    const { tenantLink, isSuperAdmin, accessibleModules = [] } = useAuth();
     
     const isFarmacia = location.pathname.startsWith('/farmacia');
     const isPlanejamento = location.pathname.startsWith('/planejamento');
@@ -173,8 +173,8 @@ const Sidebar = ({ isPinned, togglePin }) => {
                             {group.section}
                         </div>
                         
-                        {/* Inserir Home no topo da seção Principal apenas para SuperAdmin */}
-                        {isSuperAdmin && group.section === 'Principal' && (
+                        {/* Inserir Home se for SuperAdmin ou tiver múltiplos módulos */}
+                        {group.section === 'Principal' && (isSuperAdmin || accessibleModules.length >= 2) && (
                             <NavLink
                                 to="/home"
                                 className={({ isActive }) => `nav-item ${isActive ? 'active' : ''} ${!isPinned ? 'has-flyout' : ''}`}

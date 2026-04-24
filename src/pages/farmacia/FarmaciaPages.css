@@ -391,14 +391,17 @@
     font-size: 0.875rem;
     color: var(--text);
     background: var(--bg);
-    padding: 0 0.85rem;
+    padding: 0 2.5rem 0 0.85rem;
     outline: none;
     cursor: pointer;
     transition: border-color 180ms ease;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
 }
 
 .farmacia-filter-select:focus {
-    border-color: var(--border);
+    border-color: var(--color-primary);
     box-shadow: none;
 }
 

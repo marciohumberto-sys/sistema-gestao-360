@@ -1,6 +1,7 @@
 export const MODULE_ROUTES = {
     FARMACIA: '/farmacia/dashboard',
     COMPRAS: '/compras/dashboard',
+    PLANEJAMENTO_ESTRATEGICO: '/planejamento/dashboard',
 };
 
 export const normalizeEmail = (login, pathname, moduleContext) => {
@@ -67,6 +68,7 @@ export const getLogoClickRedirectPath = (pathname, isSuperAdmin, accessibleModul
     // 2. Se o usuário estiver dentro de um módulo, redirecionar para o dashboard desse módulo
     if (pathname?.startsWith('/farmacia')) return MODULE_ROUTES.FARMACIA;
     if (pathname?.startsWith('/compras')) return MODULE_ROUTES.COMPRAS;
+    if (pathname?.startsWith('/planejamento')) return MODULE_ROUTES.PLANEJAMENTO_ESTRATEGICO;
 
     // 3. Fora de contexto, aplicar regra de fallback:
     
@@ -82,12 +84,17 @@ export const getLogoClickRedirectPath = (pathname, isSuperAdmin, accessibleModul
         return MODULE_ROUTES[defaultModule];
     }
 
-    // Fallback 3: Primeira permissão disponível
-    if (accessibleModules && accessibleModules.length > 0) {
+    // Fallback 3: Regra de Hub para multi-módulo
+    if (accessibleModules && accessibleModules.length > 1) {
+        return '/home';
+    }
+
+    // Fallback 4: Primeira permissão disponível (para usuários de módulo único)
+    if (accessibleModules && accessibleModules.length === 1) {
         const firstModule = accessibleModules[0];
         return MODULE_ROUTES[firstModule] || '/home';
     }
 
-    // Se tudo falhar, /home (que no App.jsx redirecionará conforme auth se necessário)
+    // Se tudo falhar, /home
     return '/home';
 };

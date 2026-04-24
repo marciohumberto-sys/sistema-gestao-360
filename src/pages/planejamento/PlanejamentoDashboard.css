@@ -131,7 +131,7 @@
     background: #ffffff;
     border: 1px solid var(--border-color, #e2e8f0);
     border-radius: 12px;
-    padding: 1.5rem;
+    padding: 1.25rem;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
     display: flex;
     flex-direction: column;
@@ -141,7 +141,7 @@
     font-size: 1.1rem;
     font-weight: 700;
     color: var(--text-primary, #0f172a);
-    margin: 0 0 1.25rem 0;
+    margin: 0 0 0.75rem 0;
 }
 
 /* Compact Table Styles */
@@ -346,4 +346,26 @@
     background: linear-gradient(90deg, #ef4444 0%, #f87171 100%);
     transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+.action-button-hover {
+    transition: all 0.2s ease;
+}
+
+.action-button-hover:hover {
+    background-color: #f1f5f9 !important;
+    color: var(--color-primary, #00967d) !important;
+    transform: scale(1.1);
+}
+
+.action-button-hover:active {
+    transform: scale(0.95);
+}
+
+.planejamento-table-row-interactive:hover {
+    background-color: #f8fafc;
+}
+
+.planejamento-search-input:focus {
+    border-color: var(--color-primary, #00967d) !important;
+    box-shadow: 0 0 0 3px rgba(0, 150, 125, 0.1);
 }

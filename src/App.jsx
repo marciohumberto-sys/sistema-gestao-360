@@ -40,6 +40,7 @@ import ComprasUsuarios from './pages/ComprasUsuarios';
 import PlanejamentoDashboard from './pages/planejamento/PlanejamentoDashboard';
 import AcoesList from './pages/planejamento/AcoesList';
 import AcaoDetails from './pages/planejamento/AcaoDetails';
+import PlanejamentoUsuarios from './pages/planejamento/PlanejamentoUsuarios';
 
 // Helper para redirecionamento dinâmico do preview
 const OfPreviewRedirect = () => {
@@ -128,15 +129,15 @@ function App() {
                   </Route>
 
                   {/* --- Galho Restrito: PLANEJAMENTO ESTRATÉGICO --- */}
-                  <Route path="planejamento" element={<ProtectedRoute module="PLANEJAMENTO_ESTRATEGICO" />}>
-                    <Route index element={<Navigate to="dashboard" replace />} />
-                    <Route path="dashboard" element={<PlanejamentoDashboard />} />
-                    <Route path="acoes" element={<AcoesList />} />
-                    <Route path="acoes/:id" element={<AcaoDetails />} />
-                    <Route path="atualizacoes" element={<AcoesList />} />
-                    <Route path="entraves" element={<AcoesList />} />
-                    <Route path="usuarios" element={<AcoesList />} />
-                  </Route>
+                    <Route path="planejamento" element={<ProtectedRoute module="PLANEJAMENTO_ESTRATEGICO" />}>
+                      <Route index element={<Navigate to="dashboard" replace />} />
+                      <Route path="dashboard" element={<PlanejamentoDashboard />} />
+                      <Route path="acoes" element={<AcoesList />} />
+                      <Route path="acoes/:id" element={<AcaoDetails />} />
+                      <Route path="atualizacoes" element={<AcoesList />} />
+                      <Route path="entraves" element={<AcoesList />} />
+                      <Route path="usuarios" element={<PlanejamentoUsuarios />} />
+                    </Route>
 
                 </Route>
 

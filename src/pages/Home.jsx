@@ -10,17 +10,19 @@ const Home = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Regra CRÍTICA: Bloquear Hub para usuários comuns (Redirecionar para Dashboard)
+    // Regra: Bloquear Hub APENAS para usuários com um único módulo (Redirecionar para Dashboard)
+    // Usuários com 2 ou mais módulos devem ver o hub para escolha.
     useEffect(() => {
-        if (!isSuperAdmin) {
+        const isMultiModule = (accessibleModules || []).length > 1;
+
+        if (!isSuperAdmin && !isMultiModule) {
             const redirectPath = getLogoClickRedirectPath(
                 location.pathname,
                 isSuperAdmin,
                 accessibleModules,
                 tenantLink
             );
-            // Se o redirectPath ainda for '/home' (o que não deveria ocorrer para non-superadmin se houver permissões), 
-            // evite loop infinito, mas aqui a intenção é sempre tirar o comum do /home.
+            
             if (redirectPath !== '/home') {
                 navigate(redirectPath, { replace: true });
             }

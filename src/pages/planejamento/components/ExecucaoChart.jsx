@@ -35,7 +35,7 @@ const ExecucaoChart = ({ data: execucao }) => {
             <h2 className="card-title">Evolução da Execução</h2>
             <div style={{ width: '100%', height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={execucao} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <BarChart data={execucao} margin={{ top: 0, right: 10, left: -20, bottom: 0 }} barCategoryGap="25%">
                         <defs>
                             <linearGradient id="gradNaoIniciadas" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="0%" stopColor="#64748b" stopOpacity={1}/>
