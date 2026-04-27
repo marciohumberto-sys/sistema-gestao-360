@@ -21,14 +21,45 @@ export const normalizeEmail = (login, pathname, moduleContext) => {
         return ['marcio.humberto@gmail.com'];
     }
 
-    // Normalizar padrão para @sistema.local
-    const domain = '@sistema.local';
-    const normalizedEmail = `${trimmedLogin}${domain}`;
+    // Lista de domínios conhecidos para tentativa sequencial
+    const allDomains = [
+        '@sistema.local',
+        '@farmacia.local',
+        '@compras.local',
+        '@planejamento.local'
+    ];
+
+    // Determinar domínio prioritário baseado no contexto da URL ou do estado do app
+    let priorityDomain = null;
+    if (moduleContext === 'FARMACIA' || pathname?.includes('/farmacia')) {
+        priorityDomain = '@farmacia.local';
+    } else if (moduleContext === 'COMPRAS' || pathname?.includes('/compras')) {
+        priorityDomain = '@compras.local';
+    } else if (moduleContext === 'PLANEJAMENTO' || pathname?.includes('/planejamento')) {
+        // Atualmente o planejamento usa @sistema.local, mas mantemos a lógica de prioridade
+        priorityDomain = '@sistema.local';
+    }
+
+    // Construir lista única de tentativas
+    const emailsToTry = [];
     
-    console.log(`[AUTH DEBUG] Domínio Resolvido Padrão: ${domain}`);
-    console.log(`[AUTH DEBUG] Login Normalizado Final: ${normalizedEmail}`);
+    // 1. Tentar primeiro o domínio do contexto atual (se existir)
+    if (priorityDomain) {
+        emailsToTry.push(`${trimmedLogin}${priorityDomain}`);
+        console.log(`[AUTH DEBUG] Prioridade de domínio detectada: ${priorityDomain}`);
+    }
     
-    return [normalizedEmail];
+    // 2. Adicionar os outros domínios como fallback (sem duplicar o prioritário)
+    allDomains.forEach(domain => {
+        const email = `${trimmedLogin}${domain}`;
+        if (!emailsToTry.includes(email)) {
+            emailsToTry.push(email);
+        }
+    });
+
+    console.log(`[AUTH DEBUG] Lista de tentativas gerada: ${emailsToTry.join(', ')}`);
+    
+    return emailsToTry;
 };
 
 export const getPostLoginRedirectPath = (tenantLink, isSuperAdmin, accessibleModules, userEmail) => {
