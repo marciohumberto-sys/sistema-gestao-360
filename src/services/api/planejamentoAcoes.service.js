@@ -24,20 +24,53 @@ export const fetchAxes = async (tenantId) => {
 export const fetchFirstObjectiveByAxis = async (tenantId, axisId) => {
     if (!axisId) return null;
 
-    const { data, error } = await supabase
-        .from('planning_objectives')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('axis_id', axisId)
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
+    console.log("[Planejamento] Buscando objetivos com:", { tenantId, axisId });
 
-    if (error) {
-        console.error('[planejamentoAcoes] Erro ao buscar objetivo:', error);
+    try {
+        const { data, error } = await supabase
+            .from('planning_objectives')
+            .select('id, title, is_active')
+            .eq('tenant_id', tenantId)
+            .eq('axis_id', axisId)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+
+        if (error) {
+            console.error('[Planejamento][fetchFirstObjectiveByAxis] Erro Supabase:', error);
+            return null;
+        }
+
+        if (!data) {
+            console.warn('[Planejamento][fetchFirstObjectiveByAxis] Nenhum objetivo ativo encontrado para os filtros acima.');
+        } else {
+            console.log('[Planejamento][fetchFirstObjectiveByAxis] Objetivo encontrado:', data);
+        }
+
+        return data?.id || null;
+    } catch (err) {
+        console.error('[Planejamento][fetchFirstObjectiveByAxis] Erro inesperado:', err);
         return null;
     }
-    return data?.id || null;
+};
+
+// Função para buscar múltiplos objetivos (útil para diagnóstico e UX)
+export const fetchObjectivesByAxis = async (tenantId, axisId) => {
+    if (!axisId) return [];
+    
+    try {
+        const { data, error } = await supabase
+            .from('planning_objectives')
+            .select('id, title, is_active')
+            .eq('tenant_id', tenantId)
+            .eq('axis_id', axisId);
+
+        if (error) throw error;
+        return data || [];
+    } catch (err) {
+        console.error('[planejamentoAcoes] Erro ao buscar objetivos:', err);
+        return [];
+    }
 };
 
 // ── Secretarias ────────────────────────────────────────────────────────────────
@@ -165,17 +198,21 @@ export const createAcao = async (tenantId, formData, axes) => {
     // 2. module_id já conhecido (fixo) — evita fetch extra
     const moduleId = MODULE_ID;
 
-    // 3. Buscar primeiro objetivo ativo do eixo (fallback obrigatório)
-    const objectiveId = await fetchFirstObjectiveByAxis(tenantId, formData.axisId);
-    if (!objectiveId) throw new Error('Nenhum objetivo ativo encontrado para o eixo selecionado. Cadastre um objetivo antes de criar ações.');
+    // 3. Obter usuário autenticado para RLS
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Não foi possível identificar o usuário logado. Refaça o login.");
 
-    // 4. Montar payload
+    // 4. Buscar primeiro objetivo ativo do eixo (opcional)
+    const objectiveId = await fetchFirstObjectiveByAxis(tenantId, formData.axisId);
+
+    // 5. Montar payload
     const payload = {
         tenant_id: tenantId,
         module_id: moduleId,
         axis_id: formData.axisId,
-        objective_id: objectiveId,
+        objective_id: objectiveId || null,
         secretariat_id: formData.secretariatId,
+        created_by: user.id, // Campo essencial para RLS
         title: formData.nome.trim(),
         description: formData.descricao?.trim() || null,
         status: formData.status,
@@ -188,7 +225,13 @@ export const createAcao = async (tenantId, formData, axes) => {
         action_type: 'PROJETO',
     };
 
-    console.log('[planningActions] payload create', payload);
+    console.log("[Planejamento][Criar Ação] usuário:", user?.id);
+    console.log("[Planejamento][Criar Ação] payload:", payload);
+    console.log("[Planejamento][Criar Ação] contexto:", {
+      tenantId,
+      moduleId,
+      secretariatId: formData.secretariatId
+    });
 
     const { data, error } = await supabase
         .from('planning_actions')
@@ -198,6 +241,12 @@ export const createAcao = async (tenantId, formData, axes) => {
 
     if (error) {
         console.error('[planejamentoAcoes] Erro ao criar ação:', error);
+        
+        // Mensagem amigável para erro de RLS
+        if (error.message?.includes('row-level security policy')) {
+            throw new Error("Não foi possível criar a ação. Verifique se seu usuário possui permissão para cadastrar ações neste módulo.");
+        }
+
         throw new Error(error.message || 'Erro ao salvar ação no banco.');
     }
 

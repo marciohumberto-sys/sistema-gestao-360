@@ -27,7 +27,7 @@ import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao } from '../../services/api/planejamentoAcoes.service';
+import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, fetchObjectivesByAxis } from '../../services/api/planejamentoAcoes.service';
 
 const AcoesList = () => {
     const { tenantLink } = useAuth();
@@ -112,6 +112,37 @@ const AcoesList = () => {
         observacoes: ''
     };
     const [formData, setFormData] = useState(emptyForm);
+    const [objectives, setObjectives] = useState([]);
+    const [loadingObjectives, setLoadingObjectives] = useState(false);
+
+    // Validar objetivos ao trocar o eixo
+    useEffect(() => {
+        const validateAxisObjectives = async () => {
+            if (isModalOpen && formData.axisId && tenantId && !editingAcao) {
+                setLoadingObjectives(true);
+                try {
+                    const objs = await fetchObjectivesByAxis(tenantId, formData.axisId);
+                    setObjectives(objs);
+                    
+                    const objetivoAtivo = objs.find(o => o.is_active);
+                    
+                    console.log("[Planejamento][Nova Ação] eixo selecionado:", formData.axisId);
+                    console.log("[Planejamento][Nova Ação] objetivos carregados:", objs);
+                    console.log("[Planejamento][Nova Ação] objetivo ativo encontrado:", objetivoAtivo);
+                } catch (err) {
+                    console.error('[Planejamento] Erro ao validar objetivos:', err);
+                    setObjectives([]);
+                } finally {
+                    setLoadingObjectives(false);
+                }
+            } else if (editingAcao) {
+                // Se estiver editando, assumimos que já existe objetivo ou não bloqueamos
+                setObjectives([{ id: 'existing', is_active: true }]);
+            }
+        };
+
+        validateAxisObjectives();
+    }, [formData.axisId, isModalOpen, tenantId, editingAcao]);
 
     const openModal = (acao = null) => {
         setSaveError(null);
@@ -180,6 +211,7 @@ const AcoesList = () => {
         setSaveLoading(true);
         setSaveError(null);
         try {
+            console.log("[Planejamento][Nova Ação] payload antes de salvar:", { tenantId, formData });
             if (editingAcao) {
                 await updateAcao(tenantId, editingAcao.id, formData);
                 setToast('Ação atualizada com sucesso.');
@@ -196,6 +228,11 @@ const AcoesList = () => {
             setSaveLoading(false);
         }
     };
+
+    const hasActiveObjective = useMemo(() => {
+        if (editingAcao) return true;
+        return objectives.length > 0 && objectives.some(o => o.is_active);
+    }, [objectives, editingAcao]);
 
     const handleSort = (key) => {
         let direction = 'asc';
@@ -750,17 +787,35 @@ const AcoesList = () => {
                                 <button type="button" className="farmacia-modal-btn-cancel" onClick={closeModal} disabled={saveLoading}>
                                     Cancelar
                                 </button>
-                                <button type="submit" className="farmacia-modal-btn-confirm" disabled={saveLoading} style={{
+                                <button type="submit" className="farmacia-modal-btn-confirm" disabled={saveLoading || loadingObjectives} style={{
                                     padding: '0.55rem 1.5rem',
                                     fontSize: '0.875rem',
                                     boxShadow: '0 2px 8px rgba(0,150,125,0.25)',
-                                    opacity: saveLoading ? 0.7 : 1,
+                                    opacity: (saveLoading || loadingObjectives) ? 0.7 : 1,
                                     display: 'flex', alignItems: 'center', gap: '6px'
                                 }}>
-                                    {saveLoading && <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+                                    {(saveLoading || loadingObjectives) && <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />}
                                     {editingAcao ? 'Salvar Alterações' : 'Criar Ação'}
                                 </button>
                             </div>
+
+                            {/* Aviso informativo de objetivo opcional */}
+                            {!editingAcao && formData.axisId && !loadingObjectives && !hasActiveObjective && (
+                                <div style={{ 
+                                    padding: '0.75rem 1.5rem', 
+                                    backgroundColor: 'rgba(59, 130, 246, 0.04)', 
+                                    borderTop: '1px solid rgba(59, 130, 246, 0.1)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    color: '#475569',
+                                    fontSize: '0.825rem',
+                                    fontWeight: 500
+                                }}>
+                                    <Info size={16} color="#3b82f6" />
+                                    <span>Esta ação será criada vinculada ao eixo estratégico selecionado. O vínculo com objetivo estratégico poderá ser definido futuramente.</span>
+                                </div>
+                            )}
                         </form>
                     </div>
                 </div>
