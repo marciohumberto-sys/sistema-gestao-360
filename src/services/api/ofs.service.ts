@@ -357,7 +357,7 @@ class OFsService {
         // 3. Fetch all non-canceled OFs for the same contract to validate balance
         const { data: allOfs, error: err2 } = await supabase
 		  .from('ofs')
-		  .select('id, status, total_amount, secretariat_id, items:of_items(contract_item_id, quantity)')
+		  .select('id, status, is_active, total_amount, secretariat_id, items:of_items(contract_item_id, quantity)')
 		  .eq('contract_id', ofData.contract_id)
 		  .eq('tenant_id', tenantId)
 		  .neq('status', 'CANCELLED');
@@ -368,8 +368,8 @@ class OFsService {
 
         // Validate Contract Balance (Global)
         const contractTotalValue = Number(ofData.contract.total_value || 0);
-        // For global balance, we only count ISSUED ones as "executed"
-        const executedValue = (allOfs || []).filter((o: any) => o.status === 'ISSUED').reduce((acc: number, curr: any) => acc + Number(curr.total_amount || 0), 0);
+        // For global balance, we only count ISSUED and active ones as "executed"
+        const executedValue = (allOfs || []).filter((o: any) => o.status === 'ISSUED' && o.is_active !== false).reduce((acc: number, curr: any) => acc + Number(curr.total_amount || 0), 0);
         if (contractTotalValue - executedValue < totalAmount) {
             throw new Error(`O contrato não possui saldo global disponível suficiente (Disponível: R$ ${(contractTotalValue - executedValue).toFixed(2)}).`);
         }
@@ -394,6 +394,8 @@ class OFsService {
             let consumedQtd = 0;
             (allOfs || []).forEach((existingOf: any) => {
                 if (existingOf.id === id) return; // Skip CURRENT OF being issued
+                if (existingOf.status === 'RECTIFIED' || existingOf.status === 'CANCELLED' || existingOf.status === 'CANCELED' || existingOf.is_active === false) return; // Ignore rectified/canceled/inactive
+                
                 if (existingOf.secretariat_id === ofData.secretariat_id) {
                     const elements = existingOf.items.filter((i: any) => i.contract_item_id === item.contract_item_id);
                     elements.forEach((e: any) => consumedQtd += Number(e.quantity || 0));
