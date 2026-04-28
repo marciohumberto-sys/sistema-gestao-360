@@ -452,6 +452,21 @@ class OFsService {
         
         if (error) throw error;
     }
+
+    async rectifyOf(oldOfId: string, retificationReason: string, userId: string): Promise<string> {
+        if (!oldOfId) throw new Error("oldOfId is required");
+        if (!retificationReason) throw new Error("retificationReason is required");
+        if (!userId) throw new Error("userId is required for auditing");
+
+        const { data, error } = await supabase.rpc('create_of_retification', { 
+            p_old_of_id: oldOfId,
+            p_retification_reason: retificationReason,
+            p_created_by: userId
+        });
+        
+        if (error) throw error;
+        return data as string; // Returns the ID of the new OF
+    }
 }
 
 export const ofsService = new OFsService();

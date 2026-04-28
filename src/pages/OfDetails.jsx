@@ -45,6 +45,10 @@ const OfDetails = () => {
     const [editNumberValue, setEditNumberValue] = useState('');
     const [isSavingNumber, setIsSavingNumber] = useState(false);
 
+    // Retification State
+    const [isRetificationModalOpen, setIsRetificationModalOpen] = useState(false);
+    const [retificationReason, setRetificationReason] = useState('');
+
     const loadData = async () => {
         if (!tenantId || !id) return;
         try {
@@ -113,6 +117,7 @@ const OfDetails = () => {
         switch(status.toUpperCase()) {
             case 'DRAFT': return 'Rascunho';
             case 'ISSUED': return 'Emitida';
+            case 'RECTIFIED': return 'Retificada';
             case 'CANCELLED':
             case 'CANCELED': return 'Cancelada';
             default: return status;
@@ -178,6 +183,38 @@ const OfDetails = () => {
         } catch (error) {
             console.error(error);
             setFeedback({ type: 'error', message: error.message || 'Erro ao excluir a OF.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const confirmRectifyOf = async () => {
+        if (!retificationReason.trim()) {
+            setFeedback({ type: 'error', message: 'O motivo da retificação é obrigatório.' });
+            return;
+        }
+
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const userId = authUser?.id;
+
+        if (!tenantId || !userId) {
+            setFeedback({ type: 'error', message: 'Erro de sessão: IDs necessários não encontrados.' });
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            const newOfId = await ofsService.rectifyOf(id, retificationReason.trim(), userId);
+            
+            setFeedback({ type: 'success', message: 'OF retificada com sucesso!' });
+            setIsRetificationModalOpen(false);
+            
+            setTimeout(() => {
+                navigate(`/compras/ordens-fornecimento/${newOfId}`);
+            }, 1500);
+        } catch (error) {
+            console.error('Erro ao retificar OF:', error);
+            setFeedback({ type: 'error', message: error.message || 'Erro ao retificar a OF.' });
         } finally {
             setIsSubmitting(false);
         }
@@ -543,6 +580,11 @@ const OfDetails = () => {
                         ) : (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                                 Reserva de Saldo (OF nº {ofData.number})
+                                {(ofData.original_of_id || ofData.version > 1) && (
+                                    <span style={{ fontSize: '0.9rem', background: '#f1f5f9', color: '#64748b', padding: '4px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                                        V{ofData.version || 2}
+                                    </span>
+                                )}
                                 {isDraft && (
                                     <button
                                         onClick={handleStartEditNumber}
@@ -557,6 +599,17 @@ const OfDetails = () => {
                             </span>
                         )}
                     </h1>
+                    {(ofData.original_of_id || ofData.version > 1) && (
+                        <div style={{ marginTop: '0.5rem', padding: '0.75rem', background: '#fffbeb', borderLeft: '4px solid #f59e0b', borderRadius: '0 8px 8px 0', fontSize: '0.85rem', color: '#92400e', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                            <AlertCircle size={16} style={{ marginTop: '2px', flexShrink: 0 }} />
+                            <div>
+                                <strong>Esta OF é uma retificação da ordem original.</strong>
+                                {ofData.retification_reason && (
+                                    <p style={{ margin: '4px 0 0 0', fontStyle: 'italic' }}>Motivo: {ofData.retification_reason}</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                         <span className={`status-badge ${(ofData.status || 'draft').toLowerCase()}`}>
                             {getStatusLabel(ofData.status)}
@@ -601,7 +654,7 @@ const OfDetails = () => {
                         <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <CheckCircle size={18} style={{ color: '#16a34a' }} /> Empenhos Vinculados
                         </h2>
-                        {isDraft && (
+                        {isDraft && !(ofData.original_of_id || ofData.version > 1) && (
                             <button className="btn-secondary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={handleOpenLinkModal} disabled={isSubmitting}>
                                 <Plus size={14} /> Vincular Empenho
                             </button>
@@ -624,7 +677,7 @@ const OfDetails = () => {
                                     <div style={{ textAlign: 'right' }}>
                                         <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Saldo Disponível Global</span>
                                         <span style={{ fontWeight: 600, color: '#16a34a', fontSize: '1rem', display: 'block', marginBottom: '8px' }}>{formatCurrency(emp.current_balance)}</span>
-                                        {isDraft && (
+                                        {isDraft && !(ofData.original_of_id || ofData.version > 1) && (
                                             <button 
                                                 onClick={handleRemoveLink} 
                                                 style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.75rem', cursor: 'pointer', padding: 0 }}
@@ -772,14 +825,29 @@ const OfDetails = () => {
                     )}
                     
                     {isIssued && (
-                        <button 
-                            className="btn-secondary" 
-                            style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', borderColor: '#fee2e2', background: '#fef2f2' }}
-                            onClick={handleCancelOf}
-                            disabled={isSubmitting}
-                        >
-                            <XCircle size={16} /> {isSubmitting ? 'Cancelando...' : 'Cancelar OF'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <button 
+                                className="btn-secondary" 
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', borderColor: '#fee2e2', background: '#fef2f2' }}
+                                onClick={handleCancelOf}
+                                disabled={isSubmitting}
+                            >
+                                <XCircle size={16} /> {isSubmitting ? 'Cancelando...' : 'Cancelar OF'}
+                            </button>
+                            {ofData.is_active === true && (
+                                <button 
+                                    className="btn-primary" 
+                                    style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#d97706', color: 'white', border: 'none' }}
+                                    onClick={() => {
+                                        setRetificationReason('');
+                                        setIsRetificationModalOpen(true);
+                                    }}
+                                    disabled={isSubmitting}
+                                >
+                                    <FileText size={16} /> Retificar OF
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
@@ -1036,6 +1104,54 @@ const OfDetails = () => {
                                     disabled={isSubmitting}
                                 >
                                     {isSubmitting ? 'Excluindo...' : 'Excluir rascunho'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Retificação */}
+            {isRetificationModalOpen && (
+                <div className="modal-overlay" onClick={() => setIsRetificationModalOpen(false)} style={{ zIndex: 1200 }}>
+                    <div className="modal-content" style={{ maxWidth: '450px' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ padding: '2rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem' }}>
+                                <div style={{ background: '#fffbeb', width: '48px', height: '48px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
+                                    <FileText size={24} />
+                                </div>
+                                <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: 700 }}>Retificar Ordem de Fornecimento</h3>
+                            </div>
+                            
+                            <p style={{ margin: '0 0 1.5rem 0', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                                A OF atual será preservada no histórico com status <strong>Retificada</strong> e uma nova versão em rascunho será criada, mantendo todos os itens atuais.
+                            </p>
+
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>
+                                    Motivo da retificação *
+                                </label>
+                                <textarea
+                                    value={retificationReason}
+                                    onChange={(e) => setRetificationReason(e.target.value)}
+                                    placeholder="Descreva o motivo pelo qual esta OF está sendo retificada..."
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', minHeight: '100px', resize: 'vertical' }}
+                                    disabled={isSubmitting}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setIsRetificationModalOpen(false)} disabled={isSubmitting}>
+                                    Cancelar
+                                </button>
+                                <button
+                                    className="btn-primary"
+                                    style={{ flex: 1, background: '#d97706', color: 'white', border: 'none' }}
+                                    onClick={confirmRectifyOf}
+                                    disabled={isSubmitting}
+                                >
+                                    {isSubmitting ? 'Retificando...' : 'Criar retificação'}
                                 </button>
                             </div>
                         </div>

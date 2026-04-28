@@ -72,7 +72,7 @@ const NovaNfModal = ({ isOpen, onClose, onSuccess }) => {
             // We just fetch from general or filtered
             // Actually, listByContract doesn't take tenantId usually, but we can filter from general list.
             const allOfs = await ofsService.list(tenantId);
-            const contractOfs = allOfs.filter(o => o.contract_id === contractId && o.status !== 'CANCELLED');
+            const contractOfs = allOfs.filter(o => o.contract_id === contractId && o.status === 'ISSUED' && o.is_active === true);
             setOfs(contractOfs);
         } catch (error) {
             setErrorMsg('Erro ao carregar OFs deste contrato.');
