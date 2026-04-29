@@ -1,4 +1,4 @@
-.planejamento-dashboard-container {
+﻿.planejamento-dashboard-container {
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
@@ -369,3 +369,6 @@
     border-color: var(--color-primary, #00967d) !important;
     box-shadow: 0 0 0 3px rgba(0, 150, 125, 0.1);
 }
+. e n t r a v e s - g r i d - 2   {   d i s p l a y :   g r i d ;   g r i d - t e m p l a t e - c o l u m n s :   r e p e a t ( 2 ,   1 f r ) ;   }   @ m e d i a   ( m a x - w i d t h :   7 6 8 p x )   {   . e n t r a v e s - g r i d - 2   {   g r i d - t e m p l a t e - c o l u m n s :   1 f r ;   }   } 
+.entraves-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; align-items: stretch; }
+@media (max-width: 768px) { .entraves-grid-2 { grid-template-columns: 1fr; } }

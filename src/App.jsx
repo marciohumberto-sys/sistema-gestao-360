@@ -41,6 +41,8 @@ import PlanejamentoDashboard from './pages/planejamento/PlanejamentoDashboard';
 import AcoesList from './pages/planejamento/AcoesList';
 import AcaoDetails from './pages/planejamento/AcaoDetails';
 import PlanejamentoUsuarios from './pages/planejamento/PlanejamentoUsuarios';
+import PlanejamentoAtualizacoes from './pages/planejamento/PlanejamentoAtualizacoes';
+import PlanejamentoEntraves from './pages/planejamento/PlanejamentoEntraves';
 
 // Helper para redirecionamento dinâmico do preview
 const OfPreviewRedirect = () => {
@@ -134,8 +136,8 @@ function App() {
                       <Route path="dashboard" element={<PlanejamentoDashboard />} />
                       <Route path="acoes" element={<AcoesList />} />
                       <Route path="acoes/:id" element={<AcaoDetails />} />
-                      <Route path="atualizacoes" element={<AcoesList />} />
-                      <Route path="entraves" element={<AcoesList />} />
+                      <Route path="atualizacoes" element={<PlanejamentoAtualizacoes />} />
+                      <Route path="entraves" element={<PlanejamentoEntraves />} />
                       <Route path="usuarios" element={<PlanejamentoUsuarios />} />
                     </Route>
 

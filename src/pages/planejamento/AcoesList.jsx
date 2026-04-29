@@ -270,32 +270,76 @@ const AcoesList = () => {
         return filtered;
     }, [busca, statusFiltro, secretariaFiltro, acoes, sortConfig]);
 
+    const metrics = useMemo(() => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const limitDate = new Date(today);
+        limitDate.setDate(limitDate.getDate() + 7);
+
+        let emAndamento = 0;
+        let concluidas = 0;
+        let emRisco = 0;
+        let semAtualizacao = 0;
+        let prazoProximoVencido = 0;
+
+        acoesFiltradas.forEach(a => {
+            if (a.status === 'EM_ANDAMENTO') emAndamento++;
+            if (a.status === 'CONCLUIDA') concluidas++;
+            if (a.status === 'EM_RISCO') emRisco++;
+
+            const lastUpdate = new Date(a.updated_at || a.created_at || now);
+            const diffDaysUpdate = Math.floor((now - lastUpdate) / (1000 * 60 * 60 * 24));
+            if (diffDaysUpdate > 15) semAtualizacao++;
+
+            if (a.prazo && a.status !== 'CONCLUIDA') {
+                const prazoDate = new Date(`${a.prazo}T12:00:00`);
+                if (prazoDate < today || (prazoDate >= today && prazoDate <= limitDate)) {
+                    prazoProximoVencido++;
+                }
+            }
+        });
+
+        return {
+            total: acoesFiltradas.length,
+            emAndamento,
+            concluidas,
+            emRisco,
+            semAtualizacao,
+            prazoProximoVencido
+        };
+    }, [acoesFiltradas]);
+
     const getStatusBadge = (status) => {
         const styles = {
-            'CONCLUIDA': { label: 'Concluída', bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981' },
-            'EM_ANDAMENTO': { label: 'Em Andamento', bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' },
-            'EM_RISCO': { label: 'Em Risco', bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' },
-            'PARALISADA': { label: 'Paralisada', bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' },
-            'NAO_INICIADA': { label: 'Não Iniciada', bg: 'rgba(148, 163, 184, 0.1)', color: '#64748b' },
-            'CANCELADA': { label: 'Cancelada', bg: 'rgba(71, 85, 105, 0.1)', color: '#475569' }
+            'CONCLUIDA': { label: 'Concluída', bg: 'rgba(16, 185, 129, 0.18)', color: '#047857', border: 'rgba(16, 185, 129, 0.4)' },
+            'EM_ANDAMENTO': { label: 'Em Andamento', bg: 'rgba(59, 130, 246, 0.18)', color: '#1d4ed8', border: 'rgba(59, 130, 246, 0.4)' },
+            'EM_RISCO': { label: 'Em Risco', bg: 'rgba(239, 68, 68, 0.18)', color: '#b91c1c', border: 'rgba(239, 68, 68, 0.4)' },
+            'PARALISADA': { label: 'Paralisada', bg: 'rgba(245, 158, 11, 0.18)', color: '#b45309', border: 'rgba(245, 158, 11, 0.4)' },
+            'NAO_INICIADA': { label: 'Não Iniciada', bg: 'rgba(148, 163, 184, 0.18)', color: '#334155', border: 'rgba(148, 163, 184, 0.4)' },
+            'CANCELADA': { label: 'Cancelada', bg: 'rgba(71, 85, 105, 0.18)', color: '#1e293b', border: 'rgba(71, 85, 105, 0.4)' }
         };
         const s = styles[status] || styles['NAO_INICIADA'];
         return (
-            <span className="farmacia-badge" style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.color}20` }}>
+            <span className="farmacia-badge" style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}`, padding: '5px 12px', fontWeight: 600 }}>
                 {s.label}
             </span>
         );
     };
 
-    const getProgressColor = (status) => {
-        switch (status) {
-            case 'CONCLUIDA': return '#10b981';
-            case 'EM_ANDAMENTO': return '#3b82f6';
-            case 'EM_RISCO': return '#f59e0b';
-            case 'PARALISADA': return '#ef4444';
-            case 'NAO_INICIADA': return '#94a3b8';
-            default: return 'var(--color-primary)';
-        }
+    const getProgressColor = (status, isDelayed) => {
+        if (status === 'CONCLUIDA') return '#059669';
+        if (status === 'EM_RISCO' || isDelayed) return '#dc2626';
+        if (status === 'PARALISADA') return '#d97706';
+        if (status === 'EM_ANDAMENTO') return '#2563eb';
+        return '#64748b';
+    };
+
+    const getProgressGradient = (status, isDelayed) => {
+        if (status === 'CONCLUIDA') return 'linear-gradient(90deg, #10b981 0%, #34d399 100%)';
+        if (status === 'EM_RISCO' || isDelayed) return 'linear-gradient(90deg, #ef4444 0%, #f87171 100%)';
+        if (status === 'PARALISADA') return 'linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%)';
+        if (status === 'EM_ANDAMENTO') return 'linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)';
+        return 'linear-gradient(90deg, #94a3b8 0%, #cbd5e1 100%)';
     };
 
     const formatSecretaria = (name) => {
@@ -343,70 +387,108 @@ const AcoesList = () => {
                 </div>
             )}
 
-            {/* Toolbar de Filtros */}
-            <div className="farmacia-card" style={{ padding: '1rem 1.25rem', gap: '0' }}>
-                <div className="farmacia-toolbar">
-                    <div className="farmacia-search-box" style={{ maxWidth: '300px' }}>
-                        <Search size={16} className="farmacia-search-icon" />
-                        <input
-                            type="text"
-                            className="farmacia-search-input"
-                            placeholder="Buscar ação ou local..."
-                            value={busca}
-                            onChange={(e) => setBusca(e.target.value)}
-                        />
+            {/* Cards Executivos */}
+            {!loading && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
+                    <div className="farmacia-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '3px solid #64748b' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total de Ações</span>
+                        <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text)' }}>{metrics.total}</span>
                     </div>
-
-                    <div className="farmacia-select-wrapper" style={{ minWidth: '160px', position: 'relative' }}>
-                        <select 
-                            className="farmacia-filter-select" 
-                            style={{ width: '100%' }}
-                            value={statusFiltro}
-                            onChange={(e) => setStatusFiltro(e.target.value)}
-                        >
-                            <option value="Todos">Status: Todos</option>
-                            <option value="EM_ANDAMENTO">Em Andamento</option>
-                            <option value="CONCLUIDA">Concluída</option>
-                            <option value="EM_RISCO">Em Risco</option>
-                            <option value="PARALISADA">Paralisada</option>
-                            <option value="NAO_INICIADA">Não Iniciada</option>
-                        </select>
-                        <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                    <div className="farmacia-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '3px solid #3b82f6' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Em Andamento</span>
+                        <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#3b82f6' }}>{metrics.emAndamento}</span>
                     </div>
-
-                    <div className="farmacia-select-wrapper" style={{ minWidth: '180px', position: 'relative' }}>
-                        <select 
-                            className="farmacia-filter-select" 
-                            style={{ width: '100%' }}
-                            value={secretariaFiltro}
-                            onChange={(e) => setSecretariaFiltro(e.target.value)}
-                        >
-                            <option value="Todas">Secretaria: Todas</option>
-                            {secretariats.map(s => (
-                                <option key={s.id} value={s.name}>{s.name}</option>
-                            ))}
-                        </select>
-                        <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                    <div className="farmacia-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '3px solid #10b981' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Concluídas</span>
+                        <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981' }}>{metrics.concluidas}</span>
                     </div>
-
-                    <div className="farmacia-select-wrapper" style={{ minWidth: '160px', position: 'relative' }}>
-                        <select className="farmacia-filter-select" style={{ width: '100%' }}>
-                            <option value="Todos">Eixo: Todos</option>
-                            {axes.map(ax => (
-                                <option key={ax.id} value={ax.name}>{ax.name}</option>
-                            ))}
-                        </select>
-                        <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                    <div className="farmacia-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '3px solid #ef4444' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Em Risco</span>
+                        <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ef4444' }}>{metrics.emRisco}</span>
                     </div>
-
-                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500 }}>
-                        <span>{acoesFiltradas.length} resultados</span>
+                    <div className="farmacia-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '3px solid #f59e0b' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sem Atualização</span>
+                        <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f59e0b' }}>{metrics.semAtualizacao}</span>
+                    </div>
+                    <div className="farmacia-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '3px solid #d946ef' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prazo Próximo/Vencido</span>
+                        <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#d946ef' }}>{metrics.prazoProximoVencido}</span>
                     </div>
                 </div>
-            </div>
+            )}
 
-            {/* Listagem */}
-            <div className="farmacia-table-wrapper">
+            {/* Container Principal (Filtros + Tabela) */}
+            <div className="farmacia-card" style={{ padding: 0, overflow: 'visible', background: '#ffffff', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
+                {/* Toolbar de Filtros */}
+                <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                    <div className="farmacia-toolbar">
+                        <div className="farmacia-search-box" style={{ maxWidth: '300px' }}>
+                            <Search size={16} className="farmacia-search-icon" />
+                            <input
+                                type="text"
+                                className="farmacia-search-input"
+                                placeholder="Buscar ação ou local..."
+                                value={busca}
+                                onChange={(e) => setBusca(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="farmacia-select-wrapper" style={{ minWidth: '160px', position: 'relative' }}>
+                            <select 
+                                className="farmacia-filter-select" 
+                                style={{ width: '100%' }}
+                                value={statusFiltro}
+                                onChange={(e) => setStatusFiltro(e.target.value)}
+                            >
+                                <option value="Todos">Status: Todos</option>
+                                <option value="EM_ANDAMENTO">Em Andamento</option>
+                                <option value="CONCLUIDA">Concluída</option>
+                                <option value="EM_RISCO">Em Risco</option>
+                                <option value="PARALISADA">Paralisada</option>
+                                <option value="NAO_INICIADA">Não Iniciada</option>
+                            </select>
+                            <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                        </div>
+
+                        <div className="farmacia-select-wrapper" style={{ minWidth: '180px', position: 'relative' }}>
+                            <select 
+                                className="farmacia-filter-select" 
+                                style={{ width: '100%' }}
+                                value={secretariaFiltro}
+                                onChange={(e) => setSecretariaFiltro(e.target.value)}
+                            >
+                                <option value="Todas">Secretaria: Todas</option>
+                                {secretariats.map(s => (
+                                    <option key={s.id} value={s.name}>{s.name}</option>
+                                ))}
+                            </select>
+                            <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                        </div>
+
+                        <div className="farmacia-select-wrapper" style={{ minWidth: '160px', position: 'relative' }}>
+                            <select className="farmacia-filter-select" style={{ width: '100%' }}>
+                                <option value="Todos">Eixo: Todos</option>
+                                {axes.map(ax => (
+                                    <option key={ax.id} value={ax.name}>{ax.name}</option>
+                                ))}
+                            </select>
+                            <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Listagem */}
+                <style>{`
+                .farmacia-table thead th { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #334155; font-weight: 600; padding-top: 14px; padding-bottom: 14px; position: sticky; top: 0; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+                .farmacia-table tbody td { padding-top: 16px; padding-bottom: 16px; }
+                .farmacia-table tbody tr { transition: all 0.2s ease; }
+                .farmacia-table tbody tr:hover { background-color: #f8fafc !important; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); z-index: 10; position: relative; }
+                .farmacia-table tbody tr:hover .farmacia-action-icon { opacity: 1 !important; background: rgba(0,0,0,0.03); }
+                .farmacia-action-icon { opacity: 0.5; transition: all 0.2s ease; }
+                .farmacia-action-icon:hover { transform: scale(1.1); background: rgba(0,0,0,0.06) !important; }
+                @keyframes fillBar { from { width: 0; } }
+                `}</style>
+                <div className="farmacia-table-wrapper" style={{ border: 'none', boxShadow: 'none', margin: 0, borderRadius: '0 0 10px 10px' }}>
                 <table className="farmacia-table">
                     <colgroup>
                         <col style={{ width: '25%' }} />
@@ -456,21 +538,52 @@ const AcoesList = () => {
                     <tbody>
                         {acoesFiltradas.map((acao) => {
                             const sec = formatSecretaria(acao.secretaria);
+                            
+                            // 3. Fundo sutil por status
+                            let rowBg = 'transparent';
+                            if (acao.status === 'EM_RISCO') rowBg = 'rgba(239, 68, 68, 0.02)';
+                            else if (acao.status === 'EM_ANDAMENTO') rowBg = 'rgba(59, 130, 246, 0.02)';
+                            else if (acao.status === 'CONCLUIDA') rowBg = 'rgba(16, 185, 129, 0.02)';
+
+                            // 2. Inteligência de prazo
+                            let isDelayed = false;
+                            let prazoUI = null;
+                            if (acao.prazo && acao.status !== 'CONCLUIDA') {
+                                const today = new Date();
+                                today.setHours(0,0,0,0);
+                                const pDate = new Date(`${acao.prazo}T12:00:00`);
+                                pDate.setHours(0,0,0,0);
+                                const diffDays = Math.ceil((pDate - today) / (1000 * 60 * 60 * 24));
+                                
+                                if (diffDays < 0) {
+                                    isDelayed = true;
+                                    prazoUI = <span style={{fontSize:'0.7rem', color:'#ef4444', fontWeight:600, marginTop:'2px'}}>Atrasado há {Math.abs(diffDays)} dia{Math.abs(diffDays)>1?'s':''}</span>;
+                                } else if (diffDays === 0) {
+                                    isDelayed = true;
+                                    prazoUI = <span style={{fontSize:'0.7rem', color:'#ef4444', fontWeight:600, marginTop:'2px'}}>Vence hoje</span>;
+                                } else if (diffDays < 7) {
+                                    isDelayed = true;
+                                    prazoUI = <span style={{fontSize:'0.7rem', color:'#ef4444', fontWeight:600, marginTop:'2px'}}>Faltam {diffDays} dias</span>;
+                                } else if (diffDays <= 30) {
+                                    prazoUI = <span style={{fontSize:'0.7rem', color:'#d97706', fontWeight:600, marginTop:'2px'}}>Faltam {diffDays} dias</span>;
+                                } else {
+                                    prazoUI = <span style={{fontSize:'0.7rem', color:'var(--text-muted)', fontWeight:500, marginTop:'2px'}}>Faltam {diffDays} dias</span>;
+                                }
+                            }
+
+                            // 1 & 5. Inteligência de barra de progresso
+                            const pbColor = getProgressColor(acao.status, isDelayed);
+                            const pbGradient = getProgressGradient(acao.status, isDelayed);
+
                             return (
-                                <tr key={acao.id}>
+                                <tr key={acao.id} style={{ backgroundColor: rowBg }}>
                                     <td>
                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <div className="topbar-action-group" style={{ display: 'inline-flex', width: 'fit-content' }}>
-                                                <span style={{ fontWeight: 700, color: 'var(--text)', fontSize: '0.9rem', cursor: 'default' }}>{acao.nome}</span>
-                                                {acao.eixo && (
-                                                    <span className="premium-tooltip" style={{ top: 'calc(100% + 5px)', left: '0', transform: 'translateX(0)', textAlign: 'left' }}>
-                                                        Eixo: {acao.eixo}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                                                <MapPin size={11} color="var(--text-muted)" style={{ opacity: 0.7 }} />
-                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>{acao.local}</span>
+                                            <span style={{ fontWeight: 800, color: 'var(--text)', fontSize: '0.9rem', cursor: 'default' }}>{acao.nome}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontSize: '0.75rem', color: '#94a3b8' }}>
+                                                {acao.eixo && <span>{acao.eixo}</span>}
+                                                {acao.eixo && acao.local && <span>&bull;</span>}
+                                                {acao.local && <span style={{ fontWeight: 400 }}>{acao.local}</span>}
                                             </div>
                                         </div>
                                     </td>
@@ -487,25 +600,28 @@ const AcoesList = () => {
                                     </td>
                                     <td>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700, color: getProgressColor(acao.status) }}>
-                                                <span>{acao.progresso}%</span>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: pbColor }}>
+                                                <span>{Math.round(acao.progresso || 0)}%</span>
                                             </div>
-                                            <div style={{ width: '100%', height: '6px', background: 'var(--bg-muted)', borderRadius: '3px', overflow: 'hidden' }}>
+                                            <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
                                                 <div 
                                                     style={{ 
-                                                        width: `${acao.progresso}%`, 
+                                                        width: `${Math.round(acao.progresso || 0)}%`, 
                                                         height: '100%', 
-                                                        background: getProgressColor(acao.status),
-                                                        transition: 'width 0.5s ease-in-out'
+                                                        background: pbGradient,
+                                                        animation: 'fillBar 0.6s ease-out forwards'
                                                     }} 
                                                 />
                                             </div>
                                         </div>
                                     </td>
                                      <td>
-                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--text)' }}>
-                                             <Calendar size={16} style={{ flexShrink: 0, opacity: 0.7 }} />
-                                             <span style={{ fontWeight: 500 }}>{formatDate(acao.prazo)}</span>
+                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: isDelayed ? '#ef4444' : 'var(--text)' }}>
+                                                 <Calendar size={14} style={{ flexShrink: 0, opacity: 0.8 }} />
+                                                 <span style={{ fontWeight: 600 }}>{formatDate(acao.prazo)}</span>
+                                             </div>
+                                             {prazoUI}
                                          </div>
                                      </td>
                                     <td>
@@ -529,6 +645,7 @@ const AcoesList = () => {
                     </tbody>
                 </table>
             </div>
+            </div> {/* Fecha o Container Principal */}
 
             {/* Modal de Ação */}
             {isModalOpen && (
