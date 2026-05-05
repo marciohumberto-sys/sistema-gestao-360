@@ -518,5 +518,97 @@ export const generateTopConsumptionReport = async (tenantId, dataInicio, dataFim
     }
 };
 
+// ==========================================
+// RELATÓRIO 8: SAÍDAS POR OBSERVAÇÃO
+// ==========================================
+export const generateExitByObservationReport = async (tenantId, dataInicio, dataFim, unidadeNome) => {
+    try {
+        if (!tenantId) throw new Error("TenantID não identificado.");
+
+        let queryMoves = supabase
+            .from('stock_movements')
+            .select('created_at, movement_type, quantity, inventory_item_id, unit_id, notes')
+            .eq('tenant_id', tenantId)
+            .eq('movement_type', 'EXIT')
+            .order('created_at', { ascending: false });
+
+        if (dataInicio && dataFim) {
+            const start = new Date(dataInicio);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(dataFim);
+            end.setHours(23, 59, 59, 999);
+            queryMoves = queryMoves.gte('created_at', start.toISOString()).lte('created_at', end.toISOString());
+        }
+
+        const [ resMoves, resItems, resUnits ] = await Promise.all([
+            queryMoves,
+            supabase.from('inventory_items').select('id, name, item_type, unit_of_measure'),
+            supabase.from('units').select('id, name')
+        ]);
+
+        if (resMoves.error) throw resMoves.error;
+
+        const movements = resMoves.data || [];
+        const items = resItems.data || [];
+        const units = resUnits.data || [];
+
+        const keywords = [
+            'sala amarela',
+            'sala verde',
+            'sala vermelha',
+            'sala de medicação',
+            'funcionári'
+        ];
+
+        const unitMap = {}; 
+        units.forEach(u => unitMap[u.name.toUpperCase()] = u.id);
+        const targetUnitId = (unidadeNome && unidadeNome !== 'Todas' && unidadeNome !== 'Todos') 
+            ? unitMap[unidadeNome.toUpperCase()] 
+            : null;
+
+        const filteredMoves = movements.filter(m => {
+            if (!m.notes) return false;
+            const obs = m.notes.toLowerCase();
+            const matchesKeyword = keywords.some(k => obs.includes(k.toLowerCase()));
+            if (!matchesKeyword) return false;
+            if (targetUnitId && m.unit_id !== targetUnitId) return false;
+            return true;
+        });
+
+        const data = filteredMoves.map(m => {
+            const item = items.find(i => i.id === m.inventory_item_id);
+            const unit = units.find(u => u.id === m.unit_id);
+            return {
+                data: new Date(m.created_at).toLocaleDateString('pt-BR') + ' ' + new Date(m.created_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+                unidade: unit ? unit.name : '-',
+                item: item ? item.name : '-',
+                tipo: item ? (item.item_type === 'MEDICAMENTO' ? 'Medicamento' : 'Insumo') : '-',
+                quantidade: Math.abs(m.quantity || 0),
+                unidade_medida: (item?.unit_of_measure || 'UN').toUpperCase(),
+                observacoes: m.notes
+            };
+        });
+
+        if (data.length === 0) {
+            return { data: [], columns: [], error: null, emptyMessage: 'Nenhuma saída encontrada com as observações especificadas no período.' };
+        }
+
+        const columns = [
+            { key: 'data', label: 'Data' },
+            { key: 'unidade', label: 'Unidade' },
+            { key: 'item', label: 'Item' },
+            { key: 'tipo', label: 'Tipo' },
+            { key: 'quantidade', label: 'Quantidade', align: 'right' },
+            { key: 'unidade_medida', label: 'Unid. Medida', align: 'center' },
+            { key: 'observacoes', label: 'Observações' }
+        ];
+
+        return { data, columns, error: null };
+    } catch (e) {
+        console.error('[Service] generateExitByObservationReport catch:', e);
+        return { data: null, columns: null, error: e.message };
+    }
+};
+
 
 

@@ -6,7 +6,7 @@ const ProblemasTable = ({ data: problemasCriticos }) => {
         return (
             <div className="dashboard-card animate-fade-in-up delay-200" style={{ height: '100%' }}>
                 <h2 className="card-title">Problemas Críticos</h2>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', color: '#94a3b8' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', color: '#94a3b8', fontSize: '0.9rem' }}>
                     Nenhum problema crítico em aberto.
                 </div>
             </div>
@@ -32,7 +32,7 @@ const ProblemasTable = ({ data: problemasCriticos }) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {problemasCriticos.slice(0, 4).map((item) => (
+                        {problemasCriticos.slice(0, 5).map((item) => (
                             <tr key={item.id}>
                                 <td style={{ fontWeight: 600, padding: '0.85rem 0.5rem', fontSize: '0.85rem', color: '#1e293b', wordBreak: 'break-word' }}>
                                     {item.problema}

@@ -17,6 +17,7 @@ const AcoesSemUpdate = ({ data: acoesSemUpdate }) => {
         if (type === 'nao-iniciada') return <span className="badge badge-nao-iniciada">Não Iniciada</span>;
         if (type === 'concluida') return <span className="badge badge-ok">Concluída</span>;
         if (type === 'paralisada') return <span className="badge badge-alto">Paralisada</span>;
+        if (type === 'em-risco') return <span className="badge badge-critico">Em Risco</span>;
         if (type === 'cancelada') return <span className="badge badge-critico">Cancelada</span>;
         return <span className={`badge badge-${type}`}>{status}</span>;
     };

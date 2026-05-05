@@ -1,4 +1,4 @@
-﻿.planejamento-dashboard-container {
+.planejamento-dashboard-container {
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
@@ -337,7 +337,7 @@
     margin-bottom: 8px;
     padding-bottom: 6px;
     border-bottom: 1px solid #f1f5f9;
-    text-transform: uppercase;
+    text-transform: capitalize;
     font-size: 0.8rem;
     letter-spacing: 0.05em;
 }

@@ -55,10 +55,12 @@ const AcoesEmRisco = ({ data: acoesEmRisco }) => {
                                             width: '28px',
                                             height: '28px',
                                             borderRadius: '50%',
-                                            background: isCritico ? '#fee2e2' : 'transparent',
-                                            color: '#dc2626',
-                                            fontWeight: 900,
-                                            fontSize: '1rem'
+                                            background: item.problemas > 0 
+                                                ? (isCritico ? '#fee2e2' : 'rgba(239, 68, 68, 0.05)') 
+                                                : '#f1f5f9',
+                                            color: item.problemas > 0 ? '#dc2626' : '#94a3b8',
+                                            fontWeight: item.problemas > 0 ? 900 : 600,
+                                            fontSize: item.problemas > 0 ? '1rem' : '0.85rem'
                                         }}>
                                             {item.problemas}
                                         </div>

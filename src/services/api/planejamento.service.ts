@@ -38,10 +38,8 @@ class PlanejamentoService {
         const safeAxes         = axes         || [];
         const safeSecretariats = secretariats || [];
 
-        // ── 1. Pré-processar issues (enums do banco: ABERTO, EM_TRATAMENTO, RESOLVIDO / CRITICA, ALTA…) ──
-        const openIssues = safeIssues.filter(i =>
-            i.status === 'ABERTO' || i.status === 'EM_TRATAMENTO'
-        );
+        // ── 1. Pré-processar issues (entraves ativos: tudo exceto RESOLVIDO) ──
+        const openIssues = safeIssues.filter(i => i.status !== 'RESOLVIDO');
 
         // ── 2. Mapa de ações com risco calculado ─────────────────────────────
         const actionsMap = new Map<string, any>();
@@ -53,15 +51,14 @@ class PlanejamentoService {
             if (action.status === 'EM_ANDAMENTO') emAndamento++;
             if (action.status === 'CONCLUIDA')    concluidas++;
 
-            // Risco: ação EM_RISCO/PARALISADA OU entrave ALTA/CRITICA em aberto
             const actionOpenIssues = openIssues.filter(i => i.action_id === action.id);
             const hasCritical = actionOpenIssues.some(i => i.severity === 'CRITICA' || i.severity === 'ALTA');
-            const hasMedium   = actionOpenIssues.some(i => i.severity === 'MEDIA');
+            const hasWarning  = actionOpenIssues.some(i => i.severity === 'MEDIA' || i.severity === 'BAIXA');
 
             let riskStatus = 'OK';
-            if (action.status === 'EM_RISCO' || action.status === 'PARALISADA' || hasCritical) {
+            if (action.status === 'EM_RISCO' || hasCritical) {
                 riskStatus = 'CRITICO';
-            } else if (hasMedium) {
+            } else if (hasWarning) {
                 riskStatus = 'ATENCAO';
             }
 
@@ -102,68 +99,43 @@ class PlanejamentoService {
             prazoVencido,
         };
 
-        // ── 4. Evolução da Execução (gráfico de barras por mês) ──────────────
+        // ── 4. Evolução da Execução (agrupamento por data de prazo/conclusão) ──────────
         const monthsMap = new Map<string, any>();
 
-        // Processar updates cronologicamente
-        const sortedUpdates = [...safeUpdates].sort(
-            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        );
-
-        sortedUpdates.forEach(update => {
-            const date = new Date(update.created_at);
-            if (isNaN(date.getTime())) return;
-
-            const monthName = date.toLocaleDateString('pt-BR', { month: 'short' });
-            const year = date.getFullYear();
-            const key = `${monthName}/${year}`;
-
-            if (!monthsMap.has(key)) {
-                monthsMap.set(key, {
-                    name: monthName,
-                    timestamp: new Date(year, date.getMonth(), 1).getTime(),
-                    NaoIniciadas: 0,
-                    EmAndamento: 0,
-                    Concluidas: 0,
-                    Paralisadas: 0,
-                });
-            }
-
-            const m = monthsMap.get(key);
-            const snap = update.status_snapshot;
-            if (snap === 'NAO_INICIADA')  m.NaoIniciadas++;
-            else if (snap === 'EM_ANDAMENTO' || snap === 'EM_RISCO') m.EmAndamento++;
-            else if (snap === 'CONCLUIDA')  m.Concluidas++;
-            else if (snap === 'PARALISADA') m.Paralisadas++;
-        });
-
-        // Fallback: ações sem nenhum update aparecem no mês de criação
         safeActions.forEach(action => {
-            if (actionIdsComUpdate.has(action.id)) return;
-
-            const date = new Date(action.created_at);
+            // Regra de data: due_date || start_date || created_at
+            const rawDate = action.due_date || action.start_date || action.created_at;
+            const date = new Date(rawDate);
             if (isNaN(date.getTime())) return;
 
+            // Nome abreviado do mês + ano (ex: ago./24, jan./25)
             const monthName = date.toLocaleDateString('pt-BR', { month: 'short' });
+            const yearShort = date.getFullYear().toString().slice(-2);
+            const label = `${monthName}/${yearShort}`;
+            
             const year = date.getFullYear();
-            const key = `${monthName}/${year}`;
+            const sortKey = `${year}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
-            if (!monthsMap.has(key)) {
-                monthsMap.set(key, {
-                    name: monthName,
+            if (!monthsMap.has(sortKey)) {
+                monthsMap.set(sortKey, {
+                    name: label,
                     timestamp: new Date(year, date.getMonth(), 1).getTime(),
                     NaoIniciadas: 0,
                     EmAndamento: 0,
                     Concluidas: 0,
-                    Paralisadas: 0,
                 });
             }
 
-            const m = monthsMap.get(key);
-            if (action.status === 'NAO_INICIADA')  m.NaoIniciadas++;
-            else if (action.status === 'EM_ANDAMENTO' || action.status === 'EM_RISCO') m.EmAndamento++;
-            else if (action.status === 'CONCLUIDA')  m.Concluidas++;
-            else if (action.status === 'PARALISADA') m.Paralisadas++;
+            const m = monthsMap.get(sortKey);
+            const status = action.status;
+
+            if (status === 'NAO_INICIADA') {
+                m.NaoIniciadas++;
+            } else if (status === 'CONCLUIDA') {
+                m.Concluidas++;
+            } else if (['EM_ANDAMENTO', 'EM_RISCO', 'PARALISADA'].includes(status)) {
+                m.EmAndamento++;
+            }
         });
 
         const execucao = Array.from(monthsMap.values())
@@ -186,20 +158,25 @@ class PlanejamentoService {
         // ── 6. Problemas Críticos ────────────────────────────────────────────
         const problemasCriticos = openIssues
             .filter(i => i.severity === 'ALTA' || i.severity === 'CRITICA')
-            .sort((a, b) =>
-                new Date(a.due_date || '9999-12-31').getTime() -
-                new Date(b.due_date || '9999-12-31').getTime()
-            )
+            .sort((a, b) => {
+                // 1. CRITICA primeiro
+                if (a.severity === 'CRITICA' && b.severity !== 'CRITICA') return -1;
+                if (a.severity !== 'CRITICA' && b.severity === 'CRITICA') return 1;
+                // 3. mais recente primeiro (created_at desc)
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            })
             .map(i => {
                 const acao = actionsMap.get(i.action_id);
+                // Prazo: usar due_date da AÇÃO (planning_actions)
+                const prazoAcao = acao?.due_date || null;
+                
                 return {
                     id: i.id,
                     acao: acao?.title || 'Ação desconhecida',
-                    // Usar description (campo real); title pode ser gerado automaticamente
                     problema: i.description || i.title || 'Sem descrição',
                     severidade: i.severity === 'CRITICA' ? 'CRÍTICO' : 'ALTO',
-                    prazo: i.due_date
-                        ? new Date(i.due_date).toLocaleDateString('pt-BR')
+                    prazo: prazoAcao
+                        ? new Date(prazoAcao).toLocaleDateString('pt-BR')
                         : 'Sem prazo',
                     responsavel: i.responsible_name || i.responsible_sector || 'Não informado',
                 };
@@ -207,52 +184,77 @@ class PlanejamentoService {
             .slice(0, 5);
 
         // ── 7. Ações sem Atualização Recente ─────────────────────────────────
-        // Mapa: action_id → created_at da atualização mais recente
-        const latestUpdateMap = new Map<string, string>();
+        // Mapa: action_id → timestamp da atualização mais recente
+        const latestUpdateMap = new Map<string, number>();
         safeUpdates.forEach(u => {
             if (!u.action_id) return;
+            const dates: number[] = [];
+            if (u.created_at) dates.push(new Date(u.created_at).getTime());
+            if (u.update_date) dates.push(new Date(u.update_date).getTime());
+            
+            if (dates.length === 0) return;
+            const latestForThisUpdate = Math.max(...dates);
+
             const existing = latestUpdateMap.get(u.action_id);
-            if (!existing || u.created_at > existing) {
-                latestUpdateMap.set(u.action_id, u.created_at);
+            if (!existing || latestForThisUpdate > existing) {
+                latestUpdateMap.set(u.action_id, latestForThisUpdate);
             }
         });
+
+        const now = Date.now();
+        const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
         const acoesSemUpdate = safeActions
             .filter(a => a.status !== 'CONCLUIDA' && a.status !== 'CANCELADA')
             .map(action => {
-                const lastUpdate = latestUpdateMap.get(action.id) || null;
-                const dateRef = lastUpdate
-                    ? new Date(lastUpdate).getTime()
-                    : new Date(action.created_at).getTime();
+                const lastUpdateTs = latestUpdateMap.get(action.id) || null;
+                
+                // Regra: Sem atualização OU última atualização > 30 dias
+                const isSemAtualizacaoRecente = !lastUpdateTs || (now - lastUpdateTs > THIRTY_DAYS_MS);
 
-                const diasSemUpdate = Math.floor(
-                    (Date.now() - (lastUpdate ? new Date(lastUpdate).getTime() : new Date(action.created_at).getTime()))
-                    / (1000 * 60 * 60 * 24)
-                );
+                if (!isSemAtualizacaoRecente) return null;
+
+                const diasSemUpdate = lastUpdateTs 
+                    ? Math.floor((now - lastUpdateTs) / (1000 * 60 * 60 * 24))
+                    : 999; // Se não tem update, consideramos muito antigo
 
                 return {
                     id: action.id,
                     acao: action.title || 'Sem título',
                     status: action.status || 'NAO_INICIADA',
                     progresso: action.progress_percent ?? 0,
-                    ultimaAtualizacao: lastUpdate
-                        ? new Date(lastUpdate).toLocaleDateString('pt-BR')
+                    ultimaAtualizacao: lastUpdateTs
+                        ? new Date(lastUpdateTs).toLocaleDateString('pt-BR')
                         : 'Sem atualizações',
                     diasSemUpdate,
-                    _sortKey: dateRef,
+                    _sortKey: lastUpdateTs || 0, // Mais antigas primeiro (0 para sem atualizações)
                 };
             })
-            .sort((a, b) => a._sortKey - b._sortKey) // mais antigas primeiro
-            .map(({ _sortKey, ...rest }) => rest)
-            .slice(0, 5);
+            .filter(item => item !== null)
+            .sort((a, b) => (a?._sortKey ?? 0) - (b?._sortKey ?? 0)) // Ordena pelas mais antigas/esquecidas
+            .slice(0, 5)
+            .map(item => {
+                if (!item) return null;
+                const { _sortKey, ...rest } = item;
+                return rest;
+            })
+            .filter(item => item !== null);
 
         // ── 8. Ações em Risco ────────────────────────────────────────────────
         const acoesEmRisco = Array.from(actionsMap.values())
             .filter(a => a.riskStatus === 'CRITICO' || a.riskStatus === 'ATENCAO')
             .sort((a, b) => {
+                // 1. CRITICO primeiro
                 if (a.riskStatus === 'CRITICO' && b.riskStatus !== 'CRITICO') return -1;
                 if (a.riskStatus !== 'CRITICO' && b.riskStatus === 'CRITICO') return 1;
-                return b.openIssuesCount - a.openIssuesCount;
+                
+                // 2. maior quantidade de problemas
+                if (b.openIssuesCount !== a.openIssuesCount) {
+                    return b.openIssuesCount - a.openIssuesCount;
+                }
+                
+                // 3. menor progress_percent
+                return (a.progress_percent ?? 0) - (b.progress_percent ?? 0);
             })
             .map(a => ({
                 id: a.id,

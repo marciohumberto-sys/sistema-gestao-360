@@ -13,7 +13,8 @@ const TITULOS = {
     'ABAIXO_MINIMO': 'Itens Abaixo do Mínimo',
     'VALIDADES': 'Validades a Vencer',
     'CURVA_ABC': 'Curva ABC de Consumo',
-    'TOP_CONSUMO': 'Top 30 Consumo'
+    'TOP_CONSUMO': 'Top 30 Consumo',
+    'SAIDAS_OBSERVACAO': 'Saídas por Observação'
 };
 
 const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade }) => {
@@ -90,6 +91,15 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                     }
                     result = await relatoriosService.generateTopConsumptionReport(tenantId, dataInicio, dataFim, unidade, tipoItem);
                     break;
+                case 'SAIDAS_OBSERVACAO':
+                    if (!dataInicio || !dataFim) {
+                        throw new Error('As datas inicial e final são obrigatórias.');
+                    }
+                    if (new Date(dataFim) < new Date(dataInicio)) {
+                        throw new Error('A data final não pode ser anterior à data inicial.');
+                    }
+                    result = await relatoriosService.generateExitByObservationReport(tenantId, dataInicio, dataFim, unidade);
+                    break;
                 default:
                     throw new Error('Tipo de relatório desconhecido.');
             }
@@ -111,7 +121,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
     };
 
     const exigePeriodo = ['MOVIMENTACOES', 'CONSUMO_SETOR', 'CURVA_ABC'].includes(reportType);
-    const exigePeriodoPersonalizado = reportType === 'TOP_CONSUMO';
+    const exigePeriodoPersonalizado = ['TOP_CONSUMO', 'SAIDAS_OBSERVACAO'].includes(reportType);
     const exigeFaixaVencimento = reportType === 'VALIDADES';
     const exigeTipoItem = reportType === 'TOP_CONSUMO';
 

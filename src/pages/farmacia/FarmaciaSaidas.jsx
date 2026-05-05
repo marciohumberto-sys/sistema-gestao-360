@@ -41,7 +41,7 @@ const getHojeSP = () => {
  * Retorna o intervalo de datas para um período dado.
  * Todos os valores como objetos Date para comparação direta.
  */
-const getRangeParaPeriodo = (periodo) => {
+const getRangeParaPeriodo = (periodo, customInicio = '', customFim = '') => {
     const agora = new Date();
     if (periodo === 'Hoje') {
         return getHojeSP();
@@ -58,6 +58,12 @@ const getRangeParaPeriodo = (periodo) => {
         inicio.setHours(0, 0, 0, 0);
         return { inicio, fim: agora };
     }
+    if (periodo === 'custom' && customInicio && customFim) {
+        // Constrói o intervalo ancorado no fuso -03:00 (BRT)
+        const inicio = new Date(`${customInicio}T00:00:00-03:00`);
+        const fim    = new Date(`${customFim}T23:59:59.999-03:00`);
+        return { inicio, fim };
+    }
     return { inicio: null, fim: null };
 };
 
@@ -69,6 +75,8 @@ const readFiltersFromUrl = (searchParams, unidadeAtiva) => ({
     busca: searchParams.get('busca') || '',
     periodo: searchParams.get('periodo') || 'Hoje',
     unidade: searchParams.get('unidade') || unidadeAtiva?.label || 'Todas',
+    dataInicio: searchParams.get('dataInicio') || '',
+    dataFim: searchParams.get('dataFim') || '',
 });
 
 const FarmaciaSaidas = () => {
@@ -86,6 +94,8 @@ const FarmaciaSaidas = () => {
     const [busca, setBusca]             = useState(initialFilters.current.busca);
     const [periodoFiltro, setPeriodo]   = useState(initialFilters.current.periodo);
     const [unidadeFiltro, setUnidade]   = useState(initialFilters.current.unidade);
+    const [dataInicio, setDataInicio]   = useState(initialFilters.current.dataInicio);
+    const [dataFim, setDataFim]         = useState(initialFilters.current.dataFim);
 
     // rawData: nunca zerado antes do fetch, para preservar dados visíveis
     const [rawData, setRawData]   = useState({ items: [], movements: [], units: [] });
@@ -99,8 +109,14 @@ const FarmaciaSaidas = () => {
         if (periodoFiltro !== 'Hoje') params.periodo = periodoFiltro;
         if (unidadeFiltro !== 'Todas') params.unidade = unidadeFiltro;
         if (busca) params.busca = busca;
+        
+        if (periodoFiltro === 'custom') {
+            if (dataInicio) params.dataInicio = dataInicio;
+            if (dataFim) params.dataFim = dataFim;
+        }
+
         setSearchParams(params, { replace: true });
-    }, [busca, periodoFiltro, unidadeFiltro]);
+    }, [busca, periodoFiltro, unidadeFiltro, dataInicio, dataFim]);
 
     // Sincroniza unidade global → filtro local, mas APENAS se o usuário
     // não escolheu explicitamente uma unidade via URL ou filtro.
@@ -218,7 +234,7 @@ const FarmaciaSaidas = () => {
     // ── Filtros de período ───────────────────────────────────────────────────
 
     const itensFiltrados = useMemo(() => {
-        const { inicio, fim } = getRangeParaPeriodo(periodoFiltro);
+        const { inicio, fim } = getRangeParaPeriodo(periodoFiltro, dataInicio, dataFim);
 
         return baseSaidas.filter(m => {
             const matchBusca = !busca ||
@@ -376,6 +392,7 @@ const FarmaciaSaidas = () => {
                             <option value="Hoje">Período: Hoje</option>
                             <option value="7d">Últimos 7 dias</option>
                             <option value="30d">Últimos 30 dias</option>
+                            <option value="custom">Período personalizado</option>
                         </select>
                         <ChevronDown size={14} style={{
                             position: 'absolute', right: '12px', top: '50%',
@@ -383,6 +400,28 @@ const FarmaciaSaidas = () => {
                             color: 'var(--text-muted)', pointerEvents: 'none',
                         }} />
                     </div>
+
+                    {periodoFiltro === 'custom' && (
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', animation: 'fadeIn 0.2s ease-out' }}>
+                            <input
+                                type="date"
+                                className="farmacia-filter-select"
+                                style={{ padding: '0 10px', width: '135px' }}
+                                value={dataInicio}
+                                onChange={e => setDataInicio(e.target.value)}
+                                required
+                            />
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600 }}>até</span>
+                            <input
+                                type="date"
+                                className="farmacia-filter-select"
+                                style={{ padding: '0 10px', width: '135px' }}
+                                value={dataFim}
+                                onChange={e => setDataFim(e.target.value)}
+                                required
+                            />
+                        </div>
+                    )}
 
                     <div className="farmacia-select-wrapper" style={{ minWidth: '130px', position: 'relative' }}>
                         <select
