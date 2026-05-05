@@ -12,7 +12,8 @@ const TITULOS = {
     'CONSUMO_SETOR': 'Consumo por Setor',
     'ABAIXO_MINIMO': 'Itens Abaixo do Mínimo',
     'VALIDADES': 'Validades a Vencer',
-    'CURVA_ABC': 'Curva ABC de Consumo'
+    'CURVA_ABC': 'Curva ABC de Consumo',
+    'TOP_CONSUMO': 'Top 30 Consumo'
 };
 
 const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade }) => {
@@ -23,6 +24,9 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
     const [periodo, setPeriodo] = useState('30d');
     const [unidade, setUnidade] = useState('Todas');
     const [faixaVencimento, setFaixaVencimento] = useState('60d');
+    const [tipoItem, setTipoItem] = useState('Todos');
+    const [dataInicio, setDataInicio] = useState('');
+    const [dataFim, setDataFim] = useState('');
 
     // Resultados
     const [loading, setLoading] = useState(false);
@@ -38,6 +42,9 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
             setPeriodo('30d');
             setUnidade(defaultUnidade || 'Todas');
             setFaixaVencimento('60d');
+            setTipoItem('Todos');
+            setDataInicio('');
+            setDataFim('');
             setTableData([]);
             setColumns([]);
             setErrorMsg(null);
@@ -74,6 +81,15 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                 case 'CURVA_ABC':
                     result = await relatoriosService.generateAbcConsumptionReport(tenantId, periodo, unidade);
                     break;
+                case 'TOP_CONSUMO':
+                    if (!dataInicio || !dataFim) {
+                        throw new Error('As datas inicial e final são obrigatórias.');
+                    }
+                    if (new Date(dataFim) < new Date(dataInicio)) {
+                        throw new Error('A data final não pode ser anterior à data inicial.');
+                    }
+                    result = await relatoriosService.generateTopConsumptionReport(tenantId, dataInicio, dataFim, unidade, tipoItem);
+                    break;
                 default:
                     throw new Error('Tipo de relatório desconhecido.');
             }
@@ -95,7 +111,9 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
     };
 
     const exigePeriodo = ['MOVIMENTACOES', 'CONSUMO_SETOR', 'CURVA_ABC'].includes(reportType);
+    const exigePeriodoPersonalizado = reportType === 'TOP_CONSUMO';
     const exigeFaixaVencimento = reportType === 'VALIDADES';
+    const exigeTipoItem = reportType === 'TOP_CONSUMO';
 
     return (
         <div className="farmacia-modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', zIndex: 1050, backdropFilter: 'blur(2px)' }} onMouseDown={e => e.target === e.currentTarget && onClose()}>
@@ -228,6 +246,32 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                 </div>
                             )}
 
+                            {/* Filtro: Período Personalizado (Apenas Top 30) */}
+                            {exigePeriodoPersonalizado && (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div className="farmacia-form-group">
+                                        <label className="farmacia-form-label">Data Inicial</label>
+                                        <input 
+                                            type="date" 
+                                            className="farmacia-form-input" 
+                                            value={dataInicio} 
+                                            onChange={e => setDataInicio(e.target.value)} 
+                                            required 
+                                        />
+                                    </div>
+                                    <div className="farmacia-form-group">
+                                        <label className="farmacia-form-label">Data Final</label>
+                                        <input 
+                                            type="date" 
+                                            className="farmacia-form-input" 
+                                            value={dataFim} 
+                                            onChange={e => setDataFim(e.target.value)} 
+                                            required 
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Filtro: Faixa de Vencimento */}
                             {exigeFaixaVencimento && (
                                 <div className="farmacia-form-group">
@@ -236,6 +280,18 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                         <option value="30d">Próximos 30 dias</option>
                                         <option value="60d">Próximos 60 dias (Padrão)</option>
                                         <option value="90d">Próximos 90 dias</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Filtro: Tipo de Item (Apenas Top 30) */}
+                            {exigeTipoItem && (
+                                <div className="farmacia-form-group">
+                                    <label className="farmacia-form-label">Tipo de Item</label>
+                                    <select className="farmacia-form-input" value={tipoItem} onChange={e => setTipoItem(e.target.value)}>
+                                        <option value="Todos">Todos</option>
+                                        <option value="Medicamentos">Medicamentos</option>
+                                        <option value="Insumos">Insumos</option>
                                     </select>
                                 </div>
                             )}
@@ -274,13 +330,24 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                             </div>
                         ) : (
                             // Tabela Flexível
-                            <div style={{ flex: 1, overflowY: 'auto' }}>
-                                <table className="farmacia-table" style={{ borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
+                            <div style={{ flex: 1, overflowX: 'hidden', overflowY: 'auto' }}>
+                                <table className="farmacia-table" style={{ borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderTopLeftRadius: 0, borderTopRightRadius: 0, width: '100%', tableLayout: 'fixed' }}>
                                     <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-muted-light)', zIndex: 1, boxShadow: '0 1px 0 var(--border)' }}>
                                         <tr>
-                                            {columns.map((col, i) => (
-                                                <th key={col.key} style={{ textAlign: col.align || 'left' }}>{col.label}</th>
-                                            ))}
+                                            {columns.map((col, i) => {
+                                                let thStyle = { textAlign: col.align || 'left', whiteSpace: 'nowrap' };
+                                                
+                                                if (reportType === 'TOP_CONSUMO') {
+                                                    if (col.key === 'ranking') thStyle.width = '70px';
+                                                    if (col.key === 'item') thStyle.width = 'auto'; // Flexível
+                                                    if (col.key === 'tipo') thStyle.width = '110px';
+                                                    if (col.key === 'unidade') thStyle.width = '90px';
+                                                    if (col.key === 'consumido') thStyle.width = '130px';
+                                                    if (col.key === 'unidade_medida') thStyle.width = '100px';
+                                                }
+
+                                                return <th key={col.key} style={thStyle}>{col.label}</th>;
+                                            })}
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -288,20 +355,35 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                             <tr key={i} className="farmacia-table-row-interactive">
                                                 {columns.map(col => {
                                                     const val = row[col.key];
-                                                    // Estilização condicional baseada na label da coluna (gambiarra elegante)
-                                                    let customStyle = { textAlign: col.align || 'left' };
-                                                    if (col.key === 'medicamento') customStyle.fontWeight = 600;
-                                                    if (col.key === 'consumido' || col.key === 'quantidade' || col.key === 'saldo') {
-                                                        customStyle.fontWeight = 700;
-                                                        if (val < 0) customStyle.color = '#dc2626';
-                                                        else customStyle.color = 'var(--text-primary)';
-                                                    }
-                                                    if (col.key === 'status' || col.key === 'dias') {
-                                                        const isCrit = (val === 'Crítico' || val === 'Zerado' || String(val).includes('Hoje') || String(val).includes('Venceu'));
-                                                        const isWarning = String(val).includes('dias');
-                                                        if(val !== 'Normal') {
-                                                            customStyle.color = isCrit ? '#dc2626' : (isWarning ? '#ea580c' : 'var(--text-primary)');
+                                                    let customStyle = { textAlign: col.align || 'left', wordBreak: 'break-word', whiteSpace: 'normal' };
+                                                    
+                                                    if (reportType === 'TOP_CONSUMO') {
+                                                        if (col.key === 'ranking') customStyle.width = '70px';
+                                                        if (col.key === 'item') {
                                                             customStyle.fontWeight = 600;
+                                                        }
+                                                        if (col.key === 'tipo') customStyle.width = '110px';
+                                                        if (col.key === 'unidade') customStyle.width = '90px';
+                                                        if (col.key === 'consumido') {
+                                                            customStyle.width = '130px';
+                                                            customStyle.fontWeight = 700;
+                                                        }
+                                                        if (col.key === 'unidade_medida') customStyle.width = '100px';
+                                                    } else {
+                                                        // Estilos originais para outros relatórios
+                                                        if (col.key === 'medicamento') customStyle.fontWeight = 600;
+                                                        if (col.key === 'consumido' || col.key === 'quantidade' || col.key === 'saldo') {
+                                                            customStyle.fontWeight = 700;
+                                                            if (val < 0) customStyle.color = '#dc2626';
+                                                            else customStyle.color = 'var(--text-primary)';
+                                                        }
+                                                        if (col.key === 'status' || col.key === 'dias') {
+                                                            const isCrit = (val === 'Crítico' || val === 'Zerado' || String(val).includes('Hoje') || String(val).includes('Venceu'));
+                                                            const isWarning = String(val).includes('dias');
+                                                            if(val !== 'Normal') {
+                                                                customStyle.color = isCrit ? '#dc2626' : (isWarning ? '#ea580c' : 'var(--text-primary)');
+                                                                customStyle.fontWeight = 600;
+                                                            }
                                                         }
                                                     }
                                                     
@@ -347,11 +429,22 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                             const rName = reportType ? reportType.toLowerCase().replace(/_/g, '_') : 'relatorio';
                                             let suffix = '';
                                             if (unidade && unidade !== 'Todas') suffix += `_${unidade.toLowerCase()}`;
-                                            if (exigePeriodo && periodo) {
-                                                if (periodo === 'Hoje') suffix += '_hoje';
-                                                else if (periodo === '7d') suffix += '_ultimos_7_dias';
-                                                else if (periodo === '30d') suffix += '_ultimos_30_dias';
+                                            
+                                            let periodoLabel = null;
+                                            if (reportType === 'TOP_CONSUMO') {
+                                                const formatarData = (dStr) => {
+                                                    const parts = dStr.split('-');
+                                                    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                                                };
+                                                periodoLabel = `${formatarData(dataInicio)} até ${formatarData(dataFim)}`;
+                                            } else if (exigePeriodo && periodo) {
+                                                periodoLabel = periodo === 'Hoje' ? 'Hoje' : periodo === '7d' ? 'Últimos 7 dias' : 'Últimos 30 dias';
                                             }
+
+                                            if (periodoLabel) {
+                                                suffix += `_${periodoLabel.replace(/ /g, '_').replace(/\//g, '-')}`;
+                                            }
+
                                             exportToExcel({ 
                                                 data: tableData, 
                                                 columns, 
@@ -359,14 +452,16 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                                 metadata: {
                                                     relatorio: TITULOS[reportType] || 'Relatório Gerencial',
                                                     unidade: unidade === 'Todas' ? 'Consolidado Geral' : unidade,
-                                                    periodo: exigePeriodo ? (periodo === 'Hoje' ? 'Hoje' : periodo === '7d' ? 'Últimos 7 dias' : 'Últimos 30 dias') : null
-                                                }
+                                                    periodo: periodoLabel
+                                                },
+                                                sheetName: TITULOS[reportType] || 'Relatório'
                                             });
                                         }}
                                         title="Baixar resultados em formato Excel (.xlsx)"
                                     >
                                         <Download size={16} /> Exportar Excel
                                     </button>
+
                                 </div>
                             </div>
                         )}

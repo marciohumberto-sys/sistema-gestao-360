@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, ChevronDown, Package, FileOutput, FileInput, Settings2, Download, Printer, FileText, ArrowLeftRight, Users, AlertTriangle, Calendar, BarChart2, Lightbulb } from 'lucide-react';
+import { Search, ChevronDown, Package, FileOutput, FileInput, Settings2, Download, Printer, FileText, ArrowLeftRight, Users, AlertTriangle, Calendar, BarChart2, Lightbulb, TrendingUp } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessFarmacia } from '../../utils/farmaciaAcl';
@@ -300,8 +300,23 @@ const FarmaciaRelatorios = () => {
                         <button className="farmacia-btn-primary" onClick={() => openReportModal('CURVA_ABC')} style={{ width: '100%', justifyContent: 'center' }}>Gerar Relatório</button>
                     </div>
 
+                    {/* Card 7: Top 30 Consumo */}
+                    <div className="farmacia-card farmacia-relatorio-card" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                            <div className="farmacia-relatorio-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}><TrendingUp size={22} /></div>
+                            <div className="farmacia-relatorio-body">
+                                <h3 className="farmacia-relatorio-title">Top 30 Consumo</h3>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0', lineHeight: 1.4 }}>
+                                    Exibe os 30 itens mais consumidos no período selecionado, auxiliando na análise de demanda e reposição.
+                                </p>
+                            </div>
+                        </div>
+                        <button className="farmacia-btn-primary" onClick={() => openReportModal('TOP_CONSUMO')} style={{ width: '100%', justifyContent: 'center' }}>Gerar Relatório</button>
+                    </div>
+
                 </div>
             </div>
+
 
             <FarmaciaRelatorioModal
                 isOpen={isModalOpen}

@@ -41,10 +41,10 @@ const AcoesSemUpdate = ({ data: acoesSemUpdate }) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {acoesSemUpdate.slice(0, 5).map((item, index) => {
-                            // Simulação de data antiga baseada no mock
-                            const isOldDate = item.ultimaAtualizacao.startsWith('15') || item.ultimaAtualizacao.startsWith('20');
-                            
+                        {acoesSemUpdate.slice(0, 5).map((item) => {
+                            // Alerta visual para ações com 15+ dias sem atualização
+                            const isOld = (item.diasSemUpdate ?? 999) >= 15;
+
                             return (
                                 <tr key={item.id}>
                                     <td style={{ fontWeight: 600, wordBreak: 'break-word' }}>{item.acao}</td>
@@ -58,14 +58,14 @@ const AcoesSemUpdate = ({ data: acoesSemUpdate }) => {
                                         </div>
                                     </td>
                                     <td style={{ whiteSpace: 'nowrap' }}>
-                                        <span style={{ 
-                                            color: isOldDate ? '#ef4444' : '#64748b', 
-                                            fontWeight: isOldDate ? 600 : 500,
+                                        <span style={{
+                                            color: isOld ? '#ef4444' : '#64748b',
+                                            fontWeight: isOld ? 600 : 500,
                                             display: 'flex',
                                             alignItems: 'center',
                                             gap: '4px'
                                         }}>
-                                            {isOldDate && <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444' }} />}
+                                            {isOld && <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444', flexShrink: 0 }} />}
                                             {item.ultimaAtualizacao}
                                         </span>
                                     </td>

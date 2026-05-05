@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
     Search, 
     Plus, 
@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
+import { useAuth } from '../../context/AuthContext';
+import { fetchAtualizacoes, createAtualizacao, fetchAcoes } from '../../services/api/planejamentoAcoes.service';
 
 // Sub-componente para animação individual do card
 const UpdateCard = ({ item, index, getTipoConfig, getStatusLabel, formatDate }) => {
@@ -114,9 +116,14 @@ const UpdateCard = ({ item, index, getTipoConfig, getStatusLabel, formatDate }) 
 
 // Componente principal
 const PlanejamentoAtualizacoes = () => {
-    // ---- ESTADO E MOCKS ----
+    const { tenantLink } = useAuth();
+    const tenantId = tenantLink?.tenant_id;
+
+    // ---- ESTADO ----
     const [atualizacoes, setAtualizacoes] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
+    const [acoes, setAcoes] = useState([]); // para popular o select do modal
     
     // Filtros
     const [busca, setBusca] = useState('');
@@ -128,10 +135,11 @@ const PlanejamentoAtualizacoes = () => {
     // Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [saveLoading, setSaveLoading] = useState(false);
+    const [saveError, setSaveError] = useState(null);
     
     const [formData, setFormData] = useState({
+        acaoId: '',
         acao: '',
-        secretaria: 'Secretaria de Planejamento',
         tipo: 'Geral',
         descricao: '',
         novoStatus: '',
@@ -148,91 +156,34 @@ const PlanejamentoAtualizacoes = () => {
         }
     }, [toast]);
 
-    // Mock Load
-    useEffect(() => {
-        const loadMockData = () => {
-            const mock = [
-                {
-                    id: 1,
-                    acao: 'Reforma da Praça Central',
-                    secretaria: 'Secretaria de Infraestrutura',
-                    tipo: 'Avanço de Progresso',
-                    data: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-                    responsavel: 'Carlos Silva',
-                    descricao: 'Concluída a etapa de terraplanagem e iniciada a fundação dos quiosques.',
-                    progressoAnterior: 15,
-                    progressoNovo: 35,
-                    statusAnterior: null,
-                    statusNovo: null,
-                    critica: false
-                },
-                {
-                    id: 2,
-                    acao: 'Construção da Nova UPA',
-                    secretaria: 'Secretaria de Saúde',
-                    tipo: 'Registro de Entrave',
-                    data: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-                    responsavel: 'Dra. Amanda',
-                    descricao: 'Atraso na entrega dos materiais elétricos devido a problemas com o fornecedor local.',
-                    progressoAnterior: null,
-                    progressoNovo: null,
-                    statusAnterior: 'EM_ANDAMENTO',
-                    statusNovo: 'PARALISADA',
-                    critica: true
-                },
-                {
-                    id: 3,
-                    acao: 'Programa Escola Conectada',
-                    secretaria: 'Secretaria de Educação',
-                    tipo: 'Mudança de Status',
-                    data: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-                    responsavel: 'Marcos Almeida',
-                    descricao: 'Equipamentos instalados em 100% das escolas previstas na primeira fase.',
-                    progressoAnterior: 80,
-                    progressoNovo: 100,
-                    statusAnterior: 'EM_ANDAMENTO',
-                    statusNovo: 'CONCLUIDA',
-                    critica: false
-                },
-                {
-                    id: 4,
-                    acao: 'Revitalização do Centro Histórico',
-                    secretaria: 'Secretaria de Turismo',
-                    tipo: 'Observação Crítica',
-                    data: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-                    responsavel: 'Fernanda Lima',
-                    descricao: 'Necessária aprovação do IPHAN para pintura das fachadas da rua principal. Risco de atraso no cronograma.',
-                    progressoAnterior: null,
-                    progressoNovo: null,
-                    statusAnterior: null,
-                    statusNovo: null,
-                    critica: true
-                },
-                {
-                    id: 5,
-                    acao: 'Pavimentação do Bairro Novo',
-                    secretaria: 'Secretaria de Infraestrutura',
-                    tipo: 'Geral',
-                    data: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
-                    responsavel: 'João Pedro',
-                    descricao: 'Reunião com os moradores para apresentar o cronograma da obra.',
-                    progressoAnterior: null,
-                    progressoNovo: null,
-                    statusAnterior: null,
-                    statusNovo: null,
-                    critica: false
-                }
-            ];
-            setAtualizacoes(mock);
+    // ---- CARGA REAL DO SUPABASE ----
+    const loadAtualizacoes = useCallback(async () => {
+        if (!tenantId) return;
+        setLoading(true);
+        setLoadError(null);
+        try {
+            const data = await fetchAtualizacoes(tenantId);
+            setAtualizacoes(data);
+        } catch (err) {
+            console.error('[PlanejamentoAtualizacoes] Erro ao carregar:', err);
+            setLoadError('Não foi possível carregar as atualizações. Tente novamente.');
+        } finally {
             setLoading(false);
-        };
-        setTimeout(loadMockData, 800);
-    }, []);
+        }
+    }, [tenantId]);
 
-    // ---- LISTAS ÚNICAS PARA FILTROS ----
+    useEffect(() => {
+        if (tenantId) {
+            loadAtualizacoes();
+            fetchAcoes(tenantId).then(setAcoes).catch(console.error);
+        }
+    }, [tenantId, loadAtualizacoes]);
+
+    const tiposUnicos = ['Geral', 'Avanço de Progresso', 'Mudança de Status'];
+
+    // ---- LISTAS ÚNICAS PARA FILTROS (derivadas dos dados reais) ----
     const acoesUnicas = useMemo(() => [...new Set(atualizacoes.map(a => a.acao))].sort(), [atualizacoes]);
     const secretariasUnicas = useMemo(() => [...new Set(atualizacoes.map(a => a.secretaria))].sort(), [atualizacoes]);
-    const tiposUnicos = ['Geral', 'Avanço de Progresso', 'Mudança de Status', 'Registro de Entrave', 'Observação Crítica'];
 
     // ---- FILTRAGEM ----
     const atualizacoesFiltradas = useMemo(() => {
@@ -308,33 +259,23 @@ const PlanejamentoAtualizacoes = () => {
     };
 
     // ---- AÇÕES ----
-    const handleSave = (e) => {
+    const handleSave = async (e) => {
         e.preventDefault();
+        if (!tenantId) return;
         setSaveLoading(true);
-        setTimeout(() => {
-            const newUpdate = {
-                id: Date.now(),
-                acao: formData.acao || 'Ação Não Especificada',
-                secretaria: formData.secretaria,
-                tipo: formData.tipo,
-                data: new Date().toISOString(),
-                responsavel: 'Usuário Logado (Você)',
-                descricao: formData.descricao,
-                progressoAnterior: null,
-                progressoNovo: formData.novoProgresso !== '' ? parseInt(formData.novoProgresso) : null,
-                statusAnterior: null,
-                statusNovo: formData.novoStatus !== '' ? formData.novoStatus : null,
-                critica: formData.critica
-            };
-            
-            setAtualizacoes([newUpdate, ...atualizacoes]);
+        setSaveError(null);
+        try {
+            await createAtualizacao(tenantId, formData);
             setToast('Atualização registrada com sucesso.');
             setIsModalOpen(false);
+            setFormData({ acaoId: '', acao: '', tipo: 'Geral', descricao: '', novoStatus: '', novoProgresso: '', critica: false });
+            await loadAtualizacoes();
+        } catch (err) {
+            console.error('[PlanejamentoAtualizacoes] Erro ao salvar:', err);
+            setSaveError(err.message || 'Erro ao registrar atualização. Tente novamente.');
+        } finally {
             setSaveLoading(false);
-            setFormData({
-                acao: '', secretaria: 'Secretaria de Planejamento', tipo: 'Geral', descricao: '', novoStatus: '', novoProgresso: '', critica: false
-            });
-        }, 600);
+        }
     };
 
     return (
@@ -345,7 +286,7 @@ const PlanejamentoAtualizacoes = () => {
                     <h1 className="farmacia-page-title">Atualizações das Ações</h1>
                     <p className="farmacia-page-subtitle">Acompanhe os registros recentes de evolução, status e observações das ações estratégicas.</p>
                 </div>
-                <button className="farmacia-btn-primary" onClick={() => setIsModalOpen(true)} disabled={loading}>
+                <button className="farmacia-btn-primary" onClick={() => { setSaveError(null); setIsModalOpen(true); }} disabled={loading}>
                     <Plus size={18} /> Nova Atualização
                 </button>
             </header>
@@ -354,6 +295,30 @@ const PlanejamentoAtualizacoes = () => {
                 @keyframes spin { to { transform: rotate(360deg); } }
                 @keyframes fadeInRight { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
                 
+                .farmacia-btn-secondary {
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    gap: 0.5rem !important;
+                    background: #f8fafc !important;
+                    color: #334155 !important;
+                    border: 1px solid #cbd5e1 !important;
+                    border-radius: 8px !important;
+                    font-size: 0.875rem !important;
+                    font-weight: 600 !important;
+                    padding: 0.5rem 1.1rem !important;
+                    height: 38px !important;
+                    cursor: pointer !important;
+                    transition: all 180ms ease !important;
+                    white-space: nowrap !important;
+                }
+                .farmacia-btn-secondary:hover {
+                    background: #f1f5f9 !important;
+                    border-color: #94a3b8 !important;
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+                }
+
                 .update-card { 
                     opacity: 0; 
                     transform: translateY(12px);
@@ -398,7 +363,13 @@ const PlanejamentoAtualizacoes = () => {
             {loading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem', color: 'var(--text-muted)', gap: '0.5rem' }}>
                     <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                    <span style={{ fontSize: '0.875rem' }}>Carregando histórico...</span>
+                    <span style={{ fontSize: '0.875rem' }}>Carregando atualizações...</span>
+                </div>
+            ) : loadError ? (
+                <div className="farmacia-card" style={{ padding: '3rem 2rem', textAlign: 'center', color: '#ef4444', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                    <AlertTriangle size={32} style={{ opacity: 0.7 }} />
+                    <p style={{ fontWeight: 600, margin: 0 }}>{loadError}</p>
+                    <button className="farmacia-btn-secondary" onClick={loadAtualizacoes} style={{ marginTop: '0.5rem' }}>Tentar novamente</button>
                 </div>
             ) : (
                 <div className="planejamento-atualizacoes-container" style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
@@ -530,21 +501,29 @@ const PlanejamentoAtualizacoes = () => {
 
                         <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column' }}>
                             <div className="farmacia-modal-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                
+                                {saveError && (
+                                    <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626', fontSize: '0.875rem', fontWeight: 500 }}>
+                                        <AlertTriangle size={16} />
+                                        {saveError}
+                                    </div>
+                                )}
                                 <div className="farmacia-form-group">
                                     <label className="farmacia-form-label">Ação Estratégica *</label>
-                                    <select className="farmacia-form-select" required value={formData.acao} onChange={e => setFormData({...formData, acao: e.target.value})}>
+                                    <select className="farmacia-form-select" required value={formData.acaoId} onChange={e => {
+                                        const selected = acoes.find(a => a.id === e.target.value);
+                                        setFormData({...formData, acaoId: e.target.value, acao: selected?.nome || ''});
+                                    }}>
                                         <option value="">Selecione a ação vinculada...</option>
-                                        {['Reforma da Praça Central', 'Construção da Nova UPA', 'Programa Escola Conectada', 'Pavimentação do Bairro Novo'].map(a => (
-                                            <option key={a} value={a}>{a}</option>
+                                        {acoes.map(a => (
+                                            <option key={a.id} value={a.id}>{a.nome}</option>
                                         ))}
                                     </select>
                                 </div>
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <div className="farmacia-form-group">
-                                        <label className="farmacia-form-label">Tipo de Atualização *</label>
-                                        <select className="farmacia-form-select" required value={formData.tipo} onChange={e => setFormData({...formData, tipo: e.target.value})}>
+                                        <label className="farmacia-form-label">Tipo de Atualização</label>
+                                        <select className="farmacia-form-select" value={formData.tipo} onChange={e => setFormData({...formData, tipo: e.target.value})}>
                                             {tiposUnicos.map(t => <option key={t} value={t}>{t}</option>)}
                                         </select>
                                     </div>

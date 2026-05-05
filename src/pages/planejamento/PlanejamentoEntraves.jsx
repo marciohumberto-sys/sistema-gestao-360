@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
     Search, 
     Plus, 
@@ -23,11 +23,24 @@ import {
 } from 'lucide-react';
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
+import { useAuth } from '../../context/AuthContext';
+import {
+    fetchEntraves,
+    createEntrave,
+    updateEntrave,
+    resolveEntrave,
+    fetchAcoesParaEntraves,
+} from '../../services/api/planejamentoEntraves.service';
 
 const PlanejamentoEntraves = () => {
-    // ---- ESTADO E MOCKS ----
+    const { tenantLink } = useAuth();
+    const tenantId = tenantLink?.tenant_id;
+
+    // ---- ESTADO ----
     const [entraves, setEntraves] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
+    const [acoes, setAcoes] = useState([]); // para popular o select do modal
 
     // Filtros
     const [busca, setBusca] = useState('');
@@ -41,16 +54,21 @@ const PlanejamentoEntraves = () => {
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [saveLoading, setSaveLoading] = useState(false);
+    const [saveError, setSaveError] = useState(null);
     const [editingEntrave, setEditingEntrave] = useState(null);
     const [viewingEntrave, setViewingEntrave] = useState(null);
 
     const emptyForm = {
+        acaoId: '',
         acaoNome: '',
-        secretaria: 'Secretaria de Planejamento',
+        secretaria: '',
+        titulo: '',
         descricao: '',
         gravidade: 'Média',
         status: 'Aberto',
         responsavel: '',
+        setor: '',
+        prazo: '',
         impacto: '',
         providencia: ''
     };
@@ -65,76 +83,28 @@ const PlanejamentoEntraves = () => {
         }
     }, [toast]);
 
-    // Mock Load
-    useEffect(() => {
-        const loadMockData = () => {
-            const mock = [
-                {
-                    id: 1,
-                    acaoId: 'a1',
-                    acaoNome: 'Construção da Nova UPA',
-                    secretaria: 'Secretaria de Saúde',
-                    descricao: 'Atraso na liberação da licença ambiental pela agência estadual.',
-                    gravidade: 'Crítica',
-                    status: 'Em Tratativa',
-                    responsavel: 'Dra. Amanda',
-                    dataRegistro: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-                    dataResolucao: null,
-                    impacto: 'Obra paralisada. Atraso estimado de 45 dias no cronograma.',
-                    providencia: 'Reunião agendada com diretoria da agência estadual para amanhã.',
-                    isCritico: true
-                },
-                {
-                    id: 2,
-                    acaoId: 'a2',
-                    acaoNome: 'Reforma da Praça Central',
-                    secretaria: 'Secretaria de Infraestrutura',
-                    descricao: 'Falta de cimento no fornecedor licitado.',
-                    gravidade: 'Média',
-                    status: 'Aberto',
-                    responsavel: '',
-                    dataRegistro: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-                    dataResolucao: null,
-                    impacto: 'Desaceleração do ritmo da obra.',
-                    providencia: 'Notificar fornecedor e buscar orçamento emergencial se necessário.',
-                    isCritico: false
-                },
-                {
-                    id: 3,
-                    acaoId: 'a3',
-                    acaoNome: 'Programa Escola Conectada',
-                    secretaria: 'Secretaria de Educação',
-                    descricao: 'Roubo de cabos de fibra ótica no bairro São João.',
-                    gravidade: 'Alta',
-                    status: 'Resolvido',
-                    responsavel: 'Marcos Almeida',
-                    dataRegistro: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-                    dataResolucao: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-                    impacto: 'Escola municipal sem internet por 15 dias.',
-                    providencia: 'Refazer cabeamento via rota alternativa e solicitar apoio da guarda municipal.',
-                    isCritico: true
-                },
-                {
-                    id: 4,
-                    acaoId: 'a4',
-                    acaoNome: 'Capacitação de Professores',
-                    secretaria: 'Secretaria de Educação',
-                    descricao: 'Conflito de agenda com período de provas.',
-                    gravidade: 'Baixa',
-                    status: 'Em Tratativa',
-                    responsavel: 'Juliana Costa',
-                    dataRegistro: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-                    dataResolucao: null,
-                    impacto: 'Baixa adesão na primeira turma.',
-                    providencia: 'Remarcar turmas para o período de recesso escolar.',
-                    isCritico: false
-                }
-            ];
-            setEntraves(mock);
+    // ---- CARGA REAL DO SUPABASE ----
+    const loadEntraves = useCallback(async () => {
+        if (!tenantId) return;
+        setLoading(true);
+        setLoadError(null);
+        try {
+            const data = await fetchEntraves(tenantId);
+            setEntraves(data);
+        } catch (err) {
+            console.error('[PlanejamentoEntraves] Erro ao carregar:', err);
+            setLoadError('Não foi possível carregar os entraves. Tente novamente.');
+        } finally {
             setLoading(false);
-        };
-        setTimeout(loadMockData, 800);
-    }, []);
+        }
+    }, [tenantId]);
+
+    useEffect(() => {
+        if (tenantId) {
+            loadEntraves();
+            fetchAcoesParaEntraves(tenantId).then(setAcoes).catch(console.error);
+        }
+    }, [tenantId, loadEntraves]);
 
     // ---- LISTAS ÚNICAS PARA FILTROS ----
     const acoesUnicas = useMemo(() => [...new Set(entraves.map(a => a.acaoNome))].sort(), [entraves]);
@@ -214,87 +184,72 @@ const PlanejamentoEntraves = () => {
     };
 
     // ---- AÇÕES ----
-    const handleSave = (e) => {
+    const handleSave = async (e) => {
         e.preventDefault();
+        if (!tenantId) return;
         setSaveLoading(true);
-        setTimeout(() => {
-            const isCritico = formData.gravidade === 'Alta' || formData.gravidade === 'Crítica';
-            const dataResolucao = formData.status === 'Resolvido' ? new Date().toISOString() : null;
-
+        setSaveError(null);
+        try {
             if (editingEntrave) {
-                const updatedList = entraves.map(ent => {
-                    if (ent.id === editingEntrave.id) {
-                        return {
-                            ...ent,
-                            ...formData,
-                            isCritico,
-                            dataResolucao: formData.status === 'Resolvido' && ent.status !== 'Resolvido' ? new Date().toISOString() : 
-                                           formData.status !== 'Resolvido' ? null : ent.dataResolucao
-                        };
-                    }
-                    return ent;
+                const updated = await updateEntrave(tenantId, editingEntrave.id, {
+                    ...formData,
+                    _statusAnterior_db: editingEntrave.status_db,
                 });
-                setEntraves(updatedList);
                 setToast('Entrave atualizado com sucesso.');
+                // Se o modal de visualização estiver aberto, atualizar o item
                 if (viewingEntrave && viewingEntrave.id === editingEntrave.id) {
-                    setViewingEntrave(updatedList.find(x => x.id === viewingEntrave.id));
+                    setViewingEntrave(null);
+                    setIsViewModalOpen(false);
                 }
             } else {
-                const newEntrave = {
-                    id: Date.now(),
-                    acaoId: `mock-id-${Date.now()}`,
-                    acaoNome: formData.acaoNome || 'Ação Não Especificada',
-                    secretaria: formData.secretaria,
-                    descricao: formData.descricao,
-                    gravidade: formData.gravidade,
-                    status: formData.status,
-                    responsavel: formData.responsavel,
-                    dataRegistro: new Date().toISOString(),
-                    dataResolucao,
-                    impacto: formData.impacto,
-                    providencia: formData.providencia,
-                    isCritico
-                };
-                // TODO: integrar update na tela Atualizações ("Entrave registrado")
-                console.log("[Mock] Atualização lançada: Entrave registrado");
-                setEntraves([newEntrave, ...entraves]);
+                await createEntrave(tenantId, formData);
                 setToast('Entrave registrado com sucesso.');
             }
-            
             setIsFormModalOpen(false);
-            setSaveLoading(false);
             setFormData(emptyForm);
             setEditingEntrave(null);
-        }, 600);
+            await loadEntraves();
+        } catch (err) {
+            console.error('[PlanejamentoEntraves] Erro ao salvar:', err);
+            setSaveError(err.message || 'Erro ao salvar entrave. Tente novamente.');
+        } finally {
+            setSaveLoading(false);
+        }
     };
 
-    const handleResolve = (entrave) => {
-        const updatedList = entraves.map(ent => {
-            if (ent.id === entrave.id) {
-                return { ...ent, status: 'Resolvido', dataResolucao: new Date().toISOString() };
+    const handleResolve = async (entrave) => {
+        if (!tenantId) return;
+        try {
+            await resolveEntrave(tenantId, entrave.id);
+            setToast('Entrave marcado como resolvido!');
+            if (viewingEntrave && viewingEntrave.id === entrave.id) {
+                setIsViewModalOpen(false);
+                setViewingEntrave(null);
             }
-            return ent;
-        });
-        // TODO: integrar update na tela Atualizações ("Entrave resolvido")
-        console.log("[Mock] Atualização lançada: Entrave resolvido");
-        setEntraves(updatedList);
-        setToast('Entrave marcado como resolvido!');
-        if (viewingEntrave && viewingEntrave.id === entrave.id) {
-            setViewingEntrave(updatedList.find(x => x.id === entrave.id));
+            await loadEntraves();
+        } catch (err) {
+            console.error('[PlanejamentoEntraves] Erro ao resolver:', err);
+            setToast('Erro ao marcar como resolvido. Tente novamente.');
         }
     };
 
     const openEdit = (entrave) => {
         setEditingEntrave(entrave);
+        setSaveError(null);
         setFormData({
-            acaoNome: entrave.acaoNome,
-            secretaria: entrave.secretaria,
-            descricao: entrave.descricao,
-            gravidade: entrave.gravidade,
-            status: entrave.status,
+            acaoId: entrave.acaoId || '',
+            acaoNome: entrave.acaoNome || '',
+            secretaria: entrave.secretaria || '',
+            titulo: entrave.titulo || '',
+            descricao: entrave.descricao || '',
+            gravidade: entrave.gravidade || 'Média',
+            status: entrave.status || 'Aberto',
             responsavel: entrave.responsavel || '',
+            setor: entrave.setor || '',
+            prazo: entrave.prazo || '',
             impacto: entrave.impacto || '',
-            providencia: entrave.providencia || ''
+            providencia: entrave.providencia || '',
+            _statusAnterior_db: entrave.status_db,
         });
         setIsFormModalOpen(true);
     };
@@ -321,12 +276,43 @@ const PlanejamentoEntraves = () => {
                 </button>
             </header>
 
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+                .farmacia-btn-secondary {
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    gap: 0.5rem !important;
+                    background: #f8fafc !important;
+                    color: #334155 !important;
+                    border: 1px solid #cbd5e1 !important;
+                    border-radius: 8px !important;
+                    font-size: 0.875rem !important;
+                    font-weight: 600 !important;
+                    padding: 0.5rem 1.1rem !important;
+                    height: 38px !important;
+                    cursor: pointer !important;
+                    transition: all 180ms ease !important;
+                    white-space: nowrap !important;
+                }
+                .farmacia-btn-secondary:hover {
+                    background: #f1f5f9 !important;
+                    border-color: #94a3b8 !important;
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+                }
+            `}</style>
 
             {loading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem', color: 'var(--text-muted)', gap: '0.5rem' }}>
                     <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} />
                     <span style={{ fontSize: '0.875rem' }}>Carregando entraves...</span>
+                </div>
+            ) : loadError ? (
+                <div className="farmacia-card" style={{ padding: '3rem 2rem', textAlign: 'center', color: '#ef4444', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                    <AlertTriangle size={32} style={{ opacity: 0.7 }} />
+                    <p style={{ fontWeight: 600, margin: 0 }}>{loadError}</p>
+                    <button className="farmacia-btn-secondary" onClick={loadEntraves} style={{ marginTop: '0.5rem' }}>Tentar novamente</button>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
@@ -430,10 +416,10 @@ const PlanejamentoEntraves = () => {
                         <div 
                             style={{ 
                                 display: 'grid', 
-                                gridTemplateColumns: entravesFiltrados.length === 4 
-                                    ? 'repeat(2, 1fr)' 
-                                    : entravesFiltrados.length === 1 
-                                    ? 'minmax(350px, 800px)' 
+                                gridTemplateColumns: entravesFiltrados.length === 1
+                                    ? '1fr'
+                                    : entravesFiltrados.length === 4
+                                    ? 'repeat(2, 1fr)'
                                     : 'repeat(auto-fit, minmax(400px, 1fr))', 
                                 gap: '1rem',
                                 alignItems: 'stretch'
@@ -616,17 +602,17 @@ const PlanejamentoEntraves = () => {
                                                     
                                                     <div style={{ display: 'flex', gap: '6px' }}>
                                                         {item.status !== 'Resolvido' && (
-                                                            <button className="farmacia-btn-secondary farmacia-action-icon" style={{ padding: '6px', minHeight: '0', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'transparent', position: 'relative' }} onClick={() => handleResolve(item)}>
-                                                                <Check size={16} />
+                                                            <button className="farmacia-action-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.2)' }} onClick={() => handleResolve(item)}>
+                                                                <Check size={15} />
                                                                 <span className="premium-tooltip">Marcar como resolvido</span>
                                                             </button>
                                                         )}
-                                                        <button className="farmacia-btn-secondary farmacia-action-icon" style={{ padding: '6px', minHeight: '0', position: 'relative' }} onClick={() => openEdit(item)}>
-                                                            <Edit2 size={16} />
+                                                        <button className="farmacia-action-icon" onClick={() => openEdit(item)}>
+                                                            <Edit2 size={15} />
                                                             <span className="premium-tooltip">Editar entrave</span>
                                                         </button>
-                                                        <button className="farmacia-btn-secondary farmacia-action-icon" style={{ padding: '6px', minHeight: '0', position: 'relative' }} onClick={() => openView(item)}>
-                                                            <Eye size={16} />
+                                                        <button className="farmacia-action-icon" onClick={() => openView(item)}>
+                                                            <Eye size={15} />
                                                             <span className="premium-tooltip">Visualizar detalhes</span>
                                                         </button>
                                                     </div>
@@ -644,8 +630,8 @@ const PlanejamentoEntraves = () => {
             {/* Modal Novo/Editar */}
             {isFormModalOpen && (
                 <div className="farmacia-modal-overlay">
-                    <div className="farmacia-modal" style={{ maxWidth: '650px', width: '95%' }}>
-                        <div className="farmacia-modal-header" style={{ borderBottom: '1px solid var(--border)', padding: '1.25rem 1.5rem' }}>
+                    <div className="farmacia-modal" style={{ maxWidth: '650px', width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+                        <div className="farmacia-modal-header" style={{ borderBottom: '1px solid var(--border)', padding: '1.25rem 1.5rem', flexShrink: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <ShieldAlert size={18} color="#ef4444" />
@@ -662,18 +648,25 @@ const PlanejamentoEntraves = () => {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 100px)' }}>
-                            <div className="farmacia-modal-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
-                                
+                        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                            <div className="farmacia-modal-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+                                {saveError && (
+                                    <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626', fontSize: '0.875rem', fontWeight: 500 }}>
+                                        <AlertTriangle size={16} />
+                                        {saveError}
+                                    </div>
+                                )}
+
                                 <div className="farmacia-form-group">
                                     <label className="farmacia-form-label">Ação Estratégica Vinculada *</label>
-                                    <select className="farmacia-form-select" required value={formData.acaoNome} onChange={e => setFormData({...formData, acaoNome: e.target.value})}>
+                                    <select className="farmacia-form-select" required value={formData.acaoId} onChange={e => {
+                                        const selected = acoes.find(a => a.id === e.target.value);
+                                        setFormData({...formData, acaoId: e.target.value, acaoNome: selected?.title || ''});
+                                    }}>
                                         <option value="">Selecione a ação...</option>
-                                        <option value="Construção da Nova UPA">Construção da Nova UPA</option>
-                                        <option value="Reforma da Praça Central">Reforma da Praça Central</option>
-                                        <option value="Programa Escola Conectada">Programa Escola Conectada</option>
-                                        <option value="Capacitação de Professores">Capacitação de Professores</option>
-                                        <option value="Revitalização do Centro Histórico">Revitalização do Centro Histórico</option>
+                                        {acoes.map(a => (
+                                            <option key={a.id} value={a.id}>{a.title}</option>
+                                        ))}
                                     </select>
                                 </div>
 
@@ -743,11 +736,11 @@ const PlanejamentoEntraves = () => {
                                 </div>
 
                             </div>
-                            <div className="farmacia-modal-footer" style={{ borderTop: '1px solid var(--border)', padding: '1rem 1.5rem', gap: '1rem' }}>
+                            <div className="farmacia-modal-footer">
                                 <button type="button" className="farmacia-modal-btn-cancel" onClick={() => setIsFormModalOpen(false)} disabled={saveLoading}>
                                     Cancelar
                                 </button>
-                                <button type="submit" className="farmacia-modal-btn-confirm" disabled={saveLoading} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: formData.gravidade === 'Crítica' || formData.gravidade === 'Alta' ? '#ef4444' : 'var(--color-primary)' }}>
+                                <button type="submit" className="farmacia-modal-btn-confirm" disabled={saveLoading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     {saveLoading && <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />}
                                     {editingEntrave ? 'Salvar Alterações' : 'Registrar Entrave'}
                                 </button>
@@ -760,8 +753,8 @@ const PlanejamentoEntraves = () => {
             {/* Modal de Visualização (Somente Leitura) */}
             {isViewModalOpen && viewingEntrave && (
                 <div className="farmacia-modal-overlay">
-                    <div className="farmacia-modal" style={{ maxWidth: '600px', width: '95%' }}>
-                        <div className="farmacia-modal-header" style={{ borderBottom: '1px solid var(--border)', padding: '1.25rem 1.5rem' }}>
+                    <div className="farmacia-modal" style={{ maxWidth: '600px', width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+                        <div className="farmacia-modal-header" style={{ borderBottom: '1px solid var(--border)', padding: '1.25rem 1.5rem', flexShrink: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(100,116,139,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <Target size={18} color="var(--text-muted)" />
@@ -776,7 +769,7 @@ const PlanejamentoEntraves = () => {
                             </button>
                         </div>
 
-                        <div className="farmacia-modal-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <div className="farmacia-modal-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', flex: 1, minHeight: 0 }}>
                             
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Ação Estratégica:</span>
@@ -830,22 +823,22 @@ const PlanejamentoEntraves = () => {
 
                         </div>
 
-                        <div className="farmacia-modal-footer" style={{ borderTop: '1px solid var(--border)', padding: '1rem 1.5rem', gap: '1rem', justifyContent: 'space-between' }}>
-                            <button type="button" className="farmacia-btn-secondary" onClick={() => setIsViewModalOpen(false)}>
+                        <div className="farmacia-modal-footer" style={{ justifyContent: 'space-between' }}>
+                            <button type="button" className="farmacia-modal-btn-cancel" onClick={() => setIsViewModalOpen(false)}>
                                 Fechar
                             </button>
-                            <div style={{ display: 'flex', gap: '1rem' }}>
-                                <button type="button" className="farmacia-btn-secondary" onClick={() => {
+                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                                <button type="button" className="farmacia-modal-btn-cancel" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => {
                                     setIsViewModalOpen(false);
                                     openEdit(viewingEntrave);
                                 }}>
-                                    <Edit2 size={16} /> Editar
+                                    <Edit2 size={15} /> Editar
                                 </button>
                                 {viewingEntrave.status !== 'Resolvido' && (
-                                    <button type="button" className="farmacia-btn-primary" style={{ background: '#10b981', borderColor: '#10b981' }} onClick={() => {
+                                    <button type="button" className="farmacia-modal-btn-confirm" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981' }} onClick={() => {
                                         handleResolve(viewingEntrave);
                                     }}>
-                                        <Check size={16} /> Marcar como Resolvido
+                                        <Check size={15} /> Marcar como Resolvido
                                     </button>
                                 )}
                             </div>

@@ -185,7 +185,6 @@ export const createAcao = async (tenantId, formData, axes) => {
     // 1. Validações básicas
     if (!formData.nome?.trim()) throw new Error('O nome da ação é obrigatório.');
     if (!formData.axisId) throw new Error('O eixo estratégico é obrigatório.');
-    if (!formData.secretariatId) throw new Error('A secretaria é obrigatória.');
     if (!formData.status) throw new Error('O status é obrigatório.');
 
     const progress = parseInt(formData.progresso) || 0;
@@ -195,24 +194,52 @@ export const createAcao = async (tenantId, formData, axes) => {
         throw new Error('A data de término não pode ser anterior à data de início.');
     }
 
-    // 2. module_id já conhecido (fixo) — evita fetch extra
+    // 2. module_id já conhecido (fixo)
     const moduleId = MODULE_ID;
 
-    // 3. Obter usuário autenticado para RLS
+    // 3. Obter usuário autenticado e escopos para RLS/Permissão
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Não foi possível identificar o usuário logado. Refaça o login.");
 
-    // 4. Buscar primeiro objetivo ativo do eixo (opcional)
-    const objectiveId = await fetchFirstObjectiveByAxis(tenantId, formData.axisId);
+    // Buscar escopos ativos do usuário para este módulo
+    const { data: userScopes, error: scopeErr } = await supabase
+        .from('user_access_scopes')
+        .select('secretariat_id')
+        .eq('user_id', user.id)
+        .eq('module_id', moduleId);
 
-    // 5. Montar payload
+    if (scopeErr) {
+        console.error('[planejamentoAcoes] Erro ao buscar escopos do usuário:', scopeErr);
+    }
+
+    const allowedSecretariatIds = userScopes?.map(s => s.secretariat_id).filter(Boolean) || [];
+
+    // 4. Validar/Ajustar secretaria_id (Garantir que bate com o escopo)
+    let finalSecretariatId = formData.secretariatId;
+
+    if (allowedSecretariatIds.length > 0) {
+        const isAllowed = allowedSecretariatIds.includes(finalSecretariatId);
+        if (!isAllowed) {
+            console.warn('[planejamentoAcoes] Secretaria enviada não está no escopo ou vazia. Usando fallback do primeiro escopo ativo.');
+            finalSecretariatId = allowedSecretariatIds[0];
+        }
+    }
+
+    if (!finalSecretariatId) {
+        throw new Error('A secretaria é obrigatória e não foi encontrada no seu perfil de acesso.');
+    }
+
+    // 5. Buscar primeiro objetivo ativo do eixo (opcional)
+    const objectiveIdFound = await fetchFirstObjectiveByAxis(tenantId, formData.axisId);
+
+    // 6. Montar payload
     const payload = {
         tenant_id: tenantId,
         module_id: moduleId,
         axis_id: formData.axisId,
-        objective_id: objectiveId || null,
-        secretariat_id: formData.secretariatId,
-        created_by: user.id, // Campo essencial para RLS
+        objective_id: objectiveIdFound || null,
+        secretariat_id: finalSecretariatId,
+        created_by: user.id,
         title: formData.nome.trim(),
         description: formData.descricao?.trim() || null,
         status: formData.status,
@@ -225,13 +252,17 @@ export const createAcao = async (tenantId, formData, axes) => {
         action_type: 'PROJETO',
     };
 
-    console.log("[Planejamento][Criar Ação] usuário:", user?.id);
-    console.log("[Planejamento][Criar Ação] payload:", payload);
-    console.log("[Planejamento][Criar Ação] contexto:", {
-      tenantId,
-      moduleId,
-      secretariatId: formData.secretariatId
-    });
+    // LOG DE DIAGNÓSTICO OBRIGATÓRIO
+    console.log("=== DIAGNÓSTICO DE CRIAÇÃO DE AÇÃO ===");
+    console.log("1. Usuário:", user.id, `(${user.email})`);
+    console.log("2. Tenant ID:", tenantId);
+    console.log("3. Module ID:", moduleId);
+    console.log("4. Escopos Ativos (Secretarias):", allowedSecretariatIds);
+    console.log("5. Eixo Estratégico (axis_id):", formData.axisId);
+    console.log("6. Objetivo (objective_id):", payload.objective_id);
+    console.log("7. Secretaria Final (secretariat_id):", payload.secretariat_id);
+    console.log("8. Payload Completo:", payload);
+    console.log("=======================================");
 
     const { data, error } = await supabase
         .from('planning_actions')
@@ -240,11 +271,10 @@ export const createAcao = async (tenantId, formData, axes) => {
         .single();
 
     if (error) {
-        console.error('[planejamentoAcoes] Erro ao criar ação:', error);
+        console.error('[planejamentoAcoes] Erro Supabase no INSERT:', error);
         
-        // Mensagem amigável para erro de RLS
-        if (error.message?.includes('row-level security policy')) {
-            throw new Error("Não foi possível criar a ação. Verifique se seu usuário possui permissão para cadastrar ações neste módulo.");
+        if (error.message?.includes('row-level security policy') || error.code === '42501') {
+            throw new Error("Erro 403: Permissão Negada. O secretariat_id ou tenant_id do payload não condiz com seus escopos ativos no banco.");
         }
 
         throw new Error(error.message || 'Erro ao salvar ação no banco.');
@@ -294,4 +324,108 @@ export const updateAcao = async (tenantId, id, formData) => {
     }
 
     return data;
+};
+
+// ── Buscar Atualizações (planning_action_updates) ─────────────────────────────
+export const fetchAtualizacoes = async (tenantId) => {
+    if (!tenantId) return [];
+    try {
+        const { data: updates, error } = await supabase
+            .from('planning_action_updates')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .order('created_at', { ascending: false });
+
+        if (error) { console.error('[planejamentoAcoes] Erro ao buscar atualizações:', error); throw error; }
+        if (!updates || updates.length === 0) return [];
+
+        const actionIds = [...new Set(updates.map(u => u.action_id).filter(Boolean))];
+        let actionsMap = new Map();
+        if (actionIds.length > 0) {
+            const { data: actions } = await supabase
+                .from('planning_actions')
+                .select('id, title, secretariat_id, responsible_name')
+                .in('id', actionIds);
+
+            const secIds = [...new Set((actions || []).map(a => a.secretariat_id).filter(Boolean))];
+            let secMap = new Map();
+            if (secIds.length > 0) {
+                const { data: secs } = await supabase.from('secretariats').select('id, name').in('id', secIds);
+                (secs || []).forEach(s => secMap.set(s.id, s.name));
+            }
+            (actions || []).forEach(a => actionsMap.set(a.id, { ...a, secretariaNome: secMap.get(a.secretariat_id) || 'Não informada' }));
+        }
+
+        const derivarTipo = (u) => {
+            if (u.status_snapshot) return 'Mudança de Status';
+            if (u.progress_percent_snapshot !== null && u.progress_percent_snapshot > 0) return 'Avanço de Progresso';
+            return 'Geral';
+        };
+
+        return updates.map(u => {
+            const acao = actionsMap.get(u.action_id) || {};
+            return {
+                id: u.id,
+                acao: acao.title || 'Ação não encontrada',
+                acaoId: u.action_id,
+                secretaria: acao.secretariaNome || 'Não informada',
+                tipo: derivarTipo(u),
+                data: u.created_at,
+                responsavel: acao.responsible_name || 'Não informado',
+                descricao: u.summary || '',
+                progressoAnterior: null,
+                progressoNovo: u.progress_percent_snapshot ?? null,
+                statusAnterior: null,
+                statusNovo: u.status_snapshot || null,
+                critica: false,
+            };
+        });
+    } catch (err) {
+        console.error('[planejamentoAcoes] Erro inesperado ao buscar atualizações:', err);
+        throw err;
+    }
+};
+
+// ── Criar nova Atualização (planning_action_updates) ──────────────────────────
+export const createAtualizacao = async (tenantId, formData) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuário não identificado. Refaça o login.');
+    if (!formData.acaoId) throw new Error('A ação estratégica é obrigatória.');
+    if (!formData.descricao?.trim()) throw new Error('A descrição é obrigatória.');
+
+    const payload = {
+        tenant_id: tenantId,
+        action_id: formData.acaoId,
+        summary: formData.descricao.trim(),
+        details: formData.details?.trim() || null,
+        update_date: new Date().toISOString(),
+        updated_by: user.id,
+    };
+
+    // Só enviar status_snapshot se não for "Manter atual"
+    if (formData.novoStatus && formData.novoStatus !== '') {
+        payload.status_snapshot = formData.novoStatus;
+    }
+
+    // Só enviar progress_percent_snapshot se foi preenchido
+    const progresso = (formData.novoProgresso !== '' && formData.novoProgresso !== null)
+        ? parseInt(formData.novoProgresso, 10) : null;
+    if (progresso !== null && !isNaN(progresso)) {
+        payload.progress_percent_snapshot = progresso;
+    }
+
+    console.log('[planejamentoAcoes] Criando atualização:', payload);
+
+    const { error } = await supabase
+        .from('planning_action_updates')
+        .insert([payload]);
+
+    if (error) {
+        console.error('[planejamentoAcoes] Erro ao criar atualização:', error);
+        if (error.code === '42501' || error.message?.includes('row-level security')) {
+            throw new Error('Permissão negada. Verifique seu acesso ao módulo de Planejamento.');
+        }
+        throw new Error(error.message || 'Erro ao salvar atualização no banco.');
+    }
+    return true;
 };

@@ -30,7 +30,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, fetchObjectivesByAxis } from '../../services/api/planejamentoAcoes.service';
 
 const AcoesList = () => {
-    const { tenantLink } = useAuth();
+    const { tenantLink, scopes, isSuperAdmin } = useAuth();
     const tenantId = tenantLink?.tenant_id;
     const location = useLocation();
     const navigate = useNavigate();
@@ -82,6 +82,20 @@ const AcoesList = () => {
             fetchSecretariats(tenantId).then(setSecretariats);
         }
     }, [tenantId, loadAcoes]);
+
+    // Filtrar secretarias permitidas via escopo do usuário
+    const filteredSecretariats = useMemo(() => {
+        if (isSuperAdmin) return secretariats;
+        
+        const planningModuleId = '2d53a6f6-5638-45bc-a87e-1ab5d88d6134';
+        const allowedIds = scopes
+            .filter(s => s.module_id === planningModuleId)
+            .map(s => s.secretariat_id)
+            .filter(Boolean);
+
+        if (allowedIds.length === 0) return secretariats;
+        return secretariats.filter(s => allowedIds.includes(s.id));
+    }, [secretariats, scopes, isSuperAdmin]);
 
     // Detectar gatilho global de "Nova Ação" via Topbar
     useEffect(() => {
@@ -458,7 +472,7 @@ const AcoesList = () => {
                                 onChange={(e) => setSecretariaFiltro(e.target.value)}
                             >
                                 <option value="Todas">Secretaria: Todas</option>
-                                {secretariats.map(s => (
+                                {filteredSecretariats.map(s => (
                                     <option key={s.id} value={s.name}>{s.name}</option>
                                 ))}
                             </select>
@@ -737,7 +751,7 @@ const AcoesList = () => {
                                                 }}
                                             >
                                                 <option value="">Selecione a secretaria...</option>
-                                                {secretariats.map(s => (
+                                                {filteredSecretariats.map(s => (
                                                     <option key={s.id} value={s.id}>{s.name}</option>
                                                 ))}
                                             </select>

@@ -218,6 +218,7 @@ body.of-preview-body {
 .date-location {
     text-align: center;
     font-size: 10pt;
+    margin-bottom: 32px;
 }
 
 .signatures-container {

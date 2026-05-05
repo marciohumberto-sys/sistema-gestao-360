@@ -407,3 +407,116 @@ export const generateAbcConsumptionReport = async (tenantId, periodo, unidadeNom
         return { data: null, columns: null, error: e.message };
     }
 };
+
+// ==========================================
+// RELATÓRIO 7: TOP 30 CONSUMO
+// ==========================================
+export const generateTopConsumptionReport = async (tenantId, dataInicio, dataFim, unidadeNome, tipoItem = 'Todos') => {
+    try {
+        if (!tenantId) throw new Error("TenantID não identificado.");
+
+        let queryExits = supabase
+            .from('stock_movements')
+            .select('quantity, inventory_item_id, unit_id')
+            .eq('tenant_id', tenantId)
+            .eq('movement_type', 'EXIT');
+        
+        // Aplica filtro de período personalizado
+        if (dataInicio && dataFim) {
+            const start = new Date(dataInicio);
+            start.setHours(0, 0, 0, 0);
+            
+            const end = new Date(dataFim);
+            end.setHours(23, 59, 59, 999);
+
+            queryExits = queryExits
+                .gte('created_at', start.toISOString())
+                .lte('created_at', end.toISOString());
+        }
+
+        const [ resExits, resItems, resUnits ] = await Promise.all([
+            queryExits,
+            supabase.from('inventory_items').select('id, name, item_type, unit_of_measure'),
+            supabase.from('units').select('id, name')
+        ]);
+
+        if (resExits.error) console.error('[Supabase] Erro nas saídas (Top Consumo):', resExits.error);
+
+        const exits = resExits.data;
+        const items = resItems.data || [];
+        const units = resUnits.data || [];
+
+        if (!exits) {
+            return { data: [], columns: [], error: 'Falha técnica ao rastrear consumo.' };
+        }
+
+        const unitMap = {}; 
+        units.forEach(u => unitMap[u.name.toUpperCase()] = u.id);
+        const targetUnitId = unidadeNome !== 'Todas' ? unitMap[unidadeNome.toUpperCase()] : null;
+
+        const validExits = targetUnitId ? exits.filter(m => m.unit_id === targetUnitId) : exits;
+
+        const itemUnitConsumo = {};
+        validExits.forEach(m => {
+            const q = Math.abs(m.quantity || 0);
+            const key = `${m.inventory_item_id}_${m.unit_id}`;
+            if (!itemUnitConsumo[key]) {
+                itemUnitConsumo[key] = {
+                    item_id: m.inventory_item_id,
+                    unit_id: m.unit_id,
+                    total: 0
+                };
+            }
+            itemUnitConsumo[key].total += q;
+        });
+
+        // Filtrar e Mapear Itens
+        const dataArray = [];
+        Object.values(itemUnitConsumo).forEach(group => {
+            const item = items.find(i => i.id === group.item_id);
+            const unit = units.find(u => u.id === group.unit_id);
+            
+            if (!item) return;
+
+            // Filtro por tipo
+            if (tipoItem === 'Medicamentos' && item.item_type !== 'MEDICAMENTO') return;
+            if (tipoItem === 'Insumos' && (item.item_type !== 'INSUMO' && item.item_type !== 'MATERIAL')) return;
+
+            dataArray.push({
+                item: item.name,
+                tipo: item.item_type === 'MEDICAMENTO' ? 'Medicamento' : 'Insumo',
+                unidade: unit ? unit.name : '-',
+                consumido: group.total,
+                unidade_medida: (item.unit_of_measure || 'UN').toUpperCase()
+            });
+        });
+
+        // Ordenar decrescentemente e pegar os top 30
+        dataArray.sort((a,b) => b.consumido - a.consumido);
+        const top30 = dataArray.slice(0, 30).map((row, index) => ({
+            ranking: index + 1,
+            ...row
+        }));
+
+        if (top30.length === 0) {
+            return { data: [], columns: [], error: null, emptyMessage: 'Não há histórico de saídas para os filtros selecionados.' };
+        }
+
+        const columns = [
+            { key: 'ranking', label: 'Ranking', align: 'center' },
+            { key: 'item', label: 'Item (Medicamento/Insumo)' },
+            { key: 'tipo', label: 'Tipo' },
+            { key: 'unidade', label: 'Unidade' },
+            { key: 'consumido', label: 'Total Consumido', align: 'right' },
+            { key: 'unidade_medida', label: 'Unid. Medida', align: 'center' }
+        ];
+
+        return { data: top30, columns, error: null };
+    } catch (e) {
+        console.error('[Service] generateTopConsumptionReport catch:', e);
+        return { data: null, columns: null, error: e.message };
+    }
+};
+
+
+
