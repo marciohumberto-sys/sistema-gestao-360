@@ -432,95 +432,91 @@ const PlanejamentoEntraves = () => {
                                 
                                 const getHeatmap = () => {
                                     if (item.status === 'Resolvido') {
-                                        return { bg: '#ffffff', border: '4px solid #10b981', shadow: 'var(--shadow-sm)', opacity: 0.65 };
+                                        return { borderLeft: '3px solid #10b981' };
                                     }
                                     switch (item.gravidade) {
-                                        case 'Baixa': return { bg: 'rgba(59, 130, 246, 0.02)', border: '4px solid rgba(59, 130, 246, 0.4)', shadow: 'var(--shadow-sm)', opacity: 1 };
-                                        case 'Média': return { bg: 'rgba(245, 158, 11, 0.03)', border: '4px solid rgba(245, 158, 11, 0.7)', shadow: 'var(--shadow-sm)', opacity: 1 };
-                                        case 'Alta': return { bg: 'rgba(239, 68, 68, 0.04)', border: '4px solid #ef4444', shadow: '0 4px 12px rgba(239, 68, 68, 0.08)', opacity: 1 };
-                                        case 'Crítica': return { bg: 'rgba(220, 38, 38, 0.06)', border: '5px solid #dc2626', shadow: '0 6px 16px rgba(220, 38, 38, 0.15)', opacity: 1 };
-                                        default: return { bg: '#ffffff', border: `4px solid ${gConf.color}`, shadow: 'var(--shadow-sm)', opacity: 1 };
+                                        case 'Baixa': return { borderLeft: '3px solid #3b82f6' };
+                                        case 'Média': return { borderLeft: '3px solid #f59e0b' };
+                                        case 'Alta': return { borderLeft: '3px solid #ef4444' };
+                                        case 'Crítica': return { borderLeft: '3px solid #dc2626' };
+                                        default: return { borderLeft: `3px solid ${gConf.color}` };
                                     }
                                 };
                                 const heatmap = getHeatmap();
                                 
                                 return (
                                     <div key={item.id} className="farmacia-card" style={{ 
-                                        padding: '1.125rem', 
+                                        padding: '1rem', 
                                         display: 'flex', 
                                         flexDirection: 'column', 
                                         cursor: 'default',
-                                        borderLeft: heatmap.border,
+                                        borderLeft: heatmap.borderLeft,
                                         borderTop: `1px solid var(--border)`,
                                         borderRight: `1px solid var(--border)`,
                                         borderBottom: `1px solid var(--border)`,
-                                        background: heatmap.bg,
+                                        background: '#ffffff',
                                         transition: 'all 0.2s',
-                                        boxShadow: heatmap.shadow,
-                                        opacity: heatmap.opacity
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.04)',
+                                        opacity: item.status === 'Resolvido' ? 0.85 : 1
                                     }}>
-                                        <div style={{ display: 'flex', gap: '1.5rem', height: '100%' }}>
+                                        <div style={{ display: 'flex', gap: '1rem', height: '100%' }}>
                                             {/* Mini Timeline Lateral */}
-                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '14px', flexShrink: 0, padding: '6px 0 6px 8px', position: 'relative' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '12px', flexShrink: 0, padding: '4px 0 4px 6px', position: 'relative' }}>
                                                 {(() => {
                                                     const isAberta = item.status !== 'Em Tratativa' && item.status !== 'Resolvido';
                                                     const isTratativa = item.status === 'Em Tratativa';
                                                     const isResolvido = item.status === 'Resolvido';
 
-                                                    // Define a cor base da timeline ancorada na gravidade (ou status Resolvido)
                                                     const getRgb = () => {
                                                         if (isResolvido) return '52, 211, 153'; // Verde pastel
-                                                        if (item.gravidade === 'Crítica' || item.gravidade === 'Alta') return '248, 113, 113'; // Vermelho pastel
-                                                        if (item.gravidade === 'Média') return '251, 191, 36'; // Laranja pastel
-                                                        return '96, 165, 250'; // Azul pastel (Baixa)
+                                                        if (item.gravidade === 'Crítica' || item.gravidade === 'Alta') return '248, 113, 113'; // Vermelho
+                                                        if (item.gravidade === 'Média') return '251, 191, 36'; // Laranja
+                                                        return '96, 165, 250'; // Azul (Baixa)
                                                     };
                                                     const rgb = getRgb();
 
                                                     // Nó 1: Registrado
-                                                    const n1Opacity = isAberta ? 1 : 0.5;
-                                                    const n1Size = isAberta ? '10px' : '6px';
-                                                    const n1Shadow = isAberta ? `0 0 0 3px rgba(${rgb}, 0.2)` : 'none';
+                                                    const n1Opacity = isAberta ? 1 : 0.4;
+                                                    const n1Size = isAberta ? '7px' : '5px';
                                                     const n1Bg = `rgb(${rgb})`;
-                                                    const n1Border = 'none';
+                                                    const n1Border = isAberta ? `2px solid rgba(${rgb}, 0.2)` : 'none';
                                                     
                                                     // Linha 1 (Registrado -> Tratativa)
-                                                    const l1Opacity = isAberta ? 0.3 : (isTratativa ? 0.85 : 0.4);
-                                                    const l1Bg = isAberta ? '#cbd5e1' : `rgb(${rgb})`;
+                                                    const l1Opacity = 1;
+                                                    const l1Bg = isAberta ? 'var(--border)' : `rgba(${rgb}, 0.5)`;
 
                                                     // Nó 2: Em Tratativa
-                                                    const n2Opacity = isTratativa ? 1 : (isResolvido ? 0.5 : 0.3);
-                                                    const n2Size = isTratativa ? '10px' : '6px';
-                                                    const n2Shadow = isTratativa ? `0 0 0 3px rgba(${rgb}, 0.2)` : 'none';
+                                                    const n2Opacity = isTratativa ? 1 : (isResolvido ? 0.4 : 0.2);
+                                                    const n2Size = isTratativa ? '7px' : '5px';
                                                     const n2Bg = isAberta ? '#ffffff' : `rgb(${rgb})`;
-                                                    const n2Border = isAberta ? '1px solid #cbd5e1' : 'none';
+                                                    const n2Border = isAberta ? '1px solid var(--border)' : (isTratativa ? `2px solid rgba(${rgb}, 0.2)` : 'none');
 
                                                     // Linha 2 (Tratativa -> Resolvido)
-                                                    const l2Opacity = isResolvido ? 0.85 : 0.3;
-                                                    const l2Bg = isResolvido ? `rgb(${rgb})` : '#cbd5e1';
+                                                    const l2Opacity = 1;
+                                                    const l2Bg = isResolvido ? `rgba(${rgb}, 0.5)` : 'var(--border)';
 
                                                     // Nó 3: Resolvido
-                                                    const n3Opacity = isResolvido ? 1 : 0.3;
-                                                    const n3Size = isResolvido ? '10px' : '6px';
-                                                    const n3Shadow = isResolvido ? `0 0 0 3px rgba(${rgb}, 0.2)` : 'none';
+                                                    const n3Opacity = isResolvido ? 1 : 0.2;
+                                                    const n3Size = isResolvido ? '7px' : '5px';
                                                     const n3Bg = isResolvido ? `rgb(${rgb})` : '#ffffff';
-                                                    const n3Border = isResolvido ? 'none' : '1px solid #cbd5e1';
+                                                    const n3Border = isResolvido ? `2px solid rgba(${rgb}, 0.2)` : '1px solid var(--border)';
 
                                                     return (
                                                         <>
                                                             <div className="premium-tooltip-wrap" style={{ display: 'flex', justifyContent: 'center' }}>
-                                                                <div style={{ width: n1Size, height: n1Size, borderRadius: '50%', background: n1Bg, border: n1Border, boxShadow: n1Shadow, opacity: n1Opacity, zIndex: 2, position: 'relative', transition: 'all 0.3s ease' }} />
+                                                                <div style={{ width: n1Size, height: n1Size, borderRadius: '50%', background: n1Bg, border: n1Border, opacity: n1Opacity, zIndex: 2, position: 'relative', transition: 'all 0.3s ease' }} />
                                                                 <span className="premium-tooltip" style={{ left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: '12px', bottom: 'auto' }}>Registrado</span>
                                                             </div>
                                                             <div style={{ width: '1px', flex: 1, background: l1Bg, margin: '2px 0', opacity: l1Opacity, transition: 'all 0.3s ease' }} />
                                                             
                                                             <div className="premium-tooltip-wrap" style={{ display: 'flex', justifyContent: 'center' }}>
-                                                                <div style={{ width: n2Size, height: n2Size, borderRadius: '50%', background: n2Bg, border: n2Border, boxShadow: n2Shadow, opacity: n2Opacity, zIndex: 2, position: 'relative', transition: 'all 0.3s ease' }} />
+                                                                <div style={{ width: n2Size, height: n2Size, borderRadius: '50%', background: n2Bg, border: n2Border, opacity: n2Opacity, zIndex: 2, position: 'relative', transition: 'all 0.3s ease' }} />
                                                                 <span className="premium-tooltip" style={{ left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: '12px', bottom: 'auto' }}>Em Tratativa</span>
                                                             </div>
                                                             <div style={{ width: '1px', flex: 1, background: l2Bg, margin: '2px 0', opacity: l2Opacity, transition: 'all 0.3s ease' }} />
 
                                                             <div className="premium-tooltip-wrap" style={{ display: 'flex', justifyContent: 'center' }}>
-                                                                <div style={{ width: n3Size, height: n3Size, borderRadius: '50%', background: n3Bg, border: n3Border, boxShadow: n3Shadow, opacity: n3Opacity, zIndex: 2, position: 'relative', transition: 'all 0.3s ease' }} />
+                                                                <div style={{ width: n3Size, height: n3Size, borderRadius: '50%', background: n3Bg, border: n3Border, opacity: n3Opacity, zIndex: 2, position: 'relative', transition: 'all 0.3s ease' }} />
                                                                 <span className="premium-tooltip" style={{ left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: '12px', bottom: 'auto' }}>Resolvido</span>
                                                             </div>
                                                         </>
@@ -529,56 +525,56 @@ const PlanejamentoEntraves = () => {
                                             </div>
 
                                             {/* Conteúdo Principal do Card */}
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, minWidth: 0 }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', flex: 1, minWidth: 0 }}>
                                                 {/* Header */}
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                                                     <div style={{ flex: 1 }}>
-                                                        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text)', margin: '0 0 6px 0', textDecoration: item.status === 'Resolvido' ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                            {item.status === 'Resolvido' && <CheckCircle2 size={16} color="#10b981" />}
+                                                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text)', margin: '0 0 4px 0', textDecoration: item.status === 'Resolvido' ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            {item.status === 'Resolvido' && <CheckCircle2 size={14} color="#10b981" />}
                                                             {item.acaoNome}
                                                         </h3>
-                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
                                                             {item.secretaria}
                                                         </span>
                                                     </div>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
-                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: sConf.bg, color: sConf.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                            <StatusIcon size={12} /> {item.status}
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: sConf.bg, color: sConf.color, border: `1px solid ${sConf.color}30`, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                                                            <StatusIcon size={10} strokeWidth={2.5} /> {item.status}
                                                         </span>
-                                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: gConf.bg, color: gConf.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: gConf.bg, color: gConf.color, border: `1px solid ${gConf.color}30`, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
                                                             Gravidade: {item.gravidade}
                                                         </span>
                                                     </div>
                                                 </div>
 
                                                 {/* Descrição Principal */}
-                                                <div style={{ fontSize: '0.95rem', color: 'var(--text)', lineHeight: 1.5 }}>
+                                                <div style={{ fontSize: '0.9rem', color: 'var(--text)', lineHeight: 1.5 }}>
                                                     {item.descricao}
                                                 </div>
 
                                                 {/* Detalhes (Impacto e Providência) */}
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: 'auto', background: 'var(--bg-muted)', padding: '1.25rem', borderRadius: '8px' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: 'auto', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                                                     {item.impacto && (
-                                                        <div style={{ fontSize: '0.85rem', display: 'flex', gap: '8px' }}>
-                                                            <span style={{ fontWeight: 800, color: 'var(--text)', minWidth: '85px' }}>Impacto:</span>
-                                                            <span style={{ color: 'var(--text-muted)' }}>{item.impacto}</span>
+                                                        <div style={{ fontSize: '0.8rem', display: 'flex', gap: '6px' }}>
+                                                            <span style={{ fontWeight: 700, color: '#475569', minWidth: '80px' }}>Impacto:</span>
+                                                            <span style={{ color: '#334155' }}>{item.impacto}</span>
                                                         </div>
                                                     )}
                                                     {item.providencia && (
-                                                        <div style={{ fontSize: '0.85rem', display: 'flex', gap: '8px' }}>
-                                                            <span style={{ fontWeight: 800, color: 'var(--text)', minWidth: '85px' }}>Providência:</span>
-                                                            <span style={{ color: 'var(--text-muted)' }}>{item.providencia}</span>
+                                                        <div style={{ fontSize: '0.8rem', display: 'flex', gap: '6px' }}>
+                                                            <span style={{ fontWeight: 700, color: '#475569', minWidth: '80px' }}>Providência:</span>
+                                                            <span style={{ color: '#334155' }}>{item.providencia}</span>
                                                         </div>
                                                     )}
                                                     {!item.impacto && !item.providencia && (
-                                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                                                            Sem impacto ou providência registrados.
+                                                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                                            Nenhum detalhe adicional registrado.
                                                         </div>
                                                     )}
                                                 </div>
 
                                                 {/* Rodapé Metadados e Ações */}
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '4px', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '4px', borderTop: '1px dashed var(--border)', paddingTop: '12px' }}>
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                             <Clock size={12} /> Registrado em: {formatDate(item.dataRegistro)}

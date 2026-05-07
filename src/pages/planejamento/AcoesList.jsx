@@ -25,9 +25,78 @@ import {
 } from 'lucide-react';
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, fetchObjectivesByAxis } from '../../services/api/planejamentoAcoes.service';
+import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, fetchObjectivesByAxis, createAtualizacao, fetchActionSecretariats } from '../../services/api/planejamentoAcoes.service';
+
+const actionTypesConfig = {
+    'PROJETO': { label: 'Projeto', bg: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', border: 'rgba(59, 130, 246, 0.2)' },
+    'OBRA': { label: 'Obra', bg: 'rgba(245, 158, 11, 0.1)', color: '#d97706', border: 'rgba(245, 158, 11, 0.2)' },
+    'SERVICO': { label: 'Serviço', bg: 'rgba(16, 185, 129, 0.1)', color: '#059669', border: 'rgba(16, 185, 129, 0.2)' },
+    'PROGRAMA': { label: 'Programa', bg: 'rgba(139, 92, 246, 0.1)', color: '#7c3aed', border: 'rgba(139, 92, 246, 0.2)' },
+    'ACAO_PONTUAL': { label: 'Ação Pontual', bg: 'rgba(236, 72, 153, 0.1)', color: '#db2777', border: 'rgba(236, 72, 153, 0.2)' },
+    'ACAO': { label: 'Ação Pontual', bg: 'rgba(236, 72, 153, 0.1)', color: '#db2777', border: 'rgba(236, 72, 153, 0.2)' }, // Compatibilidade legado
+    'AQUISICAO': { label: 'Aquisição', bg: 'rgba(20, 184, 166, 0.1)', color: '#0d9488', border: 'rgba(20, 184, 166, 0.2)' }
+};
+
+const getActionTypeBadge = (type) => {
+    const config = actionTypesConfig[type] || actionTypesConfig['ACAO_PONTUAL'];
+    return (
+        <span className="farmacia-badge" style={{ 
+            backgroundColor: config.bg, 
+            color: config.color, 
+            border: `1px solid ${config.border}`, 
+            padding: '2px 8px', 
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            borderRadius: '4px',
+            whiteSpace: 'nowrap'
+        }}>
+            {config.label}
+        </span>
+    );
+};
+
+const formatAcaoAddress = (acao) => {
+    if (!acao) return 'Não informada';
+    const parts = [];
+    if (acao.address_street) {
+        let streetStr = acao.address_street;
+        if (acao.address_number) streetStr += `, ${acao.address_number}`;
+        if (acao.address_complement) streetStr += ` (${acao.address_complement})`;
+        parts.push(streetStr);
+    }
+    const district = acao.address_district || acao.local;
+    if (district) parts.push(district);
+    
+    let cityState = '';
+    if (acao.address_city) cityState += acao.address_city;
+    if (acao.address_state) cityState += cityState ? ` - ${acao.address_state}` : acao.address_state;
+    if (cityState) parts.push(cityState);
+    
+    if (acao.address_zipcode) parts.push(`CEP ${acao.address_zipcode}`);
+    
+    return parts.length > 0 ? parts.join(', ') : 'Não informada';
+};
+
+const getDeadlineStatus = (start, end, status) => {
+    if (!end) return { text: 'Prazo indefinido', color: '#64748b', bg: '#f1f5f9' };
+    if (status === 'CONCLUIDA') return { text: 'Concluída', color: '#059669', bg: '#d1fae5' };
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const [y, m, d] = end.split('-');
+    const endDate = new Date(y, m-1, d);
+    endDate.setHours(0,0,0,0);
+
+    const diffTime = endDate - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { text: `Vencido há ${Math.abs(diffDays)} dias`, color: '#dc2626', bg: '#fee2e2' };
+    if (diffDays <= 7) return { text: `Vence em ${diffDays} dias`, color: '#d97706', bg: '#fef3c7' };
+    return { text: `No prazo (${diffDays} dias)`, color: '#0284c7', bg: '#e0f2fe' };
+};
 
 const AcoesList = () => {
     const { tenantLink, scopes, isSuperAdmin } = useAuth();
@@ -38,6 +107,7 @@ const AcoesList = () => {
     const [busca, setBusca] = useState('');
     const [statusFiltro, setStatusFiltro] = useState('Todos');
     const [secretariaFiltro, setSecretariaFiltro] = useState('Todas');
+    const [tipoFiltro, setTipoFiltro] = useState('Todos');
 
     // Estado dos dados reais
     const [acoes, setAcoes] = useState([]);
@@ -49,6 +119,7 @@ const AcoesList = () => {
 
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [viewingAcao, setViewingAcao] = useState(null);
+    const [viewingParticipantes, setViewingParticipantes] = useState([]);
 
     const [toast, setToast] = useState(null);
     const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
@@ -60,6 +131,37 @@ const AcoesList = () => {
             return () => clearTimeout(timer);
         }
     }, [toast]);
+
+    // Buscar participantes ao abrir view
+    useEffect(() => {
+        if (!isViewModalOpen || !viewingAcao?.id) return;
+        let isMounted = true;
+        setViewingParticipantes([]);
+
+        const fetchStats = async () => {
+            try {
+                const { data: links, error: errLinks } = await supabase
+                    .from('planning_action_secretariats')
+                    .select('is_primary, secretariats(name)')
+                    .eq('action_id', viewingAcao.id);
+
+                if (errLinks) throw errLinks;
+
+                const participantNames = (links || [])
+                    .filter(l => !l.is_primary && l.secretariats)
+                    .map(l => l.secretariats.name);
+
+                if (isMounted) {
+                    setViewingParticipantes(participantNames);
+                }
+            } catch (err) {
+                console.error("Erro ao buscar participantes da ação:", err);
+            }
+        };
+
+        fetchStats();
+        return () => { isMounted = false; };
+    }, [isViewModalOpen, viewingAcao]);
 
     // Carregar dados do banco
     const loadAcoes = useCallback(async () => {
@@ -123,7 +225,17 @@ const AcoesList = () => {
         data_inicio: '',
         responsible_name: '',
         descricao: '',
-        observacoes: ''
+        observacoes: '',
+        action_type: 'PROJETO',
+        address_street: '',
+        address_number: '',
+        address_complement: '',
+        address_district: '',
+        address_city: 'Bezerros',
+        address_state: 'PE',
+        address_zipcode: '',
+        address_reference: '',
+        participantes: []
     };
     const [formData, setFormData] = useState(emptyForm);
     const [objectives, setObjectives] = useState([]);
@@ -176,8 +288,26 @@ const AcoesList = () => {
                 data_inicio: acao.data_inicio || '',
                 responsible_name: acao.responsavel || '',
                 descricao: acao.descricao || '',
-                observacoes: acao.observacoes || ''
+                observacoes: acao.observacoes || '',
+                action_type: acao.action_type || 'PROJETO',
+                address_street: acao.address_street || '',
+                address_number: acao.address_number || '',
+                address_complement: acao.address_complement || '',
+                address_district: acao.address_district || '',
+                address_city: acao.address_city || 'Bezerros',
+                address_state: acao.address_state || 'PE',
+                address_zipcode: acao.address_zipcode || '',
+                address_reference: acao.address_reference || '',
+                participantes: []
             });
+
+            // Carregar secretarias participantes de forma assíncrona
+            fetchActionSecretariats(acao.id).then(links => {
+                if (links && links.length > 0) {
+                    const participants = links.filter(l => !l.is_primary).map(l => l.secretariat_id);
+                    setFormData(prev => ({ ...prev, participantes: participants }));
+                }
+            }).catch(console.warn);
         } else {
             setEditingAcao(null);
             const firstAxis = axes[0];
@@ -261,7 +391,8 @@ const AcoesList = () => {
             const mBusca = (a.nome || '').toLowerCase().includes(busca.toLowerCase()) || (a.local || '').toLowerCase().includes(busca.toLowerCase());
             const mStatus = statusFiltro === 'Todos' || a.status === statusFiltro;
             const mSec = secretariaFiltro === 'Todas' || a.secretaria === secretariaFiltro || a.secretariaId === secretariaFiltro;
-            return mBusca && mStatus && mSec;
+            const mTipo = tipoFiltro === 'Todos' || (a.action_type || 'PROJETO') === tipoFiltro || (tipoFiltro === 'ACAO_PONTUAL' && a.action_type === 'ACAO');
+            return mBusca && mStatus && mSec && mTipo;
         });
 
         if (sortConfig.key) {
@@ -282,7 +413,7 @@ const AcoesList = () => {
         }
 
         return filtered;
-    }, [busca, statusFiltro, secretariaFiltro, acoes, sortConfig]);
+    }, [busca, statusFiltro, secretariaFiltro, tipoFiltro, acoes, sortConfig]);
 
     const metrics = useMemo(() => {
         const now = new Date();
@@ -447,7 +578,7 @@ const AcoesList = () => {
                             />
                         </div>
 
-                        <div className="farmacia-select-wrapper" style={{ minWidth: '160px', position: 'relative' }}>
+                        <div className="farmacia-select-wrapper status-wrapper" style={{ minWidth: '160px', position: 'relative' }}>
                             <select 
                                 className="farmacia-filter-select" 
                                 style={{ width: '100%' }}
@@ -464,7 +595,7 @@ const AcoesList = () => {
                             <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                         </div>
 
-                        <div className="farmacia-select-wrapper" style={{ minWidth: '180px', position: 'relative' }}>
+                        <div className="farmacia-select-wrapper secretaria-wrapper" style={{ minWidth: '180px', position: 'relative' }}>
                             <select 
                                 className="farmacia-filter-select" 
                                 style={{ width: '100%' }}
@@ -479,7 +610,25 @@ const AcoesList = () => {
                             <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                         </div>
 
-                        <div className="farmacia-select-wrapper" style={{ minWidth: '160px', position: 'relative' }}>
+                        <div className="farmacia-select-wrapper tipo-wrapper" style={{ minWidth: '160px', position: 'relative' }}>
+                            <select 
+                                className="farmacia-filter-select" 
+                                style={{ width: '100%' }}
+                                value={tipoFiltro}
+                                onChange={(e) => setTipoFiltro(e.target.value)}
+                            >
+                                <option value="Todos">Tipo: Todos</option>
+                                <option value="PROJETO">Projeto</option>
+                                <option value="OBRA">Obra</option>
+                                <option value="SERVICO">Serviço</option>
+                                <option value="PROGRAMA">Programa</option>
+                                <option value="ACAO_PONTUAL">Ação Pontual</option>
+                                <option value="AQUISICAO">Aquisição</option>
+                            </select>
+                            <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                        </div>
+
+                        <div className="farmacia-select-wrapper eixo-wrapper" style={{ minWidth: '160px', position: 'relative' }}>
                             <select className="farmacia-filter-select" style={{ width: '100%' }}>
                                 <option value="Todos">Eixo: Todos</option>
                                 {axes.map(ax => (
@@ -493,6 +642,39 @@ const AcoesList = () => {
 
                 {/* Listagem */}
                 <style>{`
+                @media (min-width: 1024px) {
+                    .farmacia-toolbar {
+                        display: flex !important;
+                        flex-flow: row nowrap !important;
+                        align-items: center !important;
+                        gap: 8px !important;
+                        width: 100% !important;
+                    }
+                    .farmacia-search-box {
+                        flex: 2 1 0% !important;
+                        max-width: none !important;
+                    }
+                    .status-wrapper {
+                        flex: 1 1 0% !important;
+                        min-width: 120px !important;
+                        max-width: 160px !important;
+                    }
+                    .secretaria-wrapper {
+                        flex: 1.5 1 0% !important;
+                        min-width: 160px !important;
+                        max-width: 220px !important;
+                    }
+                    .tipo-wrapper {
+                        flex: 1 1 0% !important;
+                        min-width: 120px !important;
+                        max-width: 160px !important;
+                    }
+                    .eixo-wrapper {
+                        flex: 1 1 0% !important;
+                        min-width: 120px !important;
+                        max-width: 160px !important;
+                    }
+                }
                 .farmacia-table thead th { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #334155; font-weight: 600; padding-top: 14px; padding-bottom: 14px; position: sticky; top: 0; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
                 .farmacia-table tbody td { padding-top: 16px; padding-bottom: 16px; }
                 .farmacia-table tbody tr { transition: all 0.2s ease; }
@@ -593,7 +775,10 @@ const AcoesList = () => {
                                 <tr key={acao.id} style={{ backgroundColor: rowBg }}>
                                     <td>
                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontWeight: 800, color: 'var(--text)', fontSize: '0.9rem', cursor: 'default' }}>{acao.nome}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <span style={{ fontWeight: 800, color: 'var(--text)', fontSize: '0.9rem', cursor: 'default' }}>{acao.nome}</span>
+                                                {getActionTypeBadge(acao.action_type)}
+                                            </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontSize: '0.75rem', color: '#94a3b8' }}>
                                                 {acao.eixo && <span>{acao.eixo}</span>}
                                                 {acao.eixo && acao.local && <span>&bull;</span>}
@@ -602,10 +787,12 @@ const AcoesList = () => {
                                         </div>
                                     </td>
                                      <td>
-                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                             <span style={{ fontWeight: 600, color: 'var(--text)', fontSize: '0.85rem' }}>{sec.simplified}</span>
-                                             {sec.full && (
-                                                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1px' }}>{sec.full}</span>
+                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                             <span style={{ fontWeight: 600, color: '#334155', fontSize: '0.85rem' }}>{sec.simplified}</span>
+                                             {acao.participantes && acao.participantes.length > 0 && (
+                                                 <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                                     <span style={{fontWeight: 600}}>Participantes:</span> {acao.participantes.join(', ')}
+                                                 </span>
                                              )}
                                          </div>
                                      </td>
@@ -725,6 +912,22 @@ const AcoesList = () => {
                                             />
                                         </div>
                                         <div className="farmacia-form-group">
+                                            <label className="farmacia-form-label">Tipo da Ação</label>
+                                            <select
+                                                className="farmacia-form-select"
+                                                required
+                                                value={formData.action_type}
+                                                onChange={e => setFormData({ ...formData, action_type: e.target.value })}
+                                            >
+                                                <option value="PROJETO">Projeto</option>
+                                                <option value="OBRA">Obra</option>
+                                                <option value="SERVICO">Serviço</option>
+                                                <option value="PROGRAMA">Programa</option>
+                                                <option value="ACAO_PONTUAL">Ação Pontual</option>
+                                                <option value="AQUISICAO">Aquisição</option>
+                                            </select>
+                                        </div>
+                                        <div className="farmacia-form-group">
                                             <label className="farmacia-form-label">Eixo Estratégico</label>
                                             <select
                                                 className="farmacia-form-select"
@@ -740,21 +943,59 @@ const AcoesList = () => {
                                                 ))}
                                             </select>
                                         </div>
-                                        <div className="farmacia-form-group col-span-2">
-                                            <label className="farmacia-form-label">Secretaria Responsável</label>
+                                        <div className="farmacia-form-group">
+                                            <label className="farmacia-form-label">Secretaria Responsável (Principal)</label>
                                             <select
                                                 className="farmacia-form-select"
                                                 value={formData.secretariatId}
                                                 onChange={e => {
-                                                    const sec = secretariats.find(s => s.id === e.target.value);
-                                                    setFormData({ ...formData, secretariatId: e.target.value, secretaria: sec?.name || '' });
+                                                    const secId = e.target.value;
+                                                    const sec = secretariats.find(s => s.id === secId);
+                                                    setFormData(prev => ({ 
+                                                        ...prev, 
+                                                        secretariatId: secId, 
+                                                        secretaria: sec?.name || '',
+                                                        participantes: (prev.participantes || []).filter(id => id !== secId)
+                                                    }));
                                                 }}
                                             >
                                                 <option value="">Selecione a secretaria...</option>
-                                                {filteredSecretariats.map(s => (
+                                                {secretariats.map(s => (
                                                     <option key={s.id} value={s.id}>{s.name}</option>
                                                 ))}
                                             </select>
+                                        </div>
+                                        <div className="farmacia-form-group col-span-2">
+                                            <label className="farmacia-form-label">Secretarias Participantes</label>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '6px 12px', maxHeight: '125px', overflowY: 'auto', background: '#f8fafc', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '6px', padding: '8px 12px' }} className="custom-scrollbar">
+                                                {(() => {
+                                                    const filtered = secretariats
+                                                        .filter(s => s.id !== formData.secretariatId)
+                                                        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+                                                    if (filtered.length === 0) {
+                                                        return <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Selecione a Secretaria Responsável primeiro.</span>;
+                                                    }
+                                                    return filtered.map(s => (
+                                                        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', cursor: 'pointer', color: '#334155' }}>
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={formData.participantes?.includes(s.id) || false}
+                                                                onChange={(e) => {
+                                                                    const isChecked = e.target.checked;
+                                                                    setFormData(prev => ({
+                                                                        ...prev,
+                                                                        participantes: isChecked 
+                                                                            ? [...(prev.participantes || []), s.id]
+                                                                            : (prev.participantes || []).filter(id => id !== s.id)
+                                                                    }));
+                                                                }}
+                                                                style={{ accentColor: 'var(--color-primary)', width: '16px', height: '16px', cursor: 'pointer' }}
+                                                            />
+                                                            {s.name}
+                                                        </label>
+                                                    ));
+                                                })()}
+                                            </div>
                                         </div>
                                         <div className="farmacia-form-group col-span-2">
                                             <label className="farmacia-form-label">Descrição</label>
@@ -797,13 +1038,72 @@ const AcoesList = () => {
                                         </div>
                                         <div className="farmacia-form-group">
                                             <label className="farmacia-form-label">Progresso (%)</label>
-                                            <input
-                                                type="number"
-                                                className="farmacia-form-input"
-                                                min="0" max="100"
-                                                value={formData.progresso}
-                                                onChange={e => setFormData({ ...formData, progresso: parseInt(e.target.value) || 0 })}
-                                            />
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                    <input
+                                                        type="range"
+                                                        min="0" max="100"
+                                                        value={formData.progresso || 0}
+                                                        onChange={e => setFormData({ ...formData, progresso: parseInt(e.target.value) || 0 })}
+                                                        style={{
+                                                            flex: 1,
+                                                            height: '6px',
+                                                            borderRadius: '4px',
+                                                            background: `linear-gradient(to right, ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'} ${formData.progresso || 0}%, #e2e8f0 ${formData.progresso || 0}%)`,
+                                                            outline: 'none',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                        className="modern-range-slider"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        className="farmacia-form-input"
+                                                        min="0" max="100"
+                                                        style={{ width: '64px', padding: '0.4rem', textAlign: 'center', fontWeight: 600 }}
+                                                        value={formData.progresso || 0}
+                                                        onChange={e => {
+                                                            let val = parseInt(e.target.value) || 0;
+                                                            if (val > 100) val = 100;
+                                                            if (val < 0) val = 0;
+                                                            setFormData({ ...formData, progresso: val });
+                                                        }}
+                                                    />
+                                                </div>
+                                                <style>{`
+                                                    .modern-range-slider {
+                                                        -webkit-appearance: none;
+                                                        appearance: none;
+                                                    }
+                                                    .modern-range-slider::-webkit-slider-thumb {
+                                                        -webkit-appearance: none;
+                                                        appearance: none;
+                                                        width: 16px;
+                                                        height: 16px;
+                                                        border-radius: 50%;
+                                                        background: #fff;
+                                                        border: 2px solid ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'};
+                                                        cursor: pointer;
+                                                        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                                                        transition: transform 0.1s ease;
+                                                    }
+                                                    .modern-range-slider::-webkit-slider-thumb:hover {
+                                                        transform: scale(1.15);
+                                                    }
+                                                    .modern-range-slider::-moz-range-thumb {
+                                                        width: 16px;
+                                                        height: 16px;
+                                                        border-radius: 50%;
+                                                        background: #fff;
+                                                        border: 2px solid ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'};
+                                                        cursor: pointer;
+                                                        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                                                        transition: transform 0.1s ease;
+                                                    }
+                                                    .modern-range-slider::-moz-range-thumb:hover {
+                                                        transform: scale(1.15);
+                                                    }
+                                                `}</style>
+                                            </div>
                                         </div>
                                         <div className="farmacia-form-group">
                                             <label className="farmacia-form-label">Responsável Técnico</label>
@@ -818,60 +1118,128 @@ const AcoesList = () => {
                                     </div>
                                 </div>
 
-                                {/* ── Blocos lado a lado: Planejamento + Localização ── */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <div style={{
-                                        background: 'hsl(220,20%,97%)',
-                                        border: '1px solid var(--border)',
-                                        borderRadius: '10px',
-                                        padding: '1.1rem 1.25rem',
-                                        borderLeft: '3px solid rgba(59,130,246,0.7)',
-                                        boxShadow: '0 1px 4px rgba(15,23,42,0.05)'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '1rem' }}>
-                                            <Calendar size={13} color="#3b82f6" />
-                                            <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#3b82f6' }}>
-                                                Planejamento
-                                            </span>
-                                        </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                                            <div className="farmacia-form-group">
-                                                <label className="farmacia-form-label">Data Início</label>
-                                                <input type="date" className="farmacia-form-input" value={formData.data_inicio} onChange={e => setFormData({ ...formData, data_inicio: e.target.value })} />
-                                            </div>
-                                            <div className="farmacia-form-group">
-                                                <label className="farmacia-form-label">Data Término</label>
-                                                <input type="date" className="farmacia-form-input" value={formData.prazo} onChange={e => setFormData({ ...formData, prazo: e.target.value })} />
-                                            </div>
-                                        </div>
+                                {/* ── Bloco: Planejamento ── */}
+                                <div style={{
+                                    background: 'hsl(220,20%,97%)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '10px',
+                                    padding: '1.1rem 1.25rem',
+                                    borderLeft: '3px solid rgba(59,130,246,0.7)',
+                                    boxShadow: '0 1px 4px rgba(15,23,42,0.05)'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '1rem' }}>
+                                        <Calendar size={13} color="#3b82f6" />
+                                        <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#3b82f6' }}>
+                                            Planejamento
+                                        </span>
                                     </div>
-
-                                    <div style={{
-                                        background: 'hsl(220,20%,97%)',
-                                        border: '1px solid var(--border)',
-                                        borderRadius: '10px',
-                                        padding: '1.1rem 1.25rem',
-                                        borderLeft: '3px solid rgba(245,158,11,0.7)',
-                                        boxShadow: '0 1px 4px rgba(15,23,42,0.05)'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '1rem' }}>
-                                            <MapPin size={13} color="#f59e0b" />
-                                            <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#f59e0b' }}>
-                                                Localização
-                                            </span>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.875rem' }}>
+                                        <div className="farmacia-form-group">
+                                            <label className="farmacia-form-label">Data Início</label>
+                                            <input type="date" className="farmacia-form-input" value={formData.data_inicio} onChange={e => setFormData({ ...formData, data_inicio: e.target.value })} />
                                         </div>
                                         <div className="farmacia-form-group">
-                                            <label className="farmacia-form-label">Bairro / Localidade</label>
-                                            <select className="farmacia-form-select" value={formData.local} onChange={e => setFormData({ ...formData, local: e.target.value })}>
-                                                <option value="">Selecione o bairro...</option>
-                                                <option value="Centro">Centro</option>
-                                                <option value="Gameleira">Gameleira</option>
-                                                <option value="Bairro Novo">Bairro Novo</option>
-                                                <option value="Santo Amaro">Santo Amaro</option>
-                                                <option value="Cruzeiro">Cruzeiro</option>
-                                                <option value="São Sebastião">São Sebastião</option>
-                                                <option value="Retiro">Retiro</option>
-                                            </select>
+                                            <label className="farmacia-form-label">Data Término</label>
+                                            <input type="date" className="farmacia-form-input" value={formData.prazo} onChange={e => setFormData({ ...formData, prazo: e.target.value })} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ── Bloco: Localização e Endereço ── */}
+                                <div style={{
+                                    background: 'hsl(220,20%,97%)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '10px',
+                                    padding: '1.1rem 1.25rem',
+                                    borderLeft: '3px solid rgba(245,158,11,0.7)',
+                                    boxShadow: '0 1px 4px rgba(15,23,42,0.05)'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '1rem' }}>
+                                        <MapPin size={13} color="#f59e0b" />
+                                        <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#f59e0b' }}>
+                                            Localização e Endereço
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '0.875rem' }}>
+                                        <div className="farmacia-form-group" style={{ gridColumn: 'span 8' }}>
+                                            <label className="farmacia-form-label">Rua / Avenida</label>
+                                            <input
+                                                type="text"
+                                                className="farmacia-form-input"
+                                                placeholder="Ex: Av. Governador Agamenon Magalhães"
+                                                value={formData.address_street}
+                                                onChange={e => setFormData({ ...formData, address_street: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="farmacia-form-group" style={{ gridColumn: 'span 4' }}>
+                                            <label className="farmacia-form-label">Número</label>
+                                            <input
+                                                type="text"
+                                                className="farmacia-form-input"
+                                                placeholder="Ex: 123 ou S/N"
+                                                value={formData.address_number}
+                                                onChange={e => setFormData({ ...formData, address_number: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="farmacia-form-group" style={{ gridColumn: 'span 6' }}>
+                                            <label className="farmacia-form-label">Complemento</label>
+                                            <input
+                                                type="text"
+                                                className="farmacia-form-input"
+                                                placeholder="Ex: Sala A, Bloco 2"
+                                                value={formData.address_complement}
+                                                onChange={e => setFormData({ ...formData, address_complement: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="farmacia-form-group" style={{ gridColumn: 'span 6' }}>
+                                            <label className="farmacia-form-label">Bairro</label>
+                                            <input
+                                                type="text"
+                                                className="farmacia-form-input"
+                                                placeholder="Ex: Centro"
+                                                value={formData.address_district}
+                                                onChange={e => setFormData({ ...formData, address_district: e.target.value, local: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="farmacia-form-group" style={{ gridColumn: 'span 4' }}>
+                                            <label className="farmacia-form-label">CEP</label>
+                                            <input
+                                                type="text"
+                                                className="farmacia-form-input"
+                                                placeholder="Ex: 55660-000"
+                                                value={formData.address_zipcode}
+                                                onChange={e => setFormData({ ...formData, address_zipcode: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="farmacia-form-group" style={{ gridColumn: 'span 5' }}>
+                                            <label className="farmacia-form-label">Cidade</label>
+                                            <input
+                                                type="text"
+                                                className="farmacia-form-input"
+                                                placeholder="Ex: Bezerros"
+                                                value={formData.address_city}
+                                                onChange={e => setFormData({ ...formData, address_city: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="farmacia-form-group" style={{ gridColumn: 'span 3' }}>
+                                            <label className="farmacia-form-label">Estado</label>
+                                            <input
+                                                type="text"
+                                                className="farmacia-form-input"
+                                                placeholder="Ex: PE"
+                                                value={formData.address_state}
+                                                onChange={e => setFormData({ ...formData, address_state: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="farmacia-form-group" style={{ gridColumn: 'span 12' }}>
+                                            <label className="farmacia-form-label">Referência / Ponto de Referência</label>
+                                            <input
+                                                type="text"
+                                                className="farmacia-form-input"
+                                                placeholder="Ex: Próximo à Escola Municipal"
+                                                value={formData.address_reference}
+                                                onChange={e => setFormData({ ...formData, address_reference: e.target.value })}
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -930,23 +1298,7 @@ const AcoesList = () => {
                                 </button>
                             </div>
 
-                            {/* Aviso informativo de objetivo opcional */}
-                            {!editingAcao && formData.axisId && !loadingObjectives && !hasActiveObjective && (
-                                <div style={{ 
-                                    padding: '0.75rem 1.5rem', 
-                                    backgroundColor: 'rgba(59, 130, 246, 0.04)', 
-                                    borderTop: '1px solid rgba(59, 130, 246, 0.1)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '10px',
-                                    color: '#475569',
-                                    fontSize: '0.825rem',
-                                    fontWeight: 500
-                                }}>
-                                    <Info size={16} color="#3b82f6" />
-                                    <span>Esta ação será criada vinculada ao eixo estratégico selecionado. O vínculo com objetivo estratégico poderá ser definido futuramente.</span>
-                                </div>
-                            )}
+
                         </form>
                     </div>
                 </div>
@@ -995,111 +1347,214 @@ const AcoesList = () => {
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
                                 
-                                {/* Cabeçalho: Título e Status */}
+                                {/* Cabeçalho Premium: Título e Status */}
                                 <div style={{ 
-                                    background: 'linear-gradient(to right, #f8fafc, #ffffff)', 
-                                    padding: '1.25rem', 
-                                    borderRadius: '10px', 
+                                    background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)', 
+                                    padding: '1.5rem', 
+                                    borderRadius: '12px', 
                                     border: '1px solid #e2e8f0',
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.01)'
+                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)'
                                 }}>
-                                    <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a', marginBottom: '10px', lineHeight: '1.3' }}>
-                                        {viewingAcao.nome}
-                                    </h3>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                                        {getStatusBadge(viewingAcao.status)}
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Progresso:</span>
-                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>{viewingAcao.progresso}%</span>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
+                                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', lineHeight: '1.4', margin: 0 }}>
+                                            {viewingAcao.nome}
+                                        </h3>
+                                        <div style={{ flexShrink: 0 }}>
+                                            {getStatusBadge(viewingAcao.status)}
                                         </div>
                                     </div>
-                                    <div style={{ width: '100%', height: '6px', backgroundColor: '#e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-                                        <div style={{ 
-                                            width: `${viewingAcao.progresso}%`, 
-                                            height: '100%', 
-                                            backgroundColor: getProgressColor(viewingAcao.status), 
-                                            borderRadius: '10px',
-                                            transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)'
-                                        }} />
+                                    
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Progresso da Ação</span>
+                                            <span style={{ fontSize: '1rem', fontWeight: 800, color: viewingAcao.progresso <= 25 ? '#ef4444' : viewingAcao.progresso <= 60 ? '#3b82f6' : viewingAcao.progresso <= 85 ? '#f59e0b' : '#10b981' }}>{viewingAcao.progresso}%</span>
+                                        </div>
+                                        <div style={{ width: '100%', height: '8px', backgroundColor: '#e2e8f0', borderRadius: '10px', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }}>
+                                            <div style={{ 
+                                                width: `${viewingAcao.progresso}%`, 
+                                                height: '100%', 
+                                                background: `linear-gradient(90deg, ${viewingAcao.progresso <= 25 ? '#ef4444' : viewingAcao.progresso <= 60 ? '#3b82f6' : viewingAcao.progresso <= 85 ? '#f59e0b' : '#10b981'} 0%, ${viewingAcao.progresso <= 25 ? '#f87171' : viewingAcao.progresso <= 60 ? '#60a5fa' : viewingAcao.progresso <= 85 ? '#fbbf24' : '#34d399'} 100%)`, 
+                                                borderRadius: '10px',
+                                                transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                            }} />
+                                        </div>
                                     </div>
                                 </div>
 
                                 {/* Grid de Informações Agrupadas */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.75rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
                                     
-                                    {/* Grupo 1: Estratégia e Localização */}
+                                    {/* Grupo 1: Estratégia e Classificação */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Eixo Estratégico</span>
-                                            <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{viewingAcao.eixo || 'Não informado'}</span>
+                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tipo da Ação</span>
+                                            <div style={{ marginTop: '2px' }}>
+                                                {getActionTypeBadge(viewingAcao.action_type)}
+                                            </div>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Localidade / Bairro</span>
+                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Eixo Estratégico</span>
+                                            <span style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 700 }}>{viewingAcao.eixo || 'Não informado'}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Responsável Técnico</span>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <MapPin size={13} color="#64748b" />
-                                                <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{viewingAcao.local || 'Não informada'}</span>
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.7rem', fontWeight: 700 }}>
+                                                    {(viewingAcao.responsible_name || viewingAcao.responsavel || 'N').charAt(0).toUpperCase()}
+                                                </div>
+                                                <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{viewingAcao.responsible_name || viewingAcao.responsavel || 'Não informado'}</span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Grupo 2: Responsabilidade */}
+                                    {/* Grupo 2: Responsabilidade (Secretarias) */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Secretaria Executora</span>
+                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Secretaria Principal</span>
                                             <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{viewingAcao.secretariaFull || viewingAcao.secretaria}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Responsável Técnico</span>
-                                            <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{viewingAcao.responsible_name || viewingAcao.responsavel || 'Não informado'}</span>
+                                            
+                                            {viewingParticipantes && viewingParticipantes.length > 0 && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
+                                                    <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Participantes</span>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                                        {viewingParticipantes.map((part, idx) => (
+                                                            <span key={idx} style={{ 
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                background: '#f8fafc', 
+                                                                padding: '2px 8px', 
+                                                                borderRadius: '4px', 
+                                                                fontSize: '0.7rem', 
+                                                                color: '#475569', 
+                                                                border: '1px solid #e2e8f0', 
+                                                                fontWeight: 600,
+                                                                lineHeight: '1.2'
+                                                            }}>
+                                                                {part}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
-                                    {/* Grupo 3: Cronograma */}
-                                    <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.75rem', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
+                                    {/* Grupo 3: Localização */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Localização</span>
+                                            <div style={{ 
+                                                marginTop: '4px',
+                                                background: '#f8fafc',
+                                                border: '1px solid #e2e8f0',
+                                                borderRadius: '8px',
+                                                padding: '12px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '6px'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <MapPin size={14} color="#64748b" style={{ flexShrink: 0 }} />
+                                                    <span style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600 }}>
+                                                        {viewingAcao.address_street || viewingAcao.local || 'Rua/Local não informado'}{viewingAcao.address_number ? `, ${viewingAcao.address_number}` : ''}
+                                                    </span>
+                                                </div>
+                                                <div style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                    {(viewingAcao.address_district || viewingAcao.address_city) && (
+                                                        <span style={{ fontSize: '0.8rem', color: '#475569' }}>
+                                                            {viewingAcao.address_district ? viewingAcao.address_district : ''}{viewingAcao.address_district && viewingAcao.address_city ? ' - ' : ''}{viewingAcao.address_city || ''}{viewingAcao.address_state ? `/${viewingAcao.address_state}` : ''}
+                                                        </span>
+                                                    )}
+                                                    {viewingAcao.address_zipcode && (
+                                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>CEP: {viewingAcao.address_zipcode}</span>
+                                                    )}
+                                                    {viewingAcao.address_reference && (
+                                                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginTop: '2px' }}>
+                                                            Ref: {viewingAcao.address_reference}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Grupo 4: Cronograma */}
+                                    <div style={{ gridColumn: 'span 3', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Data de Início</span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <Calendar size={13} color="#64748b" />
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                                <Calendar size={14} color="#64748b" />
                                                 <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{formatDate(viewingAcao.data_inicio) || 'Não definida'}</span>
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Prazo Final</span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <Clock size={13} color="#64748b" />
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                                <Clock size={14} color="#64748b" />
                                                 <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{formatDate(viewingAcao.prazo) || 'Não definido'}</span>
                                             </div>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Situação do Prazo</span>
+                                            {(() => {
+                                                const ds = getDeadlineStatus(viewingAcao.data_inicio, viewingAcao.prazo, viewingAcao.status);
+                                                return (
+                                                    <span style={{ 
+                                                        marginTop: '2px',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        width: 'fit-content',
+                                                        padding: '3px 8px', 
+                                                        borderRadius: '4px', 
+                                                        fontSize: '0.8rem', 
+                                                        fontWeight: 600,
+                                                        color: ds.color,
+                                                        backgroundColor: ds.bg
+                                                    }}>
+                                                        {ds.text}
+                                                    </span>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 </div>
 
+
+
                                 {/* Descrição e Observações */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                        <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Descrição Detalhada</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingTop: '0.5rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Info size={14} /> Descrição Detalhada
+                                        </span>
                                         <div style={{ 
-                                            background: '#fcfcfc', 
-                                            padding: '1rem', 
-                                            borderRadius: '8px', 
-                                            border: '1px solid #f1f5f9', 
+                                            background: '#f8fafc', 
+                                            padding: '1.25rem', 
+                                            borderRadius: '10px', 
+                                            border: '1px solid #e2e8f0', 
                                             fontSize: '0.9rem', 
-                                            color: '#475569', 
-                                            lineHeight: '1.6'
+                                            color: '#334155', 
+                                            lineHeight: '1.6',
+                                            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
                                         }}>
                                             {viewingAcao.descricao || 'Sem descrição detalhada cadastrada.'}
                                         </div>
                                     </div>
                                     {viewingAcao.observacoes && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Observações</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <AlertTriangle size={14} /> Observações Importantes
+                                            </span>
                                             <div style={{ 
-                                                background: 'hsl(30, 100%, 98.5%)', 
-                                                padding: '1rem', 
-                                                borderRadius: '8px', 
-                                                border: '1px solid hsl(30, 100%, 95%)', 
-                                                fontSize: '0.85rem', 
-                                                color: 'hsl(30, 80%, 25%)', 
-                                                lineHeight: '1.6' 
+                                                background: '#fffbeb', 
+                                                padding: '1.25rem', 
+                                                borderRadius: '10px', 
+                                                border: '1px solid #fde68a', 
+                                                fontSize: '0.9rem', 
+                                                color: '#92400e', 
+                                                lineHeight: '1.6',
+                                                boxShadow: '0 1px 3px rgba(251, 191, 36, 0.1)'
                                             }}>
                                                 {viewingAcao.observacoes}
                                             </div>

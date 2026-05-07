@@ -10,6 +10,8 @@ import {
     Clock,
     FileText,
     TrendingUp,
+    Edit2,
+    Trash2,
     MessageSquare,
     AlertCircle,
     X,
@@ -18,10 +20,10 @@ import {
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
 import { useAuth } from '../../context/AuthContext';
-import { fetchAtualizacoes, createAtualizacao, fetchAcoes } from '../../services/api/planejamentoAcoes.service';
+import { fetchAtualizacoes, createAtualizacao, updateAtualizacao, deleteAtualizacao, fetchAcoes } from '../../services/api/planejamentoAcoes.service';
 
 // Sub-componente para animação individual do card
-const UpdateCard = ({ item, index, getTipoConfig, getStatusLabel, formatDate }) => {
+const UpdateCard = ({ item, index, getTipoConfig, getStatusLabel, formatDate, onEdit, onDelete }) => {
     const [isVisible, setIsVisible] = useState(false);
     const cardRef = React.useRef(null);
 
@@ -66,13 +68,23 @@ const UpdateCard = ({ item, index, getTipoConfig, getStatusLabel, formatDate }) 
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
                         <h3 style={{ fontSize: '1.1rem', fontWeight: 900, color: '#0f172a', margin: 0, lineHeight: 1.2 }}>{item.acao}</h3>
-                        <span className="update-badge" style={{ 
-                            fontSize: '0.6rem', fontWeight: 800, padding: '3px 8px', borderRadius: '5px', 
-                            background: conf.bg, color: conf.color, textTransform: 'uppercase', letterSpacing: '0.05em',
-                            border: `1px solid ${conf.color}20`, whiteSpace: 'nowrap'
-                        }}>
-                            {conf.label}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="update-badge" style={{ 
+                                fontSize: '0.6rem', fontWeight: 800, padding: '3px 8px', borderRadius: '5px', 
+                                background: conf.bg, color: conf.color, textTransform: 'uppercase', letterSpacing: '0.05em',
+                                border: `1px solid ${conf.color}20`, whiteSpace: 'nowrap'
+                            }}>
+                                {conf.label}
+                            </span>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                                <button onClick={() => onEdit(item)} className="update-action-btn" title="Editar Atualização">
+                                    <Edit2 size={14} color="var(--text-muted)" />
+                                </button>
+                                <button onClick={() => onDelete(item.id)} className="update-action-btn delete-btn" title="Excluir Atualização">
+                                    <Trash2 size={14} color="#ef4444" />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', opacity: 0.55 }}>
                         <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>{item.secretaria}</span>
@@ -134,8 +146,11 @@ const PlanejamentoAtualizacoes = () => {
 
     // Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingUpdateId, setEditingUpdateId] = useState(null);
     const [saveLoading, setSaveLoading] = useState(false);
     const [saveError, setSaveError] = useState(null);
+    const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+    const [deleteId, setDeleteId] = useState(null);
     
     const [formData, setFormData] = useState({
         acaoId: '',
@@ -259,23 +274,77 @@ const PlanejamentoAtualizacoes = () => {
     };
 
     // ---- AÇÕES ----
+    const handleEdit = (item) => {
+        setFormData({
+            acaoId: item.acaoId,
+            acao: item.acao,
+            tipo: item.tipo,
+            descricao: item.descricao,
+            novoStatus: item.statusNovo || '',
+            novoProgresso: item.progressoNovo !== null ? item.progressoNovo : '',
+            critica: item.critica || false,
+            details: item.details || '',
+            next_steps: item.next_steps || '',
+            reference_week: item.reference_week || '',
+            update_date: item.update_date || ''
+        });
+        setEditingUpdateId(item.id);
+        setSaveError(null);
+        setIsModalOpen(true);
+    };
+
+    const handleDelete = (id) => {
+        setDeleteId(id);
+        setIsConfirmDeleteOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteId || !tenantId) return;
+        setLoading(true);
+        setIsConfirmDeleteOpen(false);
+        try {
+            await deleteAtualizacao(tenantId, deleteId);
+            setToast('Atualização excluída com sucesso.');
+            await loadAtualizacoes();
+        } catch (err) {
+            console.error('[PlanejamentoAtualizacoes] Erro ao excluir:', err);
+            setLoadError(err.message || 'Erro ao excluir atualização.');
+        } finally {
+            setLoading(false);
+            setDeleteId(null);
+        }
+    };
+
     const handleSave = async (e) => {
         e.preventDefault();
         if (!tenantId) return;
         setSaveLoading(true);
         setSaveError(null);
         try {
-            await createAtualizacao(tenantId, formData);
-            setToast('Atualização registrada com sucesso.');
+            if (editingUpdateId) {
+                await updateAtualizacao(tenantId, editingUpdateId, formData);
+                setToast('Atualização editada com sucesso.');
+            } else {
+                await createAtualizacao(tenantId, formData);
+                setToast('Atualização registrada com sucesso.');
+            }
             setIsModalOpen(false);
+            setEditingUpdateId(null);
             setFormData({ acaoId: '', acao: '', tipo: 'Geral', descricao: '', novoStatus: '', novoProgresso: '', critica: false });
             await loadAtualizacoes();
         } catch (err) {
             console.error('[PlanejamentoAtualizacoes] Erro ao salvar:', err);
-            setSaveError(err.message || 'Erro ao registrar atualização. Tente novamente.');
+            setSaveError(err.message || 'Erro ao salvar atualização. Tente novamente.');
         } finally {
             setSaveLoading(false);
         }
+    };
+
+    const handleOpenNewModal = () => {
+        setSaveError(null);
+        setEditingUpdateId(null);
+        setFormData({ acaoId: '', acao: '', tipo: 'Geral', descricao: '', novoStatus: '', novoProgresso: '', critica: false });
+        setIsModalOpen(true);
     };
 
     return (
@@ -286,7 +355,7 @@ const PlanejamentoAtualizacoes = () => {
                     <h1 className="farmacia-page-title">Atualizações das Ações</h1>
                     <p className="farmacia-page-subtitle">Acompanhe os registros recentes de evolução, status e observações das ações estratégicas.</p>
                 </div>
-                <button className="farmacia-btn-primary" onClick={() => { setSaveError(null); setIsModalOpen(true); }} disabled={loading}>
+                <button className="farmacia-btn-primary" onClick={handleOpenNewModal} disabled={loading}>
                     <Plus size={18} /> Nova Atualização
                 </button>
             </header>
@@ -347,6 +416,30 @@ const PlanejamentoAtualizacoes = () => {
                 }
                 .update-change-item:hover { transform: scale(1.02); background: #f1f5f9 !important; border-color: #cbd5e1 !important; }
                 
+                .update-action-btn {
+                    background: transparent;
+                    border: none;
+                    padding: 4px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.2s ease;
+                    opacity: 0;
+                }
+                .update-card:hover .update-action-btn {
+                    opacity: 0.6;
+                }
+                .update-action-btn:hover {
+                    opacity: 1 !important;
+                    background: rgba(0,0,0,0.05);
+                    transform: translateY(-1px);
+                }
+                .update-action-btn.delete-btn:hover {
+                    background: rgba(239, 68, 68, 0.1);
+                }
+
                 /* Ajustes obrigatórios de espaçamento */
                 .updates-metrics { margin-bottom: 32px !important; }
                 .updates-filters { margin-bottom: 0 !important; }
@@ -459,7 +552,7 @@ const PlanejamentoAtualizacoes = () => {
                                     As atualizações ajudam a acompanhar a evolução das ações estratégicas ao longo do tempo.
                                 </p>
                             </div>
-                            <button className="farmacia-btn-secondary" onClick={() => setIsModalOpen(true)} style={{ marginTop: '0.5rem' }}>
+                            <button className="farmacia-btn-secondary" onClick={handleOpenNewModal} style={{ marginTop: '0.5rem' }}>
                                 <Plus size={16} /> Registrar primeira atualização
                             </button>
                         </div>
@@ -473,6 +566,8 @@ const PlanejamentoAtualizacoes = () => {
                                     getTipoConfig={getTipoConfig}
                                     getStatusLabel={getStatusLabel}
                                     formatDate={formatDate}
+                                    onEdit={handleEdit}
+                                    onDelete={handleDelete}
                                 />
                             ))}
                         </div>
@@ -490,11 +585,15 @@ const PlanejamentoAtualizacoes = () => {
                                     <Activity size={18} color="var(--color-primary)" />
                                 </div>
                                 <div>
-                                    <h2 className="farmacia-modal-title" style={{ fontSize: '1.05rem' }}>Registrar Atualização</h2>
-                                    <p className="farmacia-modal-subtitle">Adicione um novo evento à linha do tempo.</p>
+                                    <h2 className="farmacia-modal-title" style={{ fontSize: '1.05rem' }}>
+                                        {editingUpdateId ? 'Editar Atualização' : 'Registrar Atualização'}
+                                    </h2>
+                                    <p className="farmacia-modal-subtitle">
+                                        {editingUpdateId ? 'Altere as informações do evento na linha do tempo.' : 'Adicione um novo evento à linha do tempo.'}
+                                    </p>
                                 </div>
                             </div>
-                            <button className="farmacia-modal-close" onClick={() => setIsModalOpen(false)}>
+                            <button type="button" className="farmacia-modal-close" onClick={() => setIsModalOpen(false)}>
                                 <X size={20} />
                             </button>
                         </div>
@@ -509,7 +608,7 @@ const PlanejamentoAtualizacoes = () => {
                                 )}
                                 <div className="farmacia-form-group">
                                     <label className="farmacia-form-label">Ação Estratégica *</label>
-                                    <select className="farmacia-form-select" required value={formData.acaoId} onChange={e => {
+                                    <select className="farmacia-form-select" required value={formData.acaoId} disabled={!!editingUpdateId} onChange={e => {
                                         const selected = acoes.find(a => a.id === e.target.value);
                                         setFormData({...formData, acaoId: e.target.value, acao: selected?.nome || ''});
                                     }}>
@@ -568,21 +667,83 @@ const PlanejamentoAtualizacoes = () => {
                                         </div>
                                         <div className="farmacia-form-group">
                                             <label className="farmacia-form-label">Novo Progresso (%)</label>
-                                            <input 
-                                                type="number" 
-                                                className="farmacia-form-input" 
-                                                min="0" max="100" 
-                                                placeholder="0 a 100"
-                                                value={formData.novoProgresso} 
-                                                onChange={e => {
-                                                    const val = e.target.value;
-                                                    const updates = { novoProgresso: val };
-                                                    if (val === '100' && formData.novoStatus !== 'CONCLUIDA') {
-                                                        updates.novoStatus = 'CONCLUIDA';
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                    <input
+                                                        type="range"
+                                                        min="0" max="100"
+                                                        value={parseInt(formData.novoProgresso) || 0}
+                                                        onChange={e => {
+                                                            const val = parseInt(e.target.value) || 0;
+                                                            const updates = { novoProgresso: val.toString() };
+                                                            if (val === 100 && formData.novoStatus !== 'CONCLUIDA') {
+                                                                updates.novoStatus = 'CONCLUIDA';
+                                                            }
+                                                            setFormData({...formData, ...updates});
+                                                        }}
+                                                        style={{
+                                                            flex: 1,
+                                                            height: '6px',
+                                                            borderRadius: '4px',
+                                                            background: `linear-gradient(to right, ${(parseInt(formData.novoProgresso) || 0) <= 25 ? '#ef4444' : (parseInt(formData.novoProgresso) || 0) <= 60 ? '#3b82f6' : (parseInt(formData.novoProgresso) || 0) <= 85 ? '#f59e0b' : '#10b981'} ${parseInt(formData.novoProgresso) || 0}%, #e2e8f0 ${parseInt(formData.novoProgresso) || 0}%)`,
+                                                            outline: 'none',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                        className="modern-range-slider"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        className="farmacia-form-input"
+                                                        min="0" max="100"
+                                                        style={{ width: '64px', padding: '0.4rem', textAlign: 'center', fontWeight: 600 }}
+                                                        value={formData.novoProgresso || 0}
+                                                        onChange={e => {
+                                                            let val = parseInt(e.target.value) || 0;
+                                                            if (val > 100) val = 100;
+                                                            if (val < 0) val = 0;
+                                                            const updates = { novoProgresso: val.toString() };
+                                                            if (val === 100 && formData.novoStatus !== 'CONCLUIDA') {
+                                                                updates.novoStatus = 'CONCLUIDA';
+                                                            }
+                                                            setFormData({...formData, ...updates});
+                                                        }}
+                                                    />
+                                                </div>
+                                                <style>{`
+                                                    .modern-range-slider {
+                                                        -webkit-appearance: none;
+                                                        appearance: none;
                                                     }
-                                                    setFormData({...formData, ...updates});
-                                                }}
-                                            />
+                                                    .modern-range-slider::-webkit-slider-thumb {
+                                                        -webkit-appearance: none;
+                                                        appearance: none;
+                                                        width: 16px;
+                                                        height: 16px;
+                                                        border-radius: 50%;
+                                                        background: #fff;
+                                                        border: 2px solid ${(parseInt(formData.novoProgresso) || 0) <= 25 ? '#ef4444' : (parseInt(formData.novoProgresso) || 0) <= 60 ? '#3b82f6' : (parseInt(formData.novoProgresso) || 0) <= 85 ? '#f59e0b' : '#10b981'};
+                                                        cursor: pointer;
+                                                        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                                                        transition: transform 0.1s ease;
+                                                    }
+                                                    .modern-range-slider::-webkit-slider-thumb:hover {
+                                                        transform: scale(1.15);
+                                                    }
+                                                    .modern-range-slider::-moz-range-thumb {
+                                                        width: 16px;
+                                                        height: 16px;
+                                                        border-radius: 50%;
+                                                        background: #fff;
+                                                        border: 2px solid ${(parseInt(formData.novoProgresso) || 0) <= 25 ? '#ef4444' : (parseInt(formData.novoProgresso) || 0) <= 60 ? '#3b82f6' : (parseInt(formData.novoProgresso) || 0) <= 85 ? '#f59e0b' : '#10b981'};
+                                                        cursor: pointer;
+                                                        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                                                        transition: transform 0.1s ease;
+                                                    }
+                                                    .modern-range-slider::-moz-range-thumb:hover {
+                                                        transform: scale(1.15);
+                                                    }
+                                                `}</style>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -594,10 +755,53 @@ const PlanejamentoAtualizacoes = () => {
                                 </button>
                                 <button type="submit" className="farmacia-modal-btn-confirm" disabled={saveLoading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     {saveLoading && <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />}
-                                    Registrar Atualização
+                                    {editingUpdateId ? 'Salvar Alterações' : 'Registrar Atualização'}
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Confirmação de Exclusão */}
+            {isConfirmDeleteOpen && (
+                <div className="farmacia-modal-overlay">
+                    <div className="farmacia-modal" style={{ maxWidth: '480px', width: '95%' }}>
+                        <div className="farmacia-modal-header" style={{ borderBottom: '1px solid var(--border)', padding: '1.25rem 1.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <AlertTriangle size={18} color="#ef4444" />
+                                </div>
+                                <div>
+                                    <h2 className="farmacia-modal-title" style={{ fontSize: '1.05rem', color: '#0f172a' }}>Confirmar Exclusão</h2>
+                                    <p className="farmacia-modal-subtitle">Excluir registro histórico</p>
+                                </div>
+                            </div>
+                            <button type="button" className="farmacia-modal-close" onClick={() => setIsConfirmDeleteOpen(false)}>
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="farmacia-modal-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#1e293b' }}>
+                                Tem certeza que deseja excluir esta atualização?
+                            </p>
+                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                Essa ação não poderá ser desfeita.
+                            </p>
+                        </div>
+                        <div className="farmacia-modal-footer" style={{ borderTop: '1px solid var(--border)', padding: '1rem 1.5rem', gap: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button type="button" className="farmacia-modal-btn-cancel" onClick={() => setIsConfirmDeleteOpen(false)}>
+                                Cancelar
+                            </button>
+                            <button 
+                                type="button" 
+                                className="farmacia-modal-btn-confirm" 
+                                onClick={confirmDelete}
+                                style={{ background: '#ef4444', borderColor: '#ef4444', color: '#fff' }}
+                            >
+                                Excluir Atualização
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

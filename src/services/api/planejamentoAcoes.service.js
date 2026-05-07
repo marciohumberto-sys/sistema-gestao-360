@@ -3,6 +3,76 @@ import { supabase } from '../../lib/supabase';
 // module_id fixo do módulo PLANEJAMENTO_ESTRATEGICO
 const MODULE_ID = '2d53a6f6-5638-45bc-a87e-1ab5d88d6134';
 
+// ── Vínculos de Secretarias Participantes ───────────────────────────────────────
+export const fetchActionSecretariats = async (actionId) => {
+    if (!actionId) return [];
+    try {
+        const { data, error } = await supabase
+            .from('planning_action_secretariats')
+            .select('secretariat_id, is_primary')
+            .eq('action_id', actionId);
+        if (error) throw error;
+        return data || [];
+    } catch (err) {
+        console.error('[planejamentoAcoes] Erro ao buscar secretarias da ação:', err);
+        return [];
+    }
+};
+
+export const syncActionSecretariats = async (tenantId, actionId, primarySecId, secondarySecIds = []) => {
+    if (!tenantId || !actionId || !primarySecId) return;
+    try {
+        const { data: existing } = await supabase
+            .from('planning_action_secretariats')
+            .select('id, secretariat_id, is_primary')
+            .eq('tenant_id', tenantId)
+            .eq('action_id', actionId);
+            
+        const existingList = existing || [];
+        
+        // Garantir que a principal não esteja duplicada nas secundárias e remover lixo
+        const validSecondary = [...new Set(secondarySecIds)].filter(id => id !== primarySecId && id);
+        
+        const desiredMap = new Map();
+        desiredMap.set(primarySecId, true);
+        validSecondary.forEach(id => desiredMap.set(id, false));
+        
+        const upserts = Array.from(desiredMap.entries()).map(([secId, isPrimary]) => ({
+            tenant_id: tenantId,
+            action_id: actionId,
+            secretariat_id: secId,
+            is_primary: isPrimary
+        }));
+
+        if (upserts.length > 0) {
+            const { error: errUpsert } = await supabase
+                .from('planning_action_secretariats')
+                .upsert(upserts, { onConflict: 'tenant_id, action_id, secretariat_id' });
+                
+            if (errUpsert) {
+                console.error('[planejamentoAcoes] Erro no upsert de vínculos:', errUpsert);
+            }
+        }
+        
+        const toDeleteIds = existingList
+            .filter(ex => !desiredMap.has(ex.secretariat_id))
+            .map(ex => ex.id);
+            
+        if (toDeleteIds.length > 0) {
+            const { error: errDelete } = await supabase
+                .from('planning_action_secretariats')
+                .delete()
+                .in('id', toDeleteIds);
+                
+            if (errDelete) {
+                console.error('[planejamentoAcoes] Erro ao deletar vínculos antigos:', errDelete);
+            }
+        }
+    } catch (err) {
+        console.error('[planejamentoAcoes] Falha fatal em syncActionSecretariats:', err);
+    }
+};
+
 // ── Eixos Estratégicos ────────────────────────────────────────────────────────
 export const fetchAxes = async (tenantId) => {
     try {
@@ -127,25 +197,19 @@ export const fetchAcoes = async (tenantId) => {
 
     if (total === 0) return [];
 
-    // 2. Buscar secretarias em consulta separada (opcional/enriquecimento)
+    // 3. Buscar secretarias em consulta separada (opcional/enriquecimento)
     let secretariatsMap = new Map();
     try {
-        const secIds = [...new Set(actions.map(a => a.secretariat_id).filter(Boolean))];
-        if (secIds.length > 0) {
-            const { data: secs } = await supabase
-                .from('secretariats')
-                .select('id, name')
-                .in('id', secIds);
-            
-            if (secs) {
-                secs.forEach(s => secretariatsMap.set(s.id, s.name));
-            }
+        // Precisamos de todas as secretarias para mapear principais e secundárias
+        const { data: secs } = await supabase.from('secretariats').select('id, name');
+        if (secs) {
+            secs.forEach(s => secretariatsMap.set(s.id, s.name));
         }
     } catch (secErr) {
         console.warn('[planejamentoAcoes] Falha ao enriquecer secretarias:', secErr);
     }
 
-    // 3. Buscar eixos em consulta separada
+    // 4. Buscar eixos em consulta separada
     let axesMap = new Map();
     try {
         const { data: axes } = await supabase
@@ -159,7 +223,30 @@ export const fetchAcoes = async (tenantId) => {
         console.warn('[planejamentoAcoes] Falha ao buscar eixos:', axErr);
     }
 
-    // 4. Mapeamento final
+    // 5. Buscar secretarias participantes (is_primary = false)
+    let participantsMap = new Map();
+    try {
+        const actionIds = actions.map(a => a.id);
+        if (actionIds.length > 0) {
+            const { data: links } = await supabase
+                .from('planning_action_secretariats')
+                .select('action_id, secretariat_id')
+                .eq('is_primary', false)
+                .in('action_id', actionIds);
+                
+            if (links) {
+                links.forEach(l => {
+                    const secName = secretariatsMap.get(l.secretariat_id) || 'Desconhecida';
+                    if (!participantsMap.has(l.action_id)) participantsMap.set(l.action_id, []);
+                    participantsMap.get(l.action_id).push(secName);
+                });
+            }
+        }
+    } catch (errLinks) {
+        console.warn('[planejamentoAcoes] Falha ao buscar participantes:', errLinks);
+    }
+
+    // 6. Mapeamento final
     return actions.map(a => ({
         id: a.id,
         nome: a.title,
@@ -169,6 +256,7 @@ export const fetchAcoes = async (tenantId) => {
         secretaria: secretariatsMap.get(a.secretariat_id) || 'Não informada',
         secretariaId: a.secretariat_id,
         secretariaFull: secretariatsMap.get(a.secretariat_id) || '',
+        participantes: participantsMap.get(a.id) || [],
         eixo: axesMap.get(a.axis_id) || '',
         eixoId: a.axis_id,
         status: a.status || 'NAO_INICIADA',
@@ -177,6 +265,16 @@ export const fetchAcoes = async (tenantId) => {
         data_inicio: a.start_date || '',
         responsavel: a.responsible_name || '',
         action_type: a.action_type,
+        address_street: a.address_street || '',
+        address_number: a.address_number || '',
+        address_complement: a.address_complement || '',
+        address_district: a.address_district || '',
+        address_city: a.address_city || '',
+        address_state: a.address_state || '',
+        address_zipcode: a.address_zipcode || '',
+        address_reference: a.address_reference || '',
+        latitude: a.latitude || null,
+        longitude: a.longitude || null,
     }));
 };
 
@@ -246,10 +344,18 @@ export const createAcao = async (tenantId, formData, axes) => {
         progress_percent: progress,
         start_date: formData.data_inicio || null,
         due_date: formData.prazo || null,
-        neighborhood: formData.local || null,
+        neighborhood: formData.address_district || formData.local || null,
         notes: formData.observacoes?.trim() || null,
         responsible_name: formData.responsible_name?.trim() || null,
-        action_type: 'PROJETO',
+        action_type: formData.action_type || 'PROJETO',
+        address_street: formData.address_street?.trim() || null,
+        address_number: formData.address_number?.trim() || null,
+        address_complement: formData.address_complement?.trim() || null,
+        address_district: formData.address_district?.trim() || null,
+        address_city: formData.address_city?.trim() || 'Bezerros',
+        address_state: formData.address_state?.trim() || 'PE',
+        address_zipcode: formData.address_zipcode?.trim() || null,
+        address_reference: formData.address_reference?.trim() || null,
     };
 
     // LOG DE DIAGNÓSTICO OBRIGATÓRIO
@@ -280,6 +386,9 @@ export const createAcao = async (tenantId, formData, axes) => {
         throw new Error(error.message || 'Erro ao salvar ação no banco.');
     }
 
+    // Sincronizar secretarias participantes (garantindo RLS via sync function)
+    await syncActionSecretariats(tenantId, data.id, payload.secretariat_id, formData.participantes || []);
+
     return data;
 };
 
@@ -301,9 +410,18 @@ export const updateAcao = async (tenantId, id, formData) => {
         progress_percent: progress,
         start_date: formData.data_inicio || null,
         due_date: formData.prazo || null,
-        neighborhood: formData.local || null,
+        neighborhood: formData.address_district || formData.local || null,
         notes: formData.observacoes?.trim() || null,
         responsible_name: formData.responsible_name?.trim() || null,
+        action_type: formData.action_type || 'PROJETO',
+        address_street: formData.address_street?.trim() || null,
+        address_number: formData.address_number?.trim() || null,
+        address_complement: formData.address_complement?.trim() || null,
+        address_district: formData.address_district?.trim() || null,
+        address_city: formData.address_city?.trim() || 'Bezerros',
+        address_state: formData.address_state?.trim() || 'PE',
+        address_zipcode: formData.address_zipcode?.trim() || null,
+        address_reference: formData.address_reference?.trim() || null,
         ...(formData.axisId && { axis_id: formData.axisId }),
         ...(formData.secretariatId && { secretariat_id: formData.secretariatId }),
     };
@@ -322,6 +440,11 @@ export const updateAcao = async (tenantId, id, formData) => {
         console.error('[planejamentoAcoes] Erro ao atualizar ação:', error);
         throw new Error(error.message || 'Erro ao atualizar ação no banco.');
     }
+
+    // Sincronizar secretarias participantes
+    // Atenção: a primarySecId pode vir do formData.secretariatId ou manter a original.
+    // formData tem `secretariatId` definido na edição.
+    await syncActionSecretariats(tenantId, id, formData.secretariatId, formData.participantes || []);
 
     return data;
 };
@@ -369,15 +492,19 @@ export const fetchAtualizacoes = async (tenantId) => {
                 acao: acao.title || 'Ação não encontrada',
                 acaoId: u.action_id,
                 secretaria: acao.secretariaNome || 'Não informada',
-                tipo: derivarTipo(u),
+                tipo: u.update_type || derivarTipo(u),
                 data: u.created_at,
+                update_date: u.update_date || u.created_at,
                 responsavel: acao.responsible_name || 'Não informado',
                 descricao: u.summary || '',
+                details: u.details || '',
+                next_steps: u.next_steps || '',
+                reference_week: u.reference_week || '',
                 progressoAnterior: null,
                 progressoNovo: u.progress_percent_snapshot ?? null,
                 statusAnterior: null,
                 statusNovo: u.status_snapshot || null,
-                critica: false,
+                critica: u.is_critical || false,
             };
         });
     } catch (err) {
@@ -393,14 +520,32 @@ export const createAtualizacao = async (tenantId, formData) => {
     if (!formData.acaoId) throw new Error('A ação estratégica é obrigatória.');
     if (!formData.descricao?.trim()) throw new Error('A descrição é obrigatória.');
 
+    // Buscar a secretaria vinculada à ação correspondente para passar no RLS
+    const { data: action, error: actionErr } = await supabase
+        .from('planning_actions')
+        .select('secretariat_id')
+        .eq('id', formData.acaoId)
+        .single();
+
+    if (actionErr) {
+        console.error('[planejamentoAcoes] Erro ao buscar secretaria da ação para atualização:', actionErr);
+    }
+
     const payload = {
         tenant_id: tenantId,
+        module_id: MODULE_ID,
+        secretariat_id: action?.secretariat_id || null,
         action_id: formData.acaoId,
         summary: formData.descricao.trim(),
         details: formData.details?.trim() || null,
-        update_date: new Date().toISOString(),
+        update_date: formData.update_date || new Date().toISOString(),
         updated_by: user.id,
     };
+
+    if (formData.tipo) payload.update_type = formData.tipo;
+    if (formData.critica !== undefined) payload.is_critical = formData.critica;
+    if (formData.next_steps) payload.next_steps = formData.next_steps;
+    if (formData.reference_week) payload.reference_week = formData.reference_week;
 
     // Só enviar status_snapshot se não for "Manter atual"
     if (formData.novoStatus && formData.novoStatus !== '') {
@@ -426,6 +571,68 @@ export const createAtualizacao = async (tenantId, formData) => {
             throw new Error('Permissão negada. Verifique seu acesso ao módulo de Planejamento.');
         }
         throw new Error(error.message || 'Erro ao salvar atualização no banco.');
+    }
+    return true;
+};
+
+// ── Atualizar Atualização Existente (planning_action_updates) ─────────────────
+export const updateAtualizacao = async (tenantId, id, formData) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Usuário não identificado. Refaça o login.');
+    if (!formData.descricao?.trim()) throw new Error('A descrição é obrigatória.');
+
+    const payload = {
+        summary: formData.descricao.trim(),
+        updated_by: user.id,
+    };
+
+    if (formData.novoStatus !== undefined) {
+        payload.status_snapshot = formData.novoStatus === '' ? null : formData.novoStatus;
+    }
+
+    if (formData.novoProgresso !== undefined) {
+        const progresso = (formData.novoProgresso !== '' && formData.novoProgresso !== null)
+            ? parseInt(formData.novoProgresso, 10) : null;
+        payload.progress_percent_snapshot = !isNaN(progresso) ? progresso : null;
+    }
+
+    if (formData.details !== undefined) payload.details = formData.details || null;
+    if (formData.next_steps !== undefined) payload.next_steps = formData.next_steps || null;
+    if (formData.reference_week !== undefined) {
+        payload.reference_week = formData.reference_week && formData.reference_week.trim() !== '' ? formData.reference_week : null;
+    }
+    if (formData.update_date !== undefined) {
+        payload.update_date = formData.update_date && formData.update_date.trim() !== '' ? formData.update_date : null;
+    }
+
+    console.log('[planejamentoAcoes] Atualizando registro:', payload);
+
+    const { error } = await supabase
+        .from('planning_action_updates')
+        .update(payload)
+        .eq('id', id)
+        .eq('tenant_id', tenantId);
+
+    if (error) {
+        console.error('[planejamentoAcoes] Erro ao atualizar registro de atualização:', error);
+        throw new Error(error.message || 'Erro ao atualizar no banco.');
+    }
+    return true;
+};
+
+// ── Excluir Atualização Existente (planning_action_updates) ───────────────────
+export const deleteAtualizacao = async (tenantId, id) => {
+    if (!tenantId || !id) throw new Error('Parâmetros inválidos para exclusão.');
+
+    const { error } = await supabase
+        .from('planning_action_updates')
+        .delete()
+        .eq('id', id)
+        .eq('tenant_id', tenantId);
+
+    if (error) {
+        console.error('[planejamentoAcoes] Erro ao excluir registro de atualização:', error);
+        throw new Error(error.message || 'Erro ao excluir atualização no banco.');
     }
     return true;
 };

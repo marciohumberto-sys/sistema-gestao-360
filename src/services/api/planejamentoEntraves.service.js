@@ -156,6 +156,18 @@ export const createEntrave = async (tenantId, formData) => {
     if (!formData.acaoId) throw new Error('A ação estratégica é obrigatória.');
     if (!formData.descricao?.trim()) throw new Error('A descrição do entrave é obrigatória.');
 
+    // Buscar a secretaria vinculada à ação correspondente para passar no RLS
+    const { data: action, error: actionErr } = await supabase
+        .from('planning_actions')
+        .select('secretariat_id')
+        .eq('id', formData.acaoId)
+        .eq('tenant_id', tenantId)
+        .single();
+
+    if (actionErr) {
+        console.error('[planejamentoEntraves] Erro ao buscar secretaria da ação:', actionErr);
+    }
+
     // Fallback de data: hoje + 7 dias
     const defaultDueDate = new Date();
     defaultDueDate.setDate(defaultDueDate.getDate() + 7);
@@ -163,6 +175,8 @@ export const createEntrave = async (tenantId, formData) => {
 
     const payload = {
         tenant_id: tenantId,
+        module_id: MODULE_ID,
+        secretariat_id: action?.secretariat_id || null,
         action_id: formData.acaoId,
         title: formData.titulo?.trim() || formData.descricao.substring(0, 80).trim(),
         description: formData.descricao.trim(),
