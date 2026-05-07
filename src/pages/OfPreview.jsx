@@ -99,7 +99,14 @@ const OfPreview = () => {
 
     const { items = [], commitment, contract, secretariat } = ofData;
 
-    const deveUsarObsManual = ofData?.number === "OF-2026-0218" && ofData?.notes?.trim();
+    const allowedOfs = [
+        "OF-2026-0217", "OF-2026-0218", "OF-2026-0219", "OF-2026-0221", 
+        "OF-2026-0222", "OF-2026-0223", "OF-2026-0224", "OF-2026-0225", 
+        "OF-2026-0226", "OF-2026-0227", "OF-2026-0228", "OF-2026-0229", 
+        "OF-2026-0230", "OF-2026-0231", "OF-2026-0232"
+    ];
+
+    const deveUsarObsManual = allowedOfs.includes(ofData?.number) && ofData?.notes?.trim();
 
     const obsNotaFiscal = deveUsarObsManual 
         ? ofData.notes 
