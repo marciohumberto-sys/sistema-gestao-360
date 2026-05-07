@@ -123,7 +123,20 @@ class OFsService {
         const { data, error } = await supabase
             .from('ofs')
             .select(`
-                *, 
+                id,
+                tenant_id,
+                contract_id,
+                secretariat_id,
+                commitment_id,
+                number,
+                issue_date,
+                requester_name,
+                requester_department,
+                status,
+                notes,
+                total_amount,
+                created_at,
+                updated_at,
                 contract:contracts(
                     number, 
                     title, 

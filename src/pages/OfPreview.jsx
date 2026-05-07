@@ -99,6 +99,12 @@ const OfPreview = () => {
 
     const { items = [], commitment, contract, secretariat } = ofData;
 
+    const deveUsarObsManual = ofData?.number === "OF-2026-0218" && ofData?.notes?.trim();
+
+    const obsNotaFiscal = deveUsarObsManual 
+        ? ofData.notes 
+        : `COLOCAR NO CAMPO DE OBSERVAÇÃO DA NOTA FISCAL - CONTA CORRENTE, AGÊNCIA, NOME DO BANCO, DESTINADO À SECRETARIA DE ${secretariat?.name?.toUpperCase() || '_____'}, REFERENTE AO CONTRATO Nº ${(contract?.number || '_____').toUpperCase()}, ${getMonthYear().toUpperCase()}. EMPENHO: ${commitment?.number || '_____'}.`;
+
     return (
         <div className="of-preview-container">
             <div className="of-preview-controls">
@@ -229,7 +235,7 @@ const OfPreview = () => {
                         <div className="info-item">
                             <span className="label" style={{ minWidth: '40px' }}>OBS:</span>
                             <span className="value" style={{ textAlign: 'justify', fontSize: '8pt', lineHeight: 1.4 }}>
-                                COLOCAR NO CAMPO DE OBSERVAÇÃO DA NOTA FISCAL - CONTA CORRENTE, AGÊNCIA, NOME DO BANCO, DESTINADO À SECRETARIA DE {secretariat?.name?.toUpperCase() || '_____'}, REFERENTE AO CONTRATO Nº {(contract?.number || '_____').toUpperCase()}, {getMonthYear().toUpperCase()}. EMPENHO: {commitment?.number || '_____'}.
+                                {obsNotaFiscal}
                             </span>
                         </div>
                     </div>
