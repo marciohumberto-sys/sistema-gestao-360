@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { ofsService } from '../services/api/ofs.service';
 import { commitmentsService } from '../services/api/commitments.service';
 import { ArrowLeft, FileText, CheckCircle, XCircle, Trash2, Plus, AlertCircle, Play, Printer, Download } from 'lucide-react';
+import { normalizeQuantityInput, isValidQuantity, parseQuantity, formatQuantityDisplay, safeParseQuantity, normalizeQuantityOnBlur } from '../utils/quantityUtils';
 import './OfDetails.css';
 
 const OfDetails = () => {
@@ -23,12 +24,14 @@ const OfDetails = () => {
     const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
     const [editItemId, setEditItemId] = useState(null);
     const [newItemObj, setNewItemObj] = useState({
+        contract_id: '',
         contract_item_id: '',
         item_number: '',
         description: '',
         unit: 'UN',
-        quantity: 1,
-        unit_price: 0
+        quantity: '1',
+        unit_price: 0,
+        allow_decimal_quantity: false
     });
 
     const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
@@ -271,9 +274,9 @@ const OfDetails = () => {
             
             // Validation: Quantity vs Balance
             const selectedContractItemId = newItemObj.contract_item_id;
-            const requestedQty = Math.floor(Number(newItemObj.quantity));
+            const requestedQty = parseQuantity(newItemObj.quantity, newItemObj.allow_decimal_quantity);
             if (requestedQty <= 0) {
-                throw new Error("A quantidade deve ser um número inteiro maior que zero.");
+                throw new Error("A quantidade deve ser maior que zero.");
             }
             
             const allocation = allocations.find(a => a.contract_item_id === selectedContractItemId);
@@ -281,39 +284,42 @@ const OfDetails = () => {
                 throw new Error("Não há rateio cadastrado para esta secretaria neste item.");
             }
 
-            const allocatedQty = Number(allocation.quantity_allocated || 0);
+            const allocatedQty = safeParseQuantity(allocation.quantity_allocated, newItemObj.allow_decimal_quantity);
             // Calculate consumed from other OFs (finding all matched items, not just the first one)
             let consumedQty = 0;
             otherOfs.forEach(of => {
                 if (of.id === id) return; // Skip current OF
                 const matched = of.items?.filter(i => i.contract_item_id === selectedContractItemId) || [];
-                matched.forEach(i => consumedQty += Number(i.quantity || 0));
+                matched.forEach(i => consumedQty += safeParseQuantity(i.quantity, newItemObj.allow_decimal_quantity));
             });
 
             // ALSO add consumption from CURRENT OF's other rows
             if (ofData && ofData.items) {
                 const currentOfMatched = ofData.items.filter(i => i.contract_item_id === selectedContractItemId && i.id !== editItemId);
-                currentOfMatched.forEach(it => consumedQty += Number(it.quantity || 0));
+                currentOfMatched.forEach(it => consumedQty += safeParseQuantity(it.quantity, newItemObj.allow_decimal_quantity));
             }
+
+            const availableQty = Math.max(0, allocatedQty - consumedQty);
 
             // Always validate if requested Qty surpasses what's left
             if (editItemId) {
                 const currentItem = ofData.items.find(i => i.id === editItemId);
-                if (requestedQty > (currentItem?.quantity || 0)) {
-                    if (allocatedQty - consumedQty < requestedQty) {
-                        throw new Error(`Quantidade informada excede o saldo disponível deste item no contrato (Disponível: ${Math.max(0, allocatedQty - consumedQty)}).`);
+                const currentItemQty = safeParseQuantity(currentItem?.quantity, newItemObj.allow_decimal_quantity);
+                if (requestedQty > currentItemQty) {
+                    if (availableQty < requestedQty) {
+                        throw new Error(`Quantidade informada excede o saldo disponível deste item no contrato (Disponível: ${formatQuantityDisplay(availableQty)}).`);
                     }
                 }
             } else {
-                if (allocatedQty - consumedQty < requestedQty) {
-                    throw new Error(`Quantidade informada excede o saldo disponível deste item no contrato (Disponível: ${Math.max(0, allocatedQty - consumedQty)}).`);
+                if (availableQty < requestedQty) {
+                    throw new Error(`Quantidade informada excede o saldo disponível deste item no contrato (Disponível: ${formatQuantityDisplay(availableQty)}).`);
                 }
             }
 
             if (editItemId) {
-
                 await ofsService.updateOfItem(editItemId, tenantId, {
                     ...newItemObj,
+                    quantity: requestedQty,
                     description_snapshot: newItemObj.description,
                     unit_snapshot: newItemObj.unit,
                     unit_price_snapshot: Number(newItemObj.unit_price)
@@ -342,7 +348,7 @@ const OfDetails = () => {
             
             setIsAddItemModalOpen(false);
             setEditItemId(null);
-            setNewItemObj({ contract_item_id: '', item_number: '', description: '', unit: 'UN', quantity: 1, unit_price: 0 });
+            setNewItemObj({ contract_item_id: '', item_number: '', description: '', unit: 'UN', quantity: '1', unit_price: 0, allow_decimal_quantity: false });
             await loadData();
         } catch (error) {
             console.error(error);
@@ -373,13 +379,16 @@ const OfDetails = () => {
     const handleEditItemClick = (item) => {
         if (!isDraft) return;
         setEditItemId(item.id);
+        const contractItem = contractItems.find(c => c.id === item.contract_item_id);
+        const allowDecimal = contractItem?.allow_decimal_quantity || false;
         setNewItemObj({
             contract_item_id: item.contract_item_id || '',
             item_number: item.item_number || '',
             description: item.description || '',
             unit: item.unit || 'UN',
-            quantity: item.quantity || 1,
-            unit_price: item.unit_price || 0
+            quantity: formatQuantityDisplay(item.quantity),
+            unit_price: item.unit_price || 0,
+            allow_decimal_quantity: allowDecimal
         });
         setIsAddItemModalOpen(true);
     };
@@ -713,7 +722,7 @@ const OfDetails = () => {
                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '0.5rem 1rem' }}
                                 onClick={() => {
                                     setEditItemId(null);
-                                    setNewItemObj({ item_number: '', description: '', unit: 'UN', quantity: 1, unit_price: 0 });
+                                    setNewItemObj({ contract_item_id: '', item_number: '', description: '', unit: 'UN', quantity: '1', unit_price: 0, allow_decimal_quantity: false });
                                     setIsAddItemModalOpen(true);
                                 }}
                             >
@@ -744,7 +753,7 @@ const OfDetails = () => {
                                         <td style={{ textAlign: 'center' }}>{contractItem?.item_number || item.item_number || '-'}</td>
                                         <td>{item.description}</td>
                                         <td style={{ textAlign: 'center' }}>{item.unit}</td>
-                                        <td style={{ textAlign: 'right' }}>{item.quantity}</td>
+                                        <td style={{ textAlign: 'right' }}>{formatQuantityDisplay(item.quantity)}</td>
                                         <td style={{ textAlign: 'right' }}>{formatCurrency(item.unit_price)}</td>
                                         <td style={{ textAlign: 'right', fontWeight: 500, color: '#0f172a' }}>{formatCurrency(item.total_price)}</td>
                                         <td>
@@ -785,7 +794,7 @@ const OfDetails = () => {
                 {isDraft && items.length > 0 && (
                     <div className="add-item-bar" onClick={() => {
                         setEditItemId(null);
-                        setNewItemObj({ contract_item_id: '', item_number: '', description: '', unit: 'UN', quantity: 1, unit_price: 0 });
+                        setNewItemObj({ contract_item_id: '', item_number: '', description: '', unit: 'UN', quantity: '1', unit_price: 0, allow_decimal_quantity: false });
                         setIsAddItemModalOpen(true);
                     }}>
                         <Plus size={18} style={{ marginRight: '8px' }} /> Adicionar Item
@@ -876,7 +885,8 @@ const OfDetails = () => {
                                                 item_number: selectedItem.item_number || '',
                                                 description: selectedItem.description,
                                                 unit: selectedItem.unit,
-                                                unit_price: selectedItem.unit_price
+                                                unit_price: selectedItem.unit_price,
+                                                allow_decimal_quantity: selectedItem.allow_decimal_quantity || false
                                             });
                                         } else {
                                             setNewItemObj({...newItemObj, contract_item_id: ''});
@@ -906,14 +916,18 @@ const OfDetails = () => {
                                     <div style={{ position: 'relative' }}>
                                         <input 
                                             required 
-                                            type="number" 
-                                            min="1" 
-                                            step="1" 
+                                            type="text" 
                                             value={newItemObj.quantity} 
                                             onChange={e => {
-                                                const val = e.target.value === '' ? '' : Math.floor(Number(e.target.value)) || 0;
-                                                setNewItemObj({...newItemObj, quantity: val});
-                                            }} 
+                                                 const val = e.target.value;
+                                                 if (isValidQuantity(val, newItemObj.allow_decimal_quantity)) {
+                                                     setNewItemObj({...newItemObj, quantity: val});
+                                                 }
+                                             }}
+                                             onBlur={e => {
+                                                 const norm = normalizeQuantityOnBlur(e.target.value, newItemObj.allow_decimal_quantity);
+                                                 setNewItemObj({...newItemObj, quantity: norm});
+                                             }} 
                                             style={{ width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px' }} 
                                         />
                                         {newItemObj.contract_item_id && (
@@ -927,14 +941,15 @@ const OfDetails = () => {
                                                         otherOfs.forEach(of => {
                                                             if (of.id === id) return; // skip current OF
                                                             const matched = of.items?.filter(i => i.contract_item_id === newItemObj.contract_item_id) || [];
-                                                            matched.forEach(x => consumed += Number(x.quantity || 0));
+                                                            matched.forEach(x => consumed += safeParseQuantity(x.quantity, newItemObj.allow_decimal_quantity));
                                                         });
                                                         // Other rows in the CURRENT OF (excluding the item being edited)
                                                         if (ofData && ofData.items) {
                                                             const currentOfMatched = ofData.items.filter(i => i.contract_item_id === newItemObj.contract_item_id && i.id !== editItemId);
-                                                            currentOfMatched.forEach(it => consumed += Number(it.quantity || 0));
+                                                            currentOfMatched.forEach(it => consumed += safeParseQuantity(it.quantity, newItemObj.allow_decimal_quantity));
                                                         }
-                                                        return Math.max(0, Math.floor(Number(alloc.quantity_allocated || 0) - consumed));
+                                                        const balance = safeParseQuantity(alloc.quantity_allocated, newItemObj.allow_decimal_quantity) - consumed;
+                                                        return formatQuantityDisplay(Math.max(0, balance));
                                                     })()}
                                                 </span>
                                             </div>
@@ -954,7 +969,7 @@ const OfDetails = () => {
                                 <div className="form-group">
                                     <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500, color: '#0f172a' }}>Valor Total do Item</label>
                                     <div style={{ width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#f8fafc', fontWeight: 600, color: '#0f172a' }}>
-                                        {formatCurrency((Number(newItemObj.quantity) || 0) * (Number(newItemObj.unit_price) || 0))}
+                                        {formatCurrency(safeParseQuantity(newItemObj.quantity, newItemObj.allow_decimal_quantity) * (Number(newItemObj.unit_price) || 0))}
                                     </div>
                                 </div>
                             </div>

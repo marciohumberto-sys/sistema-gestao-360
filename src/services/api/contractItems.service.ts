@@ -10,6 +10,7 @@ export interface ContractItem {
     unit_price?: number;
     total_quantity?: number;
     legacy_consumed_quantity?: number;
+    allow_decimal_quantity?: boolean;
     marca?: string;
     created_at: string;
 }

@@ -31,6 +31,7 @@ import { filesService } from '../services/api/files.service';
 import { ofsService } from '../services/api/ofs.service';
 import { useTenant } from '../context/TenantContext';
 import { formatLocalDate, getDaysDiffFromToday, parseLocalDate, getTodayLocalDateString } from '../utils/dateUtils';
+import { safeParseQuantity, formatQuantityDisplay, isValidQuantity, normalizeQuantityOnBlur } from '../utils/quantityUtils';
 import './ContractDetails.css';
 
 const ContractDetails = () => {
@@ -68,7 +69,7 @@ const ContractDetails = () => {
     const [isItemModalOpen, setIsItemModalOpen] = useState(false);
     const [isSubmittingItem, setIsSubmittingItem] = useState(false);
     const [itemFormData, setItemFormData] = useState({
-        item_number: '', description: '', marca: '', unit: '', unit_price: '', total_quantity: '', legacy_consumed_quantity: ''
+        item_number: '', description: '', marca: '', unit: '', unit_price: '', total_quantity: '', legacy_consumed_quantity: '', allow_decimal_quantity: false
     });
     const [editingItemId, setEditingItemId] = useState(null);
     const [hasLegacyConsumption, setHasLegacyConsumption] = useState(false);
@@ -644,7 +645,8 @@ const ContractDetails = () => {
                 unit: itemFormData.unit,
                 unit_price: parseFloat(itemFormData.unit_price) || 0,
                 total_quantity: parseFloat(itemFormData.total_quantity) || 0,
-                legacy_consumed_quantity: parseFloat(itemFormData.legacy_consumed_quantity) || 0
+                legacy_consumed_quantity: parseFloat(itemFormData.legacy_consumed_quantity) || 0,
+                allow_decimal_quantity: !!itemFormData.allow_decimal_quantity
             };
 
             if (editingItemId) {
@@ -671,7 +673,7 @@ const ContractDetails = () => {
 
     const handleQuickAddItem = () => {
         setActiveTab('itens');
-        setItemFormData({ item_number: '', description: '', marca: '', unit: '', unit_price: '', total_quantity: '', legacy_consumed_quantity: '' });
+        setItemFormData({ item_number: '', description: '', marca: '', unit: '', unit_price: '', total_quantity: '', legacy_consumed_quantity: '', allow_decimal_quantity: false });
         setHasLegacyConsumption(false);
         setEditingItemId(null);
         setIsItemModalOpen(true);
@@ -1513,7 +1515,7 @@ const ContractDetails = () => {
                             <div className="cd-tab-panel-header">
                                 <h3>Itens do Contrato</h3>
                                 <button className="cd-btn-primary" onClick={() => {
-                                    setItemFormData({ item_number: '', description: '', marca: '', unit: '', unit_price: '', total_quantity: '', legacy_consumed_quantity: '' });
+                                    setItemFormData({ item_number: '', description: '', marca: '', unit: '', unit_price: '', total_quantity: '', legacy_consumed_quantity: '', allow_decimal_quantity: false });
                                     setHasLegacyConsumption(false);
                                     setEditingItemId(null);
                                     setIsItemModalOpen(true);
@@ -1611,7 +1613,8 @@ const ContractDetails = () => {
                                                                                     unit: item.unit || '',
                                                                                     unit_price: item.unit_price || '',
                                                                                     total_quantity: item.total_quantity || '',
-                                                                                    legacy_consumed_quantity: item.legacy_consumed_quantity || ''
+                                                                                    legacy_consumed_quantity: item.legacy_consumed_quantity || '',
+                                                                                    allow_decimal_quantity: item.allow_decimal_quantity || false
                                                                                 });
                                                                                 setHasLegacyConsumption(!!item.legacy_consumed_quantity && item.legacy_consumed_quantity > 0);
                                                                                 setEditingItemId(item.id);
@@ -1988,27 +1991,69 @@ const ContractDetails = () => {
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Marca (opcional)</label>
                                     <input style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)' }} type="text" placeholder="Ex: Multilaser, Dell, etc." value={itemFormData.marca} onChange={e => setItemFormData({ ...itemFormData, marca: e.target.value })} />
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', alignItems: 'flex-end' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Unidade (obrigatório)</label>
-                                        <input style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)', textAlign: 'center' }} required type="text" placeholder="Ex: UN, KG" value={itemFormData.unit} onChange={e => setItemFormData({ ...itemFormData, unit: e.target.value })} />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {/* LINHA 1: Qtd Total e Permitir casas decimais */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'center' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Qtd Total (obrigatório)</label>
+                                            <input 
+                                                style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)', textAlign: 'center' }} 
+                                                required 
+                                                type="text" 
+                                                placeholder={itemFormData.allow_decimal_quantity ? "Ex: 237,58" : "Ex: 10"}
+                                                value={itemFormData.total_quantity} 
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    if (isValidQuantity(val, itemFormData.allow_decimal_quantity)) {
+                                                        setItemFormData({ ...itemFormData, total_quantity: val });
+                                                    }
+                                                }}
+                                                onBlur={e => {
+                                                    const norm = normalizeQuantityOnBlur(e.target.value, itemFormData.allow_decimal_quantity);
+                                                    setItemFormData({ ...itemFormData, total_quantity: norm });
+                                                }}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', marginTop: '1.25rem' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={itemFormData.allow_decimal_quantity || false} 
+                                                    onChange={(e) => {
+                                                        const checked = e.target.checked;
+                                                        setItemFormData(prev => ({ 
+                                                            ...prev, 
+                                                            allow_decimal_quantity: checked,
+                                                            total_quantity: checked ? prev.total_quantity : (String(prev.total_quantity).split(/[.,]/)[0] || ''),
+                                                            legacy_consumed_quantity: checked ? prev.legacy_consumed_quantity : (String(prev.legacy_consumed_quantity).split(/[.,]/)[0] || '')
+                                                        }));
+                                                    }}
+                                                    style={{ width: '14px', height: '14px', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
+                                                />
+                                                <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Permitir casas decimais</span>
+                                            </label>
+                                            <span style={{ fontSize: '0.7rem', color: '#64748b', marginLeft: '1.4rem', lineHeight: '1.2' }}>
+                                                Use para combustível, litros, kg, metros ou serviços fracionados.
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Qtd Total (obrigatório)</label>
-                                        <input style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)', textAlign: 'center' }} required type="number" step="1" min="0" value={itemFormData.total_quantity} onChange={e => {
-                                            const val = parseInt(e.target.value, 10);
-                                            setItemFormData({ ...itemFormData, total_quantity: isNaN(val) ? '' : val });
-                                        }} />
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Val. Unit. (R$) (obrigatório)</label>
-                                        <input
-                                            style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)', textAlign: 'right' }}
-                                            type="text"
-                                            required
-                                            value={getMaskedCurrencyValue(itemFormData.unit_price)}
-                                            onChange={handleCurrencyInput}
-                                        />
+
+                                    {/* LINHA 2: Unidade e Valor Unitário */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Unidade *</label>
+                                            <input style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)', textAlign: 'center' }} required type="text" placeholder="Ex: UN, KG" value={itemFormData.unit} onChange={e => setItemFormData({ ...itemFormData, unit: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Val. Unit. (R$) (obrigatório)</label>
+                                            <input
+                                                style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)', textAlign: 'right' }}
+                                                type="text"
+                                                required
+                                                value={getMaskedCurrencyValue(itemFormData.unit_price)}
+                                                onChange={handleCurrencyInput}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                                 <div style={{ marginTop: '0.25rem' }}>
@@ -2032,15 +2077,27 @@ const ContractDetails = () => {
                                         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '1rem', alignItems: 'flex-end', marginTop: '0.75rem', animation: 'fadeIn 0.2s ease-in-out' }}>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.375rem' }}>Quantidade já consumida</label>
-                                                <input style={{ width: '100%', height: '38px', padding: '0 0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', color: 'var(--text-primary)', textAlign: 'center', fontSize: '0.875rem' }} type="number" step="1" min="0" value={itemFormData.legacy_consumed_quantity} onChange={e => {
-                                                    const val = parseInt(e.target.value, 10);
-                                                    setItemFormData({ ...itemFormData, legacy_consumed_quantity: isNaN(val) ? '' : val });
-                                                }} />
+                                                <input 
+                                                    style={{ width: '100%', height: '38px', padding: '0 0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', color: 'var(--text-primary)', textAlign: 'center', fontSize: '0.875rem' }} 
+                                                    type="text" 
+                                                    placeholder={itemFormData.allow_decimal_quantity ? "Ex: 10,50" : "Ex: 5"}
+                                                    value={itemFormData.legacy_consumed_quantity} 
+                                                    onChange={e => {
+                                                         const val = e.target.value;
+                                                         if (isValidQuantity(val, itemFormData.allow_decimal_quantity)) {
+                                                             setItemFormData({ ...itemFormData, legacy_consumed_quantity: val });
+                                                         }
+                                                     }} 
+                                                     onBlur={e => {
+                                                         const norm = normalizeQuantityOnBlur(e.target.value, itemFormData.allow_decimal_quantity);
+                                                         setItemFormData({ ...itemFormData, legacy_consumed_quantity: norm });
+                                                     }}
+                                                 />
                                             </div>
                                             <div style={{ padding: '0 0.75rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '38px' }}>
                                                 <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Disponível para rateio:</span>
                                                 <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                                                    {Math.max(0, (parseFloat(itemFormData.total_quantity) || 0) - (parseFloat(itemFormData.legacy_consumed_quantity) || 0))}
+                                                    {formatQuantityDisplay(Math.max(0, safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity) - safeParseQuantity(itemFormData.legacy_consumed_quantity, itemFormData.allow_decimal_quantity)))}
                                                 </span>
                                             </div>
                                         </div>
@@ -2049,10 +2106,10 @@ const ContractDetails = () => {
                                 <div style={{ marginTop: '0.25rem', padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Total estimado:</span>
                                     <span style={{ fontSize: '1.125rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                                        {formatExactCurrency((parseFloat(itemFormData.total_quantity) || 0) * (parseFloat(itemFormData.unit_price) || 0))}
+                                        {formatExactCurrency(safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity) * (parseFloat(itemFormData.unit_price) || 0))}
                                     </span>
                                 </div>
-                                {(hasLegacyConsumption && parseFloat(itemFormData.legacy_consumed_quantity) > parseFloat(itemFormData.total_quantity)) && (
+                                {(hasLegacyConsumption && safeParseQuantity(itemFormData.legacy_consumed_quantity, itemFormData.allow_decimal_quantity) > safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity)) && (
                                     <div style={{ fontSize: '0.8125rem', color: '#dc2626', fontWeight: 500, textAlign: 'right' }}>
                                         A quantidade já consumida não pode ser maior que a quantidade total.
                                     </div>
@@ -2062,8 +2119,8 @@ const ContractDetails = () => {
                                     <button
                                         type="submit"
                                         className="cd-btn-primary"
-                                        disabled={isSubmittingItem || !itemFormData.description?.trim() || !itemFormData.unit?.trim() || !itemFormData.total_quantity || parseFloat(itemFormData.total_quantity) <= 0 || !itemFormData.unit_price || parseFloat(itemFormData.unit_price) <= 0 || (hasLegacyConsumption && parseFloat(itemFormData.legacy_consumed_quantity) > parseFloat(itemFormData.total_quantity))}
-                                        style={{ opacity: (isSubmittingItem || !itemFormData.description?.trim() || !itemFormData.unit?.trim() || !itemFormData.total_quantity || parseFloat(itemFormData.total_quantity) <= 0 || !itemFormData.unit_price || parseFloat(itemFormData.unit_price) <= 0 || (hasLegacyConsumption && parseFloat(itemFormData.legacy_consumed_quantity) > parseFloat(itemFormData.total_quantity))) ? 0.6 : 1 }}
+                                        disabled={isSubmittingItem || !itemFormData.description?.trim() || !itemFormData.unit?.trim() || safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity) <= 0 || !itemFormData.unit_price || parseFloat(itemFormData.unit_price) <= 0 || (hasLegacyConsumption && safeParseQuantity(itemFormData.legacy_consumed_quantity, itemFormData.allow_decimal_quantity) > safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity))}
+                                        style={{ opacity: (isSubmittingItem || !itemFormData.description?.trim() || !itemFormData.unit?.trim() || safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity) <= 0 || !itemFormData.unit_price || parseFloat(itemFormData.unit_price) <= 0 || (hasLegacyConsumption && safeParseQuantity(itemFormData.legacy_consumed_quantity, itemFormData.allow_decimal_quantity) > safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity))) ? 0.6 : 1 }}
                                     >
                                         {isSubmittingItem ? 'Salvando...' : 'Salvar Item'}
                                     </button>
