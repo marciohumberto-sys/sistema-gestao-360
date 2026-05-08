@@ -162,8 +162,8 @@ const PlanejamentoEntraves = () => {
         switch(g) {
             case 'Baixa': return { color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)' };
             case 'Média': return { color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' };
-            case 'Alta': return { color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' };
-            case 'Crítica': return { color: '#dc2626', bg: 'rgba(220, 38, 38, 0.15)' };
+            case 'Alta': return { color: '#ef4444', bg: 'rgba(239, 68, 68, 0.08)' };
+            case 'Crítica': return { color: '#b91c1c', bg: 'rgba(185, 28, 28, 0.12)' };
             default: return { color: '#64748b', bg: 'rgba(100, 116, 139, 0.1)' };
         }
     };
@@ -437,8 +437,8 @@ const PlanejamentoEntraves = () => {
                                     switch (item.gravidade) {
                                         case 'Baixa': return { borderLeft: '3px solid #3b82f6' };
                                         case 'Média': return { borderLeft: '3px solid #f59e0b' };
-                                        case 'Alta': return { borderLeft: '3px solid #ef4444' };
-                                        case 'Crítica': return { borderLeft: '3px solid #dc2626' };
+                                        case 'Alta': return { borderLeft: '3px solid #f87171' };
+                                        case 'Crítica': return { borderLeft: '4px solid #b91c1c' };
                                         default: return { borderLeft: `3px solid ${gConf.color}` };
                                     }
                                 };
@@ -456,7 +456,9 @@ const PlanejamentoEntraves = () => {
                                         borderBottom: `1px solid var(--border)`,
                                         background: '#ffffff',
                                         transition: 'all 0.2s',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.04)',
+                                        boxShadow: (item.gravidade === 'Crítica' && item.status !== 'Resolvido') 
+                                            ? '0 4px 12px rgba(185, 28, 28, 0.05), 0 1px 3px rgba(185, 28, 28, 0.08)' 
+                                            : '0 2px 4px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.04)',
                                         opacity: item.status === 'Resolvido' ? 0.85 : 1
                                     }}>
                                         <div style={{ display: 'flex', gap: '1rem', height: '100%' }}>
@@ -469,7 +471,8 @@ const PlanejamentoEntraves = () => {
 
                                                     const getRgb = () => {
                                                         if (isResolvido) return '52, 211, 153'; // Verde pastel
-                                                        if (item.gravidade === 'Crítica' || item.gravidade === 'Alta') return '248, 113, 113'; // Vermelho
+                                                        if (item.gravidade === 'Crítica') return '185, 28, 28'; // Vermelho intenso
+                                                        if (item.gravidade === 'Alta') return '248, 113, 113'; // Vermelho suave/light
                                                         if (item.gravidade === 'Média') return '251, 191, 36'; // Laranja
                                                         return '96, 165, 250'; // Azul (Baixa)
                                                     };
@@ -541,7 +544,18 @@ const PlanejamentoEntraves = () => {
                                                         <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: sConf.bg, color: sConf.color, border: `1px solid ${sConf.color}30`, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
                                                             <StatusIcon size={10} strokeWidth={2.5} /> {item.status}
                                                         </span>
-                                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: gConf.bg, color: gConf.color, border: `1px solid ${gConf.color}30`, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                                                        <span style={{ 
+                                                            fontSize: '0.65rem', 
+                                                            fontWeight: item.gravidade === 'Crítica' ? 700 : 600, 
+                                                            padding: item.gravidade === 'Crítica' ? '3px 8px' : '2px 6px', 
+                                                            borderRadius: '4px', 
+                                                            background: gConf.bg, 
+                                                            color: gConf.color, 
+                                                            border: item.gravidade === 'Crítica' ? `1px solid ${gConf.color}50` : `1px solid ${gConf.color}30`, 
+                                                            textTransform: 'uppercase', 
+                                                            letterSpacing: '0.02em',
+                                                            boxShadow: (item.gravidade === 'Crítica' && item.status !== 'Resolvido') ? '0 1px 4px rgba(185, 28, 28, 0.15)' : 'none'
+                                                        }}>
                                                             Gravidade: {item.gravidade}
                                                         </span>
                                                     </div>
