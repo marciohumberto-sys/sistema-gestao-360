@@ -275,6 +275,8 @@ export const fetchAcoes = async (tenantId) => {
         address_reference: a.address_reference || '',
         latitude: a.latitude || null,
         longitude: a.longitude || null,
+        updated_at: a.updated_at,
+        created_at: a.created_at
     }));
 };
 

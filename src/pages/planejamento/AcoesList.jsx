@@ -40,6 +40,70 @@ const actionTypesConfig = {
     'AQUISICAO': { label: 'Aquisição', bg: 'rgba(20, 184, 166, 0.1)', color: '#0d9488', border: 'rgba(20, 184, 166, 0.2)' }
 };
 
+const PROJECT_STEPS = [
+    { label: 'Planejamento inicial', progress: 10 },
+    { label: 'Parte introdutória', progress: 20 },
+    { label: 'Desenvolvimento', progress: 40 },
+    { label: 'Execução', progress: 60 },
+    { label: 'Ajustes finais', progress: 80 },
+    { label: 'Finalização', progress: 100 }
+];
+
+const WORK_STEPS = [
+    { label: 'Planejamento técnico', progress: 10 },
+    { label: 'Licitação', progress: 20 },
+    { label: 'Início da obra', progress: 35 },
+    { label: 'Execução estrutural', progress: 55 },
+    { label: 'Acabamento', progress: 80 },
+    { label: 'Entrega final', progress: 100 }
+];
+
+const getClosestStep = (progress, steps) => {
+    if (progress === undefined || progress === null || progress === 0) return '';
+    let closest = steps[0];
+    let minDiff = Math.abs(progress - closest.progress);
+    for (let i = 1; i < steps.length; i++) {
+        const diff = Math.abs(progress - steps[i].progress);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closest = steps[i];
+        }
+    }
+    return closest.label;
+};
+
+const getUpdateDelayStatus = (acao) => {
+    const lastDateStr = acao.updated_at || acao.created_at;
+    if (!lastDateStr) {
+        console.log(`[DEBUG_VISUAL] Ação ID: ${acao.id} - Nenhuma data de atualização/criação encontrada.`);
+        return { status: 'normal', days: 0 };
+    }
+    
+    const lastDate = new Date(lastDateStr);
+    const today = new Date();
+    
+    // Clear hours to calculate full days
+    const lastDateClear = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+    const todayClear = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    const diffTime = todayClear - lastDateClear;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    let status = 'normal';
+    // LIMITES ORIGINAIS COMENTADOS:
+    // if (diffDays >= 30) { status = 'critical'; } else if (diffDays >= 15) { status = 'pending'; }
+    // LIMITES TEMPORÁRIOS PARA TESTE VISUAL:
+    if (diffDays >= 2) {
+        status = 'critical';
+    } else if (diffDays === 1) {
+        status = 'pending';
+    }
+    
+    console.log(`[DEBUG_VISUAL] Ação ID: ${acao.id} | Título: ${acao.nome} | Última Data: ${lastDateStr} | Dias calculados: ${diffDays} | Badge: ${status}`);
+    
+    return { status, days: diffDays };
+};
+
 const getActionTypeBadge = (type) => {
     const config = actionTypesConfig[type] || actionTypesConfig['ACAO_PONTUAL'];
     return (
@@ -274,6 +338,21 @@ const AcoesList = () => {
         setSaveError(null);
         if (acao) {
             setEditingAcao(acao);
+            const actionType = acao.action_type || 'PROJETO';
+            let initialProgress = acao.progresso ?? 0;
+            if (initialProgress > 0) {
+                if (actionType === 'PROJETO') {
+                    const steps = PROJECT_STEPS;
+                    const closestLabel = getClosestStep(initialProgress, steps);
+                    const closestStep = steps.find(s => s.label === closestLabel);
+                    initialProgress = closestStep ? closestStep.progress : 0;
+                } else if (actionType === 'OBRA') {
+                    const steps = WORK_STEPS;
+                    const closestLabel = getClosestStep(initialProgress, steps);
+                    const closestStep = steps.find(s => s.label === closestLabel);
+                    initialProgress = closestStep ? closestStep.progress : 0;
+                }
+            }
             setFormData({
                 ...emptyForm,
                 nome: acao.nome || '',
@@ -283,13 +362,13 @@ const AcoesList = () => {
                 axisId: acao.eixoId || '',
                 eixo: acao.eixo || '',
                 status: acao.status || 'NAO_INICIADA',
-                progresso: acao.progresso ?? 0,
+                progresso: initialProgress,
                 prazo: acao.prazo || '',
                 data_inicio: acao.data_inicio || '',
                 responsible_name: acao.responsavel || '',
                 descricao: acao.descricao || '',
                 observacoes: acao.observacoes || '',
-                action_type: acao.action_type || 'PROJETO',
+                action_type: actionType,
                 address_street: acao.address_street || '',
                 address_number: acao.address_number || '',
                 address_complement: acao.address_complement || '',
@@ -317,7 +396,8 @@ const AcoesList = () => {
                 axisId: firstAxis?.id || '',
                 eixo: firstAxis?.name || '',
                 secretariatId: firstSec?.id || '',
-                secretaria: firstSec?.name || ''
+                secretaria: firstSec?.name || '',
+                progresso: 0
             });
         }
         setIsModalOpen(true);
@@ -796,8 +876,53 @@ const AcoesList = () => {
                                              )}
                                          </div>
                                      </td>
-                                    <td>
-                                        {getStatusBadge(acao.status)}
+                                     <td>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }}>
+                                            {getStatusBadge(acao.status)}
+                                            {(() => {
+                                                const delay = getUpdateDelayStatus(acao);
+                                                if (delay.status === 'pending') {
+                                                    return (
+                                                        <span 
+                                                            title={`Última atualização há ${delay.days} dias`}
+                                                            style={{ 
+                                                                display: 'inline-flex', 
+                                                                alignItems: 'center', 
+                                                                gap: '3px', 
+                                                                fontSize: '0.60rem', 
+                                                                fontWeight: 500, 
+                                                                color: '#b45309', 
+                                                                opacity: 0.85,
+                                                                whiteSpace: 'nowrap',
+                                                                cursor: 'help'
+                                                            }}
+                                                        >
+                                                            <span style={{ fontSize: '5px', opacity: 0.6 }}>●</span> Atualização pendente
+                                                        </span>
+                                                    );
+                                                } else if (delay.status === 'critical') {
+                                                    return (
+                                                        <span 
+                                                            title={`Última atualização há ${delay.days} dias`}
+                                                            style={{ 
+                                                                display: 'inline-flex', 
+                                                                alignItems: 'center', 
+                                                                gap: '3px', 
+                                                                fontSize: '0.60rem', 
+                                                                fontWeight: 500, 
+                                                                color: '#b91c1c', 
+                                                                opacity: 0.85,
+                                                                whiteSpace: 'nowrap',
+                                                                cursor: 'help'
+                                                            }}
+                                                        >
+                                                            <span style={{ fontSize: '5px', opacity: 0.6 }}>●</span> Atualização crítica
+                                                        </span>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
+                                        </div>
                                     </td>
                                     <td>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -825,9 +950,9 @@ const AcoesList = () => {
                                              {prazoUI}
                                          </div>
                                      </td>
-                                    <td>
-                                        <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{acao.responsavel || 'Não informado'}</span>
-                                    </td>
+                                     <td>
+                                         <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{acao.responsavel || 'Não informado'}</span>
+                                     </td>
                                     <td>
                                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                                             <button className="farmacia-action-icon" style={{ padding: '4px' }} onClick={() => openViewModal(acao)}>
@@ -917,7 +1042,16 @@ const AcoesList = () => {
                                                 className="farmacia-form-select"
                                                 required
                                                 value={formData.action_type}
-                                                onChange={e => setFormData({ ...formData, action_type: e.target.value })}
+                                                onChange={e => {
+                                                    const newType = e.target.value;
+                                                    let newProgress = formData.progresso;
+                                                    if (newType === 'PROJETO') {
+                                                        newProgress = 0;
+                                                    } else if (newType === 'OBRA') {
+                                                        newProgress = 0;
+                                                    }
+                                                    setFormData({ ...formData, action_type: newType, progresso: newProgress });
+                                                }}
                                             >
                                                 <option value="PROJETO">Projeto</option>
                                                 <option value="OBRA">Obra</option>
@@ -1025,97 +1159,163 @@ const AcoesList = () => {
                                             Execução e Monitoramento
                                         </span>
                                     </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.2fr', gap: '0.875rem' }}>
-                                        <div className="farmacia-form-group">
-                                            <label className="farmacia-form-label">Status Atual</label>
-                                            <select className="farmacia-form-select" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
-                                                <option value="NAO_INICIADA">Não Iniciada</option>
-                                                <option value="EM_ANDAMENTO">Em Andamento</option>
-                                                <option value="CONCLUIDA">Concluída</option>
-                                                <option value="EM_RISCO">Em Risco</option>
-                                                <option value="PARALISADA">Paralisada</option>
-                                            </select>
-                                        </div>
-                                        <div className="farmacia-form-group">
-                                            <label className="farmacia-form-label">Progresso (%)</label>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                    <input
-                                                        type="range"
-                                                        min="0" max="100"
-                                                        value={formData.progresso || 0}
-                                                        onChange={e => setFormData({ ...formData, progresso: parseInt(e.target.value) || 0 })}
-                                                        style={{
-                                                            flex: 1,
-                                                            height: '6px',
-                                                            borderRadius: '4px',
-                                                            background: `linear-gradient(to right, ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'} ${formData.progresso || 0}%, #e2e8f0 ${formData.progresso || 0}%)`,
-                                                            outline: 'none',
-                                                            cursor: 'pointer'
-                                                        }}
-                                                        className="modern-range-slider"
-                                                    />
-                                                    <input
-                                                        type="number"
-                                                        className="farmacia-form-input"
-                                                        min="0" max="100"
-                                                        style={{ width: '64px', padding: '0.4rem', textAlign: 'center', fontWeight: 600 }}
-                                                        value={formData.progresso || 0}
+                                    {['PROJETO', 'OBRA'].includes(formData.action_type) ? (
+                                        <>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '2.2fr 4.8fr 3fr', gap: '0.875rem' }}>
+                                                <div className="farmacia-form-group">
+                                                    <label className="farmacia-form-label">Status Atual</label>
+                                                    <select className="farmacia-form-select" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+                                                        <option value="NAO_INICIADA">Não Iniciada</option>
+                                                        <option value="EM_ANDAMENTO">Em Andamento</option>
+                                                        <option value="CONCLUIDA">Concluída</option>
+                                                        <option value="EM_RISCO">Em Risco</option>
+                                                        <option value="PARALISADA">Paralisada</option>
+                                                    </select>
+                                                </div>
+                                                <div className="farmacia-form-group">
+                                                    <label className="farmacia-form-label">Etapa Atual</label>
+                                                    <select
+                                                        className="farmacia-form-select"
+                                                        value={getClosestStep(formData.progresso, formData.action_type === 'PROJETO' ? PROJECT_STEPS : WORK_STEPS)}
                                                         onChange={e => {
-                                                            let val = parseInt(e.target.value) || 0;
-                                                            if (val > 100) val = 100;
-                                                            if (val < 0) val = 0;
-                                                            setFormData({ ...formData, progresso: val });
+                                                            const steps = formData.action_type === 'PROJETO' ? PROJECT_STEPS : WORK_STEPS;
+                                                            const selectedStep = steps.find(s => s.label === e.target.value);
+                                                            if (selectedStep) {
+                                                                setFormData({ ...formData, progresso: selectedStep.progress });
+                                                            } else {
+                                                                setFormData({ ...formData, progresso: 0 });
+                                                            }
                                                         }}
+                                                    >
+                                                        <option value="">Selecione a etapa...</option>
+                                                        {(formData.action_type === 'PROJETO' ? PROJECT_STEPS : WORK_STEPS).map(step => (
+                                                            <option key={step.label} value={step.label}>
+                                                                {step.label} ({step.progress}%)
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="farmacia-form-group">
+                                                    <label className="farmacia-form-label">Responsável Técnico</label>
+                                                    <input
+                                                        type="text"
+                                                        className="farmacia-form-input"
+                                                        placeholder="Nome do responsável"
+                                                        value={formData.responsible_name}
+                                                        onChange={e => setFormData({ ...formData, responsible_name: e.target.value })}
                                                     />
                                                 </div>
-                                                <style>{`
-                                                    .modern-range-slider {
-                                                        -webkit-appearance: none;
-                                                        appearance: none;
-                                                    }
-                                                    .modern-range-slider::-webkit-slider-thumb {
-                                                        -webkit-appearance: none;
-                                                        appearance: none;
-                                                        width: 16px;
-                                                        height: 16px;
-                                                        border-radius: 50%;
-                                                        background: #fff;
-                                                        border: 2px solid ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'};
-                                                        cursor: pointer;
-                                                        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-                                                        transition: transform 0.1s ease;
-                                                    }
-                                                    .modern-range-slider::-webkit-slider-thumb:hover {
-                                                        transform: scale(1.15);
-                                                    }
-                                                    .modern-range-slider::-moz-range-thumb {
-                                                        width: 16px;
-                                                        height: 16px;
-                                                        border-radius: 50%;
-                                                        background: #fff;
-                                                        border: 2px solid ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'};
-                                                        cursor: pointer;
-                                                        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-                                                        transition: transform 0.1s ease;
-                                                    }
-                                                    .modern-range-slider::-moz-range-thumb:hover {
-                                                        transform: scale(1.15);
-                                                    }
-                                                `}</style>
+                                            </div>
+                                            <div style={{ marginTop: '1.25rem', paddingTop: '1.1rem', borderTop: '1px dashed rgba(0,0,0,0.08)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Progresso da Ação</span>
+                                                    <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#3b82f6' }}>{formData.progresso || 0}%</span>
+                                                </div>
+                                                <div style={{ width: '100%', height: '6px', backgroundColor: '#e2e8f0', borderRadius: '10px', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }}>
+                                                    <div style={{ 
+                                                        width: `${formData.progresso || 0}%`, 
+                                                        height: '100%', 
+                                                        background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)', 
+                                                        borderRadius: '10px',
+                                                        transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                        boxShadow: '0 1px 2px rgba(139, 92, 246, 0.2)'
+                                                    }} />
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.2fr', gap: '0.875rem' }}>
+                                            <div className="farmacia-form-group">
+                                                <label className="farmacia-form-label">Status Atual</label>
+                                                <select className="farmacia-form-select" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+                                                    <option value="NAO_INICIADA">Não Iniciada</option>
+                                                    <option value="EM_ANDAMENTO">Em Andamento</option>
+                                                    <option value="CONCLUIDA">Concluída</option>
+                                                    <option value="EM_RISCO">Em Risco</option>
+                                                    <option value="PARALISADA">Paralisada</option>
+                                                </select>
+                                            </div>
+                                            <div className="farmacia-form-group">
+                                                <label className="farmacia-form-label">Progresso (%)</label>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                        <input
+                                                            type="range"
+                                                            min="0" max="100"
+                                                            value={formData.progresso || 0}
+                                                            onChange={e => setFormData({ ...formData, progresso: parseInt(e.target.value) || 0 })}
+                                                            style={{
+                                                                flex: 1,
+                                                                height: '6px',
+                                                                borderRadius: '4px',
+                                                                background: `linear-gradient(to right, ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'} ${formData.progresso || 0}%, #e2e8f0 ${formData.progresso || 0}%)`,
+                                                                outline: 'none',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                            className="modern-range-slider"
+                                                        />
+                                                        <input
+                                                            type="number"
+                                                            className="farmacia-form-input"
+                                                            min="0" max="100"
+                                                            style={{ width: '64px', padding: '0.4rem', textAlign: 'center', fontWeight: 600 }}
+                                                            value={formData.progresso || 0}
+                                                            onChange={e => {
+                                                                let val = parseInt(e.target.value) || 0;
+                                                                if (val > 100) val = 100;
+                                                                if (val < 0) val = 0;
+                                                                setFormData({ ...formData, progresso: val });
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <style>{`
+                                                        .modern-range-slider {
+                                                            -webkit-appearance: none;
+                                                            appearance: none;
+                                                        }
+                                                        .modern-range-slider::-webkit-slider-thumb {
+                                                            -webkit-appearance: none;
+                                                            appearance: none;
+                                                            width: 16px;
+                                                            height: 16px;
+                                                            border-radius: 50%;
+                                                            background: #fff;
+                                                            border: 2px solid ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'};
+                                                            cursor: pointer;
+                                                            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                                                            transition: transform 0.1s ease;
+                                                        }
+                                                        .modern-range-slider::-webkit-slider-thumb:hover {
+                                                            transform: scale(1.15);
+                                                        }
+                                                        .modern-range-slider::-moz-range-thumb {
+                                                            width: 16px;
+                                                            height: 16px;
+                                                            border-radius: 50%;
+                                                            background: #fff;
+                                                            border: 2px solid ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'};
+                                                            cursor: pointer;
+                                                            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                                                            transition: transform 0.1s ease;
+                                                        }
+                                                        .modern-range-slider::-moz-range-thumb:hover {
+                                                            transform: scale(1.15);
+                                                        }
+                                                    `}</style>
+                                                </div>
+                                            </div>
+                                            <div className="farmacia-form-group">
+                                                <label className="farmacia-form-label">Responsável Técnico</label>
+                                                <input
+                                                    type="text"
+                                                    className="farmacia-form-input"
+                                                    placeholder="Nome do responsável"
+                                                    value={formData.responsible_name}
+                                                    onChange={e => setFormData({ ...formData, responsible_name: e.target.value })}
+                                                />
                                             </div>
                                         </div>
-                                        <div className="farmacia-form-group">
-                                            <label className="farmacia-form-label">Responsável Técnico</label>
-                                            <input
-                                                type="text"
-                                                className="farmacia-form-input"
-                                                placeholder="Nome do responsável"
-                                                value={formData.responsible_name}
-                                                onChange={e => setFormData({ ...formData, responsible_name: e.target.value })}
-                                            />
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
 
                                 {/* ── Bloco: Planejamento ── */}
@@ -1346,6 +1546,50 @@ const AcoesList = () => {
                             `}</style>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+                                
+                                {(() => {
+                                    const delay = getUpdateDelayStatus(viewingAcao);
+                                    if (delay.status === 'pending') {
+                                        return (
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                backgroundColor: '#fffbeb',
+                                                border: '1px solid #fde68a',
+                                                borderRadius: '8px',
+                                                padding: '0.85rem 1.15rem',
+                                                color: '#b45309',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 600,
+                                                boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                                            }}>
+                                                <AlertTriangle size={16} color="#d97706" style={{ flexShrink: 0 }} />
+                                                <span>Esta ação está há {delay.days} dias sem atualização.</span>
+                                            </div>
+                                        );
+                                    } else if (delay.status === 'critical') {
+                                        return (
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                backgroundColor: '#fef2f2',
+                                                border: '1px solid #fca5a5',
+                                                borderRadius: '8px',
+                                                padding: '0.85rem 1.15rem',
+                                                color: '#b91c1c',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 700,
+                                                boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                                            }}>
+                                                <AlertTriangle size={16} color="#dc2626" style={{ flexShrink: 0 }} />
+                                                <span>Ação sem atualização há {delay.days} dias.</span>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                                 
                                 {/* Cabeçalho Premium: Título e Status */}
                                 <div style={{ 
