@@ -108,7 +108,7 @@ const PlanejamentoEntraves = () => {
 
     // ---- LISTAS ÚNICAS PARA FILTROS ----
     const acoesUnicas = useMemo(() => [...new Set(entraves.map(a => a.acaoNome))].sort(), [entraves]);
-    const secretariasUnicas = useMemo(() => [...new Set(entraves.map(a => a.secretaria))].sort(), [entraves]);
+    const secretariasUnicas = useMemo(() => [...new Set(entraves.map(a => a.secretaria).filter(Boolean))].sort((a, b) => (a || '').localeCompare((b || ''), 'pt-BR', { sensitivity: 'base' })), [entraves]);
     const gravidadesUnicas = ['Baixa', 'Média', 'Alta', 'Crítica'];
     const statusUnicos = ['Aberto', 'Em Tratativa', 'Resolvido'];
     const responsaveisUnicos = useMemo(() => [...new Set(entraves.filter(e => e.responsavel).map(a => a.responsavel))].sort(), [entraves]);

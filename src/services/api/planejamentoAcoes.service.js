@@ -273,8 +273,11 @@ export const fetchAcoes = async (tenantId) => {
         address_state: a.address_state || '',
         address_zipcode: a.address_zipcode || '',
         address_reference: a.address_reference || '',
+        custom_stages: a.custom_stages || null,
+        current_stage_index: a.current_stage_index ?? null,
         latitude: a.latitude || null,
         longitude: a.longitude || null,
+        completion_date: a.completion_date || null,
         updated_at: a.updated_at,
         created_at: a.created_at
     }));
@@ -332,6 +335,13 @@ export const createAcao = async (tenantId, formData, axes) => {
     // 5. Buscar primeiro objetivo ativo do eixo (opcional)
     const objectiveIdFound = await fetchFirstObjectiveByAxis(tenantId, formData.axisId);
 
+    // Lógica defensiva de Conclusão automática para satisfazer a constraint do banco
+    let finalStatus = formData.status;
+    const isCompleted = finalStatus === 'CONCLUIDA' || progress >= 100;
+    if (progress >= 100) {
+        finalStatus = 'CONCLUIDA';
+    }
+
     // 6. Montar payload
     const payload = {
         tenant_id: tenantId,
@@ -342,10 +352,11 @@ export const createAcao = async (tenantId, formData, axes) => {
         created_by: user.id,
         title: formData.nome.trim(),
         description: formData.descricao?.trim() || null,
-        status: formData.status,
+        status: finalStatus,
         progress_percent: progress,
         start_date: formData.data_inicio || null,
         due_date: formData.prazo || null,
+        completion_date: isCompleted ? (formData.completion_date || new Date().toISOString()) : null,
         neighborhood: formData.address_district || formData.local || null,
         notes: formData.observacoes?.trim() || null,
         responsible_name: formData.responsible_name?.trim() || null,
@@ -358,6 +369,8 @@ export const createAcao = async (tenantId, formData, axes) => {
         address_state: formData.address_state?.trim() || 'PE',
         address_zipcode: formData.address_zipcode?.trim() || null,
         address_reference: formData.address_reference?.trim() || null,
+        custom_stages: formData.custom_stages || null,
+        current_stage_index: formData.current_stage_index ?? null,
     };
 
     // LOG DE DIAGNÓSTICO OBRIGATÓRIO
@@ -405,13 +418,21 @@ export const updateAcao = async (tenantId, id, formData) => {
         throw new Error('A data de término não pode ser anterior à data de início.');
     }
 
+    // Lógica defensiva de Conclusão automática para satisfazer a constraint do banco
+    let finalStatus = formData.status;
+    const isCompleted = finalStatus === 'CONCLUIDA' || progress >= 100;
+    if (progress >= 100) {
+        finalStatus = 'CONCLUIDA';
+    }
+
     const payload = {
         title: formData.nome.trim(),
         description: formData.descricao?.trim() || null,
-        status: formData.status,
+        status: finalStatus,
         progress_percent: progress,
         start_date: formData.data_inicio || null,
         due_date: formData.prazo || null,
+        completion_date: isCompleted ? (formData.completion_date || new Date().toISOString()) : null,
         neighborhood: formData.address_district || formData.local || null,
         notes: formData.observacoes?.trim() || null,
         responsible_name: formData.responsible_name?.trim() || null,
@@ -424,6 +445,8 @@ export const updateAcao = async (tenantId, id, formData) => {
         address_state: formData.address_state?.trim() || 'PE',
         address_zipcode: formData.address_zipcode?.trim() || null,
         address_reference: formData.address_reference?.trim() || null,
+        custom_stages: formData.custom_stages || null,
+        current_stage_index: formData.current_stage_index ?? null,
         ...(formData.axisId && { axis_id: formData.axisId }),
         ...(formData.secretariatId && { secretariat_id: formData.secretariatId }),
     };
@@ -481,9 +504,46 @@ export const fetchAtualizacoes = async (tenantId) => {
             (actions || []).forEach(a => actionsMap.set(a.id, { ...a, secretariaNome: secMap.get(a.secretariat_id) || 'Não informada' }));
         }
 
+        // 1. Agrupar atualizações por ação para processamento cronológico local
+        const updatesByAction = {};
+        updates.forEach(u => {
+            if (!updatesByAction[u.action_id]) updatesByAction[u.action_id] = [];
+            updatesByAction[u.action_id].push(u);
+        });
+
+        // 2. Derivar dinamicamente progresso e status anteriores ordenando por data ascendente (mais antigos primeiro)
+        Object.keys(updatesByAction).forEach(actionId => {
+            const group = updatesByAction[actionId];
+            group.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            
+            let lastProg = 0; // Baseline progress
+            let lastStatus = 'NAO_INICIADA'; // Baseline status
+            
+            group.forEach(u => {
+                // Injeta metadados temporários comparativos
+                u._progressoAnterior = lastProg;
+                u._statusAnterior = lastStatus;
+                
+                // Atualiza acumuladores para a próxima iteração cronológica
+                if (u.progress_percent_snapshot !== null && !isNaN(u.progress_percent_snapshot)) {
+                    lastProg = u.progress_percent_snapshot;
+                }
+                if (u.status_snapshot && u.status_snapshot !== '') {
+                    lastStatus = u.status_snapshot;
+                }
+            });
+        });
+
         const derivarTipo = (u) => {
-            if (u.status_snapshot) return 'Mudança de Status';
-            if (u.progress_percent_snapshot !== null && u.progress_percent_snapshot > 0) return 'Avanço de Progresso';
+            // Prioridade 1: Mudança de Status efetiva em relação ao ponto anterior do histórico
+            if (u.status_snapshot && u.status_snapshot !== u._statusAnterior) {
+                return 'Mudança de Status';
+            }
+            // Prioridade 2: Avanço de Progresso efetivo em relação ao ponto anterior do histórico
+            if (u.progress_percent_snapshot !== null && u.progress_percent_snapshot !== u._progressoAnterior) {
+                return 'Avanço de Progresso';
+            }
+            // Fallback: Geral
             return 'Geral';
         };
 
@@ -502,9 +562,9 @@ export const fetchAtualizacoes = async (tenantId) => {
                 details: u.details || '',
                 next_steps: u.next_steps || '',
                 reference_week: u.reference_week || '',
-                progressoAnterior: null,
+                progressoAnterior: u._progressoAnterior !== undefined ? u._progressoAnterior : null,
                 progressoNovo: u.progress_percent_snapshot ?? null,
-                statusAnterior: null,
+                statusAnterior: u._statusAnterior !== undefined ? u._statusAnterior : null,
                 statusNovo: u.status_snapshot || null,
                 critica: u.is_critical || false,
             };
@@ -544,8 +604,6 @@ export const createAtualizacao = async (tenantId, formData) => {
         updated_by: user.id,
     };
 
-    if (formData.tipo) payload.update_type = formData.tipo;
-    if (formData.critica !== undefined) payload.is_critical = formData.critica;
     if (formData.next_steps) payload.next_steps = formData.next_steps;
     if (formData.reference_week) payload.reference_week = formData.reference_week;
 
@@ -555,7 +613,7 @@ export const createAtualizacao = async (tenantId, formData) => {
     }
 
     // Só enviar progress_percent_snapshot se foi preenchido
-    const progresso = (formData.novoProgresso !== '' && formData.novoProgresso !== null)
+    const progresso = (formData.novoProgresso !== '' && formData.novoProgresso !== null && formData.novoProgresso !== undefined)
         ? parseInt(formData.novoProgresso, 10) : null;
     if (progresso !== null && !isNaN(progresso)) {
         payload.progress_percent_snapshot = progresso;
@@ -595,7 +653,7 @@ export const updateAtualizacao = async (tenantId, id, formData) => {
     if (formData.novoProgresso !== undefined) {
         const progresso = (formData.novoProgresso !== '' && formData.novoProgresso !== null)
             ? parseInt(formData.novoProgresso, 10) : null;
-        payload.progress_percent_snapshot = !isNaN(progresso) ? progresso : null;
+        payload.progress_percent_snapshot = (progresso !== null && !isNaN(progresso)) ? progresso : null;
     }
 
     if (formData.details !== undefined) payload.details = formData.details || null;
@@ -636,5 +694,128 @@ export const deleteAtualizacao = async (tenantId, id) => {
         console.error('[planejamentoAcoes] Erro ao excluir registro de atualização:', error);
         throw new Error(error.message || 'Erro ao excluir atualização no banco.');
     }
+    return true;
+};
+
+// ── Histórico de Alterações (planning_action_history) ─────────────────────────
+// Fire-and-forget: erros são logados mas nunca bloqueiam o save da ação.
+export const recordActionHistory = async (tenantId, actionId, events) => {
+    if (!tenantId || !actionId || !Array.isArray(events) || events.length === 0) return;
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id || null;
+
+        const rows = events.map(ev => ({
+            tenant_id:       tenantId,
+            action_id:       actionId,
+            user_id:         userId,
+            event_type:      ev.event_type,
+            field_changed:   ev.field_changed,
+            old_value:       ev.old_value       ?? null,
+            new_value:       ev.new_value       ?? null,
+            old_stage_index: ev.old_stage_index ?? null,
+            new_stage_index: ev.new_stage_index ?? null,
+            description:     ev.description     || null,
+            observations:    ev.observations    || null,
+        }));
+
+        const { error } = await supabase
+            .from('planning_action_history')
+            .insert(rows);
+
+        if (error) {
+            console.warn('[planejamentoAcoes] Falha ao registrar histórico (não bloqueia save):', error);
+        }
+    } catch (err) {
+        console.warn('[planejamentoAcoes] Falha ao registrar histórico:', err);
+    }
+};
+
+// ── Excluir Ação Estratégica (cascata manual para proteger integridade) ───────
+export const deleteAcao = async (tenantId, id) => {
+    console.log('[SERVICE_DELETE_ACAO] Início do fluxo. Tenant:', tenantId, 'ID:', id);
+    if (!tenantId || !id) {
+        console.error('[SERVICE_DELETE_ACAO] Parâmetros inválidos fornecidos.');
+        throw new Error('Parâmetros inválidos para exclusão no service.');
+    }
+
+    // 1. Limpar vínculos de secretarias participantes
+    console.log('[SERVICE_DELETE_ACAO] Etapa 1/5: Removendo vínculos de secretarias participantes (planning_action_secretariats)...');
+    const { error: errSecs } = await supabase
+        .from('planning_action_secretariats')
+        .delete()
+        .eq('action_id', id)
+        .eq('tenant_id', tenantId);
+
+    if (errSecs) {
+        console.error('[SERVICE_DELETE_ACAO] FALHA na Etapa 1:', errSecs);
+        throw new Error(`Falha ao limpar secretarias participantes: ${errSecs.message}`);
+    }
+    console.log('[SERVICE_DELETE_ACAO] Etapa 1 OK.');
+
+    // 2. Limpar histórico de alterações
+    console.log('[SERVICE_DELETE_ACAO] Etapa 2/5: Removendo histórico de alterações (planning_action_history)...');
+    const { error: errHist } = await supabase
+        .from('planning_action_history')
+        .delete()
+        .eq('action_id', id)
+        .eq('tenant_id', tenantId);
+
+    if (errHist) {
+        console.error('[SERVICE_DELETE_ACAO] FALHA na Etapa 2:', errHist);
+        throw new Error(`Falha ao limpar histórico de alterações: ${errHist.message}`);
+    }
+    console.log('[SERVICE_DELETE_ACAO] Etapa 2 OK.');
+
+    // 3. Limpar atualizações da ação
+    console.log('[SERVICE_DELETE_ACAO] Etapa 3/5: Removendo atualizações da ação (planning_action_updates)...');
+    const { error: errUpdates } = await supabase
+        .from('planning_action_updates')
+        .delete()
+        .eq('action_id', id)
+        .eq('tenant_id', tenantId);
+
+    if (errUpdates) {
+        console.error('[SERVICE_DELETE_ACAO] FALHA na Etapa 3:', errUpdates);
+        throw new Error(`Falha ao limpar atualizações da ação: ${errUpdates.message}`);
+    }
+    console.log('[SERVICE_DELETE_ACAO] Etapa 3 OK.');
+
+    // 4. Limpar entraves vinculados
+    console.log('[SERVICE_DELETE_ACAO] Etapa 4/5: Removendo entraves vinculados (planning_action_issues)...');
+    const { error: errIssues } = await supabase
+        .from('planning_action_issues')
+        .delete()
+        .eq('action_id', id)
+        .eq('tenant_id', tenantId);
+
+    if (errIssues) {
+        console.error('[SERVICE_DELETE_ACAO] FALHA na Etapa 4:', errIssues);
+        throw new Error(`Falha ao limpar entraves vinculados: ${errIssues.message}`);
+    }
+    console.log('[SERVICE_DELETE_ACAO] Etapa 4 OK.');
+
+    // 5. Excluir a ação principal
+    console.log('[SERVICE_DELETE_ACAO] Etapa 5/5: Excluindo a ação estratégica principal (planning_actions)...');
+    const { data: delData, error } = await supabase
+        .from('planning_actions')
+        .delete()
+        .eq('id', id)
+        .eq('tenant_id', tenantId)
+        .select();
+
+    if (error) {
+        console.error('[SERVICE_DELETE_ACAO] FALHA na Etapa 5 (Ação Principal):', error);
+        if (error.code === '42501' || error.message?.includes('row-level security')) {
+            throw new Error('Permissão negada no banco de dados (RLS). Você não tem autorização para excluir esta ação.');
+        }
+        throw new Error(`Erro ao excluir ação principal: ${error.message}`);
+    }
+    
+    if (!delData || delData.length === 0) {
+        console.warn('[SERVICE_DELETE_ACAO] AVISO CRÍTICO: A query de delete finalizou com sucesso técnico, porém NENHUMA linha foi afetada na tabela planning_actions. Isso indica quase sempre um bloqueio na política de RLS (Row Level Security) no Supabase que ignorou a exclusão silenciosamente.');
+    }
+
+    console.log('[SERVICE_DELETE_ACAO] Fluxo finalizado com sucesso total para o ID:', id);
     return true;
 };

@@ -89,7 +89,7 @@ const PlanejamentoUsuarios = () => {
 
     const secretariasUnicas = useMemo(() => {
         const secs = new Set(usuarios.map(u => u.secretariat_name).filter(Boolean));
-        return Array.from(secs).sort();
+        return Array.from(secs).sort((a, b) => (a || '').localeCompare((b || ''), 'pt-BR', { sensitivity: 'base' }));
     }, [usuarios]);
 
     const usuariosFiltrados = useMemo(() => {

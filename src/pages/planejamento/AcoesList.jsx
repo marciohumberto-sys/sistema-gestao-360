@@ -21,44 +21,22 @@ import {
     Loader,
     X,
     Info,
-    CheckCircle
+    CheckCircle, Trash2
 } from 'lucide-react';
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, fetchObjectivesByAxis, createAtualizacao, fetchActionSecretariats } from '../../services/api/planejamentoAcoes.service';
 
-const actionTypesConfig = {
-    'PROJETO': { label: 'Projeto', bg: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', border: 'rgba(59, 130, 246, 0.2)' },
-    'OBRA': { label: 'Obra', bg: 'rgba(245, 158, 11, 0.1)', color: '#d97706', border: 'rgba(245, 158, 11, 0.2)' },
-    'SERVICO': { label: 'Serviço', bg: 'rgba(16, 185, 129, 0.1)', color: '#059669', border: 'rgba(16, 185, 129, 0.2)' },
-    'PROGRAMA': { label: 'Programa', bg: 'rgba(139, 92, 246, 0.1)', color: '#7c3aed', border: 'rgba(139, 92, 246, 0.2)' },
-    'ACAO_PONTUAL': { label: 'Ação Pontual', bg: 'rgba(236, 72, 153, 0.1)', color: '#db2777', border: 'rgba(236, 72, 153, 0.2)' },
-    'ACAO': { label: 'Ação Pontual', bg: 'rgba(236, 72, 153, 0.1)', color: '#db2777', border: 'rgba(236, 72, 153, 0.2)' }, // Compatibilidade legado
-    'AQUISICAO': { label: 'Aquisição', bg: 'rgba(20, 184, 166, 0.1)', color: '#0d9488', border: 'rgba(20, 184, 166, 0.2)' }
-};
+import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, deleteAcao, fetchObjectivesByAxis, createAtualizacao, fetchActionSecretariats, recordActionHistory } from '../../services/api/planejamentoAcoes.service';
 
-const PROJECT_STEPS = [
-    { label: 'Planejamento inicial', progress: 10 },
-    { label: 'Parte introdutória', progress: 20 },
-    { label: 'Desenvolvimento', progress: 40 },
-    { label: 'Execução', progress: 60 },
-    { label: 'Ajustes finais', progress: 80 },
-    { label: 'Finalização', progress: 100 }
-];
+import { PLANNING_ACTION_TYPES_ARRAY, getActionTypeConfig, getActionTypeStages } from '../../modules/planejamento/constants/planningActionTypes';
 
-const WORK_STEPS = [
-    { label: 'Planejamento técnico', progress: 10 },
-    { label: 'Licitação', progress: 20 },
-    { label: 'Início da obra', progress: 35 },
-    { label: 'Execução estrutural', progress: 55 },
-    { label: 'Acabamento', progress: 80 },
-    { label: 'Entrega final', progress: 100 }
-];
+// Removidos passos hardcoded, usando planejamentoActionTypes centralizado
 
 const getClosestStep = (progress, steps) => {
+    if (!steps || steps.length === 0) return '';
     if (progress === undefined || progress === null || progress === 0) return '';
     let closest = steps[0];
     let minDiff = Math.abs(progress - closest.progress);
@@ -72,10 +50,49 @@ const getClosestStep = (progress, steps) => {
     return closest.label;
 };
 
+const getDisplayProgress = (acao) => {
+    if (!acao) return 0;
+    const type = acao.action_type || 'PROJETO';
+    const rawProgress = acao.progresso ?? 0;
+
+    // 1. Se tipo for Aquisição: manter comportamento de retornar o progresso salvo puro
+    if (type === 'AQUISICAO') {
+        return rawProgress;
+    }
+
+    // 2. Para Ação Pontual, usar custom_stages e current_stage_index para derivar o progresso
+    if (type === 'ACAO_PONTUAL') {
+        let stages = [];
+        if (typeof acao.custom_stages === 'string') {
+            try { stages = JSON.parse(acao.custom_stages); } catch(e) {}
+        } else if (Array.isArray(acao.custom_stages)) {
+            stages = acao.custom_stages;
+        }
+        
+        if (stages && stages.length > 0 && typeof acao.current_stage_index === 'number') {
+            const idx = acao.current_stage_index;
+            if (stages[idx]) {
+                return stages[idx].progress !== undefined ? stages[idx].progress : rawProgress;
+            }
+        }
+        return rawProgress;
+    }
+
+    // 3. Para Projeto/Obra/Programa/Serviço, obter etapas fixas e derivar pelo percentual mais próximo
+    const steps = getActionTypeStages(type);
+    if (steps && steps.length > 0 && rawProgress > 0) {
+        const closestLabel = getClosestStep(rawProgress, steps);
+        const closestStep = steps.find(s => s.label === closestLabel);
+        return closestStep ? closestStep.progress : rawProgress;
+    }
+
+    return rawProgress;
+};
+
 const getUpdateDelayStatus = (acao) => {
     const lastDateStr = acao.updated_at || acao.created_at;
     if (!lastDateStr) {
-        console.log(`[DEBUG_VISUAL] Ação ID: ${acao.id} - Nenhuma data de atualização/criação encontrada.`);
+
         return { status: 'normal', days: 0 };
     }
     
@@ -90,22 +107,23 @@ const getUpdateDelayStatus = (acao) => {
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     
     let status = 'normal';
-    // LIMITES ORIGINAIS COMENTADOS:
-    // if (diffDays >= 30) { status = 'critical'; } else if (diffDays >= 15) { status = 'pending'; }
-    // LIMITES TEMPORÁRIOS PARA TESTE VISUAL:
-    if (diffDays >= 2) {
+    // REGRA OFICIAL:
+    // 0 a 5 dias -> normal
+    // 6 a 7 dias -> 'Atualização pendente'
+    // 8+ dias -> 'Atualização em atraso'
+    if (diffDays >= 8) {
         status = 'critical';
-    } else if (diffDays === 1) {
+    } else if (diffDays >= 6) {
         status = 'pending';
     }
     
-    console.log(`[DEBUG_VISUAL] Ação ID: ${acao.id} | Título: ${acao.nome} | Última Data: ${lastDateStr} | Dias calculados: ${diffDays} | Badge: ${status}`);
+
     
     return { status, days: diffDays };
 };
 
 const getActionTypeBadge = (type) => {
-    const config = actionTypesConfig[type] || actionTypesConfig['ACAO_PONTUAL'];
+    const config = getActionTypeConfig(type);
     return (
         <span className="farmacia-badge" style={{ 
             backgroundColor: config.bg, 
@@ -162,8 +180,25 @@ const getDeadlineStatus = (start, end, status) => {
     return { text: `No prazo (${diffDays} dias)`, color: '#0284c7', bg: '#e0f2fe' };
 };
 
+const formatUserDisplayName = (rawString) => {
+    if (!rawString) return '';
+    
+    // Remove domínios de email se existirem
+    let str = String(rawString).split('@')[0];
+    
+    // Substituir pontos, traços e underlines por espaços
+    str = str.replace(/[._-]/g, ' ');
+    
+    // Capitalizar cada palavra e remover espaços extras
+    return str
+        .split(' ')
+        .filter(word => word.length > 0)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+};
+
 const AcoesList = () => {
-    const { tenantLink, scopes, isSuperAdmin } = useAuth();
+    const { authUser, tenantLink, scopes, isSuperAdmin } = useAuth();
     const tenantId = tenantLink?.tenant_id;
     const location = useLocation();
     const navigate = useNavigate();
@@ -181,9 +216,23 @@ const AcoesList = () => {
     const [saveLoading, setSaveLoading] = useState(false);
     const [saveError, setSaveError] = useState(null);
 
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+    const [deleteLoading, setDeleteLoading] = useState(false);
+    const [deleteError, setDeleteError] = useState(null);
+
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [viewingAcao, setViewingAcao] = useState(null);
     const [viewingParticipantes, setViewingParticipantes] = useState([]);
+    const [initialParticipants, setInitialParticipants] = useState([]);
+    const [actionHistory, setActionHistory] = useState([]);
+    const [historyExpanded, setHistoryExpanded] = useState(false);
+    const [usersMap, setUsersMap] = useState({});
+    const [historyLimit, setHistoryLimit] = useState(3);
+
+    const sortedHistory = useMemo(() => {
+        if (!actionHistory || actionHistory.length === 0) return [];
+        return [...actionHistory].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }, [actionHistory]);
 
     const [toast, setToast] = useState(null);
     const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
@@ -227,12 +276,30 @@ const AcoesList = () => {
         return () => { isMounted = false; };
     }, [isViewModalOpen, viewingAcao]);
 
+    // Buscar histórico de alterações ao abrir modal de detalhes
+    useEffect(() => {
+        if (!isViewModalOpen || !viewingAcao?.id) { setActionHistory([]); return; }
+        
+        setHistoryExpanded(false);
+        setHistoryLimit(3);
+        
+        supabase
+            .from('planning_action_history')
+            .select('*')
+            .eq('action_id', viewingAcao.id)
+            .order('created_at', { ascending: false })
+            .limit(30)
+            .then(({ data }) => setActionHistory(data || []))
+            .catch(() => setActionHistory([]));
+    }, [isViewModalOpen, viewingAcao]);
+
     // Carregar dados do banco
     const loadAcoes = useCallback(async () => {
         if (!tenantId) return;
         setLoading(true);
         try {
             const data = await fetchAcoes(tenantId);
+            console.log('[ACOES_FETCH] IDs retornados:', data?.map(a => a.id));
             setAcoes(data);
         } catch (err) {
             console.error('[AcoesList] Erro ao carregar ações:', err);
@@ -245,7 +312,26 @@ const AcoesList = () => {
         if (tenantId) {
             loadAcoes();
             fetchAxes(tenantId).then(setAxes);
-            fetchSecretariats(tenantId).then(setSecretariats);
+            fetchSecretariats(tenantId).then(data => {
+                const sorted = [...data].sort((a, b) => (a.name || '').localeCompare((b.name || ''), 'pt-BR', { sensitivity: 'base' }));
+                setSecretariats(sorted);
+            });
+            
+            // Carregar mapa de usuários do sistema para exibir nomes ao invés de UUID
+            supabase.rpc('get_farmacia_users_with_auth', { p_tenant_id: tenantId })
+                .then(({ data }) => {
+                    if (data) {
+                        const uMap = {};
+                        data.forEach(r => {
+                            const uid = r.user_id || r.id;
+                            if (uid) {
+                                const rawName = r.full_name || r.name || (r.email ? r.email.split('@')[0] : '');
+                                uMap[uid] = rawName ? formatUserDisplayName(rawName) : 'Usuário Sem Nome';
+                            }
+                        });
+                        setUsersMap(uMap);
+                    }
+                }).catch(err => console.warn('[AcoesList] Erro ao carregar nomes de usuários:', err));
         }
     }, [tenantId, loadAcoes]);
 
@@ -299,7 +385,9 @@ const AcoesList = () => {
         address_state: 'PE',
         address_zipcode: '',
         address_reference: '',
-        participantes: []
+        participantes: [],
+        custom_stages: null,
+        current_stage_index: null
     };
     const [formData, setFormData] = useState(emptyForm);
     const [objectives, setObjectives] = useState([]);
@@ -314,11 +402,11 @@ const AcoesList = () => {
                     const objs = await fetchObjectivesByAxis(tenantId, formData.axisId);
                     setObjectives(objs);
                     
-                    const objetivoAtivo = objs.find(o => o.is_active);
+
                     
-                    console.log("[Planejamento][Nova Ação] eixo selecionado:", formData.axisId);
-                    console.log("[Planejamento][Nova Ação] objetivos carregados:", objs);
-                    console.log("[Planejamento][Nova Ação] objetivo ativo encontrado:", objetivoAtivo);
+
+
+
                 } catch (err) {
                     console.error('[Planejamento] Erro ao validar objetivos:', err);
                     setObjectives([]);
@@ -338,16 +426,12 @@ const AcoesList = () => {
         setSaveError(null);
         if (acao) {
             setEditingAcao(acao);
+            setInitialParticipants([]); // Resetar histórico de origem
             const actionType = acao.action_type || 'PROJETO';
             let initialProgress = acao.progresso ?? 0;
             if (initialProgress > 0) {
-                if (actionType === 'PROJETO') {
-                    const steps = PROJECT_STEPS;
-                    const closestLabel = getClosestStep(initialProgress, steps);
-                    const closestStep = steps.find(s => s.label === closestLabel);
-                    initialProgress = closestStep ? closestStep.progress : 0;
-                } else if (actionType === 'OBRA') {
-                    const steps = WORK_STEPS;
+                const steps = getActionTypeStages(actionType);
+                if (steps && steps.length > 0) {
                     const closestLabel = getClosestStep(initialProgress, steps);
                     const closestStep = steps.find(s => s.label === closestLabel);
                     initialProgress = closestStep ? closestStep.progress : 0;
@@ -377,13 +461,16 @@ const AcoesList = () => {
                 address_state: acao.address_state || 'PE',
                 address_zipcode: acao.address_zipcode || '',
                 address_reference: acao.address_reference || '',
-                participantes: []
+                participantes: [],
+                custom_stages: acao.custom_stages || null,
+                current_stage_index: acao.current_stage_index ?? null
             });
 
-            // Carregar secretarias participantes de forma assíncrona
+            // Carregar secretarias participantes de forma assíncrona e travar estado original
             fetchActionSecretariats(acao.id).then(links => {
-                if (links && links.length > 0) {
-                    const participants = links.filter(l => !l.is_primary).map(l => l.secretariat_id);
+                const participants = (links || []).filter(l => !l.is_primary).map(l => l.secretariat_id);
+                setInitialParticipants(participants); // Travar captura de IDs para comparação no save
+                if (participants.length > 0) {
                     setFormData(prev => ({ ...prev, participantes: participants }));
                 }
             }).catch(console.warn);
@@ -406,6 +493,9 @@ const AcoesList = () => {
     const closeModal = () => {
         setIsModalOpen(false);
         setSaveError(null);
+        setConfirmDeleteOpen(false);
+        setDeleteError(null);
+        setEditingAcao(null);
     };
 
     const openViewModal = (acao) => {
@@ -429,18 +519,282 @@ const AcoesList = () => {
         return <ArrowUpDown size={12} style={{ color: 'var(--text-muted)', opacity: 0.4, transition: 'all 0.2s' }} />;
     };
 
+    // ─── Compara acao original (editingAcao) com formData após save ───────────
+    // Mapeamento real dos campos: editingAcao.X → formData.X
+    // nome, progresso, status, prazo, responsible_name (responsavel→responsible_name),
+    // descricao, observacoes, current_stage_index, custom_stages
+    const buildHistoryEvents = (original, novo) => {
+        const events = [];
+        const obs = novo.observacoes || null;
+
+        // Helper: compara dois valores, retorna true se forem equivalentes (sem história)
+        const eq = (a, b) => {
+            const norm = v => (v === undefined || v === null || v === '') ? null : String(v).trim();
+            return norm(a) === norm(b);
+        };
+        const eqJSON = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+        // Status
+        if (!eq(original.status, novo.status)) {
+            const labels = { NAO_INICIADA:'Não Iniciada', EM_ANDAMENTO:'Em Andamento',
+                CONCLUIDA:'Concluída', EM_RISCO:'Em Risco', PARALISADA:'Paralisada', CANCELADA:'Cancelada' };
+            events.push({ event_type:'STATUS_CHANGED', field_changed:'status',
+                old_value: { value: original.status, label: labels[original.status] || original.status },
+                new_value: { value: novo.status,     label: labels[novo.status]     || novo.status },
+                description: `Status alterado de "${labels[original.status]||original.status}" para "${labels[novo.status]||novo.status}"`,
+                observations: obs });
+        }
+
+        // Progresso (editingAcao.progresso → formData.progresso)
+        const oldProg = Number(original.progresso ?? 0);
+        const newProg = Number(novo.progresso ?? 0);
+        if (oldProg !== newProg) {
+            events.push({ event_type:'PROGRESS_CHANGED', field_changed:'progresso',
+                old_value: { value: oldProg, label: `${oldProg}%` },
+                new_value: { value: newProg, label: `${newProg}%` },
+                description: `Progresso alterado de ${oldProg}% para ${newProg}%`,
+                observations: obs });
+        }
+
+        // Prazo (editingAcao.prazo → formData.prazo)
+        if (!eq(original.prazo, novo.prazo)) {
+            events.push({ event_type:'DEADLINE_CHANGED', field_changed:'prazo',
+                old_value: { value: original.prazo || null, label: original.prazo || 'Sem prazo' },
+                new_value: { value: novo.prazo     || null, label: novo.prazo     || 'Sem prazo' },
+                description: `Prazo alterado de "${original.prazo||'(vazio)'}" para "${novo.prazo||'(vazio)'}"`,
+                observations: obs });
+        }
+
+        // Responsável (editingAcao.responsavel → formData.responsible_name)
+        if (!eq(original.responsavel, novo.responsible_name)) {
+            events.push({ event_type:'RESPONSIBLE_CHANGED', field_changed:'responsible_name',
+                old_value: { value: original.responsavel     || null, label: original.responsavel     || '(vazio)' },
+                new_value: { value: novo.responsible_name    || null, label: novo.responsible_name    || '(vazio)' },
+                description: `Responsável alterado de "${original.responsavel||'(vazio)'}" para "${novo.responsible_name||'(vazio)'}"`,
+                observations: obs });
+        }
+
+        // Etapa atual — Ação Pontual (current_stage_index + custom_stages para labels)
+        const oldIdx = original.current_stage_index;
+        const newIdx = novo.current_stage_index;
+        if (!eq(oldIdx, newIdx)) {
+            let stages = [];
+            try { stages = typeof novo.custom_stages === 'string' ? JSON.parse(novo.custom_stages) : (novo.custom_stages || []); } catch(e) {}
+            const total = stages.length;
+            const stageName = (idx) => stages[idx]?.name || `Etapa ${idx+1}`;
+            const stagePct  = (idx) => idx === null || idx === undefined ? 0 : (idx === total-1 ? 100 : Math.round((idx+1)*(100/total)));
+            const oldLabel  = oldIdx !== null && oldIdx !== undefined ? `${stageName(oldIdx)} (${stagePct(oldIdx)}%)` : 'Não iniciada';
+            const newLabel  = newIdx !== null && newIdx !== undefined ? `${stageName(newIdx)} (${stagePct(newIdx)}%)` : 'Não iniciada';
+            events.push({ event_type:'STAGE_CHANGED', field_changed:'current_stage_index',
+                old_value: { value: oldIdx ?? null, label: oldLabel },
+                new_value: { value: newIdx ?? null, label: newLabel },
+                old_stage_index: oldIdx ?? null,
+                new_stage_index: newIdx ?? null,
+                description: `Etapa alterada de "${oldLabel}" para "${newLabel}"`,
+                observations: obs });
+        }
+
+        // Nome (editingAcao.nome → formData.nome)
+        if (!eq(original.nome, novo.nome)) {
+            events.push({ event_type:'ACTION_UPDATED', field_changed:'nome',
+                old_value: { value: original.nome || null, label: original.nome || '(vazio)' },
+                new_value: { value: novo.nome     || null, label: novo.nome     || '(vazio)' },
+                description: `Nome alterado de "${original.nome||'(vazio)'}" para "${novo.nome||'(vazio)'}"`,
+                observations: obs });
+        }
+
+        // Descrição (editingAcao.descricao → formData.descricao)
+        if (!eq(original.descricao, novo.descricao)) {
+            events.push({ event_type:'ACTION_UPDATED', field_changed:'descricao',
+                old_value: { value: original.descricao || null, label: original.descricao ? 'Texto anterior' : '(vazio)' },
+                new_value: { value: novo.descricao     || null, label: novo.descricao     ? 'Texto atualizado' : '(vazio)' },
+                description: 'Descrição da ação atualizada',
+                observations: obs });
+        }
+
+        // Observações (editingAcao.observacoes → formData.observacoes)
+        if (!eq(original.observacoes, novo.observacoes)) {
+            events.push({ event_type:'ACTION_UPDATED', field_changed:'observacoes',
+                old_value: { value: original.observacoes || null, label: original.observacoes ? 'Texto anterior' : '(vazio)' },
+                new_value: { value: novo.observacoes     || null, label: novo.observacoes     ? 'Texto atualizado' : '(vazio)' },
+                description: 'Observações da ação atualizadas',
+                observations: novo.observacoes || null });
+        }
+
+        // Participantes (Comparação de IDs Segura via State Capturado em openModal)
+        const oldIds = [...(initialParticipants || [])].sort();
+        const newIds = [...(novo.participantes || [])].sort();
+        
+        const addedIds = newIds.filter(id => !oldIds.includes(id));
+        const removedIds = oldIds.filter(id => !newIds.includes(id));
+        
+        if (addedIds.length > 0 || removedIds.length > 0) {
+            // Mapear os IDs modificados para Nomes usando o array fixo secretariats
+            const addedNames = addedIds
+                .map(pid => secretariats.find(s => s.id === pid)?.name)
+                .filter(Boolean)
+                .sort();
+            
+            const removedNames = removedIds
+                .map(pid => secretariats.find(s => s.id === pid)?.name)
+                .filter(Boolean)
+                .sort();
+
+            const totalChanges = addedNames.length + removedNames.length;
+            
+            if (totalChanges > 0) {
+                const originalPartNames = oldIds
+                    .map(pid => secretariats.find(s => s.id === pid)?.name)
+                    .filter(Boolean)
+                    .sort();
+                
+                const novoPartNames = newIds
+                    .map(pid => secretariats.find(s => s.id === pid)?.name)
+                    .filter(Boolean)
+                    .sort();
+
+                console.log('[DEBUG_HISTORICO_PARTICIPANTES]', {
+                    participantesAnteriores: originalPartNames,
+                    participantesNovos: novoPartNames,
+                    adicionados: addedNames,
+                    removidos: removedNames,
+                    totalAlteracoes: totalChanges
+                });
+
+                const oldString = originalPartNames.join(', ') || null;
+                const newString = novoPartNames.join(', ') || null;
+
+                // Se existirem MUITAS alterações (> 3), usar resumo elegante de uma linha
+                if (totalChanges > 3) {
+                    events.push({
+                        event_type: 'ACTION_UPDATED', // Mapear para tipo existente para evitar 400 (Constraint/Enum)
+                        field_changed: 'participantes',
+                        old_value: { value: oldString, label: oldString || '(nenhum)' },
+                        new_value: { value: newString, label: newString || '(nenhum)' },
+                        description: 'Secretarias participantes atualizadas',
+                        observations: null
+                    });
+                } else {
+                    const summaryList = [];
+                    if (addedNames.length > 0) summaryList.push(...addedNames.map(n => `+ ${n}`));
+                    if (removedNames.length > 0) summaryList.push(...removedNames.map(n => `- ${n}`));
+                    
+                    events.push({
+                        event_type: 'ACTION_UPDATED', // Mapear para tipo existente para evitar 400 (Constraint/Enum)
+                        field_changed: 'participantes',
+                        old_value: { value: oldString, label: oldString || '(nenhum)' },
+                        new_value: { value: newString, label: newString || '(nenhum)' },
+                        description: 'Participantes atualizados',
+                        observations: summaryList.join(' | ')
+                    });
+                }
+            }
+        }
+        
+        return events;
+    };
+
+    const handleDeleteAcao = async () => {
+        console.log('[DELETE] handleDeleteAcao EXECUTOU');
+        console.log('[DELETE_ACAO] Botão Confirmar Exclusão clicado.');
+        console.log('[DELETE_ACAO] Status das variáveis:', { tenantId, editingAcaoId: editingAcao?.id });
+
+        if (!tenantId) {
+            const errMsg = 'Não foi possível excluir: Tenant ID ausente.';
+            console.error('[DELETE_ACAO] Erro:', errMsg);
+            setDeleteError(errMsg);
+            return;
+        }
+
+        if (!editingAcao?.id) {
+            const errMsg = 'Não foi possível excluir: ID da ação ausente.';
+            console.error('[DELETE_ACAO] Erro:', errMsg);
+            setDeleteError(errMsg);
+            return;
+        }
+
+        setDeleteLoading(true);
+        setDeleteError(null);
+        try {
+            console.log('[DELETE_ACAO] Disparando service deleteAcao para ID:', editingAcao.id);
+            const success = await deleteAcao(tenantId, editingAcao.id);
+            console.log('[DELETE_ACAO] Resultado da exclusão no service:', success);
+            const deletedId = editingAcao.id;
+            setAcoes(prev => {
+                const filtered = prev.filter(a => a.id !== deletedId);
+                console.log('[DELETE_ACAO] Estado local atualizado. Removido ID:', deletedId);
+                return filtered;
+            });
+            
+            setToast('Ação estratégica excluída com sucesso.');
+            
+            // Fechar modals, limpar estados e recarregar dados
+            setConfirmDeleteOpen(false);
+            closeModal(); // Fecha o modal de edição
+            
+            console.log('[DELETE_ACAO] Atualizando listagem de ações...');
+            await loadAcoes();
+        } catch (err) {
+            console.error('[DELETE_ACAO] Captura de Erro:', err);
+            setDeleteError(err.message || 'Erro desconhecido ao excluir ação estratégica.');
+        } finally {
+            setDeleteLoading(false);
+        }
+    };
+
     const handleSave = async (e) => {
         e.preventDefault();
         if (!tenantId) return;
+        
+        let finalData = { ...formData };
+        if (finalData.action_type === 'ACAO_PONTUAL') {
+            if (!finalData.custom_stages || finalData.custom_stages.length < 2) {
+                setSaveError('Selecione a quantidade de etapas e configure-as.');
+                return;
+            }
+            if (finalData.custom_stages.some(s => !s.name || s.name.trim() === '')) {
+                setSaveError('Todas as etapas devem ter um nome preenchido.');
+                return;
+            }
+            if (finalData.current_stage_index === null || finalData.current_stage_index === undefined || finalData.current_stage_index === '') {
+                finalData.status = 'NAO_INICIADA';
+                finalData.progresso = 0;
+            } else {
+                if (parseInt(finalData.current_stage_index) === finalData.custom_stages.length - 1) {
+                    finalData.status = 'CONCLUIDA';
+                } else {
+                    finalData.status = 'EM_ANDAMENTO';
+                }
+            }
+        } else if (finalData.action_type !== 'AQUISICAO') {
+            if (!finalData.progresso || finalData.progresso === 0) {
+                finalData.status = 'NAO_INICIADA';
+            } else if (finalData.progresso >= 100) {
+                finalData.status = 'CONCLUIDA';
+            } else {
+                finalData.status = 'EM_ANDAMENTO';
+            }
+        }
+
         setSaveLoading(true);
         setSaveError(null);
         try {
-            console.log("[Planejamento][Nova Ação] payload antes de salvar:", { tenantId, formData });
+
             if (editingAcao) {
-                await updateAcao(tenantId, editingAcao.id, formData);
+                // Snapshot ANTES do save (editingAcao contém os valores originais)
+                const originalSnapshot = editingAcao;
+                await updateAcao(tenantId, editingAcao.id, finalData);
                 setToast('Ação atualizada com sucesso.');
+
+                // Registrar histórico de alterações (fire-and-forget, não bloqueia)
+                const histEvents = buildHistoryEvents(originalSnapshot, finalData);
+                if (histEvents.length > 0) {
+                    console.log('[DEBUG_SUPABASE_SAVE] Payload final enviado ao recordActionHistory:', JSON.stringify(histEvents, null, 2));
+                    recordActionHistory(tenantId, editingAcao.id, histEvents)
+                        .catch(err => console.warn('[AcoesList] Histórico não registrado:', err));
+                }
             } else {
-                await createAcao(tenantId, formData, axes);
+                await createAcao(tenantId, finalData, axes);
                 setToast('Ação criada com sucesso.');
             }
             closeModal();
@@ -484,6 +838,9 @@ const AcoesList = () => {
                 if (sortConfig.key === 'secretaria') {
                     valA = a.secretaria_nome || a.secretaria;
                     valB = b.secretaria_nome || b.secretaria;
+                } else if (sortConfig.key === 'progresso') {
+                    valA = getDisplayProgress(a);
+                    valB = getDisplayProgress(b);
                 }
 
                 if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -541,7 +898,9 @@ const AcoesList = () => {
             'EM_RISCO': { label: 'Em Risco', bg: 'rgba(239, 68, 68, 0.18)', color: '#b91c1c', border: 'rgba(239, 68, 68, 0.4)' },
             'PARALISADA': { label: 'Paralisada', bg: 'rgba(245, 158, 11, 0.18)', color: '#b45309', border: 'rgba(245, 158, 11, 0.4)' },
             'NAO_INICIADA': { label: 'Não Iniciada', bg: 'rgba(148, 163, 184, 0.18)', color: '#334155', border: 'rgba(148, 163, 184, 0.4)' },
-            'CANCELADA': { label: 'Cancelada', bg: 'rgba(71, 85, 105, 0.18)', color: '#1e293b', border: 'rgba(71, 85, 105, 0.4)' }
+            'CANCELADA': { label: 'Cancelada', bg: 'rgba(71, 85, 105, 0.18)', color: '#1e293b', border: 'rgba(71, 85, 105, 0.4)' },
+            'EM_PLANEJAMENTO': { label: 'Em planejamento', bg: 'rgba(148, 163, 184, 0.18)', color: '#334155', border: 'rgba(148, 163, 184, 0.4)' },
+            'PENDENTE': { label: 'Pendente', bg: 'rgba(245, 158, 11, 0.18)', color: '#b45309', border: 'rgba(245, 158, 11, 0.4)' }
         };
         const s = styles[status] || styles['NAO_INICIADA'];
         return (
@@ -698,12 +1057,9 @@ const AcoesList = () => {
                                 onChange={(e) => setTipoFiltro(e.target.value)}
                             >
                                 <option value="Todos">Tipo: Todos</option>
-                                <option value="PROJETO">Projeto</option>
-                                <option value="OBRA">Obra</option>
-                                <option value="SERVICO">Serviço</option>
-                                <option value="PROGRAMA">Programa</option>
-                                <option value="ACAO_PONTUAL">Ação Pontual</option>
-                                <option value="AQUISICAO">Aquisição</option>
+                                {PLANNING_ACTION_TYPES_ARRAY.map(type => (
+                                    <option key={type.value} value={type.value}>{type.label}</option>
+                                ))}
                             </select>
                             <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                         </div>
@@ -755,7 +1111,7 @@ const AcoesList = () => {
                         max-width: 160px !important;
                     }
                 }
-                .farmacia-table thead th { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #334155; font-weight: 600; padding-top: 14px; padding-bottom: 14px; position: sticky; top: 0; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+                .farmacia-table thead th { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #334155; font-weight: 600; padding-top: calc(14px + 1rem); padding-bottom: 14px; position: sticky; top: -1rem; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
                 .farmacia-table tbody td { padding-top: 16px; padding-bottom: 16px; }
                 .farmacia-table tbody tr { transition: all 0.2s ease; }
                 .farmacia-table tbody tr:hover { background-color: #f8fafc !important; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); z-index: 10; position: relative; }
@@ -815,14 +1171,9 @@ const AcoesList = () => {
                         {acoesFiltradas.map((acao) => {
                             const sec = formatSecretaria(acao.secretaria);
                             
-                            // 3. Fundo sutil por status
-                            let rowBg = 'transparent';
-                            if (acao.status === 'EM_RISCO') rowBg = 'rgba(239, 68, 68, 0.02)';
-                            else if (acao.status === 'EM_ANDAMENTO') rowBg = 'rgba(59, 130, 246, 0.02)';
-                            else if (acao.status === 'CONCLUIDA') rowBg = 'rgba(16, 185, 129, 0.02)';
-
                             // 2. Inteligência de prazo
                             let isDelayed = false;
+                            let isVencido = false;
                             let prazoUI = null;
                             if (acao.prazo && acao.status !== 'CONCLUIDA') {
                                 const today = new Date();
@@ -833,6 +1184,7 @@ const AcoesList = () => {
                                 
                                 if (diffDays < 0) {
                                     isDelayed = true;
+                                    isVencido = true;
                                     prazoUI = <span style={{fontSize:'0.7rem', color:'#ef4444', fontWeight:600, marginTop:'2px'}}>Atrasado há {Math.abs(diffDays)} dia{Math.abs(diffDays)>1?'s':''}</span>;
                                 } else if (diffDays === 0) {
                                     isDelayed = true;
@@ -845,6 +1197,12 @@ const AcoesList = () => {
                                 } else {
                                     prazoUI = <span style={{fontSize:'0.7rem', color:'var(--text-muted)', fontWeight:500, marginTop:'2px'}}>Faltam {diffDays} dias</span>;
                                 }
+                            }
+
+                            // 3. Fundo sutil aplicado APENAS para casos críticos (EM RISCO ou PRAZO VENCIDO)
+                            let rowBg = 'transparent';
+                            if (acao.status === 'EM_RISCO' || isVencido) {
+                                rowBg = 'rgba(239, 68, 68, 0.012)'; // Opacidade ultra-sutil reduzida
                             }
 
                             // 1 & 5. Inteligência de barra de progresso
@@ -879,66 +1237,73 @@ const AcoesList = () => {
                                      <td>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }}>
                                             {getStatusBadge(acao.status)}
-                                            {(() => {
-                                                const delay = getUpdateDelayStatus(acao);
-                                                if (delay.status === 'pending') {
-                                                    return (
-                                                        <span 
-                                                            title={`Última atualização há ${delay.days} dias`}
-                                                            style={{ 
-                                                                display: 'inline-flex', 
-                                                                alignItems: 'center', 
-                                                                gap: '3px', 
-                                                                fontSize: '0.60rem', 
-                                                                fontWeight: 500, 
-                                                                color: '#b45309', 
-                                                                opacity: 0.85,
-                                                                whiteSpace: 'nowrap',
-                                                                cursor: 'help'
-                                                            }}
-                                                        >
-                                                            <span style={{ fontSize: '5px', opacity: 0.6 }}>●</span> Atualização pendente
-                                                        </span>
-                                                    );
-                                                } else if (delay.status === 'critical') {
-                                                    return (
-                                                        <span 
-                                                            title={`Última atualização há ${delay.days} dias`}
-                                                            style={{ 
-                                                                display: 'inline-flex', 
-                                                                alignItems: 'center', 
-                                                                gap: '3px', 
-                                                                fontSize: '0.60rem', 
-                                                                fontWeight: 500, 
-                                                                color: '#b91c1c', 
-                                                                opacity: 0.85,
-                                                                whiteSpace: 'nowrap',
-                                                                cursor: 'help'
-                                                            }}
-                                                        >
-                                                            <span style={{ fontSize: '5px', opacity: 0.6 }}>●</span> Atualização crítica
-                                                        </span>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
                                         </div>
                                     </td>
                                     <td>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: pbColor }}>
-                                                <span>{Math.round(acao.progresso || 0)}%</span>
+                                                <span>{Math.round(getDisplayProgress(acao))}%</span>
                                             </div>
                                             <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
                                                 <div 
                                                     style={{ 
-                                                        width: `${Math.round(acao.progresso || 0)}%`, 
+                                                        width: `${Math.round(getDisplayProgress(acao))}%`, 
                                                         height: '100%', 
                                                         background: pbGradient,
                                                         animation: 'fillBar 0.6s ease-out forwards'
                                                     }} 
                                                 />
                                             </div>
+                                            {acao.action_type === 'ACAO_PONTUAL' && acao.custom_stages && acao.custom_stages.length > 0 && acao.current_stage_index !== null && (
+                                                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
+                                                    Etapa atual: <span style={{ fontWeight: 600 }}>{acao.custom_stages[acao.current_stage_index]?.name || 'Não definida'}</span>
+                                                </div>
+                                            )}
+                                            {(() => {
+                                                const delay = getUpdateDelayStatus(acao);
+                                                if (delay.status === 'pending') {
+                                                    return (
+                                                        <div 
+                                                            title={`Última atualização há ${delay.days} dias`}
+                                                            style={{ 
+                                                                display: 'inline-flex', 
+                                                                alignItems: 'center', 
+                                                                gap: '4px', 
+                                                                fontSize: '0.65rem', 
+                                                                fontWeight: 500, 
+                                                                color: '#d97706', 
+                                                                opacity: 0.9,
+                                                                whiteSpace: 'nowrap',
+                                                                cursor: 'help',
+                                                                marginTop: '2px'
+                                                            }}
+                                                        >
+                                                            <Clock size={11} style={{ flexShrink: 0, opacity: 0.8 }} /> Atualização pendente
+                                                        </div>
+                                                    );
+                                                } else if (delay.status === 'critical') {
+                                                    return (
+                                                        <div 
+                                                            title={`Última atualização há ${delay.days} dias`}
+                                                            style={{ 
+                                                                display: 'inline-flex', 
+                                                                alignItems: 'center', 
+                                                                gap: '4px', 
+                                                                fontSize: '0.65rem', 
+                                                                fontWeight: 500, 
+                                                                color: '#d97706', 
+                                                                opacity: 0.9,
+                                                                whiteSpace: 'nowrap',
+                                                                cursor: 'help',
+                                                                marginTop: '2px'
+                                                            }}
+                                                        >
+                                                            <AlertTriangle size={11} style={{ flexShrink: 0, opacity: 0.8 }} /> Sem atualização há {delay.days} dias
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
                                         </div>
                                     </td>
                                      <td>
@@ -1045,20 +1410,21 @@ const AcoesList = () => {
                                                 onChange={e => {
                                                     const newType = e.target.value;
                                                     let newProgress = formData.progresso;
-                                                    if (newType === 'PROJETO') {
-                                                        newProgress = 0;
-                                                    } else if (newType === 'OBRA') {
+                                                    if (newType === 'PROJETO' || newType === 'OBRA' || newType === 'ACAO_PONTUAL') {
                                                         newProgress = 0;
                                                     }
-                                                    setFormData({ ...formData, action_type: newType, progresso: newProgress });
+                                                    setFormData({ 
+                                                        ...formData, 
+                                                        action_type: newType, 
+                                                        progresso: newProgress,
+                                                        custom_stages: null,
+                                                        current_stage_index: null
+                                                    });
                                                 }}
                                             >
-                                                <option value="PROJETO">Projeto</option>
-                                                <option value="OBRA">Obra</option>
-                                                <option value="SERVICO">Serviço</option>
-                                                <option value="PROGRAMA">Programa</option>
-                                                <option value="ACAO_PONTUAL">Ação Pontual</option>
-                                                <option value="AQUISICAO">Aquisição</option>
+                                                {PLANNING_ACTION_TYPES_ARRAY.map(type => (
+                                                    <option key={type.value} value={type.value}>{type.label}</option>
+                                                ))}
                                             </select>
                                         </div>
                                         <div className="farmacia-form-group">
@@ -1072,7 +1438,7 @@ const AcoesList = () => {
                                                 }}
                                             >
                                                 <option value="">Selecione o eixo...</option>
-                                                {axes.map(a => (
+                                                {[...axes].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map(a => (
                                                     <option key={a.id} value={a.id}>{a.name}</option>
                                                 ))}
                                             </select>
@@ -1101,7 +1467,7 @@ const AcoesList = () => {
                                         </div>
                                         <div className="farmacia-form-group col-span-2">
                                             <label className="farmacia-form-label">Secretarias Participantes</label>
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '6px 12px', maxHeight: '125px', overflowY: 'auto', background: '#f8fafc', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '6px', padding: '8px 12px' }} className="custom-scrollbar">
+                                            <div style={{ background: '#f8fafc', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '6px', padding: '12px 14px' }}>
                                                 {(() => {
                                                     const filtered = secretariats
                                                         .filter(s => s.id !== formData.secretariatId)
@@ -1109,8 +1475,16 @@ const AcoesList = () => {
                                                     if (filtered.length === 0) {
                                                         return <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Selecione a Secretaria Responsável primeiro.</span>;
                                                     }
-                                                    return filtered.map(s => (
-                                                        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', cursor: 'pointer', color: '#334155' }}>
+
+                                                    // Dividir a lista em 3 colunas balanceadas
+                                                    const total = filtered.length;
+                                                    const perCol = Math.ceil(total / 3);
+                                                    const col1 = filtered.slice(0, perCol);
+                                                    const col2 = filtered.slice(perCol, perCol * 2);
+                                                    const col3 = filtered.slice(perCol * 2);
+
+                                                    const renderCol = (items) => items.map(s => (
+                                                        <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', cursor: 'pointer', color: '#334155', marginBottom: '6px' }}>
                                                             <input 
                                                                 type="checkbox" 
                                                                 checked={formData.participantes?.includes(s.id) || false}
@@ -1123,11 +1497,19 @@ const AcoesList = () => {
                                                                             : (prev.participantes || []).filter(id => id !== s.id)
                                                                     }));
                                                                 }}
-                                                                style={{ accentColor: 'var(--color-primary)', width: '16px', height: '16px', cursor: 'pointer' }}
+                                                                style={{ accentColor: 'var(--color-primary)', width: '15px', height: '15px', cursor: 'pointer' }}
                                                             />
-                                                            {s.name}
+                                                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>
                                                         </label>
                                                     ));
+
+                                                    return (
+                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0 16px' }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column' }}>{renderCol(col1)}</div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column' }}>{renderCol(col2)}</div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column' }}>{renderCol(col3)}</div>
+                                                        </div>
+                                                    );
                                                 })()}
                                             </div>
                                         </div>
@@ -1159,27 +1541,18 @@ const AcoesList = () => {
                                             Execução e Monitoramento
                                         </span>
                                     </div>
-                                    {['PROJETO', 'OBRA'].includes(formData.action_type) ? (
+                                    {getActionTypeStages(formData.action_type) ? (
                                         <>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '2.2fr 4.8fr 3fr', gap: '0.875rem' }}>
-                                                <div className="farmacia-form-group">
-                                                    <label className="farmacia-form-label">Status Atual</label>
-                                                    <select className="farmacia-form-select" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
-                                                        <option value="NAO_INICIADA">Não Iniciada</option>
-                                                        <option value="EM_ANDAMENTO">Em Andamento</option>
-                                                        <option value="CONCLUIDA">Concluída</option>
-                                                        <option value="EM_RISCO">Em Risco</option>
-                                                        <option value="PARALISADA">Paralisada</option>
-                                                    </select>
-                                                </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '0.9fr 1.1fr', gap: '0.75rem' }}>
                                                 <div className="farmacia-form-group">
                                                     <label className="farmacia-form-label">Etapa Atual</label>
                                                     <select
                                                         className="farmacia-form-select"
-                                                        value={getClosestStep(formData.progresso, formData.action_type === 'PROJETO' ? PROJECT_STEPS : WORK_STEPS)}
+                                                        value={getClosestStep(formData.progresso, getActionTypeStages(formData.action_type))}
                                                         onChange={e => {
-                                                            const steps = formData.action_type === 'PROJETO' ? PROJECT_STEPS : WORK_STEPS;
-                                                            const selectedStep = steps.find(s => s.label === e.target.value);
+                                                            const stages = getActionTypeStages(formData.action_type);
+                                                            if (!stages) return;
+                                                            const selectedStep = stages.find(s => s.label === e.target.value);
                                                             if (selectedStep) {
                                                                 setFormData({ ...formData, progresso: selectedStep.progress });
                                                             } else {
@@ -1188,7 +1561,7 @@ const AcoesList = () => {
                                                         }}
                                                     >
                                                         <option value="">Selecione a etapa...</option>
-                                                        {(formData.action_type === 'PROJETO' ? PROJECT_STEPS : WORK_STEPS).map(step => (
+                                                        {getActionTypeStages(formData.action_type)?.map(step => (
                                                             <option key={step.label} value={step.label}>
                                                                 {step.label} ({step.progress}%)
                                                             </option>
@@ -1206,10 +1579,17 @@ const AcoesList = () => {
                                                     />
                                                 </div>
                                             </div>
-                                            <div style={{ marginTop: '1.25rem', paddingTop: '1.1rem', borderTop: '1px dashed rgba(0,0,0,0.08)' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Progresso da Ação</span>
-                                                    <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#3b82f6' }}>{formData.progresso || 0}%</span>
+
+                                            <div style={{ marginTop: '4px', marginBottom: '2px', width: '100%' }}>
+                                                <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontStyle: 'italic', display: 'block', opacity: 0.8, letterSpacing: '0.015em' }}>
+                                                    Status calculado automaticamente conforme a etapa atual.
+                                                </span>
+                                            </div>
+
+                                            <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px dashed rgba(0,0,0,0.08)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                    <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Progresso da Ação</span>
+                                                    <span style={{ fontSize: '1rem', fontWeight: 800, color: '#3b82f6' }}>{formData.progresso || 0}%</span>
                                                 </div>
                                                 <div style={{ width: '100%', height: '6px', backgroundColor: '#e2e8f0', borderRadius: '10px', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }}>
                                                     <div style={{ 
@@ -1224,86 +1604,111 @@ const AcoesList = () => {
                                             </div>
                                         </>
                                     ) : (
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.2fr', gap: '0.875rem' }}>
-                                            <div className="farmacia-form-group">
-                                                <label className="farmacia-form-label">Status Atual</label>
-                                                <select className="farmacia-form-select" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
-                                                    <option value="NAO_INICIADA">Não Iniciada</option>
-                                                    <option value="EM_ANDAMENTO">Em Andamento</option>
-                                                    <option value="CONCLUIDA">Concluída</option>
-                                                    <option value="EM_RISCO">Em Risco</option>
-                                                    <option value="PARALISADA">Paralisada</option>
-                                                </select>
-                                            </div>
-                                            <div className="farmacia-form-group">
-                                                <label className="farmacia-form-label">Progresso (%)</label>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                        <input
-                                                            type="range"
-                                                            min="0" max="100"
-                                                            value={formData.progresso || 0}
-                                                            onChange={e => setFormData({ ...formData, progresso: parseInt(e.target.value) || 0 })}
-                                                            style={{
-                                                                flex: 1,
-                                                                height: '6px',
-                                                                borderRadius: '4px',
-                                                                background: `linear-gradient(to right, ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'} ${formData.progresso || 0}%, #e2e8f0 ${formData.progresso || 0}%)`,
-                                                                outline: 'none',
-                                                                cursor: 'pointer'
-                                                            }}
-                                                            className="modern-range-slider"
-                                                        />
-                                                        <input
-                                                            type="number"
-                                                            className="farmacia-form-input"
-                                                            min="0" max="100"
-                                                            style={{ width: '64px', padding: '0.4rem', textAlign: 'center', fontWeight: 600 }}
-                                                            value={formData.progresso || 0}
-                                                            onChange={e => {
-                                                                let val = parseInt(e.target.value) || 0;
-                                                                if (val > 100) val = 100;
-                                                                if (val < 0) val = 0;
-                                                                setFormData({ ...formData, progresso: val });
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <style>{`
-                                                        .modern-range-slider {
-                                                            -webkit-appearance: none;
-                                                            appearance: none;
-                                                        }
-                                                        .modern-range-slider::-webkit-slider-thumb {
-                                                            -webkit-appearance: none;
-                                                            appearance: none;
-                                                            width: 16px;
-                                                            height: 16px;
-                                                            border-radius: 50%;
-                                                            background: #fff;
-                                                            border: 2px solid ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'};
-                                                            cursor: pointer;
-                                                            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-                                                            transition: transform 0.1s ease;
-                                                        }
-                                                        .modern-range-slider::-webkit-slider-thumb:hover {
-                                                            transform: scale(1.15);
-                                                        }
-                                                        .modern-range-slider::-moz-range-thumb {
-                                                            width: 16px;
-                                                            height: 16px;
-                                                            border-radius: 50%;
-                                                            background: #fff;
-                                                            border: 2px solid ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'};
-                                                            cursor: pointer;
-                                                            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-                                                            transition: transform 0.1s ease;
-                                                        }
-                                                        .modern-range-slider::-moz-range-thumb:hover {
-                                                            transform: scale(1.15);
-                                                        }
-                                                    `}</style>
+                                        <div style={{ display: 'grid', gridTemplateColumns: formData.action_type === 'ACAO_PONTUAL' ? '1fr' : formData.action_type === 'AQUISICAO' ? '1fr 1fr' : '1.2fr 0.8fr 1.2fr', gap: '0.875rem' }}>
+                                            {formData.action_type !== 'ACAO_PONTUAL' && (
+                                                <div className="farmacia-form-group">
+                                                    <label className="farmacia-form-label">Status Atual</label>
+                                                    {formData.action_type === 'AQUISICAO' ? (
+                                                        <select className="farmacia-form-select" value={formData.status} onChange={e => {
+                                                            const val = e.target.value;
+                                                            const pMap = { 'EM_PLANEJAMENTO': 10, 'EM_ANDAMENTO': 50, 'PENDENTE': 25, 'CONCLUIDA': 100 };
+                                                            setFormData({ ...formData, status: val, progresso: pMap[val] || 0 });
+                                                        }}>
+                                                            <option value="EM_PLANEJAMENTO">Em planejamento</option>
+                                                            <option value="EM_ANDAMENTO">Em andamento</option>
+                                                            <option value="PENDENTE">Pendente</option>
+                                                            <option value="CONCLUIDA">Concluído</option>
+                                                        </select>
+                                                    ) : (
+                                                        <select className="farmacia-form-select" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+                                                            <option value="NAO_INICIADA">Não Iniciada</option>
+                                                            <option value="EM_ANDAMENTO">Em Andamento</option>
+                                                            <option value="CONCLUIDA">Concluída</option>
+                                                            <option value="EM_RISCO">Em Risco</option>
+                                                            <option value="PARALISADA">Paralisada</option>
+                                                        </select>
+                                                    )}
                                                 </div>
-                                            </div>
+                                            )}
+                                            {formData.action_type !== 'AQUISICAO' && formData.action_type !== 'ACAO_PONTUAL' && (
+                                                <div className="farmacia-form-group">
+                                                    <label className="farmacia-form-label">Progresso (%)</label>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <input
+                                                                type="range"
+                                                                min="0" max="100"
+                                                                value={formData.progresso || 0}
+                                                                disabled={formData.action_type === 'ACAO_PONTUAL'}
+                                                                onChange={e => setFormData({ ...formData, progresso: parseInt(e.target.value) || 0 })}
+                                                                style={{
+                                                                    flex: 1,
+                                                                    height: '6px',
+                                                                    borderRadius: '4px',
+                                                                    background: `linear-gradient(to right, ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'} ${formData.progresso || 0}%, #e2e8f0 ${formData.progresso || 0}%)`,
+                                                                    outline: 'none',
+                                                                    cursor: formData.action_type === 'ACAO_PONTUAL' ? 'not-allowed' : 'pointer',
+                                                                    opacity: formData.action_type === 'ACAO_PONTUAL' ? 0.6 : 1
+                                                                }}
+                                                                className="modern-range-slider"
+                                                            />
+                                                            <input
+                                                                type="number"
+                                                                className="farmacia-form-input"
+                                                                min="0" max="100"
+                                                                disabled={formData.action_type === 'ACAO_PONTUAL'}
+                                                                style={{ width: '64px', padding: '0.4rem', textAlign: 'center', fontWeight: 600, backgroundColor: formData.action_type === 'ACAO_PONTUAL' ? '#f8fafc' : 'white', color: formData.action_type === 'ACAO_PONTUAL' ? '#94a3b8' : 'inherit' }}
+                                                                value={formData.progresso || 0}
+                                                                onChange={e => {
+                                                                    let val = parseInt(e.target.value) || 0;
+                                                                    if (val > 100) val = 100;
+                                                                    if (val < 0) val = 0;
+                                                                    setFormData({ ...formData, progresso: val });
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        {formData.action_type === 'ACAO_PONTUAL' && (
+                                                            <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '-4px', fontStyle: 'italic' }}>
+                                                                Calculado automaticamente pela etapa atual
+                                                            </span>
+                                                        )}
+                                                        <style>{`
+                                                            .modern-range-slider {
+                                                                -webkit-appearance: none;
+                                                                appearance: none;
+                                                            }
+                                                            .modern-range-slider::-webkit-slider-thumb {
+                                                                -webkit-appearance: none;
+                                                                appearance: none;
+                                                                width: 16px;
+                                                                height: 16px;
+                                                                border-radius: 50%;
+                                                                background: #fff;
+                                                                border: 2px solid ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'};
+                                                                cursor: pointer;
+                                                                box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                                                                transition: transform 0.1s ease;
+                                                            }
+                                                            .modern-range-slider::-webkit-slider-thumb:hover {
+                                                                transform: scale(1.15);
+                                                            }
+                                                            .modern-range-slider::-moz-range-thumb {
+                                                                width: 16px;
+                                                                height: 16px;
+                                                                border-radius: 50%;
+                                                                background: #fff;
+                                                                border: 2px solid ${formData.progresso <= 25 ? '#ef4444' : formData.progresso <= 60 ? '#3b82f6' : formData.progresso <= 85 ? '#f59e0b' : '#10b981'};
+                                                                cursor: pointer;
+                                                                box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                                                                transition: transform 0.1s ease;
+                                                            }
+                                                            .modern-range-slider::-moz-range-thumb:hover {
+                                                                transform: scale(1.15);
+                                                            }
+                                                        `}</style>
+                                                    </div>
+                                                </div>
+                                            )}
                                             <div className="farmacia-form-group">
                                                 <label className="farmacia-form-label">Responsável Técnico</label>
                                                 <input
@@ -1314,6 +1719,111 @@ const AcoesList = () => {
                                                     onChange={e => setFormData({ ...formData, responsible_name: e.target.value })}
                                                 />
                                             </div>
+                                        </div>
+                                    )}
+                                    {formData.action_type === 'ACAO_PONTUAL' && (
+                                        <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px dashed rgba(0,0,0,0.1)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '1rem' }}>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#64748b' }}>
+                                                    Configuração das Etapas
+                                                </span>
+                                            </div>
+                                            <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '1.25rem', marginTop: '-0.5rem' }}>
+                                                O progresso será calculado automaticamente conforme a etapa atual selecionada.
+                                            </p>
+                                            
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1.5rem' }}>
+                                                <div className="farmacia-form-group">
+                                                    <label className="farmacia-form-label">Quantidade de etapas</label>
+                                                    <select 
+                                                        className="farmacia-form-select"
+                                                        value={formData.custom_stages?.length || ''}
+                                                        onChange={e => {
+                                                            const qty = parseInt(e.target.value);
+                                                            if (!qty) {
+                                                                setFormData({ ...formData, custom_stages: null, current_stage_index: null, progresso: 0 });
+                                                                return;
+                                                            }
+                                                            const newStages = Array.from({ length: qty }).map((_, i) => {
+                                                                const prog = Math.round(((i + 1) / qty) * 100);
+                                                                const existingName = formData.custom_stages && formData.custom_stages[i] ? formData.custom_stages[i].name : `Etapa ${i + 1}`;
+                                                                return { name: existingName, progress: prog };
+                                                            });
+                                                            setFormData({ ...formData, custom_stages: newStages, current_stage_index: null, progresso: 0 });
+                                                        }}
+                                                    >
+                                                        <option value="">Selecione...</option>
+                                                        {[2,3,4,5,6,7,8,9,10].map(n => (
+                                                            <option key={n} value={n}>{n} etapas</option>
+                                                        ))}
+                                                    </select>
+
+                                                    {formData.custom_stages && formData.custom_stages.length > 0 && (
+                                                        <div style={{ marginTop: '1rem' }}>
+                                                            <label className="farmacia-form-label">Etapa Atual</label>
+                                                            <select 
+                                                                className="farmacia-form-select"
+                                                                value={formData.current_stage_index !== null ? formData.current_stage_index : ''}
+                                                                onChange={e => {
+                                                                    const idxStr = e.target.value;
+                                                                    if (idxStr === '') {
+                                                                        setFormData({ ...formData, current_stage_index: null, progresso: 0 });
+                                                                        return;
+                                                                    }
+                                                                    const idx = parseInt(idxStr);
+                                                                    const progress = formData.custom_stages[idx].progress;
+                                                                    setFormData({ ...formData, current_stage_index: idx, progresso: progress });
+                                                                }}
+                                                            >
+                                                                <option value="">Selecione a etapa...</option>
+                                                                {formData.custom_stages.map((stage, idx) => (
+                                                                    <option key={idx} value={idx}>{stage.name} ({stage.progress}%)</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {formData.custom_stages && formData.custom_stages.length > 0 && (
+                                                    <div>
+                                                        <label className="farmacia-form-label" style={{ marginBottom: '0.5rem' }}>Nomes das Etapas</label>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                                            {formData.custom_stages.map((stage, idx) => (
+                                                                <input
+                                                                    key={idx}
+                                                                    type="text"
+                                                                    className="farmacia-form-input"
+                                                                    value={stage.name}
+                                                                    onChange={e => {
+                                                                        const newStages = [...formData.custom_stages];
+                                                                        newStages[idx].name = e.target.value;
+                                                                        setFormData({ ...formData, custom_stages: newStages });
+                                                                    }}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            {formData.custom_stages && formData.custom_stages.length > 0 && formData.current_stage_index !== null && (
+                                                <div style={{ marginTop: '1.25rem', paddingTop: '1.1rem', borderTop: '1px dashed rgba(0,0,0,0.08)' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Progresso Automático</span>
+                                                        <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#8b5cf6' }}>{formData.progresso || 0}%</span>
+                                                    </div>
+                                                    <div style={{ width: '100%', height: '6px', backgroundColor: '#e2e8f0', borderRadius: '10px', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }}>
+                                                        <div style={{ 
+                                                            width: `${formData.progresso || 0}%`, 
+                                                            height: '100%', 
+                                                            background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)', 
+                                                            borderRadius: '10px',
+                                                            transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                            boxShadow: '0 1px 2px rgba(139, 92, 246, 0.2)'
+                                                        }} />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1478,11 +1988,46 @@ const AcoesList = () => {
                                 padding: '0.875rem 1.5rem',
                                 gap: '0.75rem'
                             }}>
-                                {saveError && (
+                                <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '0.75rem' }}>
+                                    {editingAcao && (
+                                        <button
+                                            type="button"
+                                            className="farmacia-modal-btn-cancel"
+                                            style={{
+                                                backgroundColor: '#dc2626',
+                                                borderColor: '#dc2626',
+                                                color: '#ffffff',
+                                                padding: '0.5rem 1rem',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                transition: 'all 0.2s ease',
+                                                opacity: deleteLoading ? 0.7 : 1,
+                                                borderWidth: '1px',
+                                                borderStyle: 'solid',
+                                                boxShadow: '0 2px 6px rgba(220, 38, 38, 0.2)'
+                                            }}
+                                            onMouseOver={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#b91c1c';
+                                                e.currentTarget.style.borderColor = '#b91c1c';
+                                            }}
+                                            onMouseOut={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#dc2626';
+                                                e.currentTarget.style.borderColor = '#dc2626';
+                                            }}
+                                            onClick={() => setConfirmDeleteOpen(true)}
+                                            disabled={saveLoading || deleteLoading}
+                                        >
+                                            <Trash2 size={14} />
+                                            Excluir Ação
+                                        </button>
+                                    )}
+                                    {saveError && (
                                     <span style={{ flex: 1, fontSize: '0.8rem', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         <AlertTriangle size={14} /> {saveError}
                                     </span>
                                 )}
+                                </div>
                                 <button type="button" className="farmacia-modal-btn-cancel" onClick={closeModal} disabled={saveLoading}>
                                     Cancelar
                                 </button>
@@ -1503,6 +2048,7 @@ const AcoesList = () => {
                     </div>
                 </div>
             )}
+
             {/* ── Modal de Visualização (Somente Leitura) ── */}
             {isViewModalOpen && viewingAcao && (
                 <div className="farmacia-modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
@@ -1535,7 +2081,7 @@ const AcoesList = () => {
                         <div className="farmacia-modal-body custom-scrollbar" style={{ 
                             flex: 1, 
                             overflowY: 'auto', 
-                            padding: '1.25rem 1.75rem',
+                            padding: '1.25rem 1.75rem 2.5rem 1.75rem',
                             backgroundColor: '#fff'
                         }}>
                             <style>{`
@@ -1543,6 +2089,42 @@ const AcoesList = () => {
                                 .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; }
                                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
                                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+                                .history-header { transition: all 200ms ease; border-radius: 8px; padding: 8px 12px !important; margin: -8px -12px; display: flex; align-items: center; }
+                                .history-header:hover { background-color: #f8fafc; }
+                                .history-timeline-item {
+                                    background: rgba(255, 255, 255, 0.7);
+                                    border: 1px solid #e2e8f0;
+                                    border-radius: 8px;
+                                    padding: 12px 14px;
+                                    transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+                                    box-shadow: 0 1px 2px rgba(0,0,0,0.01);
+                                }
+                                .history-timeline-item:hover {
+                                    background: #ffffff;
+                                    border-color: #cbd5e1;
+                                    box-shadow: 0 4px 12px -4px rgba(0,0,0,0.06);
+                                    transform: translateY(-1px);
+                                }
+                                .history-jump-btn {
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    padding: 6px 12px;
+                                    border-radius: 6px;
+                                    border: 1px solid #dbeafe;
+                                    background: #eff6ff;
+                                    color: #1d4ed8;
+                                    font-size: 0.75rem;
+                                    font-weight: 750;
+                                    cursor: pointer;
+                                    transition: all 150ms ease;
+                                }
+                                .history-jump-btn:hover {
+                                    background: #dbeafe;
+                                    border-color: #bfdbfe;
+                                    transform: translateY(-1px);
+                                    box-shadow: 0 2px 4px rgba(37,99,235,0.08);
+                                }
                             `}</style>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
@@ -1578,7 +2160,6 @@ const AcoesList = () => {
                                                 border: '1px solid #fca5a5',
                                                 borderRadius: '8px',
                                                 padding: '0.85rem 1.15rem',
-                                                color: '#b91c1c',
                                                 fontSize: '0.85rem',
                                                 fontWeight: 700,
                                                 boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
@@ -1590,7 +2171,8 @@ const AcoesList = () => {
                                     }
                                     return null;
                                 })()}
-                                
+
+
                                 {/* Cabeçalho Premium: Título e Status */}
                                 <div style={{ 
                                     background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)', 
@@ -1607,35 +2189,339 @@ const AcoesList = () => {
                                             {getStatusBadge(viewingAcao.status)}
                                         </div>
                                     </div>
-                                    
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Progresso da Ação</span>
-                                            <span style={{ fontSize: '1rem', fontWeight: 800, color: viewingAcao.progresso <= 25 ? '#ef4444' : viewingAcao.progresso <= 60 ? '#3b82f6' : viewingAcao.progresso <= 85 ? '#f59e0b' : '#10b981' }}>{viewingAcao.progresso}%</span>
+                                            <span style={{ fontSize: '1rem', fontWeight: 800, color: '#3b82f6' }}>{getDisplayProgress(viewingAcao)}%</span>
                                         </div>
                                         <div style={{ width: '100%', height: '8px', backgroundColor: '#e2e8f0', borderRadius: '10px', overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)' }}>
                                             <div style={{ 
-                                                width: `${viewingAcao.progresso}%`, 
+                                                width: `${getDisplayProgress(viewingAcao)}%`, 
                                                 height: '100%', 
-                                                background: `linear-gradient(90deg, ${viewingAcao.progresso <= 25 ? '#ef4444' : viewingAcao.progresso <= 60 ? '#3b82f6' : viewingAcao.progresso <= 85 ? '#f59e0b' : '#10b981'} 0%, ${viewingAcao.progresso <= 25 ? '#f87171' : viewingAcao.progresso <= 60 ? '#60a5fa' : viewingAcao.progresso <= 85 ? '#fbbf24' : '#34d399'} 100%)`, 
+                                                background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)', 
                                                 borderRadius: '10px',
                                                 transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                                boxShadow: '0 1px 2px rgba(139,92,246,0.2)'
                                             }} />
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Grid de Informações Agrupadas */}
+                                {/* ── Bloco: Histórico Ativo (Preview Executivo Ultra-Compacto) ── */}
+                                {(() => {
+                                    const latestItem = sortedHistory.length > 0 ? sortedHistory[0] : null;
+                                    const lastDt = latestItem?.created_at
+                                        ? (() => {
+                                            const diff = new Date() - new Date(latestItem.created_at);
+                                            const mins = Math.floor(diff / (1000 * 60));
+                                            const hours = Math.floor(mins / 60);
+                                            const days = Math.floor(hours / 24);
+                                            if (days > 0) return `${days} dia${days > 1 ? 's' : ''}`;
+                                            if (hours > 0) return `${hours} h`;
+                                            return mins > 0 ? `${mins} min` : 'alguns instantes';
+                                        })()
+                                        : null;
+
+                                    const hasHistory = sortedHistory.length > 0;
+
+                                    return (
+                                        <div 
+                                            onClick={() => {
+                                                if (!hasHistory) return;
+                                                setHistoryExpanded(!historyExpanded);
+                                            }}
+                                            style={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                background: historyExpanded ? 'rgba(248, 250, 252, 0.45)' : 'rgba(248, 250, 252, 0.2)',
+                                                border: historyExpanded ? '1px solid rgba(226, 232, 240, 0.8)' : '1px solid rgba(226, 232, 240, 0.6)',
+                                                borderRadius: '8px',
+                                                padding: '0.45rem 1rem', // Padding Estático Absoluto (Ancoragem Vertical Perfeita)
+                                                cursor: hasHistory ? 'pointer' : 'default',
+                                                transition: 'all 220ms cubic-bezier(0.4, 0, 0.2, 1)',
+                                                marginTop: '-0.5rem',
+                                                userSelect: 'none',
+                                                boxShadow: historyExpanded ? '0 1px 3px rgba(0,0,0,0.01)' : 'none'
+                                            }}
+                                            onMouseOver={(e) => {
+                                                if (!hasHistory) return;
+                                                e.currentTarget.style.background = historyExpanded ? 'rgba(248, 250, 252, 0.9)' : 'rgba(248, 250, 252, 0.7)';
+                                                e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.8)';
+                                                e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.02)';
+                                            }}
+                                            onMouseOut={(e) => {
+                                                e.currentTarget.style.background = historyExpanded ? 'rgba(248, 250, 252, 0.45)' : 'rgba(248, 250, 252, 0.2)';
+                                                e.currentTarget.style.borderColor = historyExpanded ? 'rgba(226, 232, 240, 0.8)' : 'rgba(226, 232, 240, 0.6)';
+                                                e.currentTarget.style.boxShadow = historyExpanded ? '0 1px 3px rgba(0,0,0,0.01)' : 'none';
+                                            }}
+                                        >
+                                            {/* HEADER FIXO E IMÓVEL (Seta, Título, Badges em 1 Linha Contínua) */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
+                                                {/* Container do Chevron Fixo */}
+                                                <div style={{ 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    justifyContent: 'center', 
+                                                    width: '14px', 
+                                                    height: '14px', 
+                                                    flexShrink: 0,
+                                                    opacity: hasHistory ? 1 : 0.4
+                                                }}>
+                                                    {hasHistory ? (
+                                                        <span style={{ 
+                                                            display: 'inline-flex',
+                                                            transform: historyExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                                                            transition: 'transform 220ms cubic-bezier(0.4, 0, 0.2, 1)',
+                                                            fontSize: '0.5rem',
+                                                            color: '#94a3b8',
+                                                            opacity: 0.9,
+                                                            lineHeight: 1
+                                                        }}>
+                                                            ▶
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ fontSize: '0.7rem', color: '#cbd5e1' }}>•</span>
+                                                    )}
+                                                </div>
+                                                
+                                                {/* Container de Informações em Linha Única Absoluta */}
+                                                <div style={{ 
+                                                    display: 'flex', 
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    flex: 1
+                                                }}>
+                                                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                        Histórico Ativo
+                                                    </span>
+                                                    
+                                                    {hasHistory ? (
+                                                        <>
+                                                            <span style={{ color: '#cbd5e1', fontSize: '0.6rem', opacity: 0.7 }}>•</span>
+                                                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>
+                                                                {sortedHistory.length} {sortedHistory.length === 1 ? 'alteração' : 'alterações'}
+                                                            </span>
+                                                            {latestItem && (
+                                                                <>
+                                                                    <span style={{ color: '#cbd5e1', fontSize: '0.6rem', opacity: 0.7 }}>•</span>
+                                                                    <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 500 }}>
+                                                                        Última há {lastDt}
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span style={{ color: '#cbd5e1', fontSize: '0.6rem', opacity: 0.7 }}>•</span>
+                                                            <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 500, fontStyle: 'italic' }}>
+                                                                Nenhuma alteração registrada ainda
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* ABERTO: Conteúdo Expansível Inline (Timeline Compacta) */}
+                                            <div style={{
+                                                maxHeight: historyExpanded ? '360px' : '0px',
+                                                opacity: historyExpanded ? 1 : 0,
+                                                overflow: 'hidden',
+                                                transition: 'max-height 280ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease-out, margin-top 280ms, padding-top 280ms',
+                                                marginTop: historyExpanded ? '12px' : '0px',
+                                                paddingTop: historyExpanded ? '14px' : '0px',
+                                                paddingBottom: historyExpanded ? '4px' : '0px',
+                                                borderTop: historyExpanded ? '1px dashed rgba(226, 232, 240, 0.8)' : 'none',
+                                                visibility: historyExpanded ? 'visible' : 'hidden',
+                                                pointerEvents: historyExpanded ? 'auto' : 'none'
+                                            }}>
+                                                <div 
+                                                    style={{ 
+                                                        display: 'flex', 
+                                                        flexDirection: 'column', 
+                                                        maxHeight: '300px', 
+                                                        overflowY: 'auto', 
+                                                        gap: '10px', 
+                                                        padding: '2px 4px 2px 6px'
+                                                    }} 
+                                                    className="custom-scrollbar"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    {sortedHistory.slice(0, historyLimit).map((item, idx) => {
+                                                        const eventColors = {
+                                                            STATUS_CHANGED:      { dot: '#475569', line: 'rgba(71, 85, 105, 0.15)', bg: '#f1f5f9', pillText: '#334155', pillBg: '#f8fafc', pillBorder: '#e2e8f0' }, // Slate elegante
+                                                            PROGRESS_CHANGED:    { dot: '#0284c7', line: 'rgba(2, 132, 199, 0.15)', bg: '#f0f9ff', pillText: '#0369a1', pillBg: '#f0f9ff', pillBorder: 'rgba(2, 132, 199, 0.15)' }, // Petróleo/Sky Editorial
+                                                            STAGE_CHANGED:       { dot: '#0284c7', line: 'rgba(2, 132, 199, 0.15)', bg: '#f0f9ff', pillText: '#0369a1', pillBg: '#f0f9ff', pillBorder: 'rgba(2, 132, 199, 0.15)' },
+                                                            DEADLINE_CHANGED:    { dot: '#b45309', line: 'rgba(180, 83, 9, 0.15)', bg: '#fffbeb', pillText: '#b45309', pillBg: '#fffbeb', pillBorder: 'rgba(180, 83, 9, 0.15)' }, // Âmbar sofisticado
+                                                            RESPONSIBLE_CHANGED: { dot: '#0d9488', line: 'rgba(13, 148, 136, 0.15)', bg: '#f0fdfa', pillText: '#0d9488', pillBg: '#f0fdfa', pillBorder: 'rgba(13, 148, 136, 0.15)' }, // Teal institucional
+                                                            ACTION_UPDATED:      { dot: '#475569', line: 'rgba(71, 85, 105, 0.15)', bg: '#f1f5f9', pillText: '#334155', pillBg: '#f8fafc', pillBorder: '#e2e8f0' },
+                                                        };
+                                                        let cfg = eventColors[item.event_type] || eventColors.ACTION_UPDATED;
+                                                        if (item.field_changed === 'participantes') {
+                                                            cfg = { 
+                                                                dot: '#6366f1', // Indigo editorial
+                                                                line: 'rgba(99, 102, 241, 0.16)', 
+                                                                bg: '#f5f3ff', 
+                                                                pillText: '#4f46e5', 
+                                                                pillBg: '#f5f3ff', 
+                                                                pillBorder: 'rgba(99, 102, 241, 0.15)'
+                                                            };
+                                                        }
+                                                        const isLast = idx === Math.min(sortedHistory.length, historyLimit) - 1;
+                                                        const dt = item.created_at
+                                                            ? new Date(item.created_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+                                                            : '';
+                                                        
+                                                        // Resolver nome real do usuário mapeado via RPC ou authContext
+                                                        let rawResolvedName = '';
+                                                        if (item.user_id === authUser?.id) {
+                                                            rawResolvedName = authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || (authUser?.email ? authUser.email.split('@')[0] : '');
+                                                        }
+                                                        if (!rawResolvedName) {
+                                                            rawResolvedName = usersMap[item.user_id] || '';
+                                                        }
+                                                        
+                                                        const userDisplay = rawResolvedName 
+                                                            ? formatUserDisplayName(rawResolvedName) 
+                                                            : (item.user_id ? 'Usuário não identificado' : 'Sistema');
+                                                        
+                                                        const oldLabel = item.old_value?.label ?? item.old_value?.value ?? null;
+                                                        const newLabel = item.new_value?.label ?? item.new_value?.value ?? null;
+                                                        return (
+                                                            <div key={item.id || idx} style={{ display: 'flex', gap: '10px' }}>
+                                                                {/* Linha da timeline compacta */}
+                                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '8px', flexShrink: 0 }}>
+                                                                    <div style={{ 
+                                                                        width: '6px', 
+                                                                        height: '6px', 
+                                                                        borderRadius: '50%', 
+                                                                        background: cfg.dot, 
+                                                                        boxShadow: `0 0 0 2.5px ${cfg.bg}`,
+                                                                        flexShrink: 0, 
+                                                                        marginTop: '6px' 
+                                                                    }} />
+                                                                    {!isLast && <div style={{ flex: 1, width: '1.5px', background: cfg.line, marginTop: '4px', marginBottom: '-4px' }} />}
+                                                                </div>
+                                                                
+                                                                {/* Conteúdo do registro */}
+                                                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px' }}>
+                                                                        <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#334155' }}>
+                                                                            {item.description || item.event_type}
+                                                                        </span>
+                                                                        <span style={{ fontSize: '0.64rem', color: '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>{dt}</span>
+                                                                    </div>
+                                                                    
+                                                                    {/* Caso Especial: Alteração de Participantes */}
+                                                                    {item.field_changed === 'participantes' && item.observations && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '3px' }}>
+                                                                            {item.observations.split('|').map((line, lIdx) => {
+                                                                                const trimmed = line.trim();
+                                                                                return (
+                                                                                    <span key={lIdx} style={{ 
+                                                                                        fontSize: '0.66rem', 
+                                                                                        fontWeight: 600, 
+                                                                                        color: cfg.pillText,
+                                                                                        background: cfg.pillBg,
+                                                                                        border: `1px solid ${cfg.pillBorder}`,
+                                                                                        padding: '1px 6.5px',
+                                                                                        borderRadius: '4px',
+                                                                                        width: 'fit-content',
+                                                                                        display: 'inline-flex',
+                                                                                        alignItems: 'center',
+                                                                                        letterSpacing: '0.01em'
+                                                                                    }}>
+                                                                                        {trimmed}
+                                                                                    </span>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    )}
+
+
+                                                                    {/* Badges compactas de mudança tradicional */}
+                                                                    {item.field_changed !== 'participantes' && (oldLabel !== null || newLabel !== null) && (
+                                                                        <div style={{ 
+                                                                            fontSize: '0.66rem', 
+                                                                            display: 'flex', 
+                                                                            alignItems: 'center', 
+                                                                            gap: '4px', 
+                                                                            marginTop: '2px', 
+                                                                            background: cfg.pillBg, 
+                                                                            border: `1px solid ${cfg.pillBorder}`, 
+                                                                            padding: '1px 5.5px', 
+                                                                            borderRadius: '4px', 
+                                                                            width: 'max-content', 
+                                                                            maxWidth: '100%' 
+                                                                        }}>
+                                                                            <span style={{ color: '#64748b', textDecoration: oldLabel ? 'line-through' : 'none', opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '110px' }}>{oldLabel ?? '—'}</span>
+                                                                            <span style={{ color: '#cbd5e1', fontSize: '0.55rem' }}>→</span>
+                                                                            <span style={{ fontWeight: 700, color: cfg.pillText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '110px' }}>{newLabel ?? '—'}</span>
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {/* Observações tradicionais */}
+                                                                    {item.field_changed !== 'participantes' && item.observations && (
+                                                                        <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: '#64748b', fontStyle: 'italic', lineHeight: '1.3', borderLeft: '1.5px solid #e2e8f0', paddingLeft: '6px', opacity: 0.9 }}>
+                                                                            {item.observations}
+                                                                        </p>
+                                                                    )}
+                                                                    
+                                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1px' }}>
+                                                                        <span style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 500 }}>
+                                                                            Por <strong style={{ color: '#64748b', fontWeight: 600 }}>{userDisplay}</strong>
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+
+                                                    {/* Botão "Mostrar Mais" - Paginação Progressiva Inteligente */}
+                                                    {sortedHistory.length > historyLimit && (
+                                                        <div 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setHistoryLimit(prev => prev + 5);
+                                                            }}
+                                                            style={{
+                                                                alignSelf: 'center',
+                                                                fontSize: '0.66rem',
+                                                                color: '#64748b',
+                                                                fontWeight: 600,
+                                                                cursor: 'pointer',
+                                                                padding: '3.5px 11px',
+                                                                borderRadius: '4px',
+                                                                background: '#f8fafc',
+                                                                border: '1px solid #e2e8f0',
+                                                                marginTop: '8px',
+                                                                textAlign: 'center',
+                                                                transition: 'all 150ms ease-in-out',
+                                                                userSelect: 'none'
+                                                            }}
+                                                            onMouseOver={(e) => {
+                                                                e.currentTarget.style.background = '#f1f5f9';
+                                                                e.currentTarget.style.borderColor = '#cbd5e1';
+                                                            }}
+                                                            onMouseOut={(e) => {
+                                                                e.currentTarget.style.background = '#f8fafc';
+                                                                e.currentTarget.style.borderColor = '#e2e8f0';
+                                                            }}
+                                                        >
+                                                            Mostrar mais (+{Math.min(5, sortedHistory.length - historyLimit)})
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Grid de Informações */}
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
-                                    
-                                    {/* Grupo 1: Estratégia e Classificação */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tipo da Ação</span>
-                                            <div style={{ marginTop: '2px' }}>
-                                                {getActionTypeBadge(viewingAcao.action_type)}
-                                            </div>
+                                            <div style={{ marginTop: '2px' }}>{getActionTypeBadge(viewingAcao.action_type)}</div>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Eixo Estratégico</span>
@@ -1651,30 +2537,16 @@ const AcoesList = () => {
                                             </div>
                                         </div>
                                     </div>
-
-                                    {/* Grupo 2: Responsabilidade (Secretarias) */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Secretaria Principal</span>
-                                            <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{viewingAcao.secretariaFull || viewingAcao.secretaria}</span>
-                                            
+                                            <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{viewingAcao.secretariaFull || viewingAcao.secretaria || 'Não informada'}</span>
                                             {viewingParticipantes && viewingParticipantes.length > 0 && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
                                                     <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Participantes</span>
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                                         {viewingParticipantes.map((part, idx) => (
-                                                            <span key={idx} style={{ 
-                                                                display: 'inline-flex',
-                                                                alignItems: 'center',
-                                                                background: '#f8fafc', 
-                                                                padding: '2px 8px', 
-                                                                borderRadius: '4px', 
-                                                                fontSize: '0.7rem', 
-                                                                color: '#475569', 
-                                                                border: '1px solid #e2e8f0', 
-                                                                fontWeight: 600,
-                                                                lineHeight: '1.2'
-                                                            }}>
+                                                            <span key={idx} style={{ display: 'inline-flex', alignItems: 'center', background: '#f8fafc', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', color: '#475569', border: '1px solid #e2e8f0', fontWeight: 600, lineHeight: '1.2' }}>
                                                                 {part}
                                                             </span>
                                                         ))}
@@ -1683,21 +2555,10 @@ const AcoesList = () => {
                                             )}
                                         </div>
                                     </div>
-
-                                    {/* Grupo 3: Localização */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Localização</span>
-                                            <div style={{ 
-                                                marginTop: '4px',
-                                                background: '#f8fafc',
-                                                border: '1px solid #e2e8f0',
-                                                borderRadius: '8px',
-                                                padding: '12px',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                gap: '6px'
-                                            }}>
+                                            <div style={{ marginTop: '4px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                     <MapPin size={14} color="#64748b" style={{ flexShrink: 0 }} />
                                                     <span style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600 }}>
@@ -1707,106 +2568,94 @@ const AcoesList = () => {
                                                 <div style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                                     {(viewingAcao.address_district || viewingAcao.address_city) && (
                                                         <span style={{ fontSize: '0.8rem', color: '#475569' }}>
-                                                            {viewingAcao.address_district ? viewingAcao.address_district : ''}{viewingAcao.address_district && viewingAcao.address_city ? ' - ' : ''}{viewingAcao.address_city || ''}{viewingAcao.address_state ? `/${viewingAcao.address_state}` : ''}
+                                                            {viewingAcao.address_district || ''}{viewingAcao.address_district && viewingAcao.address_city ? ' - ' : ''}{viewingAcao.address_city || ''}{viewingAcao.address_state ? `/${viewingAcao.address_state}` : ''}
                                                         </span>
                                                     )}
-                                                    {viewingAcao.address_zipcode && (
-                                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>CEP: {viewingAcao.address_zipcode}</span>
-                                                    )}
-                                                    {viewingAcao.address_reference && (
-                                                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginTop: '2px' }}>
-                                                            Ref: {viewingAcao.address_reference}
-                                                        </span>
-                                                    )}
+                                                    {viewingAcao.address_zipcode && <span style={{ fontSize: '0.75rem', color: '#64748b' }}>CEP: {viewingAcao.address_zipcode}</span>}
+                                                    {viewingAcao.address_reference && <span style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginTop: '2px' }}>Ref: {viewingAcao.address_reference}</span>}
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-
-                                    {/* Grupo 4: Cronograma */}
-                                    <div style={{ gridColumn: 'span 3', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Data de Início</span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                                                <Calendar size={14} color="#64748b" />
-                                                <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{formatDate(viewingAcao.data_inicio) || 'Não definida'}</span>
-                                            </div>
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Prazo Final</span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                                                <Clock size={14} color="#64748b" />
-                                                <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{formatDate(viewingAcao.prazo) || 'Não definido'}</span>
-                                            </div>
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Situação do Prazo</span>
-                                            {(() => {
-                                                const ds = getDeadlineStatus(viewingAcao.data_inicio, viewingAcao.prazo, viewingAcao.status);
-                                                return (
-                                                    <span style={{ 
-                                                        marginTop: '2px',
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        width: 'fit-content',
-                                                        padding: '3px 8px', 
-                                                        borderRadius: '4px', 
-                                                        fontSize: '0.8rem', 
-                                                        fontWeight: 600,
-                                                        color: ds.color,
-                                                        backgroundColor: ds.bg
-                                                    }}>
-                                                        {ds.text}
-                                                    </span>
-                                                );
-                                            })()}
-                                        </div>
-                                    </div>
-                                </div>
-
-
-
-                                {/* Descrição e Observações */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingTop: '0.5rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {/* Descrição Detalhada - Movida para cima */}
+                                    <div style={{ gridColumn: 'span 3', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
                                         <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <Info size={14} /> Descrição Detalhada
                                         </span>
-                                        <div style={{ 
-                                            background: '#f8fafc', 
-                                            padding: '1.25rem', 
-                                            borderRadius: '10px', 
-                                            border: '1px solid #e2e8f0', 
-                                            fontSize: '0.9rem', 
-                                            color: '#334155', 
-                                            lineHeight: '1.6',
-                                            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
-                                        }}>
+                                        <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '0.9rem', color: '#334155', lineHeight: '1.6', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)' }}>
                                             {viewingAcao.descricao || 'Sem descrição detalhada cadastrada.'}
                                         </div>
                                     </div>
-                                    {viewingAcao.observacoes && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <AlertTriangle size={14} /> Observações Importantes
+                                    {(() => {
+                                        const currentProgress = getDisplayProgress(viewingAcao);
+                                        let stageList = [];
+                                        let currentIdx = null;
+                                        
+                                        if (viewingAcao.action_type === 'ACAO_PONTUAL') {
+                                            if (typeof viewingAcao.custom_stages === 'string') {
+                                                try { stageList = JSON.parse(viewingAcao.custom_stages); } catch(e) {}
+                                            } else if (Array.isArray(viewingAcao.custom_stages)) {
+                                                stageList = viewingAcao.custom_stages;
+                                            }
+                                            currentIdx = viewingAcao.current_stage_index;
+                                        } else {
+                                            stageList = getActionTypeStages(viewingAcao.action_type) || [];
+                                            let best = -1;
+                                            stageList.forEach((s, i) => { if (s.progress <= currentProgress) best = i; });
+                                            currentIdx = best >= 0 ? best : null;
+                                        }
+                                        
+                                        if (!stageList || stageList.length === 0) return null;
+                                        
+                                        const config = getActionTypeConfig ? getActionTypeConfig(viewingAcao.action_type) : null;
+                                        const stageTitle = config?.label ? `Etapas — ${config.label}` : 'Progresso por Etapas';
+                                        return (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <Activity size={14} /> {stageTitle}
                                             </span>
-                                            <div style={{ 
-                                                background: '#fffbeb', 
-                                                padding: '1.25rem', 
-                                                borderRadius: '10px', 
-                                                border: '1px solid #fde68a', 
-                                                fontSize: '0.9rem', 
-                                                color: '#92400e', 
-                                                lineHeight: '1.6',
-                                                boxShadow: '0 1px 3px rgba(251, 191, 36, 0.1)'
-                                            }}>
-                                                {viewingAcao.observacoes}
+                                            <div style={{ background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '280px', overflowY: 'auto', padding: '8px' }} className="custom-scrollbar">
+                                                    {stageList.map((stage, idx) => {
+                                                        const isCurrent = currentIdx === idx;
+                                                        const isCompleted = currentIdx !== null && idx < currentIdx;
+                                                        let bgColor = 'transparent', borderColor = 'transparent', titleColor = '#94a3b8', progColor = '#94a3b8';
+                                                        if (isCompleted) { bgColor = '#f0fdf4'; borderColor = '#bbf7d0'; titleColor = '#166534'; progColor = '#22c55e'; }
+                                                        else if (isCurrent) { bgColor = '#eff6ff'; borderColor = '#bfdbfe'; titleColor = '#1e3a8a'; progColor = '#3b82f6'; }
+                                                        return (
+                                                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', backgroundColor: bgColor, borderRadius: '6px', border: `1px solid ${borderColor}` }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                    {isCompleted ? <CheckCircle2 size={13} color="#22c55e" /> : <span style={{ fontSize: '0.78rem', fontWeight: 700, color: titleColor, width: '16px' }}>{idx + 1}.</span>}
+                                                                    <span style={{ fontSize: '0.82rem', fontWeight: isCurrent ? 700 : 500, color: titleColor }}>{stage.name}</span>
+                                                                    {isCurrent && <span style={{ fontSize: '0.6rem', backgroundColor: '#bfdbfe', color: '#1e3a8a', padding: '1px 7px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atual</span>}
+                                                                </div>
+                                                                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: progColor, flexShrink: 0, marginLeft: '8px' }}>{stage.progress}%</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         </div>
-                                    )}
-                                </div>
+                                    );
+                                })()}
+
+
+
+                                {/* Observações Importantes */}
+                                {viewingAcao.observacoes && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '0.5rem', paddingTop: '1.5rem', borderTop: '2px dashed #f1f5f9' }}>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <AlertTriangle size={14} /> Observações Importantes
+                                        </span>
+                                        <div style={{ background: '#fffbeb', padding: '1.25rem', borderRadius: '10px', border: '1px solid #fde68a', fontSize: '0.9rem', color: '#92400e', lineHeight: '1.6', boxShadow: '0 1px 3px rgba(251,191,36,0.1)' }}>
+                                            {viewingAcao.observacoes}
+                                        </div>
+                                    </div>
+                                )}
+
                             </div>
                         </div>
+                    </div>
 
                         {/* Footer Fixo */}
                         <div className="farmacia-modal-footer" style={{ 
@@ -1847,11 +2696,84 @@ const AcoesList = () => {
                                 }}
                                 onClick={() => {
                                     const targetAcao = viewingAcao;
+
                                     closeViewModal();
                                     setTimeout(() => openModal(targetAcao), 100);
                                 }}
                             >
                                 <Edit2 size={14} /> Editar Ação
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Confirmação de Exclusão Operacional */}
+            {confirmDeleteOpen && (
+                <div className="farmacia-modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 1100 }}>
+                    <div className="farmacia-modal-content" style={{ 
+                        maxWidth: '400px', 
+                        width: '100%',
+                        padding: '1.5rem',
+                        borderRadius: '12px',
+                        borderTop: '4px solid #dc2626',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1rem',
+                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                        background: '#ffffff'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'start', gap: '12px' }}>
+                            <div style={{ backgroundColor: '#fee2e2', padding: '8px', borderRadius: '50%', flexShrink: 0 }}>
+                                <AlertTriangle size={20} color="#dc2626" />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1f2937', margin: 0 }}>Confirmar Exclusão</h3>
+                                <p style={{ fontSize: '0.85rem', color: '#4b5563', lineHeight: '1.4', margin: 0 }}>
+                                    Tem certeza que deseja excluir esta ação estratégica? 
+                                    <strong style={{ display: 'block', marginTop: '4px', color: '#9ca3af', fontWeight: 500 }}>Esta operação não poderá ser desfeita.</strong>
+                                </p>
+                            </div>
+                        </div>
+
+                        {deleteError && (
+                            <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: '8px 12px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <AlertTriangle size={14} color="#dc2626" />
+                                <span style={{ fontSize: '0.75rem', color: '#b91c1c', fontWeight: 500 }}>{deleteError}</span>
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #f1f5f9', paddingTop: '1rem', marginTop: '0.5rem' }}>
+                            <button 
+                                className="farmacia-modal-btn-cancel" 
+                                style={{ fontSize: '0.8rem', padding: '0.5rem 1rem' }} 
+                                onClick={() => setConfirmDeleteOpen(false)}
+                                disabled={deleteLoading}
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                type="button"
+                                className="farmacia-modal-btn-confirm" 
+                                style={{ 
+                                    fontSize: '0.8rem', 
+                                    padding: '0.5rem 1.25rem',
+                                    backgroundColor: '#dc2626',
+                                    borderColor: '#dc2626',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    opacity: deleteLoading ? 0.7 : 1,
+                                    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.2)'
+                                }}
+                                onClick={() => {
+                                    console.log('[DELETE] CLICK BOTAO');
+                                    handleDeleteAcao();
+                                }}
+                                disabled={deleteLoading}
+                            >
+                                {deleteLoading && <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} />}
+                                {deleteLoading ? 'Excluindo...' : 'Confirmar Exclusão'}
                             </button>
                         </div>
                     </div>
