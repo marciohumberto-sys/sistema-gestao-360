@@ -19,6 +19,7 @@ const TITULOS = {
 
 const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade }) => {
     const { tenantId } = useTenant();
+    const { unidades } = useFarmacia();
     const [step, setStep] = useState('params'); // 'params' | 'preview'
     
     // Parâmetros (filtros)
@@ -26,6 +27,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
     const [unidade, setUnidade] = useState('Todas');
     const [faixaVencimento, setFaixaVencimento] = useState('60d');
     const [tipoItem, setTipoItem] = useState('Todos');
+    const [tipoMovimentacao, setTipoMovimentacao] = useState('Todos');
     const [dataInicio, setDataInicio] = useState('');
     const [dataFim, setDataFim] = useState('');
 
@@ -41,9 +43,22 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
         if (isOpen) {
             setStep('params');
             setPeriodo('30d');
-            setUnidade(defaultUnidade || 'Todas');
+            
+            // Ajuste fino: se multiunidade e relatório de Movimentações, inicia em 'Todas'
+            if (reportType === 'MOVIMENTACOES') {
+                if (unidades && unidades.length > 1) {
+                    setUnidade('Todas');
+                } else if (unidades && unidades.length === 1) {
+                    setUnidade(unidades[0].label);
+                } else {
+                    setUnidade(defaultUnidade || 'Todas');
+                }
+            } else {
+                setUnidade(defaultUnidade || 'Todas');
+            }
             setFaixaVencimento('60d');
             setTipoItem('Todos');
+            setTipoMovimentacao('Todos');
             setDataInicio('');
             setDataFim('');
             setTableData([]);
@@ -51,7 +66,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
             setErrorMsg(null);
             setEmptyMsg(null);
         }
-    }, [isOpen, defaultUnidade, reportType]);
+    }, [isOpen, defaultUnidade, reportType, unidades]);
 
     if (!isOpen) return null;
 
@@ -68,7 +83,13 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                     result = await relatoriosService.generateStockPositionReport(tenantId, unidade);
                     break;
                 case 'MOVIMENTACOES':
-                    result = await relatoriosService.generateMovementsByPeriodReport(tenantId, periodo, unidade);
+                    if (!dataInicio || !dataFim) {
+                        throw new Error('As datas inicial e final são obrigatórias.');
+                    }
+                    if (new Date(dataFim) < new Date(dataInicio)) {
+                        throw new Error('A data final não pode ser anterior à data inicial.');
+                    }
+                    result = await relatoriosService.generateMovementsByPeriodReport(tenantId, dataInicio, dataFim, unidade, tipoItem, tipoMovimentacao);
                     break;
                 case 'CONSUMO_SETOR':
                     result = await relatoriosService.generateConsumptionBySectorReport(tenantId, periodo, unidade);
@@ -120,10 +141,11 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
         }
     };
 
-    const exigePeriodo = ['MOVIMENTACOES', 'CONSUMO_SETOR', 'CURVA_ABC'].includes(reportType);
-    const exigePeriodoPersonalizado = ['TOP_CONSUMO', 'SAIDAS_OBSERVACAO'].includes(reportType);
+    const exigePeriodo = ['CONSUMO_SETOR', 'CURVA_ABC'].includes(reportType);
+    const exigePeriodoPersonalizado = ['MOVIMENTACOES', 'TOP_CONSUMO', 'SAIDAS_OBSERVACAO'].includes(reportType);
     const exigeFaixaVencimento = reportType === 'VALIDADES';
-    const exigeTipoItem = reportType === 'TOP_CONSUMO';
+    const exigeTipoItem = ['MOVIMENTACOES', 'TOP_CONSUMO'].includes(reportType);
+    const exigeTipoMovimentacao = reportType === 'MOVIMENTACOES';
 
     return (
         <div className="farmacia-modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', zIndex: 1050, backdropFilter: 'blur(2px)' }} onMouseDown={e => e.target === e.currentTarget && onClose()}>
@@ -153,6 +175,19 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                     <span><strong>Unidade:</strong> {unidade === 'Todas' ? 'Consolidado Geral' : unidade}</span>
                                     {exigePeriodo && periodo && (
                                         <span><span style={{ margin: '0 8px', color: '#ccc' }}>|</span><strong>Período:</strong> {periodo === 'Hoje' ? 'Hoje' : periodo === '7d' ? 'Últimos 7 dias' : 'Últimos 30 dias'}</span>
+                                    )}
+                                    {exigePeriodoPersonalizado && dataInicio && dataFim && (
+                                        <span><span style={{ margin: '0 8px', color: '#ccc' }}>|</span><strong>Período:</strong> {(() => {
+                                            const d1 = dataInicio.split('-');
+                                            const d2 = dataFim.split('-');
+                                            return `${d1[2]}/${d1[1]}/${d1[0]} até ${d2[2]}/${d2[1]}/${d2[0]}`;
+                                        })()}</span>
+                                    )}
+                                    {exigeTipoItem && (
+                                        <span><span style={{ margin: '0 8px', color: '#ccc' }}>|</span><strong>Tipo de Item:</strong> {tipoItem}</span>
+                                    )}
+                                    {exigeTipoMovimentacao && (
+                                        <span><span style={{ margin: '0 8px', color: '#ccc' }}>|</span><strong>Movimentação:</strong> {tipoMovimentacao}</span>
                                     )}
                                     <span><span style={{ margin: '0 8px', color: '#ccc' }}>|</span><strong>Emissão:</strong> {new Date().toLocaleString('pt-BR')}</span>
                                 </div>
@@ -244,7 +279,32 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                 </select>
                             </div>
 
-                            {/* Filtro: Período */}
+                            {/* Filtro: Tipo de Item */}
+                            {exigeTipoItem && (
+                                <div className="farmacia-form-group">
+                                    <label className="farmacia-form-label">Tipo de Item</label>
+                                    <select className="farmacia-form-input" value={tipoItem} onChange={e => setTipoItem(e.target.value)}>
+                                        <option value="Todos">Todos</option>
+                                        <option value="Medicamentos">Medicamentos</option>
+                                        {reportType === 'MOVIMENTACOES' && <option value="Materiais">Materiais</option>}
+                                        <option value="Insumos">Insumos</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Filtro: Tipo de Movimentação */}
+                            {exigeTipoMovimentacao && (
+                                <div className="farmacia-form-group">
+                                    <label className="farmacia-form-label">Tipo de Movimentação</label>
+                                    <select className="farmacia-form-input" value={tipoMovimentacao} onChange={e => setTipoMovimentacao(e.target.value)}>
+                                        <option value="Todos">Todos (Entradas/Saídas)</option>
+                                        <option value="Entradas">Entradas</option>
+                                        <option value="Saídas">Saídas</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Filtro: Período Fixo */}
                             {exigePeriodo && (
                                 <div className="farmacia-form-group">
                                     <label className="farmacia-form-label">Período de Análise</label>
@@ -256,7 +316,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                 </div>
                             )}
 
-                            {/* Filtro: Período Personalizado (Apenas Top 30) */}
+                            {/* Filtro: Período Personalizado */}
                             {exigePeriodoPersonalizado && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <div className="farmacia-form-group">
@@ -290,18 +350,6 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                         <option value="30d">Próximos 30 dias</option>
                                         <option value="60d">Próximos 60 dias (Padrão)</option>
                                         <option value="90d">Próximos 90 dias</option>
-                                    </select>
-                                </div>
-                            )}
-
-                            {/* Filtro: Tipo de Item (Apenas Top 30) */}
-                            {exigeTipoItem && (
-                                <div className="farmacia-form-group">
-                                    <label className="farmacia-form-label">Tipo de Item</label>
-                                    <select className="farmacia-form-input" value={tipoItem} onChange={e => setTipoItem(e.target.value)}>
-                                        <option value="Todos">Todos</option>
-                                        <option value="Medicamentos">Medicamentos</option>
-                                        <option value="Insumos">Insumos</option>
                                     </select>
                                 </div>
                             )}
@@ -441,7 +489,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                             if (unidade && unidade !== 'Todas') suffix += `_${unidade.toLowerCase()}`;
                                             
                                             let periodoLabel = null;
-                                            if (reportType === 'TOP_CONSUMO') {
+                                            if (['TOP_CONSUMO', 'SAIDAS_OBSERVACAO', 'MOVIMENTACOES'].includes(reportType) && dataInicio && dataFim) {
                                                 const formatarData = (dStr) => {
                                                     const parts = dStr.split('-');
                                                     return `${parts[2]}/${parts[1]}/${parts[0]}`;
@@ -455,15 +503,20 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                                 suffix += `_${periodoLabel.replace(/ /g, '_').replace(/\//g, '-')}`;
                                             }
 
+                                            const excelMetadata = {
+                                                relatorio: TITULOS[reportType] || 'Relatório Gerencial',
+                                                unidade: unidade === 'Todas' ? 'Consolidado Geral' : unidade,
+                                                periodo: periodoLabel
+                                            };
+                                            
+                                            if (exigeTipoItem) excelMetadata.tipo_item = tipoItem;
+                                            if (exigeTipoMovimentacao) excelMetadata.tipo_movimentacao = tipoMovimentacao;
+
                                             exportToExcel({ 
                                                 data: tableData, 
                                                 columns, 
                                                 fileName: `${rName}${suffix}.xlsx`,
-                                                metadata: {
-                                                    relatorio: TITULOS[reportType] || 'Relatório Gerencial',
-                                                    unidade: unidade === 'Todas' ? 'Consolidado Geral' : unidade,
-                                                    periodo: periodoLabel
-                                                },
+                                                metadata: excelMetadata,
                                                 sheetName: TITULOS[reportType] || 'Relatório'
                                             });
                                         }}

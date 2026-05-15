@@ -121,54 +121,122 @@ export const generateStockPositionReport = async (tenantId, unidadeNome) => {
 // ==========================================
 // RELATÓRIO 2: MOVIMENTAÇÕES POR PERÍODO
 // ==========================================
-export const generateMovementsByPeriodReport = async (tenantId, periodo, unidadeNome) => {
+export const generateMovementsByPeriodReport = async (tenantId, dataInicio, dataFim, unidadeNome, tipoItem = 'Todos', tipoMovimentacao = 'Todos') => {
     try {
         if (!tenantId) throw new Error("TenantID não identificado.");
 
-        let queryMoves = supabase.from('stock_movements').select('created_at, movement_type, quantity, inventory_item_id, unit_id, notes').eq('tenant_id', tenantId).order('created_at', { ascending: false });
+        // 1. Resolver Unidade de antemão para filtrar no Supabase (reduz tráfego e filas de registros)
+        const { data: resUnits, error: errUnits } = await supabase
+            .from('units')
+            .select('id, name');
         
-        const startDate = getStartDate(periodo);
-        if (startDate) queryMoves = queryMoves.gte('created_at', startDate);
+        if (errUnits) console.error('[Supabase] Erro ao mapear unidades:', errUnits);
 
-        const [ resMoves, resItems, resUnits ] = await Promise.all([
-            queryMoves,
-            supabase.from('inventory_items').select('id, name'),
-            supabase.from('units').select('id, name')
-        ]);
-
-        if (resMoves.error) console.error('[Supabase] Erro movimentações:', resMoves.error);
-
-        const movements = resMoves.data;
-        const items = resItems.data || [];
-        const units = resUnits.data || [];
-
-        if (!movements) {
-            return { data: [], columns: [], error: `Falha ao buscar movimentações reais. ${resMoves.error?.message || ''}` };
-        }
-
+        const units = resUnits || [];
         const unitMap = {}; 
         units.forEach(u => unitMap[u.name.toUpperCase()] = u.id);
         const targetUnitId = unidadeNome !== 'Todas' ? unitMap[unidadeNome.toUpperCase()] : null;
 
-        const validMovements = targetUnitId ? movements.filter(m => m.unit_id === targetUnitId) : movements;
+        // Preparação de Período em UTC
+        let startISO = null;
+        let endISO = null;
+        if (dataInicio && dataFim) {
+            const [yearStart, monthStart, dayStart] = dataInicio.split('-').map(Number);
+            const [yearEnd, monthEnd, dayEnd] = dataFim.split('-').map(Number);
+            const start = new Date(yearStart, monthStart - 1, dayStart, 0, 0, 0, 0);
+            const end = new Date(yearEnd, monthEnd - 1, dayEnd, 23, 59, 59, 999);
+            startISO = start.toISOString();
+            endISO = end.toISOString();
+        }
 
-        const data = validMovements.map(m => {
-            const itemObj = items.find(i => i.id === m.inventory_item_id) || {};
-            const unitObj = units.find(u => u.id === m.unit_id) || {};
+        // 2. Resgate Paginação Recursiva de Movimentações (Garante contornar o limite padrão de 1000 registros do PostgREST/Supabase)
+        let allMovements = [];
+        let fromIndex = 0;
+        const PAGE_SIZE = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+            // Eager Join direto no Supabase para trazer itens e unidades de forma relacionada nativamente
+            let queryMoves = supabase
+                .from('stock_movements')
+                .select(`
+                    created_at, 
+                    movement_type, 
+                    quantity, 
+                    notes,
+                    itemObj:inventory_items (id, name, item_type),
+                    unitObj:units (id, name)
+                `)
+                .eq('tenant_id', tenantId)
+                .order('created_at', { ascending: false })
+                .range(fromIndex, fromIndex + PAGE_SIZE - 1);
+
+            if (startISO && endISO) {
+                queryMoves = queryMoves.gte('created_at', startISO).lte('created_at', endISO);
+            }
+
+            if (tipoMovimentacao === 'Entradas') {
+                queryMoves = queryMoves.eq('movement_type', 'ENTRY');
+            } else if (tipoMovimentacao === 'Saídas') {
+                queryMoves = queryMoves.eq('movement_type', 'EXIT');
+            } else {
+                queryMoves = queryMoves.in('movement_type', ['ENTRY', 'EXIT']);
+            }
+
+            if (targetUnitId) {
+                queryMoves = queryMoves.eq('unit_id', targetUnitId);
+            }
+
+            const { data: pageData, error: pageError } = await queryMoves;
+
+            if (pageError) {
+                console.error('[Supabase] Erro na página de busca do relatório:', pageError);
+                throw pageError;
+            }
+
+            if (!pageData || pageData.length === 0) {
+                hasMore = false;
+            } else {
+                allMovements = [...allMovements, ...pageData];
+                if (pageData.length < PAGE_SIZE) {
+                    hasMore = false;
+                } else {
+                    fromIndex += PAGE_SIZE;
+                }
+            }
+        }
+
+        // 3. Processar Dataset Consolidado e Aplicar Filtro de Item
+        const data = [];
+
+        allMovements.forEach(m => {
+            // Parser seguro suportando objeto ou array de relacionamento
+            const rawItem = m.itemObj;
+            const itemObj = rawItem ? (Array.isArray(rawItem) ? rawItem[0] : rawItem) : null;
+            
+            if (!itemObj) return; // Pula caso o relacionamento do item falhe
+
+            // Filtro de Tipo de Item em memória
+            if (tipoItem === 'Medicamentos' && itemObj.item_type !== 'MEDICAMENTO') return;
+            if (tipoItem === 'Materiais' && itemObj.item_type !== 'MATERIAL') return;
+            if (tipoItem === 'Insumos' && itemObj.item_type !== 'INSUMO') return;
+
+            const rawUnit = m.unitObj;
+            const unitObj = rawUnit ? (Array.isArray(rawUnit) ? rawUnit[0] : rawUnit) : {};
             
             let tipoLabel = m.movement_type;
             if (tipoLabel === 'ENTRY') tipoLabel = 'ENTRADA';
             if (tipoLabel === 'EXIT') tipoLabel = 'SAÍDA';
             if (tipoLabel === 'ADJUSTMENT') tipoLabel = 'AJUSTE';
 
-            return {
+            data.push({
                 data: new Date(m.created_at).toLocaleDateString('pt-BR') + ' ' + new Date(m.created_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
                 tipo: tipoLabel,
                 medicamento: itemObj.name || '-',
                 unidade: unitObj.name || '-',
                 quantidade: Math.abs(m.quantity || 0),
-                obs: (!m.notes || m.notes.trim()==='') ? '—' : m.notes
-            };
+                obs: (!m.notes || m.notes.trim() === '') ? '—' : m.notes
+            });
         });
 
         const columns = [
