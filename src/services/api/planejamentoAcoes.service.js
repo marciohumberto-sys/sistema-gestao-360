@@ -246,6 +246,26 @@ export const fetchAcoes = async (tenantId) => {
         console.warn('[planejamentoAcoes] Falha ao buscar participantes:', errLinks);
     }
 
+    // 5.5 Buscar a data da última atualização manual de cada ação
+    let latestUpdateMap = new Map();
+    try {
+        const { data: updates } = await supabase
+            .from('planning_action_updates')
+            .select('action_id, created_at')
+            .eq('tenant_id', tenantId);
+        
+        if (updates) {
+            updates.forEach(u => {
+                const currentStr = latestUpdateMap.get(u.action_id);
+                if (!currentStr || new Date(u.created_at) > new Date(currentStr)) {
+                    latestUpdateMap.set(u.action_id, u.created_at);
+                }
+            });
+        }
+    } catch (errUpdates) {
+        console.warn('[planejamentoAcoes] Falha ao buscar datas de atualizações manuais:', errUpdates);
+    }
+
     // 6. Mapeamento final
     return actions.map(a => ({
         id: a.id,
@@ -275,9 +295,11 @@ export const fetchAcoes = async (tenantId) => {
         address_reference: a.address_reference || '',
         custom_stages: a.custom_stages || null,
         current_stage_index: a.current_stage_index ?? null,
+        current_stage_observation: a.current_stage_observation || '',
         latitude: a.latitude || null,
         longitude: a.longitude || null,
         completion_date: a.completion_date || null,
+        last_manual_update_at: latestUpdateMap.get(a.id) || null,
         updated_at: a.updated_at,
         created_at: a.created_at
     }));
@@ -371,6 +393,7 @@ export const createAcao = async (tenantId, formData, axes) => {
         address_reference: formData.address_reference?.trim() || null,
         custom_stages: formData.custom_stages || null,
         current_stage_index: formData.current_stage_index ?? null,
+        current_stage_observation: formData.current_stage_observation?.trim() || null,
     };
 
     // LOG DE DIAGNÓSTICO OBRIGATÓRIO
@@ -447,6 +470,7 @@ export const updateAcao = async (tenantId, id, formData) => {
         address_reference: formData.address_reference?.trim() || null,
         custom_stages: formData.custom_stages || null,
         current_stage_index: formData.current_stage_index ?? null,
+        current_stage_observation: formData.current_stage_observation?.trim() || null,
         ...(formData.axisId && { axis_id: formData.axisId }),
         ...(formData.secretariatId && { secretariat_id: formData.secretariatId }),
     };

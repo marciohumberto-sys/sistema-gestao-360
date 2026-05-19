@@ -663,22 +663,56 @@ const PlanejamentoAtualizacoes = () => {
     // ---- MÉTRICAS PARA CARDS ----
     const metrics = useMemo(() => {
         const now = new Date();
+        const todayClear = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        let countAtualizadas = 0;
+        let countPendente = 0;
+        let countAtraso = 0;
+
+        acoes.forEach(acao => {
+            const hasManual = !!acao.last_manual_update_at;
+            
+            if (hasManual) {
+                const manualDate = new Date(acao.last_manual_update_at);
+                const manualDateClear = new Date(manualDate.getFullYear(), manualDate.getMonth(), manualDate.getDate());
+                const diffTime = todayClear - manualDateClear;
+                const diffDaysManual = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDaysManual <= 7) {
+                    countAtualizadas++;
+                } else {
+                    countAtraso++;
+                }
+            } else if (acao.created_at) {
+                const createdDate = new Date(acao.created_at);
+                const createdDateClear = new Date(createdDate.getFullYear(), createdDate.getMonth(), createdDate.getDate());
+                const diffTime = todayClear - createdDateClear;
+                const diffDaysCreated = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDaysCreated <= 7) {
+                    countPendente++;
+                } else {
+                    countAtraso++;
+                }
+            }
+        });
+
         let total = atualizacoesFiltradas.length;
-        let recentes = 0;
-        let statusChanges = 0;
-        let progressChanges = 0;
         let criticas = 0;
 
         atualizacoesFiltradas.forEach(item => {
-            const diffDays = Math.floor((now - new Date(item.data)) / (1000 * 60 * 60 * 24));
-            if (diffDays <= 7) recentes++;
-            if (item.statusNovo) statusChanges++;
-            if (item.progressoNovo !== null && item.progressoNovo !== undefined) progressChanges++;
             if (item.critica) criticas++;
         });
 
-        return { total, recentes, statusChanges, progressChanges, criticas };
-    }, [atualizacoesFiltradas]);
+        return { 
+            total, 
+            criticas, 
+            atualizadas: countAtualizadas, 
+            pendentes: countPendente, 
+            atrasadas: countAtraso 
+        };
+    }, [acoes, atualizacoesFiltradas]);
+
 
     // ---- HELPERS VISUAIS ----
     const getTipoConfig = (tipo, critica) => {
@@ -749,6 +783,7 @@ const PlanejamentoAtualizacoes = () => {
             await deleteAtualizacao(tenantId, deleteId);
             setToast('Atualização excluída com sucesso.');
             await loadAtualizacoes();
+            fetchAcoes(tenantId).then(setAcoes).catch(console.error);
         } catch (err) {
             console.error('[PlanejamentoAtualizacoes] Erro ao excluir:', err);
             setLoadError(err.message || 'Erro ao excluir atualização.');
@@ -894,9 +929,7 @@ const PlanejamentoAtualizacoes = () => {
                 setToast('Atualização registrada com sucesso.');
             }
 
-            if (shouldUpdateParent) {
-                fetchAcoes(tenantId).then(setAcoes).catch(console.error);
-            }
+            fetchAcoes(tenantId).then(setAcoes).catch(console.error);
 
             setIsModalOpen(false);
             setEditingUpdateId(null);
@@ -1042,25 +1075,25 @@ const PlanejamentoAtualizacoes = () => {
                 <div className="planejamento-atualizacoes-container" style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                     {/* Cards Executivos */}
                     <div className="updates-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+                        <div className="farmacia-card" style={{ padding: '1rem', borderLeft: '3px solid #10b981' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Atualizadas</span>
+                            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>{metrics.atualizadas}</div>
+                        </div>
+                        <div className="farmacia-card" style={{ padding: '1rem', borderLeft: '3px solid #f59e0b' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Com atualização pendente</span>
+                            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f59e0b', marginTop: '4px' }}>{metrics.pendentes}</div>
+                        </div>
+                        <div className="farmacia-card" style={{ padding: '1rem', borderLeft: '3px solid #ef4444' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Em atraso de atualização</span>
+                            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ef4444', marginTop: '4px' }}>{metrics.atrasadas}</div>
+                        </div>
                         <div className="farmacia-card" style={{ padding: '1rem', borderLeft: '3px solid #64748b' }}>
                             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total de Atualizações</span>
                             <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text)', marginTop: '4px' }}>{metrics.total}</div>
                         </div>
-                        <div className="farmacia-card" style={{ padding: '1rem', borderLeft: '3px solid #3b82f6' }}>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Recentes (7 dias)</span>
-                            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#3b82f6', marginTop: '4px' }}>{metrics.recentes}</div>
-                        </div>
-                        <div className="farmacia-card" style={{ padding: '1rem', borderLeft: '3px solid #10b981' }}>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Mudanças de Status</span>
-                            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981', marginTop: '4px' }}>{metrics.statusChanges}</div>
-                        </div>
-                        <div className="farmacia-card" style={{ padding: '1rem', borderLeft: '3px solid #8b5cf6' }}>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Avanços de Progresso</span>
-                            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#8b5cf6', marginTop: '4px' }}>{metrics.progressChanges}</div>
-                        </div>
-                        <div className="farmacia-card" style={{ padding: '1rem', borderLeft: '3px solid #ef4444' }}>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Atenção/Críticas</span>
-                            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ef4444', marginTop: '4px' }}>{metrics.criticas}</div>
+                        <div className="farmacia-card" style={{ padding: '1rem', borderLeft: '3px solid #b91c1c' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Atenção / Críticas</span>
+                            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#b91c1c', marginTop: '4px' }}>{metrics.criticas}</div>
                         </div>
                     </div>
 

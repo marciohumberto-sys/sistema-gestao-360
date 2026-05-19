@@ -90,13 +90,13 @@ const getDisplayProgress = (acao) => {
 };
 
 const getUpdateDelayStatus = (acao) => {
-    const lastDateStr = acao.updated_at || acao.created_at;
-    if (!lastDateStr) {
-
+    const hasManualUpdate = !!acao.last_manual_update_at;
+    const baseDateStr = acao.last_manual_update_at || acao.created_at;
+    if (!baseDateStr) {
         return { status: 'normal', days: 0 };
     }
     
-    const lastDate = new Date(lastDateStr);
+    const lastDate = new Date(baseDateStr);
     const today = new Date();
     
     // Clear hours to calculate full days
@@ -106,21 +106,22 @@ const getUpdateDelayStatus = (acao) => {
     const diffTime = todayClear - lastDateClear;
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     
-    let status = 'normal';
-    // REGRA OFICIAL:
-    // 0 a 5 dias -> normal
-    // 6 a 7 dias -> 'Atualização pendente'
-    // 8+ dias -> 'Atualização em atraso'
-    if (diffDays >= 8) {
-        status = 'critical';
-    } else if (diffDays >= 6) {
-        status = 'pending';
+    if (hasManualUpdate) {
+        if (diffDays > 7) {
+            return { status: 'critical', days: diffDays };
+        } else {
+            return { status: 'normal', days: diffDays };
+        }
+    } else {
+        if (diffDays > 7) {
+            return { status: 'critical', days: diffDays };
+        } else {
+            // Sem atualização manual registrada e criada há até 7 dias
+            return { status: 'pending', days: diffDays };
+        }
     }
-    
-
-    
-    return { status, days: diffDays };
 };
+
 
 const getActionTypeBadge = (type) => {
     const config = getActionTypeConfig(type);
@@ -387,7 +388,8 @@ const AcoesList = () => {
         address_reference: '',
         participantes: [],
         custom_stages: null,
-        current_stage_index: null
+        current_stage_index: null,
+        current_stage_observation: ''
     };
     const [formData, setFormData] = useState(emptyForm);
     const [objectives, setObjectives] = useState([]);
@@ -463,7 +465,8 @@ const AcoesList = () => {
                 address_reference: acao.address_reference || '',
                 participantes: [],
                 custom_stages: acao.custom_stages || null,
-                current_stage_index: acao.current_stage_index ?? null
+                current_stage_index: acao.current_stage_index ?? null,
+                current_stage_observation: acao.current_stage_observation || ''
             });
 
             // Carregar secretarias participantes de forma assíncrona e travar estado original
@@ -869,7 +872,7 @@ const AcoesList = () => {
             if (a.status === 'CONCLUIDA') concluidas++;
             if (a.status === 'EM_RISCO') emRisco++;
 
-            const lastUpdate = new Date(a.updated_at || a.created_at || now);
+            const lastUpdate = new Date(a.last_manual_update_at || a.created_at || now);
             const diffDaysUpdate = Math.floor((now - lastUpdate) / (1000 * 60 * 60 * 24));
             if (diffDaysUpdate > 15) semAtualizacao++;
 
@@ -1255,54 +1258,78 @@ const AcoesList = () => {
                                                 />
                                             </div>
                                             {acao.action_type === 'ACAO_PONTUAL' && acao.custom_stages && acao.custom_stages.length > 0 && acao.current_stage_index !== null && (
-                                                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
+                                                <div 
+                                                    title={`Etapa atual: ${acao.custom_stages[acao.current_stage_index]?.name || 'Não definida'}`}
+                                                    style={{ 
+                                                        fontSize: '0.65rem', 
+                                                        color: '#64748b', 
+                                                        marginTop: '2px',
+                                                        maxWidth: '180px',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap'
+                                                    }}
+                                                >
                                                     Etapa atual: <span style={{ fontWeight: 600 }}>{acao.custom_stages[acao.current_stage_index]?.name || 'Não definida'}</span>
                                                 </div>
                                             )}
                                             {(() => {
-                                                const delay = getUpdateDelayStatus(acao);
-                                                if (delay.status === 'pending') {
-                                                    return (
-                                                        <div 
-                                                            title={`Última atualização há ${delay.days} dias`}
-                                                            style={{ 
-                                                                display: 'inline-flex', 
-                                                                alignItems: 'center', 
-                                                                gap: '4px', 
-                                                                fontSize: '0.65rem', 
-                                                                fontWeight: 500, 
-                                                                color: '#d97706', 
-                                                                opacity: 0.9,
-                                                                whiteSpace: 'nowrap',
-                                                                cursor: 'help',
-                                                                marginTop: '2px'
-                                                            }}
-                                                        >
-                                                            <Clock size={11} style={{ flexShrink: 0, opacity: 0.8 }} /> Atualização pendente
-                                                        </div>
-                                                    );
-                                                } else if (delay.status === 'critical') {
-                                                    return (
-                                                        <div 
-                                                            title={`Última atualização há ${delay.days} dias`}
-                                                            style={{ 
-                                                                display: 'inline-flex', 
-                                                                alignItems: 'center', 
-                                                                gap: '4px', 
-                                                                fontSize: '0.65rem', 
-                                                                fontWeight: 500, 
-                                                                color: '#d97706', 
-                                                                opacity: 0.9,
-                                                                whiteSpace: 'nowrap',
-                                                                cursor: 'help',
-                                                                marginTop: '2px'
-                                                            }}
-                                                        >
-                                                            <AlertTriangle size={11} style={{ flexShrink: 0, opacity: 0.8 }} /> Sem atualização há {delay.days} dias
-                                                        </div>
-                                                    );
+                                                if (acao.status === 'CONCLUIDA' || Math.round(getDisplayProgress(acao)) >= 100) {
+                                                    return null;
                                                 }
-                                                return null;
+                                                const delay = getUpdateDelayStatus(acao);
+                                                const hasManual = !!acao.last_manual_update_at;
+                                                
+                                                let color = '#64748b'; // Slate (Padrão Saudável)
+                                                let Icon = Clock;
+                                                let text = '';
+                                                
+                                                if (hasManual && delay.days <= 7) {
+                                                    // STATUS SAUDÁVEL (Atualizada)
+                                                    color = '#10b981'; // Verde suave
+                                                    Icon = CheckCircle2;
+                                                    text = delay.days === 0 ? 'Atualizada hoje' : `Atualizada há ${delay.days} dia${delay.days !== 1 ? 's' : ''}`;
+                                                } else if (delay.days <= 7) {
+                                                    // STATUS SAUDÁVEL (Sem atualização)
+                                                    color = '#64748b'; // Slate cinza elegante
+                                                    Icon = Clock;
+                                                    text = `Sem atualização há ${delay.days} dia${delay.days !== 1 ? 's' : ''}`;
+                                                } else if (delay.days <= 14) {
+                                                    // STATUS DE ATENÇÃO MODERADA (8–14 dias)
+                                                    color = '#f59e0b'; // Amber suave / laranja leve
+                                                    Icon = Clock;
+                                                    text = `Sem atualização há ${delay.days} dia${delay.days !== 1 ? 's' : ''}`;
+                                                } else if (delay.days <= 20) {
+                                                    // STATUS DE ATENÇÃO ALTA (15–20 dias)
+                                                    color = '#ea580c'; // Laranja forte
+                                                    Icon = Clock;
+                                                    text = `Sem atualização há ${delay.days} dia${delay.days !== 1 ? 's' : ''}`;
+                                                } else {
+                                                    // STATUS CRÍTICO (21+ dias)
+                                                    color = '#dc2626'; // Vermelho crítico
+                                                    Icon = AlertTriangle;
+                                                    text = `Sem atualização há ${delay.days} dia${delay.days !== 1 ? 's' : ''}`;
+                                                }
+
+                                                return (
+                                                    <div 
+                                                        title={text}
+                                                        style={{ 
+                                                            display: 'inline-flex', 
+                                                            alignItems: 'center', 
+                                                            gap: '4px', 
+                                                            fontSize: '0.65rem', 
+                                                            fontWeight: 600, 
+                                                            color: color, 
+                                                            opacity: 0.95,
+                                                            whiteSpace: 'nowrap',
+                                                            cursor: 'help',
+                                                            marginTop: '2px'
+                                                        }}
+                                                    >
+                                                        <Icon size={11} style={{ flexShrink: 0, opacity: 0.8 }} /> {text}
+                                                    </div>
+                                                );
                                             })()}
                                         </div>
                                     </td>
@@ -1543,7 +1570,7 @@ const AcoesList = () => {
                                     </div>
                                     {getActionTypeStages(formData.action_type) ? (
                                         <>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '0.9fr 1.1fr', gap: '0.75rem' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
                                                 <div className="farmacia-form-group">
                                                     <label className="farmacia-form-label">Etapa Atual</label>
                                                     <select
@@ -1579,6 +1606,19 @@ const AcoesList = () => {
                                                     />
                                                 </div>
                                             </div>
+                                            
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem', marginTop: '0.75rem' }}>
+                                                <div className="farmacia-form-group">
+                                                    <label className="farmacia-form-label">Observação</label>
+                                                    <input
+                                                        type="text"
+                                                        className="farmacia-form-input"
+                                                        placeholder="Observação da etapa atual"
+                                                        value={formData.current_stage_observation || ''}
+                                                        onChange={e => setFormData({ ...formData, current_stage_observation: e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
 
                                             <div style={{ marginTop: '4px', marginBottom: '2px', width: '100%' }}>
                                                 <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontStyle: 'italic', display: 'block', opacity: 0.8, letterSpacing: '0.015em' }}>
@@ -1604,7 +1644,8 @@ const AcoesList = () => {
                                             </div>
                                         </>
                                     ) : (
-                                        <div style={{ display: 'grid', gridTemplateColumns: formData.action_type === 'ACAO_PONTUAL' ? '1fr' : formData.action_type === 'AQUISICAO' ? '1fr 1fr' : '1.2fr 0.8fr 1.2fr', gap: '0.875rem' }}>
+                                        <>
+                                        <div style={{ display: 'grid', gridTemplateColumns: formData.action_type === 'ACAO_PONTUAL' ? '1fr' : formData.action_type === 'AQUISICAO' ? '1fr 1fr' : '1fr 0.8fr 1fr', gap: '0.875rem' }}>
                                             {formData.action_type !== 'ACAO_PONTUAL' && (
                                                 <div className="farmacia-form-group">
                                                     <label className="farmacia-form-label">Status Atual</label>
@@ -1720,6 +1761,20 @@ const AcoesList = () => {
                                                 />
                                             </div>
                                         </div>
+                                        
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem', marginTop: '0.75rem' }}>
+                                            <div className="farmacia-form-group">
+                                                <label className="farmacia-form-label">Observação</label>
+                                                <input
+                                                    type="text"
+                                                    className="farmacia-form-input"
+                                                    placeholder="Observação da etapa atual"
+                                                    value={formData.current_stage_observation || ''}
+                                                    onChange={e => setFormData({ ...formData, current_stage_observation: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+                                    </>
                                     )}
                                     {formData.action_type === 'ACAO_PONTUAL' && (
                                         <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px dashed rgba(0,0,0,0.1)' }}>
@@ -1759,27 +1814,39 @@ const AcoesList = () => {
                                                     </select>
 
                                                     {formData.custom_stages && formData.custom_stages.length > 0 && (
-                                                        <div style={{ marginTop: '1rem' }}>
-                                                            <label className="farmacia-form-label">Etapa Atual</label>
-                                                            <select 
-                                                                className="farmacia-form-select"
-                                                                value={formData.current_stage_index !== null ? formData.current_stage_index : ''}
-                                                                onChange={e => {
-                                                                    const idxStr = e.target.value;
-                                                                    if (idxStr === '') {
-                                                                        setFormData({ ...formData, current_stage_index: null, progresso: 0 });
-                                                                        return;
-                                                                    }
-                                                                    const idx = parseInt(idxStr);
-                                                                    const progress = formData.custom_stages[idx].progress;
-                                                                    setFormData({ ...formData, current_stage_index: idx, progresso: progress });
-                                                                }}
-                                                            >
-                                                                <option value="">Selecione a etapa...</option>
-                                                                {formData.custom_stages.map((stage, idx) => (
-                                                                    <option key={idx} value={idx}>{stage.name} ({stage.progress}%)</option>
-                                                                ))}
-                                                            </select>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '1rem' }}>
+                                                            <div className="farmacia-form-group">
+                                                                <label className="farmacia-form-label">Etapa Atual</label>
+                                                                <select 
+                                                                    className="farmacia-form-select"
+                                                                    value={formData.current_stage_index !== null ? formData.current_stage_index : ''}
+                                                                    onChange={e => {
+                                                                        const idxStr = e.target.value;
+                                                                        if (idxStr === '') {
+                                                                            setFormData({ ...formData, current_stage_index: null, progresso: 0 });
+                                                                            return;
+                                                                        }
+                                                                        const idx = parseInt(idxStr);
+                                                                        const progress = formData.custom_stages[idx].progress;
+                                                                        setFormData({ ...formData, current_stage_index: idx, progresso: progress });
+                                                                    }}
+                                                                >
+                                                                    <option value="">Selecione a etapa...</option>
+                                                                    {formData.custom_stages.map((stage, idx) => (
+                                                                        <option key={idx} value={idx}>{stage.name} ({stage.progress}%)</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                            <div className="farmacia-form-group">
+                                                                <label className="farmacia-form-label">Observação</label>
+                                                                <input
+                                                                    type="text"
+                                                                    className="farmacia-form-input"
+                                                                    placeholder="Observação da etapa atual"
+                                                                    value={formData.current_stage_observation || ''}
+                                                                    onChange={e => setFormData({ ...formData, current_stage_observation: e.target.value })}
+                                                                />
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
@@ -2130,47 +2197,71 @@ const AcoesList = () => {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
                                 
                                 {(() => {
+                                    if (viewingAcao.status === 'CONCLUIDA' || Math.round(getDisplayProgress(viewingAcao)) >= 100) return null;
                                     const delay = getUpdateDelayStatus(viewingAcao);
-                                    if (delay.status === 'pending') {
-                                        return (
-                                            <div style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '10px',
-                                                backgroundColor: '#fffbeb',
-                                                border: '1px solid #fde68a',
-                                                borderRadius: '8px',
-                                                padding: '0.85rem 1.15rem',
-                                                color: '#b45309',
-                                                fontSize: '0.85rem',
-                                                fontWeight: 600,
-                                                boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
-                                            }}>
-                                                <AlertTriangle size={16} color="#d97706" style={{ flexShrink: 0 }} />
-                                                <span>Esta ação está há {delay.days} dias sem atualização.</span>
-                                            </div>
-                                        );
-                                    } else if (delay.status === 'critical') {
-                                        return (
-                                            <div style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '10px',
-                                                backgroundColor: '#fef2f2',
-                                                border: '1px solid #fca5a5',
-                                                borderRadius: '8px',
-                                                padding: '0.85rem 1.15rem',
-                                                fontSize: '0.85rem',
-                                                fontWeight: 700,
-                                                boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
-                                            }}>
-                                                <AlertTriangle size={16} color="#dc2626" style={{ flexShrink: 0 }} />
-                                                <span>Ação sem atualização há {delay.days} dias.</span>
-                                            </div>
-                                        );
-                                    }
-                                    return null;
-                                })()}
+                                    if (delay.days <= 7) return null; // Saudável, sem necessidade de banner invasivo
+                                    
+                                    if (delay.days <= 14) {
+                                         // STATUS DE ATENÇÃO (8–14 dias)
+                                         return (
+                                             <div style={{
+                                                 display: 'flex',
+                                                 alignItems: 'center',
+                                                 gap: '10px',
+                                                 backgroundColor: '#fffbeb',
+                                                 border: '1px solid #fde68a',
+                                                 borderRadius: '8px',
+                                                 padding: '0.85rem 1.15rem',
+                                                 color: '#b45309',
+                                                 fontSize: '0.85rem',
+                                                 fontWeight: 600,
+                                                 boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                                             }}>
+                                                 <Clock size={16} color="#f59e0b" style={{ flexShrink: 0 }} />
+                                                 <span>Esta ação está há {delay.days} dias sem atualização.</span>
+                                             </div>
+                                         );
+                                     } else if (delay.days <= 20) {
+                                         return (
+                                             <div style={{
+                                                 display: 'flex',
+                                                 alignItems: 'center',
+                                                 gap: '10px',
+                                                 backgroundColor: '#fff7ed',
+                                                 border: '1px solid #ffedd5',
+                                                 borderRadius: '8px',
+                                                 padding: '0.85rem 1.15rem',
+                                                 color: '#c2410c',
+                                                 fontSize: '0.85rem',
+                                                 fontWeight: 600,
+                                                 boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                                             }}>
+                                                 <Clock size={16} color="#ea580c" style={{ flexShrink: 0 }} />
+                                                 <span>Esta ação está há {delay.days} dias sem atualização.</span>
+                                             </div>
+                                         );
+                                     } else {
+                                         // STATUS CRÍTICO (15+ dias)
+                                         return (
+                                             <div style={{
+                                                 display: 'flex',
+                                                 alignItems: 'center',
+                                                 gap: '10px',
+                                                 backgroundColor: '#fef2f2',
+                                                 border: '1px solid #fca5a5',
+                                                 borderRadius: '8px',
+                                                 padding: '0.85rem 1.15rem',
+                                                 color: '#dc2626',
+                                                 fontSize: '0.85rem',
+                                                 fontWeight: 700,
+                                                 boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                                             }}>
+                                                 <AlertTriangle size={16} color="#dc2626" style={{ flexShrink: 0 }} />
+                                                 <span>Ação sem atualização há {delay.days} dias.</span>
+                                             </div>
+                                         );
+                                     }
+                                 })()}
 
 
                                 {/* Cabeçalho Premium: Título e Status */}
@@ -2624,10 +2715,17 @@ const AcoesList = () => {
                                                         else if (isCurrent) { bgColor = '#eff6ff'; borderColor = '#bfdbfe'; titleColor = '#1e3a8a'; progColor = '#3b82f6'; }
                                                         return (
                                                             <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', backgroundColor: bgColor, borderRadius: '6px', border: `1px solid ${borderColor}` }}>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                    {isCompleted ? <CheckCircle2 size={13} color="#22c55e" /> : <span style={{ fontSize: '0.78rem', fontWeight: 700, color: titleColor, width: '16px' }}>{idx + 1}.</span>}
-                                                                    <span style={{ fontSize: '0.82rem', fontWeight: isCurrent ? 700 : 500, color: titleColor }}>{stage.name}</span>
-                                                                    {isCurrent && <span style={{ fontSize: '0.6rem', backgroundColor: '#bfdbfe', color: '#1e3a8a', padding: '1px 7px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atual</span>}
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                        {isCompleted ? <CheckCircle2 size={13} color="#22c55e" /> : <span style={{ fontSize: '0.78rem', fontWeight: 700, color: titleColor, width: '16px' }}>{idx + 1}.</span>}
+                                                                        <span style={{ fontSize: '0.82rem', fontWeight: isCurrent ? 700 : 500, color: titleColor }}>{stage.name}</span>
+                                                                        {isCurrent && <span style={{ fontSize: '0.6rem', backgroundColor: '#bfdbfe', color: '#1e3a8a', padding: '1px 7px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atual</span>}
+                                                                    </div>
+                                                                    {isCurrent && viewingAcao.current_stage_observation && (
+                                                                        <span style={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic', marginLeft: '24px', opacity: 0.9 }}>
+                                                                            "{viewingAcao.current_stage_observation}"
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                                 <span style={{ fontSize: '0.78rem', fontWeight: 800, color: progColor, flexShrink: 0, marginLeft: '8px' }}>{stage.progress}%</span>
                                                             </div>
