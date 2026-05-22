@@ -21,7 +21,7 @@ import {
     Loader,
     X,
     Info,
-    CheckCircle, Trash2
+    CheckCircle, Trash2, History
 } from 'lucide-react';
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
@@ -29,7 +29,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, deleteAcao, fetchObjectivesByAxis, createAtualizacao, fetchActionSecretariats, recordActionHistory } from '../../services/api/planejamentoAcoes.service';
+import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, deleteAcao, fetchObjectivesByAxis, createAtualizacao, fetchActionSecretariats, recordActionHistory, fetchActionDeletions } from '../../services/api/planejamentoAcoes.service';
 
 import { PLANNING_ACTION_TYPES_ARRAY, getActionTypeConfig, getActionTypeStages } from '../../modules/planejamento/constants/planningActionTypes';
 
@@ -198,6 +198,20 @@ const formatUserDisplayName = (rawString) => {
         .join(' ');
 };
 
+const getDisplayName = (del, usersMap) => {
+    if (!del) return 'Usuário não identificado';
+    // 1. Procurar no usersMap pelo UUID do usuário
+    if (del.deleted_by && usersMap && usersMap[del.deleted_by]) {
+        return usersMap[del.deleted_by];
+    }
+    // 2. Se tiver o nome salvo no histórico de exclusões, formatar e exibir
+    if (del.deleted_by_name) {
+        return formatUserDisplayName(del.deleted_by_name);
+    }
+    // 3. Fallback
+    return 'Usuário não identificado';
+};
+
 const AcoesList = () => {
     const { authUser, tenantLink, scopes, isSuperAdmin } = useAuth();
     const tenantId = tenantLink?.tenant_id;
@@ -229,6 +243,23 @@ const AcoesList = () => {
     const [historyExpanded, setHistoryExpanded] = useState(false);
     const [usersMap, setUsersMap] = useState({});
     const [historyLimit, setHistoryLimit] = useState(3);
+
+    const [isDeletionsHistoryOpen, setIsDeletionsHistoryOpen] = useState(false);
+    const [deletionsHistory, setDeletionsHistory] = useState([]);
+    const [deletionsLoading, setDeletionsLoading] = useState(false);
+
+    const openDeletionsHistory = async () => {
+        setIsDeletionsHistoryOpen(true);
+        setDeletionsLoading(true);
+        try {
+            const data = await fetchActionDeletions(tenantId);
+            setDeletionsHistory(data || []);
+        } catch (err) {
+            console.error("Erro ao carregar histórico de exclusões", err);
+        } finally {
+            setDeletionsLoading(false);
+        }
+    };
 
     const sortedHistory = useMemo(() => {
         if (!actionHistory || actionHistory.length === 0) return [];
@@ -958,13 +989,82 @@ const AcoesList = () => {
                     <h1 className="farmacia-page-title">Ações Estratégicas</h1>
                     <p className="farmacia-page-subtitle">Monitore o progresso e execução das ações do plano de governo.</p>
                 </div>
-                <button className="farmacia-btn-primary" onClick={() => openModal()} disabled={loading}>
-                    <Plus size={18} /> Nova Ação
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button 
+                        className="farmacia-btn-historico" 
+                        onClick={openDeletionsHistory} 
+                        disabled={loading}
+                    >
+                        <History size={16} />
+                        Histórico de Exclusões
+                    </button>
+                    <button className="farmacia-btn-primary" onClick={() => openModal()} disabled={loading}>
+                        <Plus size={18} /> Nova Ação
+                    </button>
+                </div>
             </header>
 
-            {/* Animação spin para o loader */}
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            {/* Animação spin e estilos para histórico de exclusões */}
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+                
+                /* Botão de Histórico de Exclusões Refinado */
+                .farmacia-btn-historico {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    padding: 0.5rem 1.1rem;
+                    height: 38px;
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    color: #475569;
+                    border: 1px solid #cbd5e1;
+                    background-color: #ffffff;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+                    transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+                    white-space: nowrap;
+                }
+                .farmacia-btn-historico:hover:not(:disabled) {
+                    background-color: #f8fafc;
+                    border-color: #94a3b8;
+                    color: #0f172a;
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+                }
+                .farmacia-btn-historico:active:not(:disabled) {
+                    transform: translateY(0);
+                    background-color: #f1f5f9;
+                }
+                .farmacia-btn-historico:disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
+                }
+                
+                /* Card de Histórico de Exclusões Premium */
+                .farmacia-deletions-card {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 16px;
+                    background-color: #ffffff;
+                    border: 1px solid #e2e8f0;
+                    border-left: 4px solid #94a3b8;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+                    cursor: default;
+                }
+                .farmacia-deletions-card:hover {
+                    background-color: #f8fafc;
+                    border-color: #cbd5e1;
+                    border-left-color: #3b82f6;
+                    transform: translateY(-1.5px);
+                    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+                }
+            `}</style>
 
             {/* Estado de carregamento */}
             {loading && (
@@ -2864,8 +2964,8 @@ const AcoesList = () => {
                                     opacity: deleteLoading ? 0.7 : 1,
                                     boxShadow: '0 2px 8px rgba(220, 38, 38, 0.2)'
                                 }}
-                                onClick={() => {
-                                    console.log('[DELETE] CLICK BOTAO');
+                                onClick={(e) => {
+                                    e.preventDefault();
                                     handleDeleteAcao();
                                 }}
                                 disabled={deleteLoading}
@@ -2873,6 +2973,104 @@ const AcoesList = () => {
                                 {deleteLoading && <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} />}
                                 {deleteLoading ? 'Excluindo...' : 'Confirmar Exclusão'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Histórico de Exclusões */}
+            {isDeletionsHistoryOpen && (
+                <div className="farmacia-modal-overlay">
+                    <div className="farmacia-modal" style={{ 
+                        width: '100%', 
+                        maxWidth: '640px', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        borderRadius: '12px',
+                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                        overflow: 'hidden',
+                        background: '#ffffff',
+                        animation: 'farmacia-modal-in 200ms cubic-bezier(0.16, 1, 0.3, 1)'
+                    }}>
+                        <div className="farmacia-modal-header" style={{ padding: '1.1rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <h2 className="farmacia-modal-title" style={{ fontSize: '1.1rem', fontWeight: 700 }}>Histórico de Exclusões</h2>
+                                {!deletionsLoading && deletionsHistory.length > 0 && (
+                                    <span style={{ 
+                                        fontSize: '0.72rem', 
+                                        fontWeight: 600, 
+                                        color: '#475569', 
+                                        backgroundColor: '#f1f5f9', 
+                                        padding: '2px 8px', 
+                                        borderRadius: '12px',
+                                        border: '1px solid #cbd5e1',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        height: '20px'
+                                    }}>
+                                        {deletionsHistory.length} {deletionsHistory.length === 1 ? 'exclusão registrada' : 'exclusões registradas'}
+                                    </span>
+                                )}
+                            </div>
+                            <button className="farmacia-modal-close" onClick={() => setIsDeletionsHistoryOpen(false)}>
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="farmacia-modal-body" style={{ maxHeight: '450px', overflowY: 'auto', padding: '1.5rem' }}>
+                            {deletionsLoading ? (
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+                                    <Loader size={24} style={{ animation: 'spin 1s linear infinite', color: '#64748b' }} />
+                                </div>
+                            ) : deletionsHistory.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '48px 24px', color: '#94a3b8' }}>
+                                    <History size={54} style={{ opacity: 0.3, marginBottom: '16px', strokeWidth: 1.5, color: '#64748b' }} />
+                                    <h3 style={{ margin: '0 0 6px 0', fontSize: '0.95rem', fontWeight: 600, color: '#475569' }}>Nenhuma exclusão registrada.</h3>
+                                    <p style={{ margin: 0, fontSize: '0.825rem', color: '#94a3b8' }}>As exclusões realizadas aparecerão aqui.</p>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {deletionsHistory.map(del => (
+                                        <div key={del.id} className="farmacia-deletions-card">
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                                                <div style={{ 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    justifyContent: 'center',
+                                                    width: '32px',
+                                                    height: '32px',
+                                                    borderRadius: '6px',
+                                                    backgroundColor: '#f8fafc',
+                                                    color: '#64748b',
+                                                    flexShrink: 0
+                                                }}>
+                                                    <History size={16} strokeWidth={2} />
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                                                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={del.action_title}>
+                                                        {del.action_title}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                        Excluído por: <strong style={{ color: '#475569', fontWeight: 550 }}>{getDisplayName(del, usersMap)}</strong>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div style={{ 
+                                                fontSize: '0.78rem', 
+                                                color: '#64748b', 
+                                                backgroundColor: '#f8fafc',
+                                                padding: '4px 8px',
+                                                borderRadius: '4px',
+                                                border: '1px solid #f1f5f9',
+                                                whiteSpace: 'nowrap',
+                                                flexShrink: 0,
+                                                alignSelf: 'center'
+                                            }}>
+                                                {formatDate(del.deleted_at.split('T')[0])} às {new Date(del.deleted_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -160,6 +160,7 @@ export const fetchSecretariats = async (tenantId) => {
 };
 
 // ── ID do módulo PLANEJAMENTO_ESTRATEGICO ─────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
 const fetchModuleId = async () => {
     const { data, error } = await supabase
         .from('system_modules')
@@ -306,6 +307,7 @@ export const fetchAcoes = async (tenantId) => {
 };
 
 // ── Criar nova ação ───────────────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
 export const createAcao = async (tenantId, formData, axes) => {
     // 1. Validações básicas
     if (!formData.nome?.trim()) throw new Error('O nome da ação é obrigatório.');
@@ -763,6 +765,58 @@ export const deleteAcao = async (tenantId, id) => {
         throw new Error('Parâmetros inválidos para exclusão no service.');
     }
 
+    // 0. Registrar em planning_action_deletions ANTES de apagar
+    console.log('[SERVICE_DELETE_ACAO] Etapa 0/5: Registrando log de exclusão em planning_action_deletions...');
+    try {
+        // 0.1 Buscar dados mínimos da ação
+        const { data: acaoInfo, error: errAcao } = await supabase
+            .from('planning_actions')
+            .select('title')
+            .eq('id', id)
+            .eq('tenant_id', tenantId)
+            .single();
+
+        if (errAcao) throw errAcao;
+
+        // 0.2 Buscar usuário logado
+        const { data: { user }, error: errUser } = await supabase.auth.getUser();
+        if (errUser || !user) throw new Error('Usuário não autenticado.');
+
+        let deletedByName = 'Usuário não identificado';
+        if (user.user_metadata?.full_name) {
+            deletedByName = user.user_metadata.full_name;
+        } else if (user.user_metadata?.display_name) {
+            deletedByName = user.user_metadata.display_name;
+        } else if (user.user_metadata?.name) {
+            deletedByName = user.user_metadata.name;
+        } else if (user.user_metadata?.profile_name) {
+            deletedByName = user.user_metadata.profile_name;
+        } else if (user.email) {
+            deletedByName = user.email;
+        }
+
+        // 0.3 Inserir log
+        const logPayload = {
+            tenant_id: tenantId,
+            action_title: acaoInfo?.title || 'Ação sem título',
+            deleted_by: user.id,
+            deleted_by_name: deletedByName,
+            deleted_at: new Date().toISOString()
+        };
+
+        const { error: errLog } = await supabase
+            .from('planning_action_deletions')
+            .insert([logPayload]);
+
+        if (errLog) {
+            throw errLog;
+        }
+        console.log('[SERVICE_DELETE_ACAO] Etapa 0 OK. Histórico registrado com sucesso.');
+    } catch (errReg) {
+        console.error('[SERVICE_DELETE_ACAO] FALHA na Etapa 0 (Log de Exclusão):', errReg);
+        throw new Error(`Falha ao registrar histórico de exclusão: ${errReg.message}. A ação NÃO foi apagada.`);
+    }
+
     // 1. Limpar vínculos de secretarias participantes
     console.log('[SERVICE_DELETE_ACAO] Etapa 1/5: Removendo vínculos de secretarias participantes (planning_action_secretariats)...');
     const { error: errSecs } = await supabase
@@ -842,4 +896,25 @@ export const deleteAcao = async (tenantId, id) => {
 
     console.log('[SERVICE_DELETE_ACAO] Fluxo finalizado com sucesso total para o ID:', id);
     return true;
+};
+
+// ── Buscar Histórico de Exclusões (planning_action_deletions) ─────────────────
+export const fetchActionDeletions = async (tenantId) => {
+    if (!tenantId) return [];
+    try {
+        const { data, error } = await supabase
+            .from('planning_action_deletions')
+            .select('id, action_title, deleted_by, deleted_by_name, deleted_at')
+            .eq('tenant_id', tenantId)
+            .order('deleted_at', { ascending: false });
+
+        if (error) {
+            console.error('[planejamentoAcoes] Erro ao buscar exclusões:', error);
+            throw error;
+        }
+        return data || [];
+    } catch (err) {
+        console.error('[planejamentoAcoes] Erro inesperado ao buscar exclusões:', err);
+        return [];
+    }
 };

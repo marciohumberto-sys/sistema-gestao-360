@@ -11,6 +11,7 @@ export const AuthProvider = ({ children }) => {
     const [accessibleModules, setAccessibleModules] = useState([]);
     const [isSuperAdmin, setIsSuperAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [networkError, setNetworkError] = useState(null);
 
     const loadSessionData = async (user) => {
         try {
@@ -20,20 +21,69 @@ export const AuthProvider = ({ children }) => {
                 setScopes([]);
                 setAccessibleModules([]);
                 setIsSuperAdmin(false);
+                setNetworkError(null);
                 return;
             }
 
             setAuthUser(user);
-            const data = await authService.getUserTenantAndScopes(user.id);
+            
+            let data = null;
+            let attempt = 0;
+            const maxAttempts = 3;
+
+            while (attempt < maxAttempts) {
+                try {
+                    data = await authService.getUserTenantAndScopes(user.id);
+                    break;
+                } catch (err) {
+                    attempt++;
+                    const errMsg = err.message || '';
+                    const isNetwork = 
+                        errMsg.toLowerCase().includes('fetch') ||
+                        errMsg.toLowerCase().includes('network') ||
+                        errMsg.toLowerCase().includes('connection') ||
+                        errMsg.toLowerCase().includes('timeout') ||
+                        errMsg.toLowerCase().includes('quic') ||
+                        errMsg.toLowerCase().includes('reset') ||
+                        errMsg.toLowerCase().includes('aborted') ||
+                        errMsg.toLowerCase().includes('load');
+
+                    if (isNetwork && attempt < maxAttempts) {
+                        console.warn(`[AuthContext] Falha de rede temporária (Tentativa ${attempt}/${maxAttempts}): ${errMsg}. Retrying in 1500ms...`);
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                    } else {
+                        throw err;
+                    }
+                }
+            }
+
             setTenantLink(data.tenantLink);
             setScopes(data.scopes);
             setAccessibleModules(data.accessibleModules);
             setIsSuperAdmin(data.isSuperAdmin);
+            setNetworkError(null);
 
         } catch (error) {
-            console.error("Erro ao carregar dados do usuário:", error);
-            setTenantLink(null);
-            setAccessibleModules([]);
+            const errMsg = error.message || '';
+            const isNetwork = 
+                errMsg.toLowerCase().includes('fetch') ||
+                errMsg.toLowerCase().includes('network') ||
+                errMsg.toLowerCase().includes('connection') ||
+                errMsg.toLowerCase().includes('timeout') ||
+                errMsg.toLowerCase().includes('quic') ||
+                errMsg.toLowerCase().includes('reset') ||
+                errMsg.toLowerCase().includes('aborted') ||
+                errMsg.toLowerCase().includes('load');
+
+            if (isNetwork) {
+                console.error("[AuthContext] Falha de conectividade persistente:", error);
+                setNetworkError(error);
+            } else {
+                console.error("[AuthContext] Erro de perfil/permissão confirmado (sem vínculo real):", error);
+                setTenantLink(null);
+                setAccessibleModules([]);
+                setNetworkError(null);
+            }
         } finally {
             setLoading(false);
         }
@@ -60,6 +110,11 @@ export const AuthProvider = ({ children }) => {
         return () => subscription.unsubscribe();
     }, []);
 
+    const retryLoadSessionData = async () => {
+        setLoading(true);
+        await loadSessionData(authUser);
+    };
+
     const value = {
         authUser,
         tenantLink,
@@ -68,6 +123,8 @@ export const AuthProvider = ({ children }) => {
         isSuperAdmin,
         isAuthenticated: !!authUser,
         loading,
+        networkError,
+        retryLoadSessionData,
         logout: authService.logout
     };
 
