@@ -317,19 +317,28 @@ const OfDetails = () => {
             }
 
             if (editItemId) {
-                await ofsService.updateOfItem(editItemId, tenantId, {
+                const payload = {
                     ...newItemObj,
                     quantity: requestedQty,
                     description_snapshot: newItemObj.description,
                     unit_snapshot: newItemObj.unit,
                     unit_price_snapshot: Number(newItemObj.unit_price)
+                };
+                const calculatedTotal = requestedQty * Number(newItemObj.unit_price);
+                console.log({
+                  quantity: requestedQty,
+                  unitPrice: Number(newItemObj.unit_price),
+                  calculatedTotal,
+                  payload
                 });
+
+                await ofsService.updateOfItem(editItemId, tenantId, payload);
                 await ofsService.recalculateOfTotal(id, tenantId);
                 setFeedback({ type: 'success', message: 'Item atualizado.' });
             } else {
                 let actualItemNumber = newItemObj.item_number || "1";
 
-                await ofsService.addOfItem({
+                const payload = {
                     tenant_id: tenantId,
                     of_id: id,
                     contract_item_id: newItemObj.contract_item_id,
@@ -341,7 +350,16 @@ const OfDetails = () => {
                     description_snapshot: newItemObj.description,
                     unit_snapshot: newItemObj.unit,
                     unit_price_snapshot: Number(newItemObj.unit_price)
+                };
+                const calculatedTotal = requestedQty * Number(newItemObj.unit_price);
+                console.log({
+                  quantity: requestedQty,
+                  unitPrice: Number(newItemObj.unit_price),
+                  calculatedTotal,
+                  payload
                 });
+
+                await ofsService.addOfItem(payload);
                 await ofsService.recalculateOfTotal(id, tenantId);
                 setFeedback({ type: 'success', message: 'Item adicionado.' });
             }
