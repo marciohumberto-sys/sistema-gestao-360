@@ -44,6 +44,11 @@ const OrdensFornecimento = () => {
     const [ofToRectify, setOfToRectify] = useState(null);
     const [retificationReason, setRetificationReason] = useState('');
 
+    // Cancel State
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+    const [ofToCancel, setOfToCancel] = useState(null);
+    const [cancelReason, setCancelReason] = useState('');
+
     // Listen to route state to open modal automatically
     useEffect(() => {
         if (location.state?.openModal === 'nova-of') {
@@ -135,12 +140,23 @@ const OrdensFornecimento = () => {
         }
     };
 
-    const handleCancelOf = async (ofId) => {
-        // [3][6] Obter userId via supabase.auth.getUser() para maior robustez
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        const userId = authUser?.id;
+    const handleCancelOfClick = (of) => {
+        setOfToCancel(of);
+        setCancelReason('');
+        setIsCancelModalOpen(true);
+        setOpenActionMenuId(null);
+    };
 
-        if (!ofId || !tenantId || !userId) {
+    const confirmCancelOf = async () => {
+        if (!ofToCancel) return;
+        if (!cancelReason.trim()) {
+            setFeedback({ type: 'error', message: 'A justificativa de cancelamento é obrigatória.' });
+            return;
+        }
+
+        const userId = user?.id;
+
+        if (!ofToCancel.id || !tenantId || !userId) {
             setFeedback({ type: 'error', message: 'Erro de sessão: IDs necessários não encontrados.' });
             return;
         }
@@ -148,25 +164,33 @@ const OrdensFornecimento = () => {
         try {
             setIsSubmitting(true);
             
-            // [6] Chamada RPC direta no front conforme solicitado
+            // [TODO] Enviar 'cancelReason' (justificativa) para a RPC no futuro quando o banco suportar.
+            // Atualmente, a RPC cancel_of aceita apenas p_of_id, p_tenant_id e p_updated_by.
             const { error: rpcError } = await supabase.rpc('cancel_of', {
-                p_of_id: ofId,
+                p_of_id: ofToCancel.id,
                 p_tenant_id: tenantId,
                 p_updated_by: userId,
             });
 
             if (rpcError) throw rpcError;
 
-            setFeedback({ type: 'success', message: 'OF cancelada com sucesso!' });
+            setFeedback({ type: 'success', message: 'OF cancelada com sucesso.' });
+            setIsCancelModalOpen(false);
+            setOfToCancel(null);
             setTimeout(() => setFeedback(null), 3000);
             await loadData();
         } catch (error) {
             console.error("Erro ao cancelar OF:", error);
-            setFeedback({ type: 'error', message: error.message || 'Erro ao cancelar a OF.' });
-            setTimeout(() => setFeedback(null), 4000);
+            let errorMsg = 'Erro ao cancelar a OF.';
+            if (error.message) errorMsg += ` ${error.message}`;
+            if (error.details) errorMsg += ` Detalhes: ${error.details}`;
+            if (error.hint) errorMsg += ` Dica: ${error.hint}`;
+            if (error.code) errorMsg += ` (Código: ${error.code})`;
+            
+            setFeedback({ type: 'error', message: errorMsg });
+            setTimeout(() => setFeedback(null), 8000);
         } finally {
             setIsSubmitting(false);
-            setOpenActionMenuId(null);
         }
     };
 
@@ -449,12 +473,16 @@ const OrdensFornecimento = () => {
                                     filteredOfs.map(of => {
                                         let cleanNumber = of.number || '-';
                                         let versionStr = null;
-                                        const match = cleanNumber.match(/^(.*?)[- ]?([RV]\d+)$/i);
-                                        if (match) {
-                                            cleanNumber = match[1];
-                                            versionStr = match[2].toUpperCase();
-                                        } else if (of.version > 1) {
-                                            versionStr = `V${of.version}`;
+                                        
+                                        // Apenas remove o sufixo se for uma versão oficial atestada pelo banco
+                                        if (of.original_of_id || of.version > 1) {
+                                            const match = cleanNumber.match(/^(.*?)[- ]?([RV]\d+)$/i);
+                                            if (match) {
+                                                cleanNumber = match[1];
+                                                versionStr = match[2].toUpperCase();
+                                            } else if (of.version > 1) {
+                                                versionStr = `V${of.version}`;
+                                            }
                                         }
 
                                         return (
@@ -587,7 +615,7 @@ const OrdensFornecimento = () => {
 
                                                                 {of.status === 'ISSUED' && (
                                                                     <button 
-                                                                        onClick={(e) => { e.stopPropagation(); handleCancelOf(of.id); }}
+                                                                        onClick={(e) => { e.stopPropagation(); handleCancelOfClick(of); }}
                                                                         disabled={isSubmitting}
                                                                         style={{
                                                                             display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 16px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.875rem', color: '#ef4444', opacity: isSubmitting ? 0.5 : 1
@@ -716,6 +744,54 @@ const OrdensFornecimento = () => {
                                     disabled={isSubmitting}
                                 >
                                     {isSubmitting ? 'Retificando...' : 'Criar retificação'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Cancelamento */}
+            {isCancelModalOpen && (
+                <div className="modal-overlay" onClick={() => setIsCancelModalOpen(false)}>
+                    <div className="modal-content" style={{ maxWidth: '450px' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ padding: '2rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem' }}>
+                                <div style={{ background: '#fef2f2', width: '48px', height: '48px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}>
+                                    <XCircle size={24} />
+                                </div>
+                                <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: 700 }}>Cancelar Ordem de Fornecimento</h3>
+                            </div>
+                            
+                            <p style={{ margin: '0 0 1.5rem 0', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                                Tem certeza que deseja cancelar a <strong>{ofToCancel?.number}</strong>? O saldo consumido do empenho e do contrato será estornado. Esta ação não pode ser desfeita.
+                            </p>
+
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>
+                                    Justificativa para o cancelamento *
+                                </label>
+                                <textarea
+                                    value={cancelReason}
+                                    onChange={(e) => setCancelReason(e.target.value)}
+                                    placeholder="Descreva o motivo pelo qual esta OF está sendo cancelada..."
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', minHeight: '100px', resize: 'vertical' }}
+                                    disabled={isSubmitting}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setIsCancelModalOpen(false)} disabled={isSubmitting}>
+                                    Voltar
+                                </button>
+                                <button
+                                    className="btn-primary"
+                                    style={{ flex: 1, background: '#ef4444', color: 'white', border: 'none' }}
+                                    onClick={confirmCancelOf}
+                                    disabled={isSubmitting || !cancelReason.trim()}
+                                >
+                                    {isSubmitting ? 'Cancelando...' : 'Confirmar Cancelamento'}
                                 </button>
                             </div>
                         </div>
