@@ -63,7 +63,8 @@ const OfPreview = () => {
     };
 
     const formatDateExtensive = (dateString, useToday = false) => {
-        const date = useToday ? new Date() : (dateString ? new Date(dateString) : new Date());
+        if (!useToday && !dateString) return '_____ de _________________ de 20___';
+        const date = useToday ? new Date() : new Date(dateString);
         if (!useToday && dateString && typeof dateString === 'string' && !dateString.includes('T')) {
             date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
         }
@@ -101,7 +102,8 @@ const OfPreview = () => {
     }
 
     const { items = [], commitment, contract, secretariat } = ofData;
-    const ofDateRaw = ofData.issue_date || ofData.issued_at || ofData.created_at;
+    // O PDF não deve usar created_at nem a data atual, mas estritamente a issue_date
+    const ofDateRaw = ofData.issue_date;
 
     const allowedOfs = [
         "OF-2026-0217", "OF-2026-0217-R1", "OF-2026-0218", "OF-2026-0219", "OF-2026-0221", 
@@ -112,9 +114,20 @@ const OfPreview = () => {
 
     const deveUsarObsManual = allowedOfs.includes(ofData?.number) && ofData?.notes?.trim();
 
+    // TODO: Futuramente a competência deve vir de um campo próprio no banco (ex: reference_month). 
+    // Regra temporária exigida para correção destas OFs específicas.
+    let referenciaCompetencia = `REFERÊNCIA ${getMonthYear(ofDateRaw).toUpperCase()}`;
+    if (ofData.number === 'OF-2026-0276') {
+        referenciaCompetencia = 'REFERÊNCIA MARÇO/2026';
+    } else if (ofData.number === 'OF-2026-0277') {
+        referenciaCompetencia = 'REFERÊNCIA ABRIL/2026';
+    } else if (ofData.reference_month) {
+        referenciaCompetencia = `REFERÊNCIA ${ofData.reference_month.toUpperCase()}`;
+    }
+
     const obsNotaFiscal = deveUsarObsManual 
         ? ofData.notes 
-        : `COLOCAR NO CAMPO DE OBSERVAÇÃO DA NOTA FISCAL - CONTA CORRENTE, AGÊNCIA, NOME DO BANCO, DESTINADO À SECRETARIA DE ${secretariat?.name?.toUpperCase() || '_____'}, REFERENTE AO CONTRATO Nº ${(contract?.number || '_____').toUpperCase()}, ${getMonthYear(ofDateRaw).toUpperCase()}. EMPENHO: ${commitment?.number || '_____'}.`;
+        : `COLOCAR NO CAMPO DE OBSERVAÇÃO DA NOTA FISCAL - CONTA CORRENTE, AGÊNCIA, NOME DO BANCO, DESTINADO À SECRETARIA DE ${secretariat?.name?.toUpperCase() || '_____'}, REFERENTE AO CONTRATO Nº ${(contract?.number || '_____').toUpperCase()}, ${referenciaCompetencia}. EMPENHO: ${commitment?.number || '_____'}.`;
 
     return (
         <div className="of-preview-container">
