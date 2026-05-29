@@ -643,7 +643,7 @@ const ContractDetails = () => {
                 description: itemFormData.description,
                 marca: itemFormData.marca,
                 unit: itemFormData.unit,
-                unit_price: parseFloat(itemFormData.unit_price) || 0,
+                unit_price: parseFloat(String(itemFormData.unit_price).replace(',', '.')) || 0,
                 total_quantity: parseFloat(itemFormData.total_quantity) || 0,
                 legacy_consumed_quantity: parseFloat(itemFormData.legacy_consumed_quantity) || 0,
                 allow_decimal_quantity: !!itemFormData.allow_decimal_quantity
@@ -680,22 +680,40 @@ const ContractDetails = () => {
     };
 
     const handleCurrencyInput = (e) => {
-        let value = e.target.value.replace(/\D/g, ""); // Keep only digits
+        if (itemFormData.allow_decimal_quantity) {
+            let value = e.target.value;
+            value = value.replace(/[^0-9.,]/g, '');
+            value = value.replace(/\./g, ',');
+            const parts = value.split(',');
+            if (parts.length > 2) {
+                value = parts[0] + ',' + parts.slice(1).join('');
+            }
+            if (parts.length === 2 && parts[1].length > 6) {
+                value = parts[0] + ',' + parts[1].substring(0, 6);
+            }
+            setItemFormData({ ...itemFormData, unit_price: value });
+        } else {
+            let value = e.target.value.replace(/\D/g, ""); // Keep only digits
 
-        if (value === "") {
-            setItemFormData({ ...itemFormData, unit_price: "" });
-            return;
+            if (value === "") {
+                setItemFormData({ ...itemFormData, unit_price: "" });
+                return;
+            }
+
+            // Convert the string of numbers back into a float currency 
+            const floatValue = parseInt(value, 10) / 100;
+
+            setItemFormData({ ...itemFormData, unit_price: floatValue });
         }
-
-        // Convert the string of numbers back into a float currency 
-        const floatValue = parseInt(value, 10) / 100;
-
-        setItemFormData({ ...itemFormData, unit_price: floatValue });
     };
 
     // Helper to extract value since unit_price stores actual float
-    const getMaskedCurrencyValue = (numValue) => {
-        if (numValue === "" || numValue === undefined) return "";
+    const getMaskedCurrencyValue = (numValue, allowDecimal) => {
+        if (numValue === "" || numValue === undefined || numValue === null) return "";
+        if (allowDecimal) {
+            if (typeof numValue === 'string') return numValue;
+            return String(numValue).replace('.', ',');
+        }
         // Just format string value back to pt-BR without symbol 
         return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numValue);
     };
@@ -737,6 +755,11 @@ const ContractDetails = () => {
     const formatExactCurrency = (value) => {
         if (value === undefined || value === null) return '-';
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+    };
+
+    const formatUnitPriceList = (value) => {
+        if (value === undefined || value === null) return '-';
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(value);
     };
 
     const formatDate = (isoString) => {
@@ -1584,7 +1607,7 @@ const ContractDetails = () => {
                                                                 <td style={{ textAlign: 'right', fontWeight: 600, color: '#1d4ed8' }}>{qReserved > 0 ? qReserved : '-'}</td>
                                                                 <td style={{ textAlign: 'right', fontWeight: 700, color: qAvailable > 0 ? '#16a34a' : (qAvailable < 0 ? '#dc2626' : 'var(--text-muted)') }}>{qAvailable}</td>
                                                                 <td style={{ textAlign: 'center', textTransform: 'uppercase', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{item.unit || '-'}</td>
-                                                                <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 500 }}>{formatExactCurrency(item.unit_price)}</td>
+                                                                <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 500 }}>{formatUnitPriceList(item.unit_price)}</td>
                                                                 <td style={{ fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatExactCurrency((item.total_quantity || 0) * (item.unit_price || 0))}</td>
                                                                 <td style={{ textAlign: 'center' }}>
                                                                     <span
@@ -2021,12 +2044,20 @@ const ContractDetails = () => {
                                                     checked={itemFormData.allow_decimal_quantity || false} 
                                                     onChange={(e) => {
                                                         const checked = e.target.checked;
-                                                        setItemFormData(prev => ({ 
-                                                            ...prev, 
-                                                            allow_decimal_quantity: checked,
-                                                            total_quantity: checked ? prev.total_quantity : (String(prev.total_quantity).split(/[.,]/)[0] || ''),
-                                                            legacy_consumed_quantity: checked ? prev.legacy_consumed_quantity : (String(prev.legacy_consumed_quantity).split(/[.,]/)[0] || '')
-                                                        }));
+                                                        setItemFormData(prev => {
+                                                            let newUnitPrice = prev.unit_price;
+                                                            if (!checked && typeof newUnitPrice === 'string') {
+                                                                const val = parseFloat(newUnitPrice.replace(',', '.')) || 0;
+                                                                newUnitPrice = parseFloat(val.toFixed(2));
+                                                            }
+                                                            return { 
+                                                                ...prev, 
+                                                                allow_decimal_quantity: checked,
+                                                                total_quantity: checked ? prev.total_quantity : (String(prev.total_quantity).split(/[.,]/)[0] || ''),
+                                                                legacy_consumed_quantity: checked ? prev.legacy_consumed_quantity : (String(prev.legacy_consumed_quantity).split(/[.,]/)[0] || ''),
+                                                                unit_price: newUnitPrice
+                                                            };
+                                                        });
                                                     }}
                                                     style={{ width: '14px', height: '14px', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
                                                 />
@@ -2050,7 +2081,8 @@ const ContractDetails = () => {
                                                 style={{ width: '100%', height: '40px', padding: '0 1rem', border: '1px solid #cbd5e1', borderRadius: '8px', color: 'var(--text-primary)', textAlign: 'right' }}
                                                 type="text"
                                                 required
-                                                value={getMaskedCurrencyValue(itemFormData.unit_price)}
+                                                placeholder={itemFormData.allow_decimal_quantity ? "Ex: 5,879000" : "Ex: 10,50"}
+                                                value={getMaskedCurrencyValue(itemFormData.unit_price, itemFormData.allow_decimal_quantity)}
                                                 onChange={handleCurrencyInput}
                                             />
                                         </div>
@@ -2106,7 +2138,7 @@ const ContractDetails = () => {
                                 <div style={{ marginTop: '0.25rem', padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Total estimado:</span>
                                     <span style={{ fontSize: '1.125rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                                        {formatExactCurrency(safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity) * (parseFloat(itemFormData.unit_price) || 0))}
+                                        {formatExactCurrency(safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity) * (parseFloat(String(itemFormData.unit_price).replace(',', '.')) || 0))}
                                     </span>
                                 </div>
                                 {(hasLegacyConsumption && safeParseQuantity(itemFormData.legacy_consumed_quantity, itemFormData.allow_decimal_quantity) > safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity)) && (
@@ -2119,8 +2151,8 @@ const ContractDetails = () => {
                                     <button
                                         type="submit"
                                         className="cd-btn-primary"
-                                        disabled={isSubmittingItem || !itemFormData.description?.trim() || !itemFormData.unit?.trim() || safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity) <= 0 || !itemFormData.unit_price || parseFloat(itemFormData.unit_price) <= 0 || (hasLegacyConsumption && safeParseQuantity(itemFormData.legacy_consumed_quantity, itemFormData.allow_decimal_quantity) > safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity))}
-                                        style={{ opacity: (isSubmittingItem || !itemFormData.description?.trim() || !itemFormData.unit?.trim() || safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity) <= 0 || !itemFormData.unit_price || parseFloat(itemFormData.unit_price) <= 0 || (hasLegacyConsumption && safeParseQuantity(itemFormData.legacy_consumed_quantity, itemFormData.allow_decimal_quantity) > safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity))) ? 0.6 : 1 }}
+                                        disabled={isSubmittingItem || !itemFormData.description?.trim() || !itemFormData.unit?.trim() || safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity) <= 0 || !itemFormData.unit_price || parseFloat(String(itemFormData.unit_price).replace(',', '.')) <= 0 || (hasLegacyConsumption && safeParseQuantity(itemFormData.legacy_consumed_quantity, itemFormData.allow_decimal_quantity) > safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity))}
+                                        style={{ opacity: (isSubmittingItem || !itemFormData.description?.trim() || !itemFormData.unit?.trim() || safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity) <= 0 || !itemFormData.unit_price || parseFloat(String(itemFormData.unit_price).replace(',', '.')) <= 0 || (hasLegacyConsumption && safeParseQuantity(itemFormData.legacy_consumed_quantity, itemFormData.allow_decimal_quantity) > safeParseQuantity(itemFormData.total_quantity, itemFormData.allow_decimal_quantity))) ? 0.6 : 1 }}
                                     >
                                         {isSubmittingItem ? 'Salvando...' : 'Salvar Item'}
                                     </button>
