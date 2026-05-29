@@ -64,15 +64,18 @@ const OfPreview = () => {
 
     const formatDateExtensive = (dateString, useToday = false) => {
         const date = useToday ? new Date() : (dateString ? new Date(dateString) : new Date());
-        if (!useToday && dateString) {
+        if (!useToday && dateString && typeof dateString === 'string' && !dateString.includes('T')) {
             date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
         }
         const options = { day: 'numeric', month: 'long', year: 'numeric' };
         return date.toLocaleDateString('pt-BR', options);
     };
 
-    const getMonthYear = () => {
-        const date = new Date();
+    const getMonthYear = (dateString) => {
+        const date = dateString ? new Date(dateString) : new Date();
+        if (dateString && typeof dateString === 'string' && !dateString.includes('T')) {
+            date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
+        }
         const months = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
         return `${months[date.getMonth()]}/${date.getFullYear()}`;
     };
@@ -98,6 +101,7 @@ const OfPreview = () => {
     }
 
     const { items = [], commitment, contract, secretariat } = ofData;
+    const ofDateRaw = ofData.issue_date || ofData.issued_at || ofData.created_at;
 
     const allowedOfs = [
         "OF-2026-0217", "OF-2026-0217-R1", "OF-2026-0218", "OF-2026-0219", "OF-2026-0221", 
@@ -110,7 +114,7 @@ const OfPreview = () => {
 
     const obsNotaFiscal = deveUsarObsManual 
         ? ofData.notes 
-        : `COLOCAR NO CAMPO DE OBSERVAÇÃO DA NOTA FISCAL - CONTA CORRENTE, AGÊNCIA, NOME DO BANCO, DESTINADO À SECRETARIA DE ${secretariat?.name?.toUpperCase() || '_____'}, REFERENTE AO CONTRATO Nº ${(contract?.number || '_____').toUpperCase()}, ${getMonthYear().toUpperCase()}. EMPENHO: ${commitment?.number || '_____'}.`;
+        : `COLOCAR NO CAMPO DE OBSERVAÇÃO DA NOTA FISCAL - CONTA CORRENTE, AGÊNCIA, NOME DO BANCO, DESTINADO À SECRETARIA DE ${secretariat?.name?.toUpperCase() || '_____'}, REFERENTE AO CONTRATO Nº ${(contract?.number || '_____').toUpperCase()}, ${getMonthYear(ofDateRaw).toUpperCase()}. EMPENHO: ${commitment?.number || '_____'}.`;
 
     return (
         <div className="of-preview-container">
@@ -294,7 +298,7 @@ const OfPreview = () => {
                             <td colSpan="7" style={{ border: 'none', padding: 0 }}>
                                 <div style={{ paddingTop: '30px' }}>
                                     <div className="date-location">
-                                        Bezerros-PE, {formatDateExtensive(null, true)}
+                                        Bezerros-PE, {formatDateExtensive(ofDateRaw, false)}
                                     </div>
 
                                     <div className="signatures-container">
