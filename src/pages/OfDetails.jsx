@@ -317,18 +317,27 @@ const OfDetails = () => {
             }
 
             if (editItemId) {
+                const quantityInput = newItemObj.quantity;
+                const unitPriceInput = newItemObj.unit_price;
+                const quantityPayload = requestedQty;
+                const unitPricePayload = Number(newItemObj.unit_price);
+                const totalPricePayload = Number((quantityPayload * unitPricePayload).toFixed(2));
+
                 const payload = {
                     ...newItemObj,
-                    quantity: requestedQty,
+                    quantity: quantityPayload,
                     description_snapshot: newItemObj.description,
                     unit_snapshot: newItemObj.unit,
-                    unit_price_snapshot: Number(newItemObj.unit_price)
+                    unit_price_snapshot: unitPricePayload,
+                    total_price: totalPricePayload
                 };
-                const calculatedTotal = requestedQty * Number(newItemObj.unit_price);
+                
                 console.log({
-                  quantity: requestedQty,
-                  unitPrice: Number(newItemObj.unit_price),
-                  calculatedTotal,
+                  quantityInput,
+                  unitPriceInput,
+                  quantityPayload,
+                  unitPricePayload,
+                  totalPricePayload,
                   payload
                 });
 
@@ -338,6 +347,12 @@ const OfDetails = () => {
             } else {
                 let actualItemNumber = newItemObj.item_number || "1";
 
+                const quantityInput = newItemObj.quantity;
+                const unitPriceInput = newItemObj.unit_price;
+                const quantityPayload = requestedQty;
+                const unitPricePayload = Number(newItemObj.unit_price);
+                const totalPricePayload = Number((quantityPayload * unitPricePayload).toFixed(2));
+
                 const payload = {
                     tenant_id: tenantId,
                     of_id: id,
@@ -345,17 +360,20 @@ const OfDetails = () => {
                     item_number: actualItemNumber,
                     description: newItemObj.description,
                     unit: newItemObj.unit || 'UN',
-                    quantity: requestedQty,
-                    unit_price: Number(newItemObj.unit_price),
+                    quantity: quantityPayload,
+                    unit_price: unitPricePayload,
                     description_snapshot: newItemObj.description,
                     unit_snapshot: newItemObj.unit,
-                    unit_price_snapshot: Number(newItemObj.unit_price)
+                    unit_price_snapshot: unitPricePayload,
+                    total_price: totalPricePayload
                 };
-                const calculatedTotal = requestedQty * Number(newItemObj.unit_price);
+                
                 console.log({
-                  quantity: requestedQty,
-                  unitPrice: Number(newItemObj.unit_price),
-                  calculatedTotal,
+                  quantityInput,
+                  unitPriceInput,
+                  quantityPayload,
+                  unitPricePayload,
+                  totalPricePayload,
                   payload
                 });
 

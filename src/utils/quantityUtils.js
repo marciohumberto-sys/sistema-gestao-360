@@ -21,8 +21,8 @@ export const isValidQuantity = (value, allowDecimal) => {
     const strValue = String(value);
     
     if (allowDecimal) {
-        // Permite apenas números de 0 a 9 e no máximo uma vírgula com até 2 casas decimais. Bloqueia ponto, espaços, etc.
-        const regex = /^\d+(,\d{0,2})?$/;
+        // Permite apenas números de 0 a 9 e no máximo uma vírgula com até 6 casas decimais. Bloqueia ponto, espaços, etc.
+        const regex = /^\d+(,\d{0,6})?$/;
         return regex.test(strValue);
     } else {
         // Permite apenas números de 0 a 9. Bloqueia vírgula, ponto, espaços, etc.
@@ -49,9 +49,9 @@ export const parseQuantity = (value, allowDecimal) => {
 
     if (allowDecimal) {
         // Validação estrita antes da conversão: apenas números e vírgula são permitidos, ponto é bloqueado
-        const strictRegex = /^\d+(,\d{1,2})?$/;
+        const strictRegex = /^\d+(,\d{1,6})?$/;
         if (!strictRegex.test(strValue) && !/^\d+$/.test(strValue)) {
-            throw new Error("Quantidade decimal inválida. Use apenas números com até 2 casas decimais e vírgula.");
+            throw new Error("Quantidade decimal inválida. Use apenas números com até 6 casas decimais e vírgula.");
         }
     } else {
         if (!/^\d+$/.test(strValue)) {
@@ -70,7 +70,7 @@ export const parseQuantity = (value, allowDecimal) => {
 };
 
 /**
- * Formata a quantidade para exibição, preservando até 2 casas decimais apenas se necessário.
+ * Formata a quantidade para exibição, preservando até 6 casas decimais apenas se necessário.
  * Não exibe decimais desnecessários (ex: 1.00 -> 1).
  */
 export const formatQuantityDisplay = (value) => {
@@ -81,7 +81,7 @@ export const formatQuantityDisplay = (value) => {
 
     // Intl.NumberFormat para remover zeros extras e formatar com vírgula no BR
     return new Intl.NumberFormat('pt-BR', {
-        maximumFractionDigits: 2
+        maximumFractionDigits: 6
     }).format(parsed);
 };
 
@@ -99,7 +99,7 @@ export const safeParseQuantity = (value, allowDecimal) => {
 
 /**
  * Normaliza a quantidade ao sair do campo (blur) para o padrão brasileiro.
- * Se for inteiro, preserva como inteiro. Se for decimal, garante exatamente 2 casas decimais.
+ * Se for inteiro, preserva como inteiro. Se for decimal, garante exatamente as casas decimais (até 6).
  */
 export const normalizeQuantityOnBlur = (value, allowDecimal) => {
     if (value === null || value === undefined || String(value) === '') return '';
@@ -110,7 +110,8 @@ export const normalizeQuantityOnBlur = (value, allowDecimal) => {
             return rawStr;
         }
         const [intPart, decPart] = rawStr.split(',');
-        const paddedDec = (decPart || '').padEnd(2, '0').slice(0, 2);
+        // Se já tiver decimais, mantém eles (até 6). Se não, adiciona 2 zeros no mínimo.
+        const paddedDec = (decPart || '').padEnd(2, '0').slice(0, 6);
         return `${intPart},${paddedDec}`;
     } else {
         return rawStr;

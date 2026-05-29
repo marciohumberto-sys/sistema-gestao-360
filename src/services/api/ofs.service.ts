@@ -230,7 +230,7 @@ class OFsService {
         
         const quantity = Number(payload.quantity || 0);
         const unit_price = Number(payload.unit_price || 0);
-        const total_price = quantity * unit_price;
+        const total_price = Number((quantity * unit_price).toFixed(2));
 
         const { error } = await supabase.from('of_items').insert([{
             tenant_id: payload.tenant_id,
@@ -256,7 +256,7 @@ class OFsService {
         // Custo total calculado no JS para atualizar direto via REST, ou delega pro recalc
         const quantity = Number(updates.quantity || 0);
         const unit_price = Number(updates.unit_price || 0);
-        const total_price = quantity * unit_price;
+        const total_price = Number((quantity * unit_price).toFixed(2));
         
         const { error } = await supabase
             .from('of_items')
