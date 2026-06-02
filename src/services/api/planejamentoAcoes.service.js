@@ -128,19 +128,21 @@ export const fetchFirstObjectiveByAxis = async (tenantId, axisId) => {
 export const fetchObjectivesByAxis = async (tenantId, axisId) => {
     if (!axisId) return [];
     
-    try {
-        const { data, error } = await supabase
-            .from('planning_objectives')
-            .select('id, title, is_active')
-            .eq('tenant_id', tenantId)
-            .eq('axis_id', axisId);
+    console.log('[OBJ_SERVICE] tenantId recebido:', tenantId);
+    console.log('[OBJ_SERVICE] axisId recebido:', axisId);
 
-        if (error) throw error;
-        return data || [];
-    } catch (err) {
-        console.error('[planejamentoAcoes] Erro ao buscar objetivos:', err);
-        return [];
-    }
+    const { data, error } = await supabase
+        .from('planning_objectives')
+        .select('id, title, axis_id, tenant_id, display_order, is_active')
+        .eq('tenant_id', tenantId)
+        .eq('axis_id', axisId)
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
+
+    console.log('[OBJ_SERVICE] data:', data);
+    console.log('[OBJ_SERVICE] error:', error);
+
+    return data || [];
 };
 
 // ── Secretarias ────────────────────────────────────────────────────────────────
@@ -224,6 +226,20 @@ export const fetchAcoes = async (tenantId) => {
         console.warn('[planejamentoAcoes] Falha ao buscar eixos:', axErr);
     }
 
+    // 4.5 Buscar objetivos em consulta separada
+    let objectivesMap = new Map();
+    try {
+        const { data: objs } = await supabase
+            .from('planning_objectives')
+            .select('id, title')
+            .eq('tenant_id', tenantId);
+        if (objs) {
+            objs.forEach(o => objectivesMap.set(o.id, o.title));
+        }
+    } catch (objErr) {
+        console.warn('[planejamentoAcoes] Falha ao buscar objetivos:', objErr);
+    }
+
     // 5. Buscar secretarias participantes (is_primary = false)
     let participantsMap = new Map();
     try {
@@ -283,6 +299,8 @@ export const fetchAcoes = async (tenantId) => {
         participantes: participantsMap.get(a.id) || [],
         eixo: axesMap.get(a.axis_id) || '',
         eixoId: a.axis_id,
+        objective_id: a.objective_id,
+        objective_title: objectivesMap.get(a.objective_id) || null,
         status: a.status || 'NAO_INICIADA',
         progresso: a.progress_percent ?? 0,
         prazo: a.due_date || '',
@@ -360,8 +378,8 @@ export const createAcao = async (tenantId, formData, axes) => {
         throw new Error('A secretaria é obrigatória e não foi encontrada no seu perfil de acesso.');
     }
 
-    // 5. Buscar primeiro objetivo ativo do eixo (opcional)
-    const objectiveIdFound = await fetchFirstObjectiveByAxis(tenantId, formData.axisId);
+    // 5. Obter objetivo fornecido pelo form, ou fallback para o primeiro ativo do eixo
+    const objectiveIdFound = formData.objectiveId || await fetchFirstObjectiveByAxis(tenantId, formData.axisId);
 
     // Lógica defensiva de Conclusão automática para satisfazer a constraint do banco
     let finalStatus = formData.status;
@@ -479,6 +497,7 @@ export const updateAcao = async (tenantId, id, formData) => {
         current_stage_observation: formData.current_stage_observation?.trim() || null,
         ...(formData.axisId && { axis_id: formData.axisId }),
         ...(formData.secretariatId && { secretariat_id: formData.secretariatId }),
+        objective_id: formData.objectiveId !== undefined ? formData.objectiveId : null,
     };
 
     console.log('[planningActions] payload update', payload);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
     Search, 
     Plus, 
@@ -90,36 +90,24 @@ const getDisplayProgress = (acao) => {
 };
 
 const getUpdateDelayStatus = (acao) => {
-    const hasManualUpdate = !!acao.last_manual_update_at;
     const baseDateStr = acao.last_manual_update_at || acao.created_at;
-    if (!baseDateStr) {
-        return { status: 'normal', days: 0 };
-    }
+    if (!baseDateStr) return { status: 'normal', days: 0 };
     
     const lastDate = new Date(baseDateStr);
     const today = new Date();
     
-    // Clear hours to calculate full days
     const lastDateClear = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
     const todayClear = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     
     const diffTime = todayClear - lastDateClear;
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     
-    if (hasManualUpdate) {
-        if (diffDays > 7) {
-            return { status: 'critical', days: diffDays };
-        } else {
-            return { status: 'normal', days: diffDays };
-        }
-    } else {
-        if (diffDays > 7) {
-            return { status: 'critical', days: diffDays };
-        } else {
-            // Sem atualização manual registrada e criada há até 7 dias
-            return { status: 'pending', days: diffDays };
-        }
-    }
+    // 0 a 7 dias - cinza/neutro
+    // 8 a 15 dias - amarelo ou laranja suave
+    // Acima de 15 dias - vermelho
+    if (diffDays <= 7) return { status: 'normal', days: diffDays };
+    if (diffDays <= 15) return { status: 'warning', days: diffDays };
+    return { status: 'critical', days: diffDays };
 };
 
 
@@ -222,6 +210,7 @@ const AcoesList = () => {
     const [statusFiltro, setStatusFiltro] = useState('Todos');
     const [secretariaFiltro, setSecretariaFiltro] = useState('Todas');
     const [tipoFiltro, setTipoFiltro] = useState('Todos');
+    const [secretariatsTooltip, setSecretariatsTooltip] = useState(null);
 
     // Estado dos dados reais
     const [acoes, setAcoes] = useState([]);
@@ -436,43 +425,71 @@ const AcoesList = () => {
         participantes: [],
         custom_stages: null,
         current_stage_index: null,
-        current_stage_observation: ''
+        current_stage_observation: '',
+        objectiveId: ''
     };
     const [formData, setFormData] = useState(emptyForm);
-    const [objectives, setObjectives] = useState([]);
+    const [objectivesList, setObjectivesList] = useState([]);
     const [loadingObjectives, setLoadingObjectives] = useState(false);
+    const [objectiveSearch, setObjectiveSearch] = useState('');
+    const [isObjDropdownOpen, setIsObjDropdownOpen] = useState(false);
+    const [isObjTextModalOpen, setIsObjTextModalOpen] = useState(false);
 
-    // Validar objetivos ao trocar o eixo
+    const filteredObjectives = useMemo(() => {
+        if (!objectiveSearch.trim()) return objectivesList;
+        const term = objectiveSearch.toLowerCase();
+        return objectivesList.filter(o => 
+            (o.title || '').toLowerCase().includes(term) ||
+            (o.code || '').toLowerCase().includes(term)
+        );
+    }, [objectivesList, objectiveSearch]);
+
+    const objDropdownRef = useRef(null);
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (objDropdownRef.current && !objDropdownRef.current.contains(event.target)) {
+                setIsObjDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     useEffect(() => {
         const validateAxisObjectives = async () => {
-            if (isModalOpen && formData.axisId && tenantId && !editingAcao) {
+            console.log('[DEBUG_OBJ] validateAxisObjectives acionado.');
+            console.log('[DEBUG_OBJ] isModalOpen:', isModalOpen);
+            console.log('[DEBUG_OBJ] tenantId:', tenantId);
+            console.log('[DEBUG_OBJ] formData.axisId atual:', formData.axisId);
+            console.log('[DEBUG_OBJ] formData completo:', formData);
+
+            if (isModalOpen && formData.axisId && tenantId) {
                 setLoadingObjectives(true);
                 try {
+                    console.log(`[DEBUG_OBJ] Disparando fetchObjectivesByAxis para axis_id: ${formData.axisId}`);
                     const objs = await fetchObjectivesByAxis(tenantId, formData.axisId);
-                    setObjectives(objs);
-                    
-
-                    
-
-
-
+                    console.log(`[DEBUG_OBJ] Retorno da query (Qtd): ${objs ? objs.length : 0}`, objs);
+                    setObjectivesList(objs);
                 } catch (err) {
-                    console.error('[Planejamento] Erro ao validar objetivos:', err);
-                    setObjectives([]);
+                    console.error('[Planejamento][DEBUG_OBJ] Erro ao validar objetivos:', err);
+                    setObjectivesList([]);
                 } finally {
                     setLoadingObjectives(false);
                 }
-            } else if (editingAcao) {
-                // Se estiver editando, assumimos que já existe objetivo ou não bloqueamos
-                setObjectives([{ id: 'existing', is_active: true }]);
+            } else {
+                console.log('[DEBUG_OBJ] Condições não atendidas. Limpando objectivesList.');
+                setObjectivesList([]);
             }
         };
 
         validateAxisObjectives();
-    }, [formData.axisId, isModalOpen, tenantId, editingAcao]);
+    }, [formData.axisId, isModalOpen, tenantId]);
 
     const openModal = (acao = null) => {
         setSaveError(null);
+        setObjectiveSearch('');
+        setIsObjDropdownOpen(false);
+        setIsObjTextModalOpen(false);
         if (acao) {
             setEditingAcao(acao);
             setInitialParticipants([]); // Resetar histórico de origem
@@ -494,6 +511,7 @@ const AcoesList = () => {
                 secretaria: acao.secretaria || '',
                 axisId: acao.eixoId || '',
                 eixo: acao.eixo || '',
+                objectiveId: acao.objective_id || '',
                 status: acao.status || 'NAO_INICIADA',
                 progresso: initialProgress,
                 prazo: acao.prazo || '',
@@ -526,12 +544,11 @@ const AcoesList = () => {
             }).catch(console.warn);
         } else {
             setEditingAcao(null);
-            const firstAxis = axes[0];
             const firstSec = secretariats[0];
             setFormData({
                 ...emptyForm,
-                axisId: firstAxis?.id || '',
-                eixo: firstAxis?.name || '',
+                axisId: '',
+                eixo: '',
                 secretariatId: firstSec?.id || '',
                 secretaria: firstSec?.name || '',
                 progresso: 0
@@ -546,6 +563,9 @@ const AcoesList = () => {
         setConfirmDeleteOpen(false);
         setDeleteError(null);
         setEditingAcao(null);
+        setObjectiveSearch('');
+        setIsObjDropdownOpen(false);
+        setIsObjTextModalOpen(false);
     };
 
     const openViewModal = (acao) => {
@@ -859,8 +879,8 @@ const AcoesList = () => {
 
     const hasActiveObjective = useMemo(() => {
         if (editingAcao) return true;
-        return objectives.length > 0 && objectives.some(o => o.is_active);
-    }, [objectives, editingAcao]);
+        return objectivesList.length > 0 && objectivesList.some(o => o.is_active);
+    }, [objectivesList, editingAcao]);
 
     const handleSort = (key) => {
         let direction = 'asc';
@@ -1235,9 +1255,82 @@ const AcoesList = () => {
                 .farmacia-table tbody tr { transition: all 0.2s ease; }
                 .farmacia-table tbody tr:hover { background-color: #f8fafc !important; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); z-index: 10; position: relative; }
                 .farmacia-table tbody tr:hover .farmacia-action-icon { opacity: 1 !important; background: rgba(0,0,0,0.03); }
-                .farmacia-action-icon { opacity: 0.5; transition: all 0.2s ease; }
                 .farmacia-action-icon:hover { transform: scale(1.1); background: rgba(0,0,0,0.06) !important; }
                 @keyframes fillBar { from { width: 0; } }
+                
+                /* Novos Tooltips */
+                .objective-tooltip-wrapper { position: relative; display: inline-block; }
+                .objective-tooltip-wrapper .objective-tooltip {
+                    visibility: hidden;
+                    width: 400px;
+                    background-color: #1e293b;
+                    color: #f8fafc;
+                    text-align: left;
+                    border-radius: 8px;
+                    padding: 12px 14px;
+                    position: absolute;
+                    z-index: 100;
+                    bottom: 125%;
+                    left: 0;
+                    opacity: 0;
+                    transition: opacity 0.2s;
+                    font-size: 0.8rem;
+                    line-height: 1.4;
+                    white-space: normal;
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+                    font-weight: 400;
+                    pointer-events: none;
+                }
+                .objective-tooltip-wrapper .objective-tooltip strong {
+                    display: block;
+                    margin-bottom: 6px;
+                    color: #38bdf8;
+                    text-transform: uppercase;
+                    font-size: 0.7rem;
+                    letter-spacing: 0.05em;
+                }
+                .objective-tooltip-wrapper:hover .objective-tooltip {
+                    visibility: visible;
+                    opacity: 1;
+                }
+                
+                .secretariat-tooltip-wrapper { position: relative; display: inline-block; }
+                .secretariat-tooltip-wrapper .secretariat-tooltip {
+                    visibility: hidden;
+                    width: 250px;
+                    background-color: #1e293b;
+                    color: #f8fafc;
+                    text-align: left;
+                    border-radius: 8px;
+                    padding: 12px 14px;
+                    position: absolute;
+                    z-index: 100;
+                    bottom: 125%;
+                    left: 50%;
+                    margin-left: -125px;
+                    opacity: 0;
+                    transition: opacity 0.2s;
+                    font-size: 0.8rem;
+                    line-height: 1.4;
+                    white-space: normal;
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+                    font-weight: 400;
+                    pointer-events: none;
+                }
+                .secretariat-tooltip-wrapper .secretariat-tooltip strong {
+                    display: block;
+                    margin-bottom: 8px;
+                    color: #94a3b8;
+                    text-transform: uppercase;
+                    font-size: 0.7rem;
+                    letter-spacing: 0.05em;
+                    border-bottom: 1px solid #334155;
+                    padding-bottom: 6px;
+                }
+                .secretariat-tooltip-wrapper:hover .secretariat-tooltip {
+                    visibility: visible;
+                    opacity: 1;
+                }
                 `}</style>
                 <div className="farmacia-table-wrapper" style={{ border: 'none', boxShadow: 'none', margin: 0, borderRadius: '0 0 10px 10px' }}>
                 <table className="farmacia-table">
@@ -1329,46 +1422,107 @@ const AcoesList = () => {
                             const pbGradient = getProgressGradient(acao.status, isDelayed);
 
                             return (
-                                <tr key={acao.id} style={{ backgroundColor: rowBg }}>
-                                    <td>
+                                <tr key={acao.id} style={{ backgroundColor: rowBg, borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '16px 12px 16px 12px' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                                <span style={{ fontWeight: 800, color: 'var(--text)', fontSize: '0.9rem', cursor: 'default' }}>{acao.nome}</span>
+                                                <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem', cursor: 'default' }}>{acao.nome}</span>
                                                 {getActionTypeBadge(acao.action_type)}
                                             </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontSize: '0.75rem', color: '#94a3b8' }}>
-                                                {acao.eixo && <span>{acao.eixo}</span>}
-                                                {acao.eixo && acao.local && <span>&bull;</span>}
-                                                {acao.local && <span style={{ fontWeight: 400 }}>{acao.local}</span>}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px' }}>
+                                                {acao.eixo && <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>{acao.eixo}</span>}
+                                                {acao.objective_title && (
+                                                    <div 
+                                                        className="objective-tooltip-wrapper"
+                                                        style={{ 
+                                                            display: 'inline-flex', 
+                                                            alignItems: 'center', 
+                                                            gap: '4px', 
+                                                            fontSize: '0.75rem', 
+                                                            color: '#64748b', 
+                                                            cursor: 'pointer',
+                                                            fontWeight: 400,
+                                                            width: 'fit-content'
+                                                        }}
+                                                    >
+                                                        🎯 Objetivo estratégico vinculado
+                                                        <div className="objective-tooltip">
+                                                            <strong>Objetivo Estratégico</strong>
+                                                            <div>{acao.objective_title}</div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                 <div 
-                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 6px', background: '#f1f5f9', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.65rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}
+                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 6px', background: '#f8fafc', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.65rem', fontWeight: 600, color: '#64748b', cursor: 'pointer' }}
                                                     onClick={(e) => { e.stopPropagation(); navigate('/planejamento/atualizacoes', { state: { acaoId: acao.id } }); }}
                                                 >
-                                                    <History size={10} style={{ color: '#64748b' }} />
+                                                    <History size={10} style={{ color: '#94a3b8' }} />
                                                     {!acao.update_count || acao.update_count === 0 
                                                         ? 'Sem atualizações' 
                                                         : `${acao.update_count} ${acao.update_count === 1 ? 'Atualização' : 'Atualizações'}`}
                                                 </div>
-                                                {acao.last_manual_update_at && (
-                                                    <span 
-                                                        style={{ fontSize: '0.65rem', color: '#94a3b8', cursor: 'pointer' }}
-                                                        onClick={(e) => { e.stopPropagation(); navigate('/planejamento/atualizacoes', { state: { acaoId: acao.id } }); }}
-                                                    >
-                                                        Última: {new Date(acao.last_manual_update_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                                                    </span>
-                                                )}
+                                                {(() => {
+                                                    if (acao.status === 'CONCLUIDA') return null;
+                                                    const delay = getUpdateDelayStatus(acao);
+                                                    if (delay.days === 0 && !acao.last_manual_update_at) return null;
+                                                    
+                                                    let bg, color, border;
+                                                    if (delay.days <= 7) {
+                                                        bg = '#f1f5f9'; color = '#64748b'; border = '#e2e8f0';
+                                                    } else if (delay.days <= 15) {
+                                                        bg = '#fffbeb'; color = '#d97706'; border = '#fde68a';
+                                                    } else {
+                                                        bg = '#fef2f2'; color = '#dc2626'; border = '#fecaca';
+                                                    }
+                                                    
+                                                    return (
+                                                        <span 
+                                                            style={{ 
+                                                                fontSize: '0.65rem', 
+                                                                color: color, 
+                                                                backgroundColor: bg,
+                                                                border: `1px solid ${border}`,
+                                                                padding: '2px 6px',
+                                                                borderRadius: '4px',
+                                                                fontWeight: 600,
+                                                                cursor: 'pointer' 
+                                                            }}
+                                                            onClick={(e) => { e.stopPropagation(); navigate('/planejamento/atualizacoes', { state: { acaoId: acao.id } }); }}
+                                                        >
+                                                            {delay.days === 0 ? 'Atualizado hoje' : `Sem atualização há ${delay.days} dia${delay.days > 1 ? 's' : ''}`}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </td>
-                                     <td>
+                                     <td style={{ padding: '16px 12px' }}>
                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                             <span style={{ fontWeight: 600, color: '#334155', fontSize: '0.85rem' }}>{sec.simplified}</span>
+                                             <span style={{ fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>{sec.simplified}</span>
                                              {acao.participantes && acao.participantes.length > 0 && (
-                                                 <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                                                     <span style={{fontWeight: 600}}>Participantes:</span> {acao.participantes.join(', ')}
-                                                 </span>
+                                                 <div 
+                                                     style={{ 
+                                                         display: 'inline-flex', 
+                                                         fontSize: '0.75rem', 
+                                                         color: '#94a3b8', 
+                                                         cursor: 'help',
+                                                         width: 'fit-content',
+                                                         fontWeight: 500
+                                                     }}
+                                                     onMouseEnter={(e) => {
+                                                         const rect = e.currentTarget.getBoundingClientRect();
+                                                         setSecretariatsTooltip({
+                                                             x: rect.left + rect.width / 2,
+                                                             y: rect.top,
+                                                             items: acao.participantes
+                                                         });
+                                                     }}
+                                                     onMouseLeave={() => setSecretariatsTooltip(null)}
+                                                 >
+                                                     +{acao.participantes.length} participante{acao.participantes.length !== 1 ? 's' : ''}
+                                                 </div>
                                              )}
                                          </div>
                                      </td>
@@ -1600,14 +1754,97 @@ const AcoesList = () => {
                                                 value={formData.axisId}
                                                 onChange={e => {
                                                     const axis = axes.find(a => a.id === e.target.value);
-                                                    setFormData({ ...formData, axisId: e.target.value, eixo: axis?.name || '' });
+                                                    setFormData({ ...formData, axisId: e.target.value, eixo: axis?.name || '', objectiveId: '' });
+                                                    setObjectiveSearch('');
                                                 }}
                                             >
-                                                <option value="">Selecione o eixo...</option>
+                                                <option value="">Selecione o eixo estratégico...</option>
                                                 {[...axes].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map(a => (
                                                     <option key={a.id} value={a.id}>{a.name}</option>
                                                 ))}
                                             </select>
+                                        </div>
+                                        <div className="farmacia-form-group" ref={objDropdownRef} style={{ position: 'relative' }}>
+                                            <label className="farmacia-form-label">
+                                                Objetivo Estratégico
+                                                {loadingObjectives && <Loader size={12} className="spinning" style={{ marginLeft: '8px' }} />}
+                                            </label>
+                                            <input
+                                                type="text"
+                                                className="farmacia-form-input"
+                                                placeholder={!formData.axisId ? "Selecione primeiro um eixo estratégico..." : (objectivesList.length === 0 && !loadingObjectives ? "Nenhum objetivo cadastrado para este eixo" : "Buscar objetivo...")}
+                                                value={objectiveSearch}
+                                                onChange={e => {
+                                                    setObjectiveSearch(e.target.value);
+                                                    setIsObjDropdownOpen(true);
+                                                }}
+                                                onFocus={() => {
+                                                    if (formData.axisId && objectivesList.length > 0) setIsObjDropdownOpen(true);
+                                                }}
+                                                disabled={!formData.axisId || loadingObjectives || objectivesList.length === 0}
+                                                style={{ marginBottom: 0 }}
+                                            />
+                                            {isObjDropdownOpen && !formData.objectiveId && (
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    top: 'calc(100% + 6px)',
+                                                    left: 0,
+                                                    right: 0,
+                                                    background: '#ffffff',
+                                                    border: '1px solid #cbd5e1',
+                                                    borderRadius: '8px',
+                                                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                                                    maxHeight: '220px',
+                                                    overflowY: 'auto',
+                                                    zIndex: 50,
+                                                    display: 'flex',
+                                                    flexDirection: 'column'
+                                                }}>
+                                                    {filteredObjectives.length > 0 ? (
+                                                        filteredObjectives.map((o, index) => (
+                                                            <div
+                                                                key={o.id}
+                                                                onClick={() => {
+                                                                    setFormData({ ...formData, objectiveId: o.id });
+                                                                    setObjectiveSearch('');
+                                                                    setIsObjDropdownOpen(false);
+                                                                }}
+                                                                style={{
+                                                                    padding: '10px 14px',
+                                                                    cursor: 'pointer',
+                                                                    backgroundColor: '#ffffff',
+                                                                    borderBottom: index < filteredObjectives.length - 1 ? '1px solid #f1f5f9' : 'none',
+                                                                    display: 'flex',
+                                                                    alignItems: 'flex-start',
+                                                                    gap: '8px',
+                                                                    transition: 'background-color 0.1s ease'
+                                                                }}
+                                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ffffff'}
+                                                            >
+                                                                <Target size={15} style={{ flexShrink: 0, marginTop: '2px', color: '#94a3b8' }} />
+                                                                <div style={{
+                                                                    display: '-webkit-box',
+                                                                    WebkitLineClamp: 2,
+                                                                    WebkitBoxOrient: 'vertical',
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                    fontSize: '0.82rem',
+                                                                    color: '#0f172a',
+                                                                    lineHeight: '1.4'
+                                                                }}>
+                                                                    {o.code && <span style={{ fontWeight: 600, marginRight: '4px', color: '#64748b' }}>{o.code}</span>}
+                                                                    {o.title}
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div style={{ padding: '12px 14px', fontSize: '0.85rem', color: '#64748b', textAlign: 'center' }}>
+                                                            Nenhum objetivo encontrado.
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="farmacia-form-group">
                                             <label className="farmacia-form-label">Secretaria Responsável (Principal)</label>
@@ -1631,6 +1868,65 @@ const AcoesList = () => {
                                                 ))}
                                             </select>
                                         </div>
+                                        {formData.objectiveId && (() => {
+                                            const selectedObj = objectivesList.find(o => o.id === formData.objectiveId);
+                                            const title = selectedObj?.title || 'Objetivo não encontrado.';
+                                            const fullText = selectedObj?.code ? `${selectedObj.code} - ${title}` : title;
+                                            return (
+                                                <div className="farmacia-form-group">
+                                                    <label className="farmacia-form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                        <span style={{ 
+                                                            fontSize: '0.7rem', 
+                                                            fontWeight: 800, 
+                                                            color: 'var(--color-primary)', 
+                                                            textTransform: 'uppercase', 
+                                                            letterSpacing: '0.05em' 
+                                                        }}>
+                                                            Objetivo Selecionado
+                                                        </span>
+                                                        <span 
+                                                            onClick={() => {
+                                                                setFormData({...formData, objectiveId: ''});
+                                                                setObjectiveSearch('');
+                                                            }}
+                                                            style={{ color: '#ef4444', cursor: 'pointer', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600 }}
+                                                        >
+                                                            <X size={12} /> Remover
+                                                        </span>
+                                                    </label>
+                                                    <div 
+                                                        title={fullText} // Native tooltip
+                                                        style={{
+                                                            backgroundColor: 'rgba(0, 150, 125, 0.03)',
+                                                            border: '1px solid rgba(0, 150, 125, 0.15)',
+                                                            borderLeft: '4px solid var(--color-primary)',
+                                                            borderRadius: '6px',
+                                                            padding: '14px 16px',
+                                                            minHeight: '75px',
+                                                            display: 'flex',
+                                                            alignItems: 'flex-start',
+                                                            cursor: 'help',
+                                                            boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
+                                                        }}
+                                                    >
+                                                        <div style={{
+                                                            display: '-webkit-box',
+                                                            WebkitLineClamp: 3,
+                                                            WebkitBoxOrient: 'vertical',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            fontSize: '0.85rem',
+                                                            color: '#0f172a',
+                                                            lineHeight: 1.5,
+                                                            fontWeight: 500
+                                                        }}>
+                                                            {selectedObj?.code && <span style={{ fontWeight: 800, marginRight: '6px', color: 'var(--color-primary)' }}>{selectedObj.code}</span>}
+                                                            {title}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                         <div className="farmacia-form-group col-span-2">
                                             <label className="farmacia-form-label">Secretarias Participantes</label>
                                             <div style={{ background: '#f8fafc', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '6px', padding: '12px 14px' }}>
@@ -2617,6 +2913,10 @@ const AcoesList = () => {
                                             <span style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 700 }}>{viewingAcao.eixo || 'Não informado'}</span>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Objetivo Estratégico</span>
+                                            <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 500, lineHeight: '1.4' }}>{viewingAcao.objective_title || 'Objetivo não informado'}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Responsável Técnico</span>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                 <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.7rem', fontWeight: 700 }}>
@@ -2971,6 +3271,42 @@ const AcoesList = () => {
                             )}
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Global Tooltip para Secretarias */}
+            {secretariatsTooltip && (
+                <div style={{
+                    position: 'fixed',
+                    left: Math.min(Math.max(secretariatsTooltip.x, 150), window.innerWidth - 150),
+                    top: secretariatsTooltip.y - 8,
+                    transform: 'translate(-50%, -100%)',
+                    zIndex: 9999,
+                    width: 'max-content',
+                    maxWidth: '350px',
+                    backgroundColor: '#1e293b',
+                    color: '#f8fafc',
+                    textAlign: 'left',
+                    borderRadius: '8px',
+                    padding: '12px 14px',
+                    fontSize: '0.8rem',
+                    lineHeight: '1.4',
+                    whiteSpace: 'normal',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                    fontWeight: 400,
+                    pointerEvents: 'none'
+                }}>
+                    <strong style={{
+                        display: 'block',
+                        marginBottom: '8px',
+                        color: '#94a3b8',
+                        textTransform: 'uppercase',
+                        fontSize: '0.7rem',
+                        letterSpacing: '0.05em',
+                        borderBottom: '1px solid #334155',
+                        paddingBottom: '6px'
+                    }}>Secretarias Participantes</strong>
+                    {secretariatsTooltip.items.map((p, i) => <div key={i} style={{ marginBottom: '4px' }}>{p}</div>)}
                 </div>
             )}
 

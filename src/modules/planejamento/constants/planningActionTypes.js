@@ -47,11 +47,11 @@ export const PLANNING_ACTION_TYPES = {
         stages: null // Sem etapas automáticas
     },
     'ACAO_PONTUAL': { 
-        value: 'ACAO_PONTUAL', label: 'Ação Pontual', color: '#db2777', bg: 'rgba(236, 72, 153, 0.1)', border: 'rgba(236, 72, 153, 0.2)',
+        value: 'ACAO_PONTUAL', label: 'Ação Pontual', color: '#047857', bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.25)',
         stages: null // Sem etapas automáticas
     },
     'ACAO': { 
-        value: 'ACAO', label: 'Ação Pontual', color: '#db2777', bg: 'rgba(236, 72, 153, 0.1)', border: 'rgba(236, 72, 153, 0.2)',
+        value: 'ACAO', label: 'Ação Pontual', color: '#047857', bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.25)',
         stages: null // Compatibilidade legado
     }
 };
