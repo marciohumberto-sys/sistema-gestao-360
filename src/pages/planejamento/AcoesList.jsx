@@ -21,7 +21,7 @@ import {
     Loader,
     X,
     Info,
-    CheckCircle, Trash2, History
+    CheckCircle, Trash2, History, MessageSquare
 } from 'lucide-react';
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
@@ -29,7 +29,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, deleteAcao, fetchObjectivesByAxis, createAtualizacao, fetchActionSecretariats, recordActionHistory, fetchActionDeletions } from '../../services/api/planejamentoAcoes.service';
+import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, deleteAcao, fetchObjectivesByAxis, createAtualizacao, fetchActionSecretariats, recordActionHistory, fetchActionDeletions, fetchUpdatesByAction } from '../../services/api/planejamentoAcoes.service';
 
 import { PLANNING_ACTION_TYPES_ARRAY, getActionTypeConfig, getActionTypeStages } from '../../modules/planejamento/constants/planningActionTypes';
 
@@ -236,6 +236,7 @@ const AcoesList = () => {
     const [deleteError, setDeleteError] = useState(null);
 
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+    const [actionUpdates, setActionUpdates] = useState([]);
     const [viewingAcao, setViewingAcao] = useState(null);
     const [viewingParticipantes, setViewingParticipantes] = useState([]);
     const [initialParticipants, setInitialParticipants] = useState([]);
@@ -324,6 +325,21 @@ const AcoesList = () => {
             .then(({ data }) => setActionHistory(data || []))
             .catch(() => setActionHistory([]));
     }, [isViewModalOpen, viewingAcao]);
+
+    // Buscar atualizações (updates) ao abrir modal de detalhes
+    useEffect(() => {
+        if (!isViewModalOpen || !viewingAcao?.id || !tenantId) {
+            setActionUpdates([]);
+            return;
+        }
+
+        fetchUpdatesByAction(tenantId, viewingAcao.id)
+            .then(data => setActionUpdates(data || []))
+            .catch(err => {
+                console.error("Erro ao carregar atualizações da ação", err);
+                setActionUpdates([]);
+            });
+    }, [isViewModalOpen, viewingAcao, tenantId]);
 
     // Carregar dados do banco
     const loadAcoes = useCallback(async () => {
@@ -1325,6 +1341,25 @@ const AcoesList = () => {
                                                 {acao.eixo && acao.local && <span>&bull;</span>}
                                                 {acao.local && <span style={{ fontWeight: 400 }}>{acao.local}</span>}
                                             </div>
+                                            <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <div 
+                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 6px', background: '#f1f5f9', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.65rem', fontWeight: 600, color: '#475569', cursor: 'pointer' }}
+                                                    onClick={(e) => { e.stopPropagation(); navigate('/planejamento/atualizacoes', { state: { acaoId: acao.id } }); }}
+                                                >
+                                                    <History size={10} style={{ color: '#64748b' }} />
+                                                    {!acao.update_count || acao.update_count === 0 
+                                                        ? 'Sem atualizações' 
+                                                        : `${acao.update_count} ${acao.update_count === 1 ? 'Atualização' : 'Atualizações'}`}
+                                                </div>
+                                                {acao.last_manual_update_at && (
+                                                    <span 
+                                                        style={{ fontSize: '0.65rem', color: '#94a3b8', cursor: 'pointer' }}
+                                                        onClick={(e) => { e.stopPropagation(); navigate('/planejamento/atualizacoes', { state: { acaoId: acao.id } }); }}
+                                                    >
+                                                        Última: {new Date(acao.last_manual_update_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </td>
                                      <td>
@@ -1447,6 +1482,10 @@ const AcoesList = () => {
                                      </td>
                                     <td>
                                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                                            <button className="farmacia-action-icon" style={{ padding: '4px' }} onClick={(e) => { e.stopPropagation(); navigate('/planejamento/atualizacoes', { state: { openModal: 'nova-atualizacao', acaoId: acao.id } }); }}>
+                                                <Plus size={16} />
+                                                <span className="premium-tooltip">Nova Atualização</span>
+                                            </button>
                                             <button className="farmacia-action-icon" style={{ padding: '4px' }} onClick={() => openViewModal(acao)}>
                                                 <Eye size={16} />
                                                 <span className="premium-tooltip">Visualizar</span>
@@ -2398,315 +2437,174 @@ const AcoesList = () => {
                                     </div>
                                 </div>
 
-                                {/* ── Bloco: Histórico Ativo (Preview Executivo Ultra-Compacto) ── */}
-                                {(() => {
-                                    const latestItem = sortedHistory.length > 0 ? sortedHistory[0] : null;
-                                    const lastDt = latestItem?.created_at
-                                        ? (() => {
-                                            const diff = new Date() - new Date(latestItem.created_at);
-                                            const mins = Math.floor(diff / (1000 * 60));
-                                            const hours = Math.floor(mins / 60);
-                                            const days = Math.floor(hours / 24);
-                                            if (days > 0) return `${days} dia${days > 1 ? 's' : ''}`;
-                                            if (hours > 0) return `${hours} h`;
-                                            return mins > 0 ? `${mins} min` : 'alguns instantes';
-                                        })()
-                                        : null;
+                                {/* ── Bloco: Atualizações da Ação (Timeline Vertical) ── */}
+                                {actionUpdates.length > 0 ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '1rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+                                            <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+                                                Atualizações da Ação
+                                            </h4>
+                                            <button 
+                                                className="farmacia-btn-secondary" 
+                                                style={{ padding: '4px 10px', fontSize: '0.75rem', gap: '4px', height: 'auto', backgroundColor: '#fff', border: '1px solid #e2e8f0', cursor: 'pointer' }}
+                                                onClick={() => {
+                                                    closeViewModal();
+                                                    navigate('/planejamento/atualizacoes', { state: { openModal: 'nova-atualizacao', acaoId: viewingAcao.id } });
+                                                }}
+                                            >
+                                                <Plus size={12} /> Nova
+                                            </button>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0', position: 'relative' }}>
+                                            {/* Linha guia vertical no fundo */}
+                                            <div style={{ position: 'absolute', left: '11px', top: '10px', bottom: '10px', width: '2px', background: '#e2e8f0', zIndex: 0 }}></div>
+                                            
+                                            {actionUpdates.slice(0, 3).map((update, idx) => {
+                                                const dt = new Date(update.created_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year: 'numeric', hour:'2-digit', minute:'2-digit' });
+                                                
+                                                // Resolver nome do usuário
+                                                let rawResolvedName = '';
+                                                if (update.updated_by === authUser?.id) {
+                                                    rawResolvedName = authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || (authUser?.email ? authUser.email.split('@')[0] : '');
+                                                }
+                                                if (!rawResolvedName) {
+                                                    rawResolvedName = usersMap[update.updated_by] || '';
+                                                }
+                                                const userDisplay = rawResolvedName ? formatUserDisplayName(rawResolvedName) : 'Usuário não identificado';
 
-                                    const hasHistory = sortedHistory.length > 0;
-
-                                    return (
-                                        <div 
+                                                return (
+                                                    <div key={update.id} style={{ display: 'flex', gap: '16px', position: 'relative', zIndex: 1, marginBottom: '16px' }}>
+                                                        {/* Dot da timeline */}
+                                                        <div style={{ 
+                                                            width: '24px', 
+                                                            height: '24px', 
+                                                            borderRadius: '50%', 
+                                                            background: '#eff6ff', 
+                                                            border: '2px solid #3b82f6', 
+                                                            flexShrink: 0, 
+                                                            display: 'flex', 
+                                                            alignItems: 'center', 
+                                                            justifyContent: 'center',
+                                                            boxShadow: '0 0 0 4px #ffffff'
+                                                        }}>
+                                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6' }}></div>
+                                                        </div>
+                                                        
+                                                        {/* Conteúdo */}
+                                                        <div style={{ 
+                                                            flex: 1, 
+                                                            background: '#f8fafc', 
+                                                            border: '1px solid #e2e8f0', 
+                                                            borderRadius: '8px', 
+                                                            padding: '12px 16px',
+                                                            boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                                                        }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
+                                                                <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>{dt}</span>
+                                                                {update.progress_percent_snapshot !== null && (
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', opacity: 0.8 }}>
+                                                                        <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                                                                            {update.progress_percent_snapshot}% concluído
+                                                                        </span>
+                                                                        <div style={{ width: '40px', height: '3px', backgroundColor: '#f1f5f9', borderRadius: '2px', overflow: 'hidden' }}>
+                                                                            <div style={{ width: `${update.progress_percent_snapshot}%`, height: '100%', backgroundColor: '#cbd5e1', borderRadius: '2px' }} />
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div style={{ fontSize: '0.9rem', color: '#334155', lineHeight: '1.5', fontWeight: 500 }}>
+                                                                {update.summary}
+                                                            </div>
+                                                            {update.details && (
+                                                                <div style={{ marginTop: '8px', fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic', paddingLeft: '8px', borderLeft: '2px solid #cbd5e1' }}>
+                                                                    {update.details}
+                                                                </div>
+                                                            )}
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #e2e8f0' }}>
+                                                                <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>
+                                                                    Atualizado por <strong style={{ color: '#475569' }}>{userDisplay}</strong>
+                                                                </span>
+                                                                {update.status_snapshot && (
+                                                                    <span style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 600 }}>
+                                                                        Status alterado para: <strong style={{ color: '#0f172a' }}>{update.status_snapshot}</strong>
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        {actionUpdates.length > 3 && (
+                                            <div style={{ textAlign: 'center', marginTop: '4px', marginBottom: '8px' }}>
+                                                <button 
+                                                    className="history-jump-btn" 
+                                                    style={{ margin: '0 auto' }}
+                                                    onClick={() => {
+                                                        closeViewModal();
+                                                        navigate('/planejamento/atualizacoes', { state: { acaoId: viewingAcao.id } });
+                                                    }}
+                                                >
+                                                    Ver todas as atualizações ({actionUpdates.length})
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div style={{ 
+                                        marginTop: '0.5rem', 
+                                        padding: '2.5rem 1.5rem', 
+                                        textAlign: 'center', 
+                                        background: '#f8fafc', 
+                                        borderRadius: '12px', 
+                                        border: '1px dashed #cbd5e1', 
+                                        display: 'flex', 
+                                        flexDirection: 'column', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        gap: '16px' 
+                                    }}>
+                                        <div style={{ 
+                                            width: '56px', 
+                                            height: '56px', 
+                                            borderRadius: '50%', 
+                                            background: '#e2e8f0', 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            justifyContent: 'center', 
+                                            color: '#64748b',
+                                            marginBottom: '2px' 
+                                        }}>
+                                            <MessageSquare size={24} />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#1e293b' }}>
+                                                Nenhuma atualização registrada
+                                            </h5>
+                                            <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8', maxWidth: '300px', lineHeight: '1.4' }}>
+                                                Esta ação ainda não recebeu registros de acompanhamento.
+                                            </p>
+                                        </div>
+                                        <button 
+                                            className="farmacia-btn-primary" 
+                                            style={{ 
+                                                marginTop: '4px', 
+                                                padding: '8px 16px', 
+                                                fontSize: '0.8rem', 
+                                                gap: '8px', 
+                                                height: 'auto', 
+                                                fontWeight: 600,
+                                                cursor: 'pointer'
+                                            }}
                                             onClick={() => {
-                                                if (!hasHistory) return;
-                                                setHistoryExpanded(!historyExpanded);
-                                            }}
-                                            style={{
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                background: historyExpanded ? 'rgba(248, 250, 252, 0.45)' : 'rgba(248, 250, 252, 0.2)',
-                                                border: historyExpanded ? '1px solid rgba(226, 232, 240, 0.8)' : '1px solid rgba(226, 232, 240, 0.6)',
-                                                borderRadius: '8px',
-                                                padding: '0.45rem 1rem', // Padding Estático Absoluto (Ancoragem Vertical Perfeita)
-                                                cursor: hasHistory ? 'pointer' : 'default',
-                                                transition: 'all 220ms cubic-bezier(0.4, 0, 0.2, 1)',
-                                                marginTop: '-0.5rem',
-                                                userSelect: 'none',
-                                                boxShadow: historyExpanded ? '0 1px 3px rgba(0,0,0,0.01)' : 'none'
-                                            }}
-                                            onMouseOver={(e) => {
-                                                if (!hasHistory) return;
-                                                e.currentTarget.style.background = historyExpanded ? 'rgba(248, 250, 252, 0.9)' : 'rgba(248, 250, 252, 0.7)';
-                                                e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.8)';
-                                                e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.02)';
-                                            }}
-                                            onMouseOut={(e) => {
-                                                e.currentTarget.style.background = historyExpanded ? 'rgba(248, 250, 252, 0.45)' : 'rgba(248, 250, 252, 0.2)';
-                                                e.currentTarget.style.borderColor = historyExpanded ? 'rgba(226, 232, 240, 0.8)' : 'rgba(226, 232, 240, 0.6)';
-                                                e.currentTarget.style.boxShadow = historyExpanded ? '0 1px 3px rgba(0,0,0,0.01)' : 'none';
+                                                closeViewModal();
+                                                navigate('/planejamento/atualizacoes', { state: { openModal: 'nova-atualizacao', acaoId: viewingAcao.id } });
                                             }}
                                         >
-                                            {/* HEADER FIXO E IMÓVEL (Seta, Título, Badges em 1 Linha Contínua) */}
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
-                                                {/* Container do Chevron Fixo */}
-                                                <div style={{ 
-                                                    display: 'flex', 
-                                                    alignItems: 'center', 
-                                                    justifyContent: 'center', 
-                                                    width: '14px', 
-                                                    height: '14px', 
-                                                    flexShrink: 0,
-                                                    opacity: hasHistory ? 1 : 0.4
-                                                }}>
-                                                    {hasHistory ? (
-                                                        <span style={{ 
-                                                            display: 'inline-flex',
-                                                            transform: historyExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                                                            transition: 'transform 220ms cubic-bezier(0.4, 0, 0.2, 1)',
-                                                            fontSize: '0.5rem',
-                                                            color: '#94a3b8',
-                                                            opacity: 0.9,
-                                                            lineHeight: 1
-                                                        }}>
-                                                            ▶
-                                                        </span>
-                                                    ) : (
-                                                        <span style={{ fontSize: '0.7rem', color: '#cbd5e1' }}>•</span>
-                                                    )}
-                                                </div>
-                                                
-                                                {/* Container de Informações em Linha Única Absoluta */}
-                                                <div style={{ 
-                                                    display: 'flex', 
-                                                    alignItems: 'center',
-                                                    gap: '6px',
-                                                    flex: 1
-                                                }}>
-                                                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                        Histórico Ativo
-                                                    </span>
-                                                    
-                                                    {hasHistory ? (
-                                                        <>
-                                                            <span style={{ color: '#cbd5e1', fontSize: '0.6rem', opacity: 0.7 }}>•</span>
-                                                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>
-                                                                {sortedHistory.length} {sortedHistory.length === 1 ? 'alteração' : 'alterações'}
-                                                            </span>
-                                                            {latestItem && (
-                                                                <>
-                                                                    <span style={{ color: '#cbd5e1', fontSize: '0.6rem', opacity: 0.7 }}>•</span>
-                                                                    <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 500 }}>
-                                                                        Última há {lastDt}
-                                                                    </span>
-                                                                </>
-                                                            )}
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <span style={{ color: '#cbd5e1', fontSize: '0.6rem', opacity: 0.7 }}>•</span>
-                                                            <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 500, fontStyle: 'italic' }}>
-                                                                Nenhuma alteração registrada ainda
-                                                            </span>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* ABERTO: Conteúdo Expansível Inline (Timeline Compacta) */}
-                                            <div style={{
-                                                maxHeight: historyExpanded ? '360px' : '0px',
-                                                opacity: historyExpanded ? 1 : 0,
-                                                overflow: 'hidden',
-                                                transition: 'max-height 280ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease-out, margin-top 280ms, padding-top 280ms',
-                                                marginTop: historyExpanded ? '12px' : '0px',
-                                                paddingTop: historyExpanded ? '14px' : '0px',
-                                                paddingBottom: historyExpanded ? '4px' : '0px',
-                                                borderTop: historyExpanded ? '1px dashed rgba(226, 232, 240, 0.8)' : 'none',
-                                                visibility: historyExpanded ? 'visible' : 'hidden',
-                                                pointerEvents: historyExpanded ? 'auto' : 'none'
-                                            }}>
-                                                <div 
-                                                    style={{ 
-                                                        display: 'flex', 
-                                                        flexDirection: 'column', 
-                                                        maxHeight: '300px', 
-                                                        overflowY: 'auto', 
-                                                        gap: '10px', 
-                                                        padding: '2px 4px 2px 6px'
-                                                    }} 
-                                                    className="custom-scrollbar"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    {sortedHistory.slice(0, historyLimit).map((item, idx) => {
-                                                        const eventColors = {
-                                                            STATUS_CHANGED:      { dot: '#475569', line: 'rgba(71, 85, 105, 0.15)', bg: '#f1f5f9', pillText: '#334155', pillBg: '#f8fafc', pillBorder: '#e2e8f0' }, // Slate elegante
-                                                            PROGRESS_CHANGED:    { dot: '#0284c7', line: 'rgba(2, 132, 199, 0.15)', bg: '#f0f9ff', pillText: '#0369a1', pillBg: '#f0f9ff', pillBorder: 'rgba(2, 132, 199, 0.15)' }, // Petróleo/Sky Editorial
-                                                            STAGE_CHANGED:       { dot: '#0284c7', line: 'rgba(2, 132, 199, 0.15)', bg: '#f0f9ff', pillText: '#0369a1', pillBg: '#f0f9ff', pillBorder: 'rgba(2, 132, 199, 0.15)' },
-                                                            DEADLINE_CHANGED:    { dot: '#b45309', line: 'rgba(180, 83, 9, 0.15)', bg: '#fffbeb', pillText: '#b45309', pillBg: '#fffbeb', pillBorder: 'rgba(180, 83, 9, 0.15)' }, // Âmbar sofisticado
-                                                            RESPONSIBLE_CHANGED: { dot: '#0d9488', line: 'rgba(13, 148, 136, 0.15)', bg: '#f0fdfa', pillText: '#0d9488', pillBg: '#f0fdfa', pillBorder: 'rgba(13, 148, 136, 0.15)' }, // Teal institucional
-                                                            ACTION_UPDATED:      { dot: '#475569', line: 'rgba(71, 85, 105, 0.15)', bg: '#f1f5f9', pillText: '#334155', pillBg: '#f8fafc', pillBorder: '#e2e8f0' },
-                                                        };
-                                                        let cfg = eventColors[item.event_type] || eventColors.ACTION_UPDATED;
-                                                        if (item.field_changed === 'participantes') {
-                                                            cfg = { 
-                                                                dot: '#6366f1', // Indigo editorial
-                                                                line: 'rgba(99, 102, 241, 0.16)', 
-                                                                bg: '#f5f3ff', 
-                                                                pillText: '#4f46e5', 
-                                                                pillBg: '#f5f3ff', 
-                                                                pillBorder: 'rgba(99, 102, 241, 0.15)'
-                                                            };
-                                                        }
-                                                        const isLast = idx === Math.min(sortedHistory.length, historyLimit) - 1;
-                                                        const dt = item.created_at
-                                                            ? new Date(item.created_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
-                                                            : '';
-                                                        
-                                                        // Resolver nome real do usuário mapeado via RPC ou authContext
-                                                        let rawResolvedName = '';
-                                                        if (item.user_id === authUser?.id) {
-                                                            rawResolvedName = authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || (authUser?.email ? authUser.email.split('@')[0] : '');
-                                                        }
-                                                        if (!rawResolvedName) {
-                                                            rawResolvedName = usersMap[item.user_id] || '';
-                                                        }
-                                                        
-                                                        const userDisplay = rawResolvedName 
-                                                            ? formatUserDisplayName(rawResolvedName) 
-                                                            : (item.user_id ? 'Usuário não identificado' : 'Sistema');
-                                                        
-                                                        const oldLabel = item.old_value?.label ?? item.old_value?.value ?? null;
-                                                        const newLabel = item.new_value?.label ?? item.new_value?.value ?? null;
-                                                        return (
-                                                            <div key={item.id || idx} style={{ display: 'flex', gap: '10px' }}>
-                                                                {/* Linha da timeline compacta */}
-                                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '8px', flexShrink: 0 }}>
-                                                                    <div style={{ 
-                                                                        width: '6px', 
-                                                                        height: '6px', 
-                                                                        borderRadius: '50%', 
-                                                                        background: cfg.dot, 
-                                                                        boxShadow: `0 0 0 2.5px ${cfg.bg}`,
-                                                                        flexShrink: 0, 
-                                                                        marginTop: '6px' 
-                                                                    }} />
-                                                                    {!isLast && <div style={{ flex: 1, width: '1.5px', background: cfg.line, marginTop: '4px', marginBottom: '-4px' }} />}
-                                                                </div>
-                                                                
-                                                                {/* Conteúdo do registro */}
-                                                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px' }}>
-                                                                        <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#334155' }}>
-                                                                            {item.description || item.event_type}
-                                                                        </span>
-                                                                        <span style={{ fontSize: '0.64rem', color: '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>{dt}</span>
-                                                                    </div>
-                                                                    
-                                                                    {/* Caso Especial: Alteração de Participantes */}
-                                                                    {item.field_changed === 'participantes' && item.observations && (
-                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '3px' }}>
-                                                                            {item.observations.split('|').map((line, lIdx) => {
-                                                                                const trimmed = line.trim();
-                                                                                return (
-                                                                                    <span key={lIdx} style={{ 
-                                                                                        fontSize: '0.66rem', 
-                                                                                        fontWeight: 600, 
-                                                                                        color: cfg.pillText,
-                                                                                        background: cfg.pillBg,
-                                                                                        border: `1px solid ${cfg.pillBorder}`,
-                                                                                        padding: '1px 6.5px',
-                                                                                        borderRadius: '4px',
-                                                                                        width: 'fit-content',
-                                                                                        display: 'inline-flex',
-                                                                                        alignItems: 'center',
-                                                                                        letterSpacing: '0.01em'
-                                                                                    }}>
-                                                                                        {trimmed}
-                                                                                    </span>
-                                                                                );
-                                                                            })}
-                                                                        </div>
-                                                                    )}
-
-
-                                                                    {/* Badges compactas de mudança tradicional */}
-                                                                    {item.field_changed !== 'participantes' && (oldLabel !== null || newLabel !== null) && (
-                                                                        <div style={{ 
-                                                                            fontSize: '0.66rem', 
-                                                                            display: 'flex', 
-                                                                            alignItems: 'center', 
-                                                                            gap: '4px', 
-                                                                            marginTop: '2px', 
-                                                                            background: cfg.pillBg, 
-                                                                            border: `1px solid ${cfg.pillBorder}`, 
-                                                                            padding: '1px 5.5px', 
-                                                                            borderRadius: '4px', 
-                                                                            width: 'max-content', 
-                                                                            maxWidth: '100%' 
-                                                                        }}>
-                                                                            <span style={{ color: '#64748b', textDecoration: oldLabel ? 'line-through' : 'none', opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '110px' }}>{oldLabel ?? '—'}</span>
-                                                                            <span style={{ color: '#cbd5e1', fontSize: '0.55rem' }}>→</span>
-                                                                            <span style={{ fontWeight: 700, color: cfg.pillText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '110px' }}>{newLabel ?? '—'}</span>
-                                                                        </div>
-                                                                    )}
-                                                                    
-                                                                    {/* Observações tradicionais */}
-                                                                    {item.field_changed !== 'participantes' && item.observations && (
-                                                                        <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: '#64748b', fontStyle: 'italic', lineHeight: '1.3', borderLeft: '1.5px solid #e2e8f0', paddingLeft: '6px', opacity: 0.9 }}>
-                                                                            {item.observations}
-                                                                        </p>
-                                                                    )}
-                                                                    
-                                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1px' }}>
-                                                                        <span style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 500 }}>
-                                                                            Por <strong style={{ color: '#64748b', fontWeight: 600 }}>{userDisplay}</strong>
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-
-                                                    {/* Botão "Mostrar Mais" - Paginação Progressiva Inteligente */}
-                                                    {sortedHistory.length > historyLimit && (
-                                                        <div 
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setHistoryLimit(prev => prev + 5);
-                                                            }}
-                                                            style={{
-                                                                alignSelf: 'center',
-                                                                fontSize: '0.66rem',
-                                                                color: '#64748b',
-                                                                fontWeight: 600,
-                                                                cursor: 'pointer',
-                                                                padding: '3.5px 11px',
-                                                                borderRadius: '4px',
-                                                                background: '#f8fafc',
-                                                                border: '1px solid #e2e8f0',
-                                                                marginTop: '8px',
-                                                                textAlign: 'center',
-                                                                transition: 'all 150ms ease-in-out',
-                                                                userSelect: 'none'
-                                                            }}
-                                                            onMouseOver={(e) => {
-                                                                e.currentTarget.style.background = '#f1f5f9';
-                                                                e.currentTarget.style.borderColor = '#cbd5e1';
-                                                            }}
-                                                            onMouseOut={(e) => {
-                                                                e.currentTarget.style.background = '#f8fafc';
-                                                                e.currentTarget.style.borderColor = '#e2e8f0';
-                                                            }}
-                                                        >
-                                                            Mostrar mais (+{Math.min(5, sortedHistory.length - historyLimit)})
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-
+                                            <Plus size={14} /> Registrar primeira atualização
+                                        </button>
+                                    </div>
+                                )}
                                 {/* Grid de Informações */}
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>

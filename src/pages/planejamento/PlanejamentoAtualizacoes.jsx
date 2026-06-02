@@ -23,11 +23,12 @@ import {
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
 import { useAuth } from '../../context/AuthContext';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchAtualizacoes, createAtualizacao, updateAtualizacao, deleteAtualizacao, fetchAcoes, updateAcao } from '../../services/api/planejamentoAcoes.service';
 import { getActionTypeStages, getActionTypeConfig } from '../../modules/planejamento/constants/planningActionTypes';
 
 // Sub-componente para animação individual do card
-const UpdateCard = ({ item, index, getTipoConfig, getStatusLabel, formatDate, onEdit, onDelete, onView, isLast, isConcluidaAnteriormente }) => {
+const UpdateCard = ({ item, acaoContext, index, getTipoConfig, getStatusLabel, formatDate, onEdit, onDelete, onView, isLast, isConcluidaAnteriormente, getActionTypeConfig, getDisplayProgress }) => {
     const [isVisible, setIsVisible] = useState(false);
     const cardRef = React.useRef(null);
 
@@ -100,11 +101,52 @@ const UpdateCard = ({ item, index, getTipoConfig, getStatusLabel, formatDate, on
                 }}
             >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    {/* Linha Superior: Cabeçalho */}
+                    {/* Linha Superior: Cabeçalho com Contexto da Ação */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                            
+                            {acaoContext ? (
+                                <div style={{ 
+                                    background: '#f8fafc', 
+                                    border: '1px solid #e2e8f0', 
+                                    borderRadius: '6px', 
+                                    padding: '8px 12px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '6px'
+                                }}>
+                                    <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.2 }}>
+                                        {item.acao}
+                                    </h3>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                        {(() => {
+                                            const tConf = getActionTypeConfig(acaoContext.action_type || 'PROJETO');
+                                            const p = getDisplayProgress(acaoContext);
+                                            return (
+                                                <>
+                                                    <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: tConf.bg, color: tConf.color, border: `1px solid ${tConf.border}`, textTransform: 'uppercase' }}>
+                                                        {tConf.label}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: 'rgba(0,0,0,0.05)', color: '#475569', textTransform: 'uppercase' }}>
+                                                        {getStatusLabel(acaoContext.status)}
+                                                    </span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+                                                        <div style={{ width: '40px', height: '4px', background: '#e2e8f0', borderRadius: '2px', overflow: 'hidden' }}>
+                                                            <div style={{ width: `${p}%`, height: '100%', background: `linear-gradient(to right, ${p <= 25 ? '#ef4444' : p <= 60 ? '#3b82f6' : p <= 85 ? '#f59e0b' : '#10b981'})`, borderRadius: '2px' }} />
+                                                        </div>
+                                                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#334155' }}>{p}%</span>
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                            ) : (
                                 <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.2 }}>{item.acao}</h3>
+                            )}
+
+                            {/* Badge da atualização e secretaria */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                 <span className="update-badge" style={{ 
                                     fontSize: '0.65rem', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', 
                                     background: displayBg, color: displayColor, textTransform: 'uppercase', letterSpacing: '0.05em',
@@ -112,8 +154,8 @@ const UpdateCard = ({ item, index, getTipoConfig, getStatusLabel, formatDate, on
                                 }}>
                                     {conf.label}
                                 </span>
+                                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>{item.secretaria}</span>
                             </div>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>{item.secretaria}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {isConcluidaAnteriormente && (
@@ -416,11 +458,11 @@ const getStageInfo = (acao) => {
 };
 
 // Componente: Card Contextual da Ação no Modal
-const ActionContextCard = ({ acao, getStatusLabel, getTipoConfig }) => {
+const ActionContextCard = ({ acao, getStatusLabel }) => {
     if (!acao) return null;
     
     const stageInfo = getStageInfo(acao);
-    const tipoConfig = getTipoConfig ? getTipoConfig(acao.action_type) : null;
+    const tipoConfig = getActionTypeConfig ? getActionTypeConfig(acao.action_type || 'PROJETO') : null;
     
     // Progresso real da ação derivado via etapa atual calculada
     const progressoAtual = getDisplayProgress(acao);
@@ -438,13 +480,13 @@ const ActionContextCard = ({ acao, getStatusLabel, getTipoConfig }) => {
 
     return (
         <div style={{ 
-            background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', 
-            padding: '0.875rem 1rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.6rem',
+            background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', 
+            padding: '1rem 1.25rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem',
             animation: 'fadeInDown 0.3s ease-out'
         }}>
             {/* Linha 1: Nome + badge */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1e293b', flex: 1, lineHeight: 1.35 }}>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', flex: 1, lineHeight: 1.35 }}>
                     {acao.nome}
                 </h4>
                 {tipoConfig && (
@@ -528,6 +570,8 @@ const ActionContextCard = ({ acao, getStatusLabel, getTipoConfig }) => {
 const PlanejamentoAtualizacoes = () => {
     const { tenantLink } = useAuth();
     const tenantId = tenantLink?.tenant_id;
+    const location = useLocation();
+    const navigate = useNavigate();
 
     // ---- ESTADO ----
     const [atualizacoes, setAtualizacoes] = useState([]);
@@ -594,6 +638,35 @@ const PlanejamentoAtualizacoes = () => {
             fetchAcoes(tenantId).then(setAcoes).catch(console.error);
         }
     }, [tenantId, loadAtualizacoes]);
+
+    const stateProcessed = React.useRef(false);
+
+    // Tratar location.state para Nova Atualização / Filtro de Contexto
+    useEffect(() => {
+        if (location.state?.acaoId && acoes.length > 0 && !stateProcessed.current) {
+            const foundAcao = acoes.find(a => String(a.id) === String(location.state.acaoId));
+            if (foundAcao) {
+                // Auto-filtrar a tela para esta ação (Contexto da Ação)
+                setAcaoFiltro(foundAcao.nome);
+
+                if (location.state?.openModal === 'nova-atualizacao') {
+                    setFormData({
+                        acaoId: foundAcao.id,
+                        acao: foundAcao.nome,
+                        tipo: 'Geral',
+                        descricao: '',
+                        novoStatus: '',
+                        novoProgresso: '',
+                        novoStageIndex: '',
+                        critica: false
+                    });
+                    setIsModalOpen(true);
+                }
+                
+                stateProcessed.current = true;
+            }
+        }
+    }, [location.state, acoes]);
 
     const tiposUnicos = ['Geral', 'Avanço de Progresso', 'Mudança de Status'];
 
@@ -1147,6 +1220,20 @@ const PlanejamentoAtualizacoes = () => {
                         </div>
                     </div>
 
+                    {/* Badge/Card de Contexto da Ação Filtrada */}
+                    {acaoFiltro !== 'Todas' && (() => {
+                        const filteredAcao = acoes.find(a => a.nome === acaoFiltro);
+                        if (!filteredAcao) return null;
+                        return (
+                            <div style={{ marginTop: '1.5rem', marginBottom: '-1rem' }}>
+                                <ActionContextCard 
+                                    acao={filteredAcao} 
+                                    getStatusLabel={getStatusLabel}
+                                />
+                            </div>
+                        );
+                    })()}
+
                     {/* Timeline / Lista de Atualizações */}
                     {atualizacoesFiltradas.length === 0 ? (
                         <div className="farmacia-card" style={{ padding: '4rem 2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', marginTop: '32px !important' }}>
@@ -1169,13 +1256,18 @@ const PlanejamentoAtualizacoes = () => {
                                 <UpdateCard 
                                     key={item.id} 
                                     item={item} 
+                                    acaoContext={acoes.find(a => a.nome === item.acao)}
                                     index={index}
                                     getTipoConfig={getTipoConfig}
                                     getStatusLabel={getStatusLabel}
                                     formatDate={formatDate}
                                     onEdit={handleEdit}
                                     onDelete={handleDelete}
-                                    isConcluidaAnteriormente={revisitedConcludedIds.has(item.id)}
+                                    onView={handleViewUpdate}
+                                    isLast={index === atualizacoesFiltradas.length - 1}
+                                    isConcluidaAnteriormente={item.statusAnterior === 'Concluída' && item.statusNovo !== 'Concluída'}
+                                    getActionTypeConfig={getActionTypeConfig}
+                                    getDisplayProgress={getDisplayProgress}
                                 />
                             ))}
                         </div>
@@ -1226,7 +1318,6 @@ const PlanejamentoAtualizacoes = () => {
                                     <ActionContextCard 
                                         acao={acoes.find(a => a.id === formData.acaoId)} 
                                         getStatusLabel={getStatusLabel}
-                                        getTipoConfig={getTipoConfig}
                                     />
                                 </div>
 

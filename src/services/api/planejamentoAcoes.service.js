@@ -247,8 +247,9 @@ export const fetchAcoes = async (tenantId) => {
         console.warn('[planejamentoAcoes] Falha ao buscar participantes:', errLinks);
     }
 
-    // 5.5 Buscar a data da última atualização manual de cada ação
+    // 5.5 Buscar a data da última atualização manual e contagem de atualizações de cada ação
     let latestUpdateMap = new Map();
+    let updatesCountMap = new Map();
     try {
         const { data: updates } = await supabase
             .from('planning_action_updates')
@@ -261,10 +262,12 @@ export const fetchAcoes = async (tenantId) => {
                 if (!currentStr || new Date(u.created_at) > new Date(currentStr)) {
                     latestUpdateMap.set(u.action_id, u.created_at);
                 }
+                const count = updatesCountMap.get(u.action_id) || 0;
+                updatesCountMap.set(u.action_id, count + 1);
             });
         }
     } catch (errUpdates) {
-        console.warn('[planejamentoAcoes] Falha ao buscar datas de atualizações manuais:', errUpdates);
+        console.warn('[planejamentoAcoes] Falha ao buscar atualizações manuais:', errUpdates);
     }
 
     // 6. Mapeamento final
@@ -301,6 +304,7 @@ export const fetchAcoes = async (tenantId) => {
         longitude: a.longitude || null,
         completion_date: a.completion_date || null,
         last_manual_update_at: latestUpdateMap.get(a.id) || null,
+        update_count: updatesCountMap.get(a.id) || 0,
         updated_at: a.updated_at,
         created_at: a.created_at
     }));
@@ -598,6 +602,24 @@ export const fetchAtualizacoes = async (tenantId) => {
     } catch (err) {
         console.error('[planejamentoAcoes] Erro inesperado ao buscar atualizações:', err);
         throw err;
+    }
+};
+
+export const fetchUpdatesByAction = async (tenantId, actionId) => {
+    if (!tenantId || !actionId) return [];
+    try {
+        const { data, error } = await supabase
+            .from('planning_action_updates')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .eq('action_id', actionId)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data || [];
+    } catch (err) {
+        console.error('[planejamentoAcoes] Erro ao buscar atualizações da ação:', err);
+        return [];
     }
 };
 
