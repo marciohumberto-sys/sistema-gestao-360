@@ -117,7 +117,15 @@ const OfPreview = () => {
     // TODO: Futuramente a competência deve vir de um campo próprio no banco (ex: reference_month). 
     // Regra temporária exigida para correção destas OFs específicas.
     let referenciaCompetencia = `REFERÊNCIA ${getMonthYear(ofDateRaw).toUpperCase()}`;
-    if (ofData.number === 'OF-2026-0276') {
+    if (ofData.reference_month && ofData.reference_year) {
+        const monthsMap = {
+            '01': 'JANEIRO', '02': 'FEVEREIRO', '03': 'MARÇO', '04': 'ABRIL',
+            '05': 'MAIO', '06': 'JUNHO', '07': 'JULHO', '08': 'AGOSTO',
+            '09': 'SETEMBRO', '10': 'OUTUBRO', '11': 'NOVEMBRO', '12': 'DEZEMBRO'
+        };
+        const monthName = monthsMap[ofData.reference_month] || ofData.reference_month;
+        referenciaCompetencia = `REFERÊNCIA ${monthName}/${ofData.reference_year}`;
+    } else if (ofData.number === 'OF-2026-0276') {
         referenciaCompetencia = 'REFERÊNCIA MARÇO/2026';
     } else if (ofData.number === 'OF-2026-0277') {
         referenciaCompetencia = 'REFERÊNCIA ABRIL/2026';
@@ -331,6 +339,11 @@ const OfPreview = () => {
                                         <p>Prefeitura Municipal de Bezerros – Central de Compras</p>
                                         <p>Praça Duque de Caxias, s/n - Centro - Bezerros/PE - CEP: 55660-000</p>
                                         <p>CNPJ: 10.091.510/0001-75 - E-mail: centraldecomprasbezerros@gmail.com</p>
+                                        {ofData.date_adjusted_at && (
+                                            <p style={{ marginTop: '8px', fontSize: '7pt', fontStyle: 'italic', color: '#64748b' }}>
+                                                * Documento com ajuste administrativo de data/referência registrado no sistema.
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </td>

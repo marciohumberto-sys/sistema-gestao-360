@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { formatLocalDate } from '../utils/dateUtils';
 import NovaOfModal from './components/NovaOfModal';
+import AjustarDataReferenciaModal from './components/AjustarDataReferenciaModal';
 import './Contratos.css';
 import './OrdensFornecimento.css';
 
@@ -17,7 +18,10 @@ const OrdensFornecimento = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { tenantId } = useTenant();
-    const { user } = useAuth();
+    const { user, tenantLink, isSuperAdmin } = useAuth();
+
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
+    const isGestor = ['SUPERADMIN', 'ADMIN', 'GESTOR'].includes(role);
 
     // 1. Data State
     const [ofs, setOfs] = useState([]);
@@ -48,6 +52,10 @@ const OrdensFornecimento = () => {
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const [ofToCancel, setOfToCancel] = useState(null);
     const [cancelReason, setCancelReason] = useState('');
+
+    // Ajustar Data/Referência State
+    const [isAdjustDateModalOpen, setIsAdjustDateModalOpen] = useState(false);
+    const [ofToAdjustDate, setOfToAdjustDate] = useState(null);
 
     // Listen to route state to open modal automatically
     useEffect(() => {
@@ -627,11 +635,33 @@ const OrdensFornecimento = () => {
                                                                     </button>
                                                                 )}
 
-                                                                {of.status === 'ISSUED' && of.is_active === true && (
-                                                                    <>
-                                                                        <div style={{ height: '1px', background: '#f1f5f9', margin: '2px 0' }} />
-                                                                        <button 
-                                                                            onClick={(e) => { e.stopPropagation(); handleRectifyOfClick(of); }}
+                                                                        {of.status === 'ISSUED' && isGestor && (
+                                                                            <>
+                                                                                <div style={{ height: '1px', background: '#f1f5f9', margin: '2px 0' }} />
+                                                                                <button 
+                                                                                    onClick={(e) => { 
+                                                                                        e.stopPropagation(); 
+                                                                                        setOfToAdjustDate(of);
+                                                                                        setIsAdjustDateModalOpen(true);
+                                                                                        setOpenActionMenuId(null);
+                                                                                    }}
+                                                                                    disabled={isSubmitting}
+                                                                                    style={{
+                                                                                        display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 16px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.875rem', color: '#4338ca', opacity: isSubmitting ? 0.5 : 1
+                                                                                    }}
+                                                                                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#eef2ff'}
+                                                                                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                                                >
+                                                                                    <FileText size={16} /> Ajustar Data/Referência
+                                                                                </button>
+                                                                            </>
+                                                                        )}
+
+                                                                        {of.status === 'ISSUED' && of.is_active === true && (
+                                                                            <>
+                                                                                <div style={{ height: '1px', background: '#f1f5f9', margin: '2px 0' }} />
+                                                                                <button 
+                                                                                    onClick={(e) => { e.stopPropagation(); handleRectifyOfClick(of); }}
                                                                             disabled={isSubmitting}
                                                                             style={{
                                                                                 display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 16px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.875rem', color: '#d97706', opacity: isSubmitting ? 0.5 : 1
@@ -797,6 +827,25 @@ const OrdensFornecimento = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Modal de Ajuste de Data e Referência */}
+            {isAdjustDateModalOpen && ofToAdjustDate && (
+                <AjustarDataReferenciaModal
+                    isOpen={isAdjustDateModalOpen}
+                    onClose={() => {
+                        setIsAdjustDateModalOpen(false);
+                        setOfToAdjustDate(null);
+                    }}
+                    ofData={ofToAdjustDate}
+                    onSuccess={() => {
+                        setIsAdjustDateModalOpen(false);
+                        setOfToAdjustDate(null);
+                        setFeedback({ type: 'success', message: 'Data e referência ajustadas com sucesso!' });
+                        setTimeout(() => setFeedback(null), 3000);
+                        loadData();
+                    }}
+                />
             )}
         </div>
     );

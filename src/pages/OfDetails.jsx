@@ -52,6 +52,11 @@ const OfDetails = () => {
     const [isRetificationModalOpen, setIsRetificationModalOpen] = useState(false);
     const [retificationReason, setRetificationReason] = useState('');
 
+    // History Modal State
+    const [isAdjustmentHistoryOpen, setIsAdjustmentHistoryOpen] = useState(false);
+    const [adjustmentHistory, setAdjustmentHistory] = useState([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
     const loadData = async () => {
         if (!tenantId || !id) return;
         try {
@@ -124,6 +129,19 @@ const OfDetails = () => {
             case 'CANCELLED':
             case 'CANCELED': return 'Cancelada';
             default: return status;
+        }
+    };
+
+    const handleOpenHistory = async () => {
+        setIsAdjustmentHistoryOpen(true);
+        setIsLoadingHistory(true);
+        try {
+            const data = await ofsService.getAdjustmentHistory(id, tenantId);
+            setAdjustmentHistory(data);
+        } catch (error) {
+            console.error('Erro ao buscar histórico:', error);
+        } finally {
+            setIsLoadingHistory(false);
         }
     };
 
@@ -662,6 +680,27 @@ const OfDetails = () => {
                         <span className="ed-subtitle" style={{ fontSize: '0.85rem' }}>
                             Data de Emissão: <span style={{ color: '#0f172a', fontWeight: 500 }}>{formatDate(ofData.issue_date)}</span>
                         </span>
+                        {ofData.date_adjusted_at && (
+                            <span 
+                                onClick={handleOpenHistory}
+                                style={{ 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '6px', 
+                                    background: '#fffbeb', 
+                                    color: '#d97706', 
+                                    padding: '4px 8px', 
+                                    borderRadius: '6px', 
+                                    fontSize: '0.75rem', 
+                                    fontWeight: 600, 
+                                    cursor: 'pointer',
+                                    border: '1px solid #fde68a'
+                                }}
+                                title="Visualizar histórico de ajustes"
+                            >
+                                <AlertCircle size={14} /> Ajuste Administrativo
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -1205,6 +1244,67 @@ const OfDetails = () => {
                                     {isSubmitting ? 'Retificando...' : 'Criar retificação'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Modal de Histórico de Ajustes */}
+            {isAdjustmentHistoryOpen && (
+                <div className="modal-overlay" onClick={() => setIsAdjustmentHistoryOpen(false)}>
+                    <div className="modal-content" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ padding: '1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ background: '#fffbeb', width: '40px', height: '40px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
+                                    <AlertCircle size={20} />
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, color: '#1e293b', fontSize: '1.125rem', fontWeight: 600 }}>Histórico de Ajustes</h3>
+                                    <p style={{ margin: 0, color: '#64748b', fontSize: '0.875rem' }}>Registro de alterações de data e referência</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsAdjustmentHistoryOpen(false)}
+                                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+                            >
+                                <XCircle size={24} />
+                            </button>
+                        </div>
+                        <div style={{ padding: '1.5rem', maxHeight: '400px', overflowY: 'auto' }}>
+                            {isLoadingHistory ? (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Carregando histórico...</div>
+                            ) : adjustmentHistory.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Nenhum ajuste registrado.</div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {adjustmentHistory.map((hist) => (
+                                        <div key={hist.id} style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Ajuste realizado em {formatDate(hist.created_at)}</span>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.85rem', marginBottom: '12px' }}>
+                                                <div>
+                                                    <span style={{ color: '#64748b', display: 'block', marginBottom: '4px' }}>De:</span>
+                                                    <div style={{ color: '#94a3b8', textDecoration: 'line-through' }}>
+                                                        Data: {hist.old_issue_date ? formatDate(hist.old_issue_date) : '-'}<br/>
+                                                        Ref: {hist.old_reference_month}/{hist.old_reference_year}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <span style={{ color: '#64748b', display: 'block', marginBottom: '4px' }}>Para:</span>
+                                                    <div style={{ color: '#0f172a', fontWeight: 500 }}>
+                                                        Data: {hist.new_issue_date ? formatDate(hist.new_issue_date) : '-'}<br/>
+                                                        Ref: {hist.new_reference_month}/{hist.new_reference_year}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div style={{ fontSize: '0.85rem', color: '#475569', background: '#fff', padding: '8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                                                <strong style={{ color: '#334155', display: 'block', marginBottom: '4px' }}>Justificativa:</strong>
+                                                {hist.justification}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

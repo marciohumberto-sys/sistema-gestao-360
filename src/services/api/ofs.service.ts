@@ -8,9 +8,13 @@ export interface OF {
     commitment_id: string;
     number: string;
     issue_date: string;
+    reference_month?: string;
+    reference_year?: string;
+    date_adjusted_at?: string;
+    date_adjusted_by?: string;
     requester_name?: string;
     requester_department?: string;
-    status: 'DRAFT' | 'ISSUED' | 'CANCELED';
+    status: 'DRAFT' | 'ISSUED' | 'CANCELED' | 'CANCELLED';
     notes?: string;
     total_amount: number;
     created_at: string;
@@ -481,6 +485,68 @@ class OFsService {
         
         if (error) throw error;
         return data as string; // Returns the ID of the new OF
+    }
+
+    async adjustDateAndReference(
+        ofId: string, 
+        tenantId: string, 
+        userId: string, 
+        payload: { 
+            new_issue_date: string, 
+            new_reference_month: string, 
+            new_reference_year: string, 
+            justification: string,
+            old_issue_date: string,
+            old_reference_month?: string,
+            old_reference_year?: string,
+            status: string
+        }
+    ): Promise<void> {
+        if (!tenantId) throw new Error("tenantId is required");
+        if (!userId) throw new Error("userId is required");
+
+        // 1. Insert into history
+        const { error: histError } = await supabase.from('of_date_adjustments').insert([{
+            tenant_id: tenantId,
+            of_id: ofId,
+            old_issue_date: payload.old_issue_date,
+            new_issue_date: payload.new_issue_date,
+            old_reference_month: payload.old_reference_month || null,
+            new_reference_month: payload.new_reference_month,
+            old_reference_year: payload.old_reference_year || null,
+            new_reference_year: payload.new_reference_year,
+            justification: payload.justification,
+            created_by: userId,
+            old_status: payload.status,
+            new_status: payload.status
+        }]);
+
+        if (histError) throw new Error(`Erro ao registrar histórico de ajuste: ${histError.message}`);
+
+        // 2. Update OF
+        const { error: updError } = await supabase.from('ofs').update({
+            issue_date: payload.new_issue_date,
+            reference_month: payload.new_reference_month,
+            reference_year: payload.new_reference_year,
+            date_adjusted_at: new Date().toISOString(),
+            date_adjusted_by: userId,
+            updated_at: new Date().toISOString(),
+            updated_by: userId
+        }).eq('id', ofId).eq('tenant_id', tenantId);
+
+        if (updError) throw new Error(`Erro ao atualizar OF: ${updError.message}`);
+    }
+
+    async getAdjustmentHistory(ofId: string, tenantId: string): Promise<any[]> {
+        const { data, error } = await supabase
+            .from('of_date_adjustments')
+            .select('*')
+            .eq('of_id', ofId)
+            .eq('tenant_id', tenantId)
+            .order('created_at', { ascending: false });
+            
+        if (error) throw error;
+        return data || [];
     }
 }
 
