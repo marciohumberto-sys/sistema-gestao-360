@@ -502,8 +502,10 @@ class OFsService {
             status: string
         }
     ): Promise<void> {
+        if (!ofId) throw new Error("ofId is required");
         if (!tenantId) throw new Error("tenantId is required");
         if (!userId) throw new Error("userId is required");
+        if (!payload) throw new Error("payload is required");
 
         // 1. Insert into history
         const { error: histError } = await supabase.from('of_date_adjustments').insert([{

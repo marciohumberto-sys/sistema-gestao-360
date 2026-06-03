@@ -7,7 +7,7 @@ import { formatLocalDate } from '../../utils/dateUtils';
 
 const AjustarDataReferenciaModal = ({ isOpen, onClose, ofData, onSuccess }) => {
     const { tenantId } = useTenant();
-    const { user } = useAuth();
+    const { authUser } = useAuth();
     
     const [newIssueDate, setNewIssueDate] = useState('');
     const [newRefMonth, setNewRefMonth] = useState('');
@@ -70,6 +70,12 @@ const AjustarDataReferenciaModal = ({ isOpen, onClose, ofData, onSuccess }) => {
         try {
             setIsSubmitting(true);
             
+            if (!ofData?.id || !tenantId || !authUser?.id) {
+                throw new Error('Não foi possível identificar os dados necessários para registrar o ajuste.');
+            }
+
+            console.log('Ajuste OF payload:', { ofId: ofData.id, tenantId, userId: authUser.id, payload: { newIssueDate, newRefMonth, newRefYear, justification } });
+            
             let oldMonth = ofData.reference_month || null;
             let oldYear = ofData.reference_year || null;
             
@@ -83,7 +89,7 @@ const AjustarDataReferenciaModal = ({ isOpen, onClose, ofData, onSuccess }) => {
                 if (!isNaN(date.getTime())) oldYear = date.getFullYear().toString();
             }
 
-            await ofsService.adjustDateAndReference(ofData.id, tenantId, user.id, {
+            await ofsService.adjustDateAndReference(ofData.id, tenantId, authUser.id, {
                 new_issue_date: newIssueDate,
                 new_reference_month: newRefMonth,
                 new_reference_year: newRefYear,
