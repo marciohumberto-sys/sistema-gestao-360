@@ -116,21 +116,27 @@ const OfPreview = () => {
 
     // TODO: Futuramente a competência deve vir de um campo próprio no banco (ex: reference_month). 
     // Regra temporária exigida para correção destas OFs específicas.
-    let referenciaCompetencia = `REFERÊNCIA ${getMonthYear(ofDateRaw).toUpperCase()}`;
+    let referenciaCompetencia = '';
+    const monthsMap = {
+        '01': 'JANEIRO', '02': 'FEVEREIRO', '03': 'MARÇO', '04': 'ABRIL',
+        '05': 'MAIO', '06': 'JUNHO', '07': 'JULHO', '08': 'AGOSTO',
+        '09': 'SETEMBRO', '10': 'OUTUBRO', '11': 'NOVEMBRO', '12': 'DEZEMBRO'
+    };
+
     if (ofData.reference_month && ofData.reference_year) {
-        const monthsMap = {
-            '01': 'JANEIRO', '02': 'FEVEREIRO', '03': 'MARÇO', '04': 'ABRIL',
-            '05': 'MAIO', '06': 'JUNHO', '07': 'JULHO', '08': 'AGOSTO',
-            '09': 'SETEMBRO', '10': 'OUTUBRO', '11': 'NOVEMBRO', '12': 'DEZEMBRO'
-        };
-        const monthName = monthsMap[ofData.reference_month] || ofData.reference_month;
+        const monthKey = String(ofData.reference_month).padStart(2, '0');
+        const monthName = monthsMap[monthKey] || String(ofData.reference_month).toUpperCase();
         referenciaCompetencia = `REFERÊNCIA ${monthName}/${ofData.reference_year}`;
     } else if (ofData.number === 'OF-2026-0276') {
         referenciaCompetencia = 'REFERÊNCIA MARÇO/2026';
     } else if (ofData.number === 'OF-2026-0277') {
         referenciaCompetencia = 'REFERÊNCIA ABRIL/2026';
     } else if (ofData.reference_month) {
-        referenciaCompetencia = `REFERÊNCIA ${ofData.reference_month.toUpperCase()}`;
+        const monthKey = String(ofData.reference_month).padStart(2, '0');
+        const monthName = monthsMap[monthKey] || String(ofData.reference_month).toUpperCase();
+        referenciaCompetencia = `REFERÊNCIA ${monthName}`;
+    } else {
+        referenciaCompetencia = `REFERÊNCIA ${getMonthYear(ofDateRaw).toUpperCase()}`;
     }
 
     const obsNotaFiscal = deveUsarObsManual 

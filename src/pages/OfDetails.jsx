@@ -698,7 +698,7 @@ const OfDetails = () => {
                                 }}
                                 title="Visualizar histórico de ajustes"
                             >
-                                <AlertCircle size={14} /> Ajuste Administrativo
+                                <AlertCircle size={14} /> Ajuste Administrativo Registrado
                             </span>
                         )}
                     </div>
@@ -1278,8 +1278,11 @@ const OfDetails = () => {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     {adjustmentHistory.map((hist) => (
                                         <div key={hist.id} style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Ajuste realizado em {formatDate(hist.created_at)}</span>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Ajuste realizado em {hist.created_at ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(hist.created_at)) : '-'}</span>
+                                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                                    Por: {hist.user_name || hist.created_by || 'Usuário registrado'}
+                                                </span>
                                             </div>
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.85rem', marginBottom: '12px' }}>
                                                 <div>
