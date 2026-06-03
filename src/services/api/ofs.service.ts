@@ -139,6 +139,10 @@ class OFsService {
                 status,
                 notes,
                 total_amount,
+                reference_month,
+                reference_year,
+                date_adjusted_at,
+                date_adjusted_by,
                 created_at,
                 updated_at,
                 contract:contracts(

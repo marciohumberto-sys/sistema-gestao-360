@@ -4,6 +4,7 @@ import { useTenant } from '../context/TenantContext';
 import { ofsService } from '../services/api/ofs.service';
 import { Printer, ArrowLeft } from 'lucide-react';
 import logoBezerros from '../assets/logo-bezerros.png';
+import { parseLocalDate } from '../utils/dateUtils';
 import './OfPreview.css';
 
 const OfPreview = () => {
@@ -64,19 +65,15 @@ const OfPreview = () => {
 
     const formatDateExtensive = (dateString, useToday = false) => {
         if (!useToday && !dateString) return '_____ de _________________ de 20___';
-        const date = useToday ? new Date() : new Date(dateString);
-        if (!useToday && dateString && typeof dateString === 'string' && !dateString.includes('T')) {
-            date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
-        }
+        const date = useToday ? new Date() : parseLocalDate(dateString);
+        if (!date) return '_____ de _________________ de 20___';
         const options = { day: 'numeric', month: 'long', year: 'numeric' };
         return date.toLocaleDateString('pt-BR', options);
     };
 
     const getMonthYear = (dateString) => {
-        const date = dateString ? new Date(dateString) : new Date();
-        if (dateString && typeof dateString === 'string' && !dateString.includes('T')) {
-            date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
-        }
+        const date = dateString ? parseLocalDate(dateString) : new Date();
+        if (!date) return '';
         const months = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
         return `${months[date.getMonth()]}/${date.getFullYear()}`;
     };

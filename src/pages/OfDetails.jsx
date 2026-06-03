@@ -7,6 +7,7 @@ import { ofsService } from '../services/api/ofs.service';
 import { commitmentsService } from '../services/api/commitments.service';
 import { ArrowLeft, FileText, CheckCircle, XCircle, Trash2, Plus, AlertCircle, Play, Printer, Download } from 'lucide-react';
 import { normalizeQuantityInput, isValidQuantity, parseQuantity, formatQuantityDisplay, safeParseQuantity, normalizeQuantityOnBlur } from '../utils/quantityUtils';
+import { formatLocalDate } from '../utils/dateUtils';
 import './OfDetails.css';
 
 const OfDetails = () => {
@@ -116,8 +117,7 @@ const OfDetails = () => {
     };
 
     const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        return new Intl.DateTimeFormat('pt-BR').format(new Date(dateString));
+        return formatLocalDate(dateString);
     };
 
     const getStatusLabel = (status) => {
