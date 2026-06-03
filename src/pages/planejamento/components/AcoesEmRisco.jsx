@@ -38,7 +38,11 @@ const AcoesEmRisco = ({ data: acoesEmRisco }) => {
                                     backgroundColor: isCritico ? 'rgba(239, 68, 68, 0.03)' : 'transparent',
                                     borderLeft: isCritico ? '3px solid #ef4444' : '3px solid transparent'
                                 }}>
-                                    <td style={{ fontWeight: 600, paddingLeft: isCritico ? '0.8rem' : '1rem', wordBreak: 'break-word' }}>{item.acao}</td>
+                                    <td style={{ fontWeight: 600, paddingLeft: isCritico ? '0.8rem' : '1rem' }}>
+                                        <div className="dashboard-long-text" title={item.acao}>
+                                            {item.acao}
+                                        </div>
+                                    </td>
                                     <td>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                             <div style={{ width: '80px', height: '6px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>

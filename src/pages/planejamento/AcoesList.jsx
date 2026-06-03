@@ -34,7 +34,6 @@ import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, delet
 import { PLANNING_ACTION_TYPES_ARRAY, getActionTypeConfig, getActionTypeStages } from '../../modules/planejamento/constants/planningActionTypes';
 
 // Removidos passos hardcoded, usando planejamentoActionTypes centralizado
-
 const getClosestStep = (progress, steps) => {
     if (!steps || steps.length === 0) return '';
     if (progress === undefined || progress === null || progress === 0) return '';
@@ -426,7 +425,9 @@ const AcoesList = () => {
         custom_stages: null,
         current_stage_index: null,
         current_stage_observation: '',
-        objectiveId: ''
+        objectiveId: '',
+        latitude: null,
+        longitude: null
     };
     const [formData, setFormData] = useState(emptyForm);
     const [objectivesList, setObjectivesList] = useState([]);
@@ -531,7 +532,9 @@ const AcoesList = () => {
                 participantes: [],
                 custom_stages: acao.custom_stages || null,
                 current_stage_index: acao.current_stage_index ?? null,
-                current_stage_observation: acao.current_stage_observation || ''
+                current_stage_observation: acao.current_stage_observation || '',
+                latitude: acao.latitude ?? null,
+                longitude: acao.longitude ?? null
             });
 
             // Carregar secretarias participantes de forma assíncrona e travar estado original
@@ -974,7 +977,7 @@ const AcoesList = () => {
         };
         const s = styles[status] || styles['NAO_INICIADA'];
         return (
-            <span className="farmacia-badge" style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}`, padding: '5px 12px', fontWeight: 600 }}>
+            <span className="farmacia-badge" style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}`, padding: '4px 8px', fontWeight: 600, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                 {s.label}
             </span>
         );
@@ -1112,7 +1115,7 @@ const AcoesList = () => {
 
             {/* Cards Executivos */}
             {!loading && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
                     <div className="farmacia-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '3px solid #64748b' }}>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total de Ações</span>
                         <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text)' }}>{metrics.total}</span>
@@ -1217,6 +1220,14 @@ const AcoesList = () => {
 
                 {/* Listagem */}
                 <style>{`
+                .col-width-acao { width: 28%; }
+                .col-width-secretaria { width: 15%; }
+                .col-width-status { width: 12%; }
+                .col-width-progresso { width: 15%; }
+                .col-width-prazo { width: 10%; }
+                .col-width-responsavel { width: 12%; }
+                .col-width-acoes { width: 110px; }
+
                 @media (min-width: 1024px) {
                     .farmacia-toolbar {
                         display: flex !important;
@@ -1250,6 +1261,65 @@ const AcoesList = () => {
                         max-width: 160px !important;
                     }
                 }
+                
+                /* Títulos Longos e Responsividade */
+                .show-on-mobile { display: none; }
+                @media (max-width: 1499px) {
+                    .farmacia-toolbar {
+                        flex-wrap: wrap !important;
+                    }
+                    
+                    /* Redistribuição de larguras das colunas para notebooks e resoluções menores */
+                    .col-width-acao { width: 28% !important; }
+                    .col-width-secretaria { width: 13% !important; }
+                    .col-width-status { width: 11% !important; }
+                    .col-width-progresso { width: 15% !important; }
+                    .col-width-prazo { width: 12% !important; }
+                    .col-width-responsavel { width: 13% !important; }
+                    .col-width-acoes { width: 110px !important; }
+
+                    .hide-on-mobile { display: none !important; }
+                    .show-on-mobile { display: inline !important; }
+
+                    .farmacia-table tbody td, .farmacia-table thead th {
+                        padding-left: 8px !important;
+                        padding-right: 8px !important;
+                    }
+
+                    .farmacia-table tbody td.col-responsavel {
+                        white-space: normal !important;
+                        line-height: 1.2;
+                    }
+                    .farmacia-table tbody td.col-prazo span {
+                        font-size: 0.75rem !important;
+                    }
+                    .farmacia-table tbody td.col-prazo {
+                        white-space: nowrap !important;
+                    }
+                    .farmacia-table tbody td.col-status span {
+                        padding: 3px 6px !important;
+                        font-size: 0.65rem !important;
+                        white-space: nowrap !important;
+                    }
+                    .farmacia-table tbody td.col-secretaria {
+                        max-width: 140px;
+                    }
+                    
+                }
+                .farmacia-table tbody td.col-acao {
+                    max-width: 0;
+                }
+                /* Regra Global para Tabelas: Títulos Longos (Máx 2 linhas) */
+                .farmacia-table tbody td.col-acao .acao-nome {
+                    display: -webkit-box;
+                    -webkit-line-clamp: 2;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: normal !important;
+                    line-height: 1.3;
+                    max-width: 100%;
+                }
                 .farmacia-table thead th { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #334155; font-weight: 600; padding-top: calc(14px + 1rem); padding-bottom: 14px; position: sticky; top: -1rem; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
                 .farmacia-table tbody td { padding-top: 16px; padding-bottom: 16px; }
                 .farmacia-table tbody tr { transition: all 0.2s ease; }
@@ -1257,6 +1327,31 @@ const AcoesList = () => {
                 .farmacia-table tbody tr:hover .farmacia-action-icon { opacity: 1 !important; background: rgba(0,0,0,0.03); }
                 .farmacia-action-icon:hover { transform: scale(1.1); background: rgba(0,0,0,0.06) !important; }
                 @keyframes fillBar { from { width: 0; } }
+                
+                .farmacia-table tbody td.col-acoes, .farmacia-table thead th.col-acoes {
+                    padding-right: 24px !important;
+                }
+                .acoes-container {
+                    display: flex;
+                    flex-direction: row;
+                    align-items: center;
+                    justify-content: flex-end;
+                    gap: 6px;
+                    white-space: nowrap;
+                    flex-shrink: 0;
+                }
+                @media (max-width: 1366px) {
+                    .acoes-container {
+                        gap: 4px;
+                    }
+                    .acoes-container .farmacia-action-icon {
+                        padding: 3px !important;
+                    }
+                    .acoes-container .farmacia-action-icon svg {
+                        width: 14px;
+                        height: 14px;
+                    }
+                }
                 
                 /* Novos Tooltips */
                 .objective-tooltip-wrapper { position: relative; display: inline-block; }
@@ -1331,17 +1426,18 @@ const AcoesList = () => {
                     visibility: visible;
                     opacity: 1;
                 }
+                
                 `}</style>
                 <div className="farmacia-table-wrapper" style={{ border: 'none', boxShadow: 'none', margin: 0, borderRadius: '0 0 10px 10px' }}>
                 <table className="farmacia-table">
                     <colgroup>
-                        <col style={{ width: '25%' }} />
-                        <col style={{ width: '15%' }} />
-                        <col style={{ width: '12%' }} />
-                        <col style={{ width: '18%' }} />
-                        <col style={{ width: '10%' }} />
-                        <col style={{ width: '12%' }} />
-                        <col style={{ width: '8%' }} />
+                        <col className="col-width-acao" />
+                        <col className="col-width-secretaria" />
+                        <col className="col-width-status" />
+                        <col className="col-width-progresso" />
+                        <col className="col-width-prazo" />
+                        <col className="col-width-responsavel" />
+                        <col className="col-width-acoes" />
                     </colgroup>
                     <thead>
                         <tr>
@@ -1376,7 +1472,7 @@ const AcoesList = () => {
                                 </div>
                             </th>
                             <th>Responsável</th>
-                            <th style={{ textAlign: 'center' }}>Ações</th>
+                            <th className="col-acoes" style={{ textAlign: 'right' }}>Ações</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1397,17 +1493,17 @@ const AcoesList = () => {
                                 if (diffDays < 0) {
                                     isDelayed = true;
                                     isVencido = true;
-                                    prazoUI = <span style={{fontSize:'0.7rem', color:'#ef4444', fontWeight:600, marginTop:'2px'}}>Atrasado há {Math.abs(diffDays)} dia{Math.abs(diffDays)>1?'s':''}</span>;
+                                    prazoUI = <span style={{fontSize:'0.7rem', color:'#ef4444', fontWeight:600, marginTop:'2px'}}><span className="hide-on-mobile">Atrasado há {Math.abs(diffDays)} dia{Math.abs(diffDays)>1?'s':''}</span><span className="show-on-mobile">Atrasado {Math.abs(diffDays)}d</span></span>;
                                 } else if (diffDays === 0) {
                                     isDelayed = true;
-                                    prazoUI = <span style={{fontSize:'0.7rem', color:'#ef4444', fontWeight:600, marginTop:'2px'}}>Vence hoje</span>;
+                                    prazoUI = <span style={{fontSize:'0.7rem', color:'#ef4444', fontWeight:600, marginTop:'2px'}}><span className="hide-on-mobile">Vence hoje</span><span className="show-on-mobile">Hoje</span></span>;
                                 } else if (diffDays < 7) {
                                     isDelayed = true;
-                                    prazoUI = <span style={{fontSize:'0.7rem', color:'#ef4444', fontWeight:600, marginTop:'2px'}}>Faltam {diffDays} dias</span>;
+                                    prazoUI = <span style={{fontSize:'0.7rem', color:'#ef4444', fontWeight:600, marginTop:'2px'}}><span className="hide-on-mobile">Faltam {diffDays} dias</span><span className="show-on-mobile">{diffDays}d</span></span>;
                                 } else if (diffDays <= 30) {
-                                    prazoUI = <span style={{fontSize:'0.7rem', color:'#d97706', fontWeight:600, marginTop:'2px'}}>Faltam {diffDays} dias</span>;
+                                    prazoUI = <span style={{fontSize:'0.7rem', color:'#d97706', fontWeight:600, marginTop:'2px'}}><span className="hide-on-mobile">Faltam {diffDays} dias</span><span className="show-on-mobile">{diffDays}d</span></span>;
                                 } else {
-                                    prazoUI = <span style={{fontSize:'0.7rem', color:'var(--text-muted)', fontWeight:500, marginTop:'2px'}}>Faltam {diffDays} dias</span>;
+                                    prazoUI = <span style={{fontSize:'0.7rem', color:'var(--text-muted)', fontWeight:500, marginTop:'2px'}}><span className="hide-on-mobile">Faltam {diffDays} dias</span><span className="show-on-mobile">{diffDays}d</span></span>;
                                 }
                             }
 
@@ -1423,10 +1519,10 @@ const AcoesList = () => {
 
                             return (
                                 <tr key={acao.id} style={{ backgroundColor: rowBg, borderBottom: '1px solid #f1f5f9' }}>
-                                    <td style={{ padding: '16px 12px 16px 12px' }}>
+                                    <td className="col-acao" style={{ padding: '16px 12px 16px 12px' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                                <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem', cursor: 'default' }}>{acao.nome}</span>
+                                                <span className="acao-nome" title={acao.nome} style={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem', cursor: 'default' }}>{acao.nome}</span>
                                                 {getActionTypeBadge(acao.action_type)}
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px' }}>
@@ -1442,10 +1538,12 @@ const AcoesList = () => {
                                                             color: '#64748b', 
                                                             cursor: 'pointer',
                                                             fontWeight: 400,
-                                                            width: 'fit-content'
+                                                            maxWidth: '100%'
                                                         }}
                                                     >
-                                                        🎯 Objetivo estratégico vinculado
+                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            🎯 Objetivo estratégico vinculado
+                                                        </span>
                                                         <div className="objective-tooltip">
                                                             <strong>Objetivo Estratégico</strong>
                                                             <div>{acao.objective_title}</div>
@@ -1453,15 +1551,17 @@ const AcoesList = () => {
                                                     </div>
                                                 )}
                                             </div>
-                                            <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', maxWidth: '100%', flexWrap: 'nowrap' }}>
                                                 <div 
-                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 6px', background: '#f8fafc', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.65rem', fontWeight: 600, color: '#64748b', cursor: 'pointer' }}
+                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 6px', background: '#f8fafc', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.65rem', fontWeight: 600, color: '#64748b', cursor: 'pointer', maxWidth: '100%', overflow: 'hidden' }}
                                                     onClick={(e) => { e.stopPropagation(); navigate('/planejamento/atualizacoes', { state: { acaoId: acao.id } }); }}
                                                 >
-                                                    <History size={10} style={{ color: '#94a3b8' }} />
-                                                    {!acao.update_count || acao.update_count === 0 
-                                                        ? 'Sem atualizações' 
-                                                        : `${acao.update_count} ${acao.update_count === 1 ? 'Atualização' : 'Atualizações'}`}
+                                                    <History size={10} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {!acao.update_count || acao.update_count === 0 
+                                                            ? 'Sem atualizações' 
+                                                            : `${acao.update_count} ${acao.update_count === 1 ? 'Atualização' : 'Atualizações'}`}
+                                                    </span>
                                                 </div>
                                                 {(() => {
                                                     if (acao.status === 'CONCLUIDA') return null;
@@ -1487,18 +1587,32 @@ const AcoesList = () => {
                                                                 padding: '2px 6px',
                                                                 borderRadius: '4px',
                                                                 fontWeight: 600,
-                                                                cursor: 'pointer' 
+                                                                cursor: 'pointer',
+                                                                maxWidth: '100%',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                overflow: 'hidden'
                                                             }}
                                                             onClick={(e) => { e.stopPropagation(); navigate('/planejamento/atualizacoes', { state: { acaoId: acao.id } }); }}
                                                         >
-                                                            {delay.days === 0 ? 'Atualizado hoje' : `Sem atualização há ${delay.days} dia${delay.days > 1 ? 's' : ''}`}
+                                                            {delay.days === 0 ? (
+                                                                <>
+                                                                    <span className="hide-on-mobile" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Atualizado hoje</span>
+                                                                    <span className="show-on-mobile" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Hoje</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="hide-on-mobile" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{`Sem atualização há ${delay.days} dia${delay.days > 1 ? 's' : ''}`}</span>
+                                                                    <span className="show-on-mobile" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{`${delay.days}d sem atualiz.`}</span>
+                                                                </>
+                                                            )}
                                                         </span>
                                                     );
                                                 })()}
                                             </div>
                                         </div>
                                     </td>
-                                     <td style={{ padding: '16px 12px' }}>
+                                     <td className="col-secretaria" style={{ padding: '16px 12px' }}>
                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                              <span style={{ fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>{sec.simplified}</span>
                                              {acao.participantes && acao.participantes.length > 0 && (
@@ -1526,12 +1640,12 @@ const AcoesList = () => {
                                              )}
                                          </div>
                                      </td>
-                                     <td>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }}>
+                                     <td className="col-status" style={{ verticalAlign: 'middle' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
                                             {getStatusBadge(acao.status)}
                                         </div>
                                     </td>
-                                    <td>
+                                    <td className="col-progresso">
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: pbColor }}>
                                                 <span>{Math.round(getDisplayProgress(acao))}%</span>
@@ -1604,25 +1718,26 @@ const AcoesList = () => {
                                                     <div 
                                                         title={text}
                                                         style={{ 
-                                                            display: 'inline-flex', 
+                                                            display: 'flex', 
                                                             alignItems: 'center', 
                                                             gap: '4px', 
                                                             fontSize: '0.65rem', 
                                                             fontWeight: 600, 
                                                             color: color, 
                                                             opacity: 0.95,
-                                                            whiteSpace: 'nowrap',
                                                             cursor: 'help',
-                                                            marginTop: '2px'
+                                                            marginTop: '2px',
+                                                            maxWidth: '100%'
                                                         }}
                                                     >
-                                                        <Icon size={11} style={{ flexShrink: 0, opacity: 0.8 }} /> {text}
+                                                        <Icon size={11} style={{ flexShrink: 0, opacity: 0.8 }} /> 
+                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
                                                     </div>
                                                 );
                                             })()}
                                         </div>
                                     </td>
-                                     <td>
+                                     <td className="col-prazo">
                                          <div style={{ display: 'flex', flexDirection: 'column' }}>
                                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: isDelayed ? '#ef4444' : 'var(--text)' }}>
                                                  <Calendar size={14} style={{ flexShrink: 0, opacity: 0.8 }} />
@@ -1631,11 +1746,11 @@ const AcoesList = () => {
                                              {prazoUI}
                                          </div>
                                      </td>
-                                     <td>
+                                     <td className="col-responsavel">
                                          <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{acao.responsavel || 'Não informado'}</span>
                                      </td>
-                                    <td>
-                                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                                    <td className="col-acoes">
+                                        <div className="acoes-container">
                                             <button className="farmacia-action-icon" style={{ padding: '4px' }} onClick={(e) => { e.stopPropagation(); navigate('/planejamento/atualizacoes', { state: { openModal: 'nova-atualizacao', acaoId: acao.id } }); }}>
                                                 <Plus size={16} />
                                                 <span className="premium-tooltip">Nova Atualização</span>

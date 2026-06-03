@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import { supabase } from '../../../lib/supabase';
 
 // Componente para capturar a instância do mapa e converter coordenadas para pixels
 const HoverManager = ({ pontos, hoveredPoint, setHoveredPoint }) => {
@@ -145,6 +146,13 @@ const HoverManager = ({ pontos, hoveredPoint, setHoveredPoint }) => {
                                 </span>
                             </div>
                         </div>
+
+                        {hoveredPoint._usedAddress && (
+                            <div style={{ marginTop: '4px', paddingTop: '6px', borderTop: '1px solid #f1f5f9', fontSize: '0.65rem', color: '#94a3b8' }}>
+                                <strong>Endereço buscado:</strong><br/>
+                                {hoveredPoint._usedAddress}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -164,8 +172,16 @@ const formatStatus = (status) => {
     return map[status] || status.replace('_', ' ');
 };
 
+const BEZERROS_CENTER = [-8.2359, -35.7967];
+
+const FitBoundsManager = () => {
+    return null;
+};
+
 const AcoesMapa = ({ data }) => {
     const [hoveredPoint, setHoveredPoint] = useState(null);
+    const [geocodedActions, setGeocodedActions] = useState([]);
+    const [isGeocoding, setIsGeocoding] = useState(false);
 
     if (!data && !true) { // Workaround for prop check if needed, but data is currently unused
         return (
@@ -178,35 +194,145 @@ const AcoesMapa = ({ data }) => {
         );
     }
 
-    const MUNICIPALITY_CENTER = [-8.234579, -35.751683];
+    const MUNICIPALITY_CENTER = [-8.234777256840292, -35.75168643326829];
 
-    const BAIRRO_COORDINATES = {
-        'Centro': [-8.234579, -35.751683],
-        'Bairro Novo': [-8.236400, -35.750200],
-        'Santo Amaro': [-8.231200, -35.753500],
-        'Cruzeiro': [-8.233500, -35.756800],
-        'Gameleira': [-8.238200, -35.752100],
-        'São Sebastião': [-8.235100, -34.748500], // Ajustado para não cair no mar
-        'Retiro': [-8.240500, -35.745800],
-        'Zona Rural': [-8.255000, -35.720000],
-        'São Pedro': [-8.225000, -35.780000]
-    };
+    const acoes = data || [];
+    const baseComCoordenadas = [];
+    const baseSemCoordenadas = [];
 
-    const pontosGeorreferenciados = (data || []).map((acao, idx) => {
-        const coords = BAIRRO_COORDINATES[acao.bairro] || MUNICIPALITY_CENTER;
-        
-        // Jitter determinístico baseado no index para evitar sobreposição total
-        const latOffset = (Math.sin(idx * 1.5) * 0.0015);
-        const lngOffset = (Math.cos(idx * 1.5) * 0.0015);
+    acoes.forEach(acao => {
+        if (!acao.latitude || !acao.longitude) {
+            baseSemCoordenadas.push(acao);
+            return;
+        }
+
+        const lat = Number(acao.latitude);
+        const lng = Number(acao.longitude);
+
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            baseComCoordenadas.push({ ...acao, _latNumber: lat, _lngNumber: lng });
+        } else {
+            baseSemCoordenadas.push(acao);
+        }
+    });
+
+    useEffect(() => {
+        const fetchMissingCoordinates = async () => {
+            const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+            
+            if (!GOOGLE_API_KEY) {
+                return; // Silencioso em produção, não falha apenas não executa rotina auto
+            }
+
+            const missing = acoes.filter(acao => {
+                if (!acao.latitude || !acao.longitude) return true;
+                const lat = Number(acao.latitude);
+                const lng = Number(acao.longitude);
+                return !(Number.isFinite(lat) && Number.isFinite(lng));
+            });
+
+            if (missing.length === 0) return;
+            
+            const elegiveis = missing.filter(a => a.address_street && a.address_number);
+
+            if (elegiveis.length === 0) return;
+            
+            setIsGeocoding(true);
+            const newGeocoded = [];
+            
+            for (const acao of elegiveis) {
+                // Montar o endereço exato: Rua/Avenida, número, bairro, Bezerros, PE, CEP, Brasil.
+                const street = acao.address_street.trim();
+                const num = acao.address_number.trim();
+                const district = acao.address_district ? acao.address_district.trim() : '';
+                const zip = acao.address_zipcode ? acao.address_zipcode.trim() : '';
+                
+                const addressParts = [
+                    `${street}, ${num}`,
+                    district,
+                    'Bezerros',
+                    'PE',
+                    zip,
+                    'Brasil'
+                ].filter(p => p); // Remove vazios
+
+                const addressQuery = addressParts.join(', ');
+                const cacheKey = `gmaps_${addressQuery}`;
+                const cached = localStorage.getItem(cacheKey);
+                
+                let shouldFetch = true;
+
+                if (cached) {
+                    try {
+                        const parsed = JSON.parse(cached);
+                        if (parsed.lat && parsed.lng) {
+                            newGeocoded.push({ ...acao, _latNumber: parsed.lat, _lngNumber: parsed.lng, _usedAddress: addressQuery });
+                            shouldFetch = false;
+                        }
+                        if (parsed.notFound) {
+                            localStorage.removeItem(cacheKey); // Força tentar de novo
+                        }
+                    } catch(e) {}
+                }
+
+                if (shouldFetch) {
+                    try {
+                        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressQuery)}&key=${GOOGLE_API_KEY}`;
+                        const response = await fetch(url);
+                        const dataRes = await response.json();
+
+                        if (dataRes.status === 'OK' && dataRes.results.length > 0) {
+                            const location = dataRes.results[0].geometry.location;
+                            localStorage.setItem(cacheKey, JSON.stringify({ lat: location.lat, lng: location.lng }));
+                            newGeocoded.push({ ...acao, _latNumber: location.lat, _lngNumber: location.lng, _usedAddress: addressQuery });
+                            
+                            // Persistir no banco de forma silenciosa
+                            supabase.from('planning_actions')
+                                .update({ latitude: location.lat, longitude: location.lng })
+                                .eq('id', acao.id)
+                                .then(({ error }) => {
+                                    if (error) console.error('[MAPA] Erro ao salvar coordenadas no banco:', error);
+                                });
+                        } else {
+                            localStorage.setItem(cacheKey, JSON.stringify({ notFound: true }));
+                        }
+                    } catch (error) {
+                        // Silencioso em produção
+                    }
+                }
+            }
+            
+            if (newGeocoded.length > 0) {
+                setGeocodedActions(prev => {
+                    const map = new Map(prev.map(a => [a.id, a]));
+                    newGeocoded.forEach(a => map.set(a.id, a));
+                    return Array.from(map.values());
+                });
+            }
+            setIsGeocoding(false);
+        };
+
+        fetchMissingCoordinates();
+    }, [data]);
+
+    const todasComCoordenadas = [...baseComCoordenadas, ...geocodedActions.filter(g => 
+        !baseComCoordenadas.some(b => b.id === g.id)
+    )];
+
+    const qtdSemLocalizacao = acoes.length - todasComCoordenadas.length;
+
+    const pontosGeorreferenciados = todasComCoordenadas.map((acao, idx) => {
+        const latOffset = (Math.sin(idx * 1.5) * 0.00015);
+        const lngOffset = (Math.cos(idx * 1.5) * 0.00015);
 
         return {
             ...acao,
-            lat: coords[0] + latOffset,
-            lng: coords[1] + lngOffset
+            lat: acao._latNumber + latOffset,
+            lng: acao._lngNumber + lngOffset
         };
     });
 
-    const zoom = 14;
+    const zoom = 15;
 
     const renderLegend = () => (
         <div style={{ 
@@ -260,9 +386,44 @@ const AcoesMapa = ({ data }) => {
                 border: '1px solid #f1f5f9',
                 margin: '0 4px 4px 4px'
             }}>
+                {(qtdSemLocalizacao > 0 || isGeocoding) && (
+                    <div style={{
+                        position: 'absolute',
+                        top: '12px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        padding: '6px 14px',
+                        borderRadius: '20px',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        color: '#475569',
+                        zIndex: 1000,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                        border: '1px solid #e2e8f0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        backdropFilter: 'blur(4px)'
+                    }}>
+                        {isGeocoding ? (
+                            <>
+                                <span style={{color: '#3b82f6', fontSize: '0.8rem', animation: 'spin 1s linear infinite'}}>⟳</span>
+                                Buscando endereços no mapa...
+                            </>
+                        ) : (
+                            <>
+                                <span style={{color: '#f59e0b', fontSize: '0.8rem'}}>ℹ</span>
+                                {qtdSemLocalizacao} {qtdSemLocalizacao === 1 ? 'ação não exibida' : 'ações ocultas'} por falta de localização
+                            </>
+                        )}
+                    </div>
+                )}
                 <MapContainer 
                     center={MUNICIPALITY_CENTER} 
                     zoom={zoom} 
+                    minZoom={10}
+                    maxZoom={18}
                     style={{ height: '100%', width: '100%', minHeight: '350px' }}
                     scrollWheelZoom={false}
                 >
@@ -270,13 +431,7 @@ const AcoesMapa = ({ data }) => {
                         attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
                         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                     />
-                    
-                    <HoverManager 
-                        pontos={pontosGeorreferenciados} 
-                        hoveredPoint={hoveredPoint} 
-                        setHoveredPoint={setHoveredPoint} 
-                    />
-                    
+                    <HoverManager pontos={pontosGeorreferenciados} hoveredPoint={hoveredPoint} setHoveredPoint={setHoveredPoint} />
                     {renderLegend()}
                 </MapContainer>
             </div>

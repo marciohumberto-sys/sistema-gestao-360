@@ -301,6 +301,84 @@ const PlanejamentoEntraves = () => {
                     transform: translateY(-1px);
                     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
                 }
+
+                /* Forçar 1 linha para Cards e Filtros em Desktop/Notebook (< 1550px) */
+                @media (max-width: 1550px) {
+                    /* KPI Cards: compressão para caber em 1 linha */
+                    .entraves-metrics {
+                        grid-template-columns: repeat(6, 1fr) !important;
+                        gap: 0.5rem !important;
+                    }
+                    .entraves-metrics > .farmacia-card {
+                        padding: 0.75rem 0.5rem !important;
+                        min-width: auto !important;
+                    }
+                    .entraves-metrics > .farmacia-card > span {
+                        font-size: 0.6rem !important;
+                        letter-spacing: -0.02em;
+                    }
+                    .entraves-metrics > .farmacia-card > div {
+                        font-size: 1.25rem !important;
+                    }
+
+                    /* Filtros: compressão para caber em 1 linha */
+                    .farmacia-toolbar {
+                        gap: 0.5rem !important;
+                        flex-wrap: nowrap !important;
+                    }
+                    .farmacia-search-box {
+                        min-width: 150px !important;
+                        flex-basis: 180px !important;
+                        padding: 0.35rem 0.5rem !important;
+                    }
+                    .farmacia-search-box input {
+                        font-size: 0.8rem !important;
+                    }
+                    .farmacia-select-wrapper {
+                        flex: 1 1 110px !important;
+                        min-width: 90px !important;
+                    }
+                    .farmacia-filter-select {
+                        font-size: 0.75rem !important;
+                        padding: 0.35rem 20px 0.35rem 0.5rem !important;
+                    }
+                }
+
+                @media (max-width: 1024px) {
+                    /* Em telas menores que notebook (tablets/mobile), permite a quebra */
+                    .entraves-metrics {
+                        grid-template-columns: repeat(3, 1fr) !important;
+                        gap: 0.5rem !important;
+                    }
+                    .entraves-metrics > .farmacia-card {
+                        padding: 0.75rem !important;
+                    }
+                    
+                    .farmacia-toolbar {
+                        flex-wrap: wrap !important;
+                    }
+                    .farmacia-search-box {
+                        flex-basis: 100% !important;
+                    }
+                    .farmacia-select-wrapper {
+                        flex: 1 1 45% !important;
+                    }
+                }
+
+                @media (max-width: 640px) {
+                    .entraves-metrics {
+                        grid-template-columns: repeat(2, 1fr) !important;
+                    }
+                    .farmacia-select-wrapper {
+                        flex: 1 1 100% !important;
+                    }
+                }
+                
+                @media (max-width: 480px) {
+                    .entraves-metrics {
+                        grid-template-columns: 1fr !important;
+                    }
+                }
             `}</style>
 
             {loading ? (
@@ -317,7 +395,7 @@ const PlanejamentoEntraves = () => {
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                     {/* Cards Executivos */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '32px' }}>
+                    <div className="entraves-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '32px' }}>
                         <div className="farmacia-card" style={{ padding: '1rem', borderLeft: '4px solid #94a3b8' }}>
                             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total de Entraves</span>
                             <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text)', marginTop: '4px' }}>{metrics.total}</div>

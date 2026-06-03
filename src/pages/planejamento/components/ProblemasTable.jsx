@@ -42,8 +42,10 @@ const ProblemasTable = ({ data: problemasCriticos }) => {
                                         {renderBadge(item.severidade)}
                                     </div>
                                 </td>
-                                <td style={{ padding: '0.85rem 0.5rem', fontSize: '0.85rem', color: '#475569', lineHeight: '1.4', wordBreak: 'break-word' }}>
-                                    {item.acao}
+                                <td style={{ padding: '0.85rem 0.5rem', fontSize: '0.85rem', color: '#475569', lineHeight: '1.4' }}>
+                                    <div className="dashboard-long-text" title={item.acao}>
+                                        {item.acao}
+                                    </div>
                                 </td>
                                 <td style={{ textAlign: 'right', padding: '0.85rem 0.5rem', fontSize: '0.85rem', whiteSpace: 'nowrap', color: '#64748b', fontWeight: 600 }}>
                                     {item.prazo}

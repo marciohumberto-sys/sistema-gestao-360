@@ -100,126 +100,98 @@ const UpdateCard = ({ item, acaoContext, index, getTipoConfig, getStatusLabel, f
                     position: 'relative'
                 }}
             >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    {/* Linha Superior: Cabeçalho com Contexto da Ação */}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {/* Linha Superior: Cabeçalho com Contexto da Ação e Status/Ações na direita */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
                             
-                            {acaoContext ? (
-                                <div style={{ 
-                                    background: '#f8fafc', 
-                                    border: '1px solid #e2e8f0', 
-                                    borderRadius: '6px', 
-                                    padding: '8px 12px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '6px'
-                                }}>
-                                    <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.2 }}>
-                                        {item.acao}
-                                    </h3>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                            <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.3 }}>
+                                {item.acao}
+                            </h3>
+
+                            {acaoContext && (() => {
+                                const tConf = getActionTypeConfig(acaoContext.action_type || 'PROJETO');
+                                return (
+                                    <span style={{ fontSize: '0.6rem', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: tConf.bg, color: tConf.color, border: `1px solid ${tConf.border}`, textTransform: 'uppercase', width: 'fit-content', marginTop: '2px' }}>
+                                        {tConf.label}
+                                    </span>
+                                );
+                            })()}
+
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginTop: '4px' }}>
+                                Secretaria Responsável: <strong style={{ color: '#475569' }}>{item.secretaria}</strong>
+                            </span>
+
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {isConcluidaAnteriormente && (
+                                    <span style={{ 
+                                        fontSize: '0.65rem', fontWeight: 700, color: '#557a6d', background: '#edf5f2', 
+                                        padding: '3px 8px', borderRadius: '6px', border: '1px solid #d7e7e1',
+                                        display: 'inline-flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.05em'
+                                    }} title="Esta conclusão foi posteriormente revisada para um estágio anterior.">
+                                        <History size={11} style={{ opacity: 0.8 }} /> Concluída Anteriormente
+                                    </span>
+                                )}
+                                {item.statusNovo && (
+                                    <span style={{ 
+                                        fontSize: '0.7rem', 
+                                        fontWeight: 700, 
+                                        color: isConcluidaAnteriormente ? '#438a6e' : '#10b981', 
+                                        background: isConcluidaAnteriormente ? '#e3f4ed' : '#ecfdf5', 
+                                        padding: '3px 8px', 
+                                        borderRadius: '6px', 
+                                        border: isConcluidaAnteriormente ? '1px solid #c5e8dc' : '1px solid #a7f3d0' 
+                                    }}>
+                                        {getStatusLabel(item.statusNovo)}
+                                    </span>
+                                )}
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                    <button onClick={(e) => { e.stopPropagation(); onEdit(item); }} className="update-action-btn" title="Editar Atualização">
+                                        <Edit2 size={14} color="var(--text-muted)" />
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); onDelete(item.id); }} className="update-action-btn delete-btn" title="Excluir Atualização">
+                                        <Trash2 size={14} color="#ef4444" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Barra de Progresso Topo */}
+                            {acaoContext && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                    <div style={{ width: '40px', height: '4px', background: '#e2e8f0', borderRadius: '2px', overflow: 'hidden' }}>
                                         {(() => {
-                                            const tConf = getActionTypeConfig(acaoContext.action_type || 'PROJETO');
                                             const p = getDisplayProgress(acaoContext);
-                                            return (
-                                                <>
-                                                    <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: tConf.bg, color: tConf.color, border: `1px solid ${tConf.border}`, textTransform: 'uppercase' }}>
-                                                        {tConf.label}
-                                                    </span>
-                                                    <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: 'rgba(0,0,0,0.05)', color: '#475569', textTransform: 'uppercase' }}>
-                                                        {getStatusLabel(acaoContext.status)}
-                                                    </span>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
-                                                        <div style={{ width: '40px', height: '4px', background: '#e2e8f0', borderRadius: '2px', overflow: 'hidden' }}>
-                                                            <div style={{ width: `${p}%`, height: '100%', background: `linear-gradient(to right, ${p <= 25 ? '#ef4444' : p <= 60 ? '#3b82f6' : p <= 85 ? '#f59e0b' : '#10b981'})`, borderRadius: '2px' }} />
-                                                        </div>
-                                                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#334155' }}>{p}%</span>
-                                                    </div>
-                                                </>
-                                            );
+                                            return <div style={{ width: `${p}%`, height: '100%', background: `linear-gradient(to right, ${p <= 25 ? '#ef4444' : p <= 60 ? '#3b82f6' : p <= 85 ? '#f59e0b' : '#10b981'})`, borderRadius: '2px' }} />;
                                         })()}
                                     </div>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#334155' }}>{getDisplayProgress(acaoContext)}%</span>
                                 </div>
-                            ) : (
-                                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.2 }}>{item.acao}</h3>
                             )}
-
-                            {/* Badge da atualização e secretaria */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                <span className="update-badge" style={{ 
-                                    fontSize: '0.65rem', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', 
-                                    background: displayBg, color: displayColor, textTransform: 'uppercase', letterSpacing: '0.05em',
-                                    border: `1px solid ${displayColor}20`, whiteSpace: 'nowrap'
-                                }}>
-                                    {conf.label}
-                                </span>
-                                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>{item.secretaria}</span>
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {isConcluidaAnteriormente && (
-                                <span style={{ 
-                                    fontSize: '0.65rem', fontWeight: 700, color: '#557a6d', background: '#edf5f2', 
-                                    padding: '3px 8px', borderRadius: '6px', border: '1px solid #d7e7e1',
-                                    display: 'inline-flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.05em'
-                                }} title="Esta conclusão foi posteriormente revisada para um estágio anterior.">
-                                    <History size={11} style={{ opacity: 0.8 }} /> Concluída Anteriormente
-                                </span>
-                            )}
-                            {item.statusNovo && (
-                                <span style={{ 
-                                    fontSize: '0.7rem', 
-                                    fontWeight: 700, 
-                                    color: isConcluidaAnteriormente ? '#438a6e' : '#10b981', 
-                                    background: isConcluidaAnteriormente ? '#e3f4ed' : '#ecfdf5', 
-                                    padding: '3px 8px', 
-                                    borderRadius: '6px', 
-                                    border: isConcluidaAnteriormente ? '1px solid #c5e8dc' : '1px solid #a7f3d0' 
-                                }}>
-                                    {getStatusLabel(item.statusNovo)}
-                                </span>
-                            )}
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                                <button onClick={(e) => { e.stopPropagation(); onEdit(item); }} className="update-action-btn" title="Editar Atualização">
-                                    <Edit2 size={14} color="var(--text-muted)" />
-                                </button>
-                                <button onClick={(e) => { e.stopPropagation(); onDelete(item.id); }} className="update-action-btn delete-btn" title="Excluir Atualização">
-                                    <Trash2 size={14} color="#ef4444" />
-                                </button>
-                            </div>
                         </div>
                     </div>
 
                     {/* Corpo: Resumo */}
-                    <div style={{ fontSize: '0.9rem', color: '#334155', lineHeight: 1.6, marginTop: '2px' }}>
+                    <div style={{ fontSize: '0.9rem', color: '#334155', lineHeight: 1.6, marginTop: '12px' }}>
                         {item.descricao.length > 200 ? `${item.descricao.substring(0, 200)}...` : item.descricao}
                     </div>
 
-                    {/* Rodapé */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: '0.85rem', marginTop: '0.25rem', flexWrap: 'wrap', gap: '1rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text)' }}>{item.responsavel.charAt(0).toUpperCase()}</span>
-                                </div>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>{item.responsavel}</span>
+                    {/* Rodapé: Autor e Data */}
+                    <div style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: '0.85rem', marginTop: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text)' }}>{item.responsavel.charAt(0).toUpperCase()}</span>
                             </div>
-                            <span style={{ color: 'var(--border)', fontSize: '0.75rem' }}>&bull;</span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Clock size={12} /> {formatDate(item.data)}
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-muted)' }}>
+                                    Atualizado por <strong style={{ color: '#1e293b', fontWeight: 700 }}>{item.responsavel}</strong>
+                                </span>
+                                <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    {formatDate(item.data)}
+                                </span>
+                            </div>
                         </div>
-                        
-                        {(item.progressoNovo !== null && item.progressoNovo !== undefined) && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)' }}>Progresso</span>
-                                <div style={{ width: '60px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
-                                    <div style={{ width: `${item.progressoNovo}%`, height: '100%', background: isConcluidaAnteriormente ? '#6bb398' : '#3b82f6', borderRadius: '3px' }}></div>
-                                </div>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: isConcluidaAnteriormente ? '#5da085' : '#3b82f6' }}>{item.progressoNovo}%</span>
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
@@ -1131,6 +1103,84 @@ const PlanejamentoAtualizacoes = () => {
                     padding-top: 0 !important; 
                 }
                 .update-card:first-child { margin-top: 0 !important; }
+
+                /* Forçar 1 linha para Cards e Filtros em Desktop/Notebook (< 1550px) */
+                @media (max-width: 1550px) {
+                    /* KPI Cards: compressão para caber em 1 linha */
+                    .updates-metrics {
+                        grid-template-columns: repeat(5, 1fr) !important;
+                        gap: 0.5rem !important;
+                    }
+                    .updates-metrics > .farmacia-card {
+                        padding: 0.75rem 0.5rem !important;
+                        min-width: auto !important;
+                    }
+                    .updates-metrics > .farmacia-card > span {
+                        font-size: 0.6rem !important;
+                        letter-spacing: -0.02em;
+                    }
+                    .updates-metrics > .farmacia-card > div {
+                        font-size: 1.25rem !important;
+                    }
+
+                    /* Filtros: compressão para caber em 1 linha */
+                    .farmacia-toolbar {
+                        gap: 0.5rem !important;
+                        flex-wrap: nowrap !important;
+                    }
+                    .farmacia-search-box {
+                        min-width: 150px !important;
+                        flex-basis: 180px !important;
+                        padding: 0.35rem 0.5rem !important;
+                    }
+                    .farmacia-search-box input {
+                        font-size: 0.8rem !important;
+                    }
+                    .farmacia-select-wrapper {
+                        flex: 1 1 110px !important;
+                        min-width: 100px !important;
+                    }
+                    .farmacia-filter-select {
+                        font-size: 0.75rem !important;
+                        padding: 0.35rem 20px 0.35rem 0.5rem !important;
+                    }
+                }
+
+                @media (max-width: 1024px) {
+                    /* Em telas menores que notebook (tablets/mobile), permite a quebra */
+                    .updates-metrics {
+                        grid-template-columns: repeat(3, 1fr) !important;
+                        gap: 0.5rem !important;
+                    }
+                    .updates-metrics > .farmacia-card {
+                        padding: 0.75rem !important;
+                    }
+                    
+                    .farmacia-toolbar {
+                        flex-wrap: wrap !important;
+                    }
+                    .farmacia-search-box {
+                        flex-basis: 100% !important;
+                    }
+                    .farmacia-select-wrapper {
+                        flex: 1 1 45% !important;
+                    }
+                }
+
+                @media (max-width: 640px) {
+                    .updates-metrics {
+                        grid-template-columns: repeat(2, 1fr) !important;
+                    }
+                    .farmacia-select-wrapper {
+                        flex: 1 1 100% !important;
+                    }
+                }
+                
+                @media (max-width: 480px) {
+                    .updates-metrics {
+                        grid-template-columns: 1fr !important;
+                    }
+                }
             `}</style>
 
             {loading ? (

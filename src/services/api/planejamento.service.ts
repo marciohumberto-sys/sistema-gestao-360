@@ -285,6 +285,14 @@ class PlanejamentoService {
                 secretaria: sec?.name || 'Não informada',
                 responsavel: action.responsible_name || 'Não informado',
                 color,
+                latitude: action.latitude ?? null,
+                longitude: action.longitude ?? null,
+                address_street: action.address_street || '',
+                address_number: action.address_number || '',
+                address_district: action.address_district || '',
+                address_city: action.address_city || 'Bezerros',
+                address_state: action.address_state || 'PE',
+                address_zipcode: action.address_zipcode || '',
             };
         });
 
