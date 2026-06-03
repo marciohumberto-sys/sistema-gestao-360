@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, FileText, TrendingUp, Eye, FileCheck, AlertCircle, PlayCircle, XCircle, MoreVertical, Plus, Trash2 } from 'lucide-react';
+import { Search, FileText, TrendingUp, Eye, FileCheck, AlertCircle, PlayCircle, XCircle, MoreVertical, Plus, Trash2, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ofsService } from '../services/api/ofs.service';
 import { contractsService } from '../services/api/contracts.service';
@@ -23,6 +23,17 @@ const OrdensFornecimento = () => {
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const isGestor = ['SUPERADMIN', 'ADMIN', 'GESTOR'].includes(role);
 
+    const getStatusLabel = (status) => {
+        switch(status) {
+            case 'DRAFT': return 'Rascunho';
+            case 'ISSUED': return 'Emitida';
+            case 'RECTIFIED': return 'Retificada';
+            case 'CANCELLED':
+            case 'CANCELED': return 'Cancelada';
+            default: return status;
+        }
+    };
+
     // 1. Data State
     const [ofs, setOfs] = useState([]);
     const [contracts, setContracts] = useState([]);
@@ -34,6 +45,9 @@ const OrdensFornecimento = () => {
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [contractFilter, setContractFilter] = useState('ALL');
     const [secretariaFilter, setSecretariaFilter] = useState('ALL');
+
+    // Sort State
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
 
     // 3. Modals & Actions State
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -108,6 +122,29 @@ const OrdensFornecimento = () => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
     };
 
+    const handleSort = (key) => {
+        let direction = 'ascending';
+        let newKey = key;
+        if (sortConfig.key === key) {
+            if (sortConfig.direction === 'ascending') {
+                direction = 'descending';
+            } else {
+                newKey = null; // Reseta na terceira alternância
+            }
+        }
+        setSortConfig({ key: newKey, direction });
+    };
+
+    const renderSortIcon = (key) => {
+        if (sortConfig.key !== key) {
+            return <ArrowUpDown size={14} style={{ marginLeft: '4px', opacity: 0.4 }} />;
+        }
+        if (sortConfig.direction === 'ascending') {
+            return <ChevronUp size={14} style={{ marginLeft: '4px', color: 'var(--color-primary)' }} />;
+        }
+        return <ChevronDown size={14} style={{ marginLeft: '4px', color: 'var(--color-primary)' }} />;
+    };
+
     // Filter Engine
     const filteredOfs = useMemo(() => {
         return ofs.filter(o => {
@@ -123,6 +160,68 @@ const OrdensFornecimento = () => {
             return true;
         });
     }, [ofs, searchQuery, statusFilter, contractFilter, secretariaFilter]);
+
+    // Sort Engine
+    const sortedOfs = useMemo(() => {
+        if (!sortConfig.key) return filteredOfs;
+
+        return [...filteredOfs].sort((a, b) => {
+            const key = sortConfig.key;
+
+            // Determinar se o registro possui valores vazios para a chave em questão para sempre jogá-los no final
+            let rawA, rawB;
+            if (key === 'contract') {
+                rawA = a.contract?.number || a.contract?.title;
+                rawB = b.contract?.number || b.contract?.title;
+            } else if (key === 'secretariat') {
+                rawA = a.secretariat?.name;
+                rawB = b.secretariat?.name;
+            } else {
+                rawA = a[key];
+            }
+
+            const isEmptyA = rawA === undefined || rawA === null || rawA === '';
+            const isEmptyB = rawB === undefined || rawB === null || rawB === '';
+
+            if (isEmptyA && isEmptyB) return 0;
+            if (isEmptyA) return 1; // joga 'a' para baixo
+            if (isEmptyB) return -1; // joga 'b' para baixo
+
+            let comparison = 0;
+            switch (key) {
+                case 'number':
+                    comparison = (a.number || '').localeCompare(b.number || '', undefined, { numeric: true, sensitivity: 'base' });
+                    break;
+                case 'contract': {
+                    const contractNumA = a.contract?.number || '';
+                    const contractNumB = b.contract?.number || '';
+                    comparison = contractNumA.localeCompare(contractNumB, undefined, { numeric: true, sensitivity: 'base' });
+                    if (comparison === 0) {
+                        const titleA = a.contract?.title || '';
+                        const titleB = b.contract?.title || '';
+                        comparison = titleA.localeCompare(titleB);
+                    }
+                    break;
+                }
+                case 'secretariat':
+                    comparison = (a.secretariat?.name || '').localeCompare(b.secretariat?.name || '');
+                    break;
+                case 'total_amount':
+                    comparison = (Number(a.total_amount) || 0) - (Number(b.total_amount) || 0);
+                    break;
+                case 'status':
+                    comparison = (getStatusLabel(a.status) || '').localeCompare(getStatusLabel(b.status) || '');
+                    break;
+                case 'issue_date':
+                    comparison = (a.issue_date || '').localeCompare(b.issue_date || '');
+                    break;
+                default:
+                    comparison = 0;
+            }
+
+            return sortConfig.direction === 'ascending' ? comparison : -comparison;
+        });
+    }, [filteredOfs, sortConfig]);
 
     // Summary Calculations
     const totalOfs = filteredOfs.length;
@@ -267,16 +366,7 @@ const OrdensFornecimento = () => {
         }
     };
 
-    const getStatusLabel = (status) => {
-        switch(status) {
-            case 'DRAFT': return 'Rascunho';
-            case 'ISSUED': return 'Emitida';
-            case 'RECTIFIED': return 'Retificada';
-            case 'CANCELLED':
-            case 'CANCELED': return 'Cancelada';
-            default: return status;
-        }
-    };
+
 
     return (
         <div className="ct-container" style={{ gap: '1rem' }}>
@@ -435,12 +525,36 @@ const OrdensFornecimento = () => {
                             </colgroup>
                             <thead>
                                 <tr>
-                                    <th style={{ width: '200px', minWidth: '200px' }}>Nº da OF</th>
-                                    <th>Contrato</th>
-                                    <th>Secretaria</th>
-                                    <th style={{ width: '140px' }}>Valor Total</th>
-                                    <th style={{ width: '130px' }}>Status</th>
-                                    <th style={{ width: '130px' }}>Data Emissão</th>
+                                    <th className="sortable-header" style={{ width: '200px', minWidth: '200px' }} onClick={() => handleSort('number')}>
+                                        <div className="sortable-header-content">
+                                            Nº da OF {renderSortIcon('number')}
+                                        </div>
+                                    </th>
+                                    <th className="sortable-header" onClick={() => handleSort('contract')}>
+                                        <div className="sortable-header-content">
+                                            Contrato {renderSortIcon('contract')}
+                                        </div>
+                                    </th>
+                                    <th className="sortable-header" onClick={() => handleSort('secretariat')}>
+                                        <div className="sortable-header-content">
+                                            Secretaria {renderSortIcon('secretariat')}
+                                        </div>
+                                    </th>
+                                    <th className="sortable-header" style={{ width: '140px' }} onClick={() => handleSort('total_amount')}>
+                                        <div className="sortable-header-content">
+                                            Valor Total {renderSortIcon('total_amount')}
+                                        </div>
+                                    </th>
+                                    <th className="sortable-header" style={{ width: '130px' }} onClick={() => handleSort('status')}>
+                                        <div className="sortable-header-content">
+                                            Status {renderSortIcon('status')}
+                                        </div>
+                                    </th>
+                                    <th className="sortable-header" style={{ width: '130px' }} onClick={() => handleSort('issue_date')}>
+                                        <div className="sortable-header-content">
+                                            Data Emissão {renderSortIcon('issue_date')}
+                                        </div>
+                                    </th>
                                     <th style={{ width: '60px', textAlign: 'center' }}>Ações</th>
                                 </tr>
                             </thead>
@@ -454,7 +568,7 @@ const OrdensFornecimento = () => {
                                             </div>
                                         </td>
                                     </tr>
-                                ) : filteredOfs.length === 0 ? (
+                                ) : sortedOfs.length === 0 ? (
                                     <tr>
                                         <td colSpan="7" className="empty-state">
                                             <div className="empty-state-content">
@@ -478,7 +592,7 @@ const OrdensFornecimento = () => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredOfs.map(of => {
+                                    sortedOfs.map(of => {
                                         let cleanNumber = of.number || '-';
                                         let versionStr = null;
                                         
@@ -694,7 +808,7 @@ const OrdensFornecimento = () => {
                     </div>
                     {/* Table Footer */}
                     <div className="table-footer">
-                        Exibindo {filteredOfs.length} de {ofs.length} OFs encontradas
+                        Exibindo {sortedOfs.length} de {ofs.length} OFs encontradas
                     </div>
                 </section>
             </div>

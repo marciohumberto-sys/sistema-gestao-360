@@ -83,3 +83,22 @@
 .data-table.ofs-table th:nth-child(5) { width: 10% !important; } /* Status */
 .data-table.ofs-table th:nth-child(6) { width: 10% !important; } /* Date */
 .data-table.ofs-table th:nth-child(7) { width: 8% !important; text-align: center; }  /* Actions */
+
+/* Estilos de Ordenação de Colunas */
+.sortable-header {
+    cursor: pointer !important;
+    user-select: none !important;
+    transition: background-color 0.2s ease !important;
+}
+
+.sortable-header:hover {
+    background-color: #e2e8f0 !important; /* destaque sutil no hover */
+}
+
+.sortable-header-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+}
+
