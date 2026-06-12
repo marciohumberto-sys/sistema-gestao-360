@@ -92,7 +92,13 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                     result = await relatoriosService.generateMovementsByPeriodReport(tenantId, dataInicio, dataFim, unidade, tipoItem, tipoMovimentacao);
                     break;
                 case 'CONSUMO_SETOR':
-                    result = await relatoriosService.generateConsumptionBySectorReport(tenantId, periodo, unidade);
+                    if ((dataInicio && !dataFim) || (!dataInicio && dataFim)) {
+                        throw new Error('Para filtrar por período, preencha a Data Inicial e a Data Final, ou deixe ambas em branco.');
+                    }
+                    if (dataInicio && dataFim && new Date(dataFim) < new Date(dataInicio)) {
+                        throw new Error('A data final não pode ser anterior à data inicial.');
+                    }
+                    result = await relatoriosService.generateConsumptionBySectorReport(tenantId, dataInicio, dataFim, unidade, tipoItem);
                     break;
                 case 'ABAIXO_MINIMO':
                     result = await relatoriosService.generateBelowMinimumReport(tenantId, unidade);
@@ -101,7 +107,13 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                     result = await relatoriosService.generateExpiringItemsReport(tenantId, faixaVencimento, unidade);
                     break;
                 case 'CURVA_ABC':
-                    result = await relatoriosService.generateAbcConsumptionReport(tenantId, periodo, unidade);
+                    if ((dataInicio && !dataFim) || (!dataInicio && dataFim)) {
+                        throw new Error('Para filtrar por período, preencha a Data Inicial e a Data Final, ou deixe ambas em branco.');
+                    }
+                    if (dataInicio && dataFim && new Date(dataFim) < new Date(dataInicio)) {
+                        throw new Error('A data final não pode ser anterior à data inicial.');
+                    }
+                    result = await relatoriosService.generateAbcConsumptionReport(tenantId, dataInicio, dataFim, unidade, tipoItem);
                     break;
                 case 'TOP_CONSUMO':
                     if (!dataInicio || !dataFim) {
@@ -141,10 +153,11 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
         }
     };
 
-    const exigePeriodo = ['CONSUMO_SETOR', 'CURVA_ABC'].includes(reportType);
-    const exigePeriodoPersonalizado = ['MOVIMENTACOES', 'TOP_CONSUMO', 'SAIDAS_OBSERVACAO'].includes(reportType);
+    const exigePeriodo = false; // Foi substituido por exigePeriodoPersonalizado para todos
+    const exigePeriodoPersonalizado = ['MOVIMENTACOES', 'TOP_CONSUMO', 'SAIDAS_OBSERVACAO', 'CONSUMO_SETOR', 'CURVA_ABC'].includes(reportType);
+    const isPeriodoRequired = ['MOVIMENTACOES', 'TOP_CONSUMO', 'SAIDAS_OBSERVACAO'].includes(reportType);
     const exigeFaixaVencimento = reportType === 'VALIDADES';
-    const exigeTipoItem = ['MOVIMENTACOES', 'TOP_CONSUMO'].includes(reportType);
+    const exigeTipoItem = ['MOVIMENTACOES', 'TOP_CONSUMO', 'CONSUMO_SETOR', 'CURVA_ABC'].includes(reportType);
     const exigeTipoMovimentacao = reportType === 'MOVIMENTACOES';
 
     return (
@@ -173,14 +186,12 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
 
                                 <div className="farmacia-print-meta">
                                     <span><strong>Unidade:</strong> {unidade === 'Todas' ? 'Consolidado Geral' : unidade}</span>
-                                    {exigePeriodo && periodo && (
-                                        <span><span style={{ margin: '0 8px', color: '#ccc' }}>|</span><strong>Período:</strong> {periodo === 'Hoje' ? 'Hoje' : periodo === '7d' ? 'Últimos 7 dias' : 'Últimos 30 dias'}</span>
-                                    )}
-                                    {exigePeriodoPersonalizado && dataInicio && dataFim && (
+                                    {exigePeriodoPersonalizado && (
                                         <span><span style={{ margin: '0 8px', color: '#ccc' }}>|</span><strong>Período:</strong> {(() => {
+                                            if (!dataInicio || !dataFim) return 'Todos os registros';
                                             const d1 = dataInicio.split('-');
                                             const d2 = dataFim.split('-');
-                                            return `${d1[2]}/${d1[1]}/${d1[0]} até ${d2[2]}/${d2[1]}/${d2[0]}`;
+                                            return `${d1[2]}/${d1[1]}/${d1[0]} a ${d2[2]}/${d2[1]}/${d2[0]}`;
                                         })()}</span>
                                     )}
                                     {exigeTipoItem && (
@@ -286,7 +297,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                     <select className="farmacia-form-input" value={tipoItem} onChange={e => setTipoItem(e.target.value)}>
                                         <option value="Todos">Todos</option>
                                         <option value="Medicamentos">Medicamentos</option>
-                                        {reportType === 'MOVIMENTACOES' && <option value="Materiais">Materiais</option>}
+                                        <option value="Materiais">Materiais</option>
                                         <option value="Insumos">Insumos</option>
                                     </select>
                                 </div>
@@ -326,7 +337,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                             className="farmacia-form-input" 
                                             value={dataInicio} 
                                             onChange={e => setDataInicio(e.target.value)} 
-                                            required 
+                                            required={isPeriodoRequired} 
                                         />
                                     </div>
                                     <div className="farmacia-form-group">
@@ -336,7 +347,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                             className="farmacia-form-input" 
                                             value={dataFim} 
                                             onChange={e => setDataFim(e.target.value)} 
-                                            required 
+                                            required={isPeriodoRequired} 
                                         />
                                     </div>
                                 </div>
@@ -488,18 +499,18 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                             let suffix = '';
                                             if (unidade && unidade !== 'Todas') suffix += `_${unidade.toLowerCase()}`;
                                             
-                                            let periodoLabel = null;
-                                            if (['TOP_CONSUMO', 'SAIDAS_OBSERVACAO', 'MOVIMENTACOES'].includes(reportType) && dataInicio && dataFim) {
-                                                const formatarData = (dStr) => {
-                                                    const parts = dStr.split('-');
-                                                    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-                                                };
-                                                periodoLabel = `${formatarData(dataInicio)} até ${formatarData(dataFim)}`;
-                                            } else if (exigePeriodo && periodo) {
-                                                periodoLabel = periodo === 'Hoje' ? 'Hoje' : periodo === '7d' ? 'Últimos 7 dias' : 'Últimos 30 dias';
+                                            let periodoLabel = 'Todos os registros';
+                                            if (exigePeriodoPersonalizado) {
+                                                if (dataInicio && dataFim) {
+                                                    const formatarData = (dStr) => {
+                                                        const parts = dStr.split('-');
+                                                        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                                                    };
+                                                    periodoLabel = `${formatarData(dataInicio)} a ${formatarData(dataFim)}`;
+                                                }
                                             }
 
-                                            if (periodoLabel) {
+                                            if (periodoLabel !== 'Todos os registros') {
                                                 suffix += `_${periodoLabel.replace(/ /g, '_').replace(/\//g, '-')}`;
                                             }
 

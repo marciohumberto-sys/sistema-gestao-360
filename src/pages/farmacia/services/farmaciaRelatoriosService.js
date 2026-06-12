@@ -258,7 +258,7 @@ export const generateMovementsByPeriodReport = async (tenantId, dataInicio, data
 // ==========================================
 // RELATÓRIO 3: CONSUMO POR SETOR (Honesto)
 // ==========================================
-export const generateConsumptionBySectorReport = async (tenantId, periodo, unidadeNome) => {
+export const generateConsumptionBySectorReport = async (tenantId, dataInicio, dataFim, unidadeNome, tipoItem = 'Todos') => {
     // FALBACK HONESTO SOLICITADO
     // A modelagem atual não dispõe de ID de Setores na 'stock_movements' além da Unidade de Destino.
     // Assim, enviamos um emptyMessage que age como "Aviso Estrutural" para a Farmacêutica.
@@ -390,18 +390,23 @@ export const generateExpiringItemsReport = async (tenantId, faixaVencimento, uni
 // ==========================================
 // RELATÓRIO 6: CURVA ABC DE CONSUMO
 // ==========================================
-export const generateAbcConsumptionReport = async (tenantId, periodo, unidadeNome) => {
+export const generateAbcConsumptionReport = async (tenantId, dataInicio, dataFim, unidadeNome, tipoItem = 'Todos') => {
     try {
         if (!tenantId) throw new Error("TenantID não identificado.");
 
         let queryExits = supabase.from('stock_movements').select('quantity, inventory_item_id, unit_id').eq('tenant_id', tenantId).eq('movement_type', 'EXIT');
         
-        const startDate = getStartDate(periodo);
-        if (startDate) queryExits = queryExits.gte('created_at', startDate);
+        if (dataInicio && dataFim) {
+            const start = new Date(dataInicio);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(dataFim);
+            end.setHours(23, 59, 59, 999);
+            queryExits = queryExits.gte('created_at', start.toISOString()).lte('created_at', end.toISOString());
+        }
 
         const [ resExits, resItems, resUnits ] = await Promise.all([
             queryExits,
-            supabase.from('inventory_items').select('id, name'),
+            supabase.from('inventory_items').select('id, name, item_type'),
             supabase.from('units').select('id, name')
         ]);
 
@@ -421,20 +426,29 @@ export const generateAbcConsumptionReport = async (tenantId, periodo, unidadeNom
 
         const validExits = targetUnitId ? exits.filter(m => m.unit_id === targetUnitId) : exits;
 
+        const validItems = items.filter(i => {
+            if (tipoItem === 'Medicamentos' && i.item_type !== 'MEDICAMENTO') return false;
+            if (tipoItem === 'Materiais' && i.item_type !== 'MATERIAL') return false;
+            if (tipoItem === 'Insumos' && i.item_type !== 'INSUMO') return false;
+            return true;
+        });
+        const validItemIds = new Set(validItems.map(i => i.id));
+
         let totalConsumo = 0;
         const itemConsumo = {};
         
         validExits.forEach(m => {
+            if (!validItemIds.has(m.inventory_item_id)) return;
             const q = Math.abs(m.quantity || 0);
             itemConsumo[m.inventory_item_id] = (itemConsumo[m.inventory_item_id] || 0) + q;
             totalConsumo += q;
         });
 
         if (totalConsumo === 0) {
-            return { data: [], columns: [], error: null, emptyMessage: 'Não há histórico de saída/consumo no banco sob este período de recorte para modelar a Curva ABC.' };
+            return { data: [], columns: [], error: null, emptyMessage: 'Não há histórico de saída/consumo no banco sob este período de recorte ou filtros selecionados para modelar a Curva ABC.' };
         }
 
-        const dataArray = items.filter(i => itemConsumo[i.id] > 0).map(item => {
+        const dataArray = validItems.filter(i => itemConsumo[i.id] > 0).map(item => {
             const consumido = itemConsumo[item.id];
             const percentual = (consumido / totalConsumo) * 100;
             return {
