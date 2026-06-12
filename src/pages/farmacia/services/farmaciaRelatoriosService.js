@@ -259,21 +259,138 @@ export const generateMovementsByPeriodReport = async (tenantId, dataInicio, data
 // RELATÓRIO 3: CONSUMO POR SETOR (Honesto)
 // ==========================================
 export const generateConsumptionBySectorReport = async (tenantId, dataInicio, dataFim, unidadeNome, tipoItem = 'Todos') => {
-    // FALBACK HONESTO SOLICITADO
-    // A modelagem atual não dispõe de ID de Setores na 'stock_movements' além da Unidade de Destino.
-    // Assim, enviamos um emptyMessage que age como "Aviso Estrutural" para a Farmacêutica.
-    
-    // Retorna mensagem gentil e neutra usando a estrutura normal da tabela como container.
-    return {
-        data: [], 
-        columns: [
-            { key: 'setor', label: 'Setor de Destino' },
-            { key: 'medicamento', label: 'Medicamento' },
-            { key: 'consumido', label: 'Vol. Consumido', align: 'right' }
-        ], 
-        error: null, 
-        emptyMessage: 'Este relatório depende de uma identificação estruturada de destino/setor (ex: UTI, Enfermaria) nas saídas, que ainda não está disponível de forma consistente nesta etapa, constando apenas a base da Unidade.'
-    };
+    try {
+        console.log('--- RELATÓRIO: Consumo por Setor ---');
+        console.log('Unidade Selecionada:', unidadeNome);
+        console.log('Tipo de Item:', tipoItem);
+        console.log('Data Inicial:', dataInicio);
+        console.log('Data Final:', dataFim);
+        console.log('Campo de Data:', 'created_at (fallback estrutural: não há campo de data operacional separado)');
+
+        // EXPLICATIVO: A tabela `stock_movements` atual não possui uma coluna `sector_id` para diferenciar setores internos (UTI, Enfermaria).
+        // Existe apenas `unit_id` (Unidade base). O destino específico só é relatado na coluna `notes` (texto livre).
+        // Estamos usando `unit_id` como fallback para agrupar o consumo, já que é a única estrutura real disponível.
+
+        if (!tenantId) throw new Error("TenantID não identificado.");
+
+        let startISO = null;
+        let endISO = null;
+        if (dataInicio && dataFim) {
+            const [yearStart, monthStart, dayStart] = dataInicio.split('-').map(Number);
+            const [yearEnd, monthEnd, dayEnd] = dataFim.split('-').map(Number);
+            const start = new Date(yearStart, monthStart - 1, dayStart, 0, 0, 0, 0);
+            const end = new Date(yearEnd, monthEnd - 1, dayEnd, 23, 59, 59, 999);
+            startISO = start.toISOString();
+            endISO = end.toISOString();
+        }
+
+        const [resItems, resUnits] = await Promise.all([
+            supabase.from('inventory_items').select('id, name, item_type'),
+            supabase.from('units').select('id, name')
+        ]);
+
+        const items = resItems.data || [];
+        const units = resUnits.data || [];
+
+        const unitMap = {}; 
+        units.forEach(u => unitMap[u.name.toUpperCase()] = u.id);
+        const targetUnitId = (unidadeNome && unidadeNome !== 'Todas' && unidadeNome !== 'Todos') 
+            ? unitMap[unidadeNome.toUpperCase()] 
+            : null;
+
+        let allMovements = [];
+        let fromIndex = 0;
+        const PAGE_SIZE = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+            let queryMoves = supabase.from('stock_movements')
+                .select('quantity, inventory_item_id, unit_id, created_at')
+                .eq('tenant_id', tenantId)
+                .eq('movement_type', 'EXIT')
+                .range(fromIndex, fromIndex + PAGE_SIZE - 1);
+
+            if (startISO && endISO) {
+                queryMoves = queryMoves.gte('created_at', startISO).lte('created_at', endISO);
+            }
+            if (targetUnitId) {
+                queryMoves = queryMoves.eq('unit_id', targetUnitId);
+            }
+
+            const { data: pageData, error: pageError } = await queryMoves;
+            if (pageError) throw pageError;
+
+            if (!pageData || pageData.length === 0) {
+                hasMore = false;
+            } else {
+                allMovements = [...allMovements, ...pageData];
+                if (pageData.length < PAGE_SIZE) hasMore = false;
+                else fromIndex += PAGE_SIZE;
+            }
+        }
+
+        console.log('Registros brutos encontrados (saídas):', allMovements.length);
+
+        const validItems = items.filter(i => {
+            if (tipoItem === 'Medicamentos' && i.item_type !== 'MEDICAMENTO') return false;
+            if (tipoItem === 'Materiais' && i.item_type !== 'MATERIAL') return false;
+            if (tipoItem === 'Insumos' && i.item_type !== 'INSUMO') return false;
+            return true;
+        });
+        const validItemIds = new Set(validItems.map(i => i.id));
+
+        let totalConsumo = 0;
+        const consumoAgg = {}; // key: unit_id + "_" + inventory_item_id
+
+        allMovements.forEach(m => {
+            if (!validItemIds.has(m.inventory_item_id)) return;
+            const q = Math.abs(m.quantity || 0);
+            totalConsumo += q;
+            
+            const key = `${m.unit_id}_${m.inventory_item_id}`;
+            if (!consumoAgg[key]) {
+                consumoAgg[key] = { unit_id: m.unit_id, item_id: m.inventory_item_id, total: 0 };
+            }
+            consumoAgg[key].total += q;
+        });
+
+        const dataArray = Object.values(consumoAgg).map(agg => {
+            const unit = units.find(u => u.id === agg.unit_id);
+            const item = items.find(i => i.id === agg.item_id);
+            return {
+                setor: unit ? unit.name : 'Unidade Desconhecida',
+                medicamento: item ? item.name : 'Item Desconhecido',
+                consumido: agg.total
+            };
+        });
+
+        // Ordenar por Setor e depois Consumido
+        dataArray.sort((a,b) => {
+            if (a.setor < b.setor) return -1;
+            if (a.setor > b.setor) return 1;
+            return b.consumido - a.consumido;
+        });
+
+        console.log('Quantidade de registros após agrupamento:', dataArray.length);
+        console.log('Total de consumo somado:', totalConsumo);
+
+        if (dataArray.length === 0) {
+            return { data: [], columns: [], error: null, emptyMessage: 'Nenhum consumo registrado no período para a Unidade/Setor.' };
+        }
+
+        return {
+            data: dataArray, 
+            columns: [
+                { key: 'setor', label: 'Unidade / Setor' },
+                { key: 'medicamento', label: 'Medicamento / Item' },
+                { key: 'consumido', label: 'Vol. Consumido', align: 'right' }
+            ], 
+            error: null
+        };
+    } catch (e) {
+        console.error('[Service] generateConsumptionBySectorReport catch:', e);
+        return { data: null, columns: null, error: e.message };
+    }
 };
 
 // ==========================================
@@ -394,37 +511,71 @@ export const generateAbcConsumptionReport = async (tenantId, dataInicio, dataFim
     try {
         if (!tenantId) throw new Error("TenantID não identificado.");
 
-        let queryExits = supabase.from('stock_movements').select('quantity, inventory_item_id, unit_id').eq('tenant_id', tenantId).eq('movement_type', 'EXIT');
-        
+        let startISO = null;
+        let endISO = null;
         if (dataInicio && dataFim) {
-            const start = new Date(dataInicio);
-            start.setHours(0, 0, 0, 0);
-            const end = new Date(dataFim);
-            end.setHours(23, 59, 59, 999);
-            queryExits = queryExits.gte('created_at', start.toISOString()).lte('created_at', end.toISOString());
+            const [yearStart, monthStart, dayStart] = dataInicio.split('-').map(Number);
+            const [yearEnd, monthEnd, dayEnd] = dataFim.split('-').map(Number);
+            const start = new Date(yearStart, monthStart - 1, dayStart, 0, 0, 0, 0);
+            const end = new Date(yearEnd, monthEnd - 1, dayEnd, 23, 59, 59, 999);
+            startISO = start.toISOString();
+            endISO = end.toISOString();
         }
 
-        const [ resExits, resItems, resUnits ] = await Promise.all([
-            queryExits,
+        const [resItems, resUnits] = await Promise.all([
             supabase.from('inventory_items').select('id, name, item_type'),
             supabase.from('units').select('id, name')
         ]);
 
-        if (resExits.error) console.error('[Supabase] Erro nas saídas (Curva ABC):', resExits.error);
-
-        const exits = resExits.data;
         const items = resItems.data || [];
         const units = resUnits.data || [];
 
-        if (!exits) {
-            return { data: [], columns: [], error: 'Falha técnica ao rastrear consumo acumulado.' };
-        }
-
         const unitMap = {}; 
         units.forEach(u => unitMap[u.name.toUpperCase()] = u.id);
-        const targetUnitId = unidadeNome !== 'Todas' ? unitMap[unidadeNome.toUpperCase()] : null;
+        const targetUnitId = (unidadeNome && unidadeNome !== 'Todas' && unidadeNome !== 'Todos') 
+            ? unitMap[unidadeNome.toUpperCase()] 
+            : null;
 
-        const validExits = targetUnitId ? exits.filter(m => m.unit_id === targetUnitId) : exits;
+        // ===== LOGS OBRIGATÓRIOS E TEMPORÁRIOS =====
+        console.log('--- RELATÓRIO: Curva ABC de Consumo ---');
+        console.log('unidade selecionada:', unidadeNome);
+        console.log('label da unidade selecionada:', unidadeNome === 'Todas' ? 'Consolidado Geral' : unidadeNome);
+        console.log('id/valor enviado para query:', targetUnitId || 'null (Todas)');
+        console.log('data inicial:', dataInicio || 'Não definida');
+        console.log('data final:', dataFim || 'Não definida');
+        // ============================================
+
+        // Paginação para evitar limite de 1000 registros do Supabase
+        let allExits = [];
+        let fromIndex = 0;
+        const PAGE_SIZE = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+            let queryExits = supabase.from('stock_movements')
+                .select('quantity, inventory_item_id, unit_id, created_at')
+                .eq('tenant_id', tenantId)
+                .eq('movement_type', 'EXIT')
+                .range(fromIndex, fromIndex + PAGE_SIZE - 1);
+
+            if (startISO && endISO) {
+                queryExits = queryExits.gte('created_at', startISO).lte('created_at', endISO);
+            }
+            if (targetUnitId) {
+                queryExits = queryExits.eq('unit_id', targetUnitId);
+            }
+
+            const { data: pageData, error: pageError } = await queryExits;
+            if (pageError) throw pageError;
+
+            if (!pageData || pageData.length === 0) {
+                hasMore = false;
+            } else {
+                allExits = [...allExits, ...pageData];
+                if (pageData.length < PAGE_SIZE) hasMore = false;
+                else fromIndex += PAGE_SIZE;
+            }
+        }
 
         const validItems = items.filter(i => {
             if (tipoItem === 'Medicamentos' && i.item_type !== 'MEDICAMENTO') return false;
@@ -434,34 +585,72 @@ export const generateAbcConsumptionReport = async (tenantId, dataInicio, dataFim
         });
         const validItemIds = new Set(validItems.map(i => i.id));
 
+        const unitIdToName = {};
+        units.forEach(u => unitIdToName[u.id] = u.name);
+
         let totalConsumo = 0;
         const itemConsumo = {};
         
-        validExits.forEach(m => {
+        allExits.forEach(m => {
             if (!validItemIds.has(m.inventory_item_id)) return;
             const q = Math.abs(m.quantity || 0);
-            itemConsumo[m.inventory_item_id] = (itemConsumo[m.inventory_item_id] || 0) + q;
+            
+            const key = targetUnitId ? m.inventory_item_id : `${m.unit_id}_${m.inventory_item_id}`;
+            itemConsumo[key] = (itemConsumo[key] || 0) + q;
             totalConsumo += q;
         });
+
+        // ===== MAIS LOGS OBRIGATÓRIOS =====
+        console.log('quantidade de registros brutos (encontrados):', allExits.length);
+        console.log('se é consolidado ou não:', targetUnitId ? 'Não (Unidade Específica)' : 'Sim (Consolidado)');
+        console.log('total geral consumido:', totalConsumo);
+        // ===================================
 
         if (totalConsumo === 0) {
             return { data: [], columns: [], error: null, emptyMessage: 'Não há histórico de saída/consumo no banco sob este período de recorte ou filtros selecionados para modelar a Curva ABC.' };
         }
 
-        const dataArray = validItems.filter(i => itemConsumo[i.id] > 0).map(item => {
-            const consumido = itemConsumo[item.id];
-            const percentual = (consumido / totalConsumo) * 100;
-            return {
-                medicamento: item.name,
-                consumido: consumido,
-                percentual: percentual,
-                acumulado: 0,
-                classificacao: ''
-            };
-        });
+        let dataArray = [];
+        if (targetUnitId) {
+            dataArray = validItems.filter(i => itemConsumo[i.id] > 0).map(item => {
+                const consumido = itemConsumo[item.id];
+                const percentual = (consumido / totalConsumo) * 100;
+                return {
+                    medicamento: item.name,
+                    consumido: consumido,
+                    percentual: percentual,
+                    acumulado: 0,
+                    classificacao: ''
+                };
+            });
+        } else {
+            const itemsMap = {};
+            validItems.forEach(i => itemsMap[i.id] = i.name);
+            
+            Object.keys(itemConsumo).forEach(key => {
+                if (itemConsumo[key] > 0) {
+                    const [uId, iId] = key.split('_');
+                    const consumido = itemConsumo[key];
+                    const percentual = (consumido / totalConsumo) * 100;
+                    dataArray.push({
+                        unidade: unitIdToName[uId] || 'Desconhecida',
+                        medicamento: itemsMap[iId] || 'Desconhecido',
+                        consumido: consumido,
+                        percentual: percentual,
+                        acumulado: 0,
+                        classificacao: ''
+                    });
+                }
+            });
+        }
 
         // Ordenar decrescentemente o consumo puro
         dataArray.sort((a,b) => b.consumido - a.consumido);
+
+        console.log('quantidade de linhas após agrupamento:', dataArray.length);
+        if (dataArray.length > 0) {
+            console.log('exemplo das 5 primeiras linhas retornadas:', dataArray.slice(0, 5).map(r => `${r.unidade || 'N/A'} | ${r.medicamento} | ${r.consumido}`));
+        }
 
         // Classificação Base Ponderada 80-95-100
         let sumAcul = 0;
@@ -470,13 +659,19 @@ export const generateAbcConsumptionReport = async (tenantId, dataInicio, dataFim
             row.acumulado = sumAcul;
             
             if (sumAcul <= 80) row.classificacao = 'A (Alta Curva)';
-            else if (sumAcul <= 95) row.classificacao = 'B (Volume Intermediário)';
-            else row.classificacao = 'C (Movimentação Fria)';
+            else if (sumAcul <= 95) row.classificacao = 'B (Média Curva)';
+            else row.classificacao = 'C (Baixa Curva)';
             
             row.percentualStr = row.percentual.toFixed(1) + '%';
         });
 
-        const columns = [
+        const columns = targetUnitId ? [
+            { key: 'medicamento', label: 'Medicamento Movimentado' },
+            { key: 'consumido', label: 'Dispensação Acumulada', align: 'right' },
+            { key: 'percentualStr', label: 'Representatividade', align: 'right' },
+            { key: 'classificacao', label: 'Classificação Ponderada ABC' }
+        ] : [
+            { key: 'unidade', label: 'Unidade' },
             { key: 'medicamento', label: 'Medicamento Movimentado' },
             { key: 'consumido', label: 'Dispensação Acumulada', align: 'right' },
             { key: 'percentualStr', label: 'Representatividade', align: 'right' },

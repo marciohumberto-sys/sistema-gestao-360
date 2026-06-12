@@ -129,10 +129,12 @@ export const exportToExcel = async ({ data, columns, fileName, metadata = {}, sh
             if (col.key === 'ranking') width = 10;
             if (col.key === 'item' || col.key === 'medicamento') width = 45;
             if (col.key === 'tipo') width = 15;
-            if (col.key === 'unidade') width = 15;
-            if (col.key === 'quantidade' || col.key === 'saldo' || col.key === 'consumido') width = 18;
+            if (col.key === 'unidade') width = 18;
+            if (col.key === 'quantidade' || col.key === 'saldo' || col.key === 'consumido') width = 25;
             if (col.key === 'unidade_medida') width = 12;
             if (col.key === 'observacoes' || col.key === 'obs') width = 40;
+            if (col.key === 'percentualStr') width = 20;
+            if (col.key === 'classificacao') width = 28;
             
             worksheet.getColumn(idx + 1).width = width;
         });

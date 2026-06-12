@@ -285,8 +285,16 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                 <label className="farmacia-form-label">Unidade / Setor</label>
                                 <select className="farmacia-form-input" value={unidade} onChange={e => setUnidade(e.target.value)}>
                                     <option value="Todas">Todas (Consolidado)</option>
-                                    <option value="UPA">UPA</option>
-                                    <option value="UMSJ">UMSJ</option>
+                                    {unidades && unidades.length > 0 ? (
+                                        unidades.map(u => (
+                                            <option key={u.id} value={u.label}>{u.label}</option>
+                                        ))
+                                    ) : (
+                                        <>
+                                            <option value="UPA">UPA</option>
+                                            <option value="UMSJ">UMSJ</option>
+                                        </>
+                                    )}
                                 </select>
                             </div>
 
