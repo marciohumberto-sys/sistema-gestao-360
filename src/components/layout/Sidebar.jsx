@@ -115,6 +115,12 @@ const PLANEJAMENTO_MENU_ITEMS = [
         ]
     },
     {
+        section: 'Plano Estratégico',
+        items: [
+            { path: '/planejamento/plano-estrategico', icon: Target, label: 'Plano Estratégico' }
+        ]
+    },
+    {
         section: 'Administração',
         items: [
             { path: '/planejamento/usuarios', icon: Users, label: 'Usuários' }
