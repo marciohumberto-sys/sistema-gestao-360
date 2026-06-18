@@ -12,6 +12,14 @@ const PlanejamentoEstrategico = () => {
     const [expandedObjectiveId, setExpandedObjectiveId] = useState(null);
     const [showEmptyObjectives, setShowEmptyObjectives] = useState(false);
 
+    const formatPercent = (value) => {
+        if (value === null || value === undefined || isNaN(value)) return "0";
+        const num = Number(value);
+        if (isNaN(num)) return "0";
+        if (Number.isInteger(num)) return num.toString();
+        return num.toFixed(1).replace(/\.0$/, '');
+    };
+
     const formatStatusLabel = (status) => {
         const labels = {
             'NAO_INICIADA': 'Não iniciada',
@@ -73,9 +81,9 @@ const PlanejamentoEstrategico = () => {
 
     let { kpis, eixos, compromissos } = data;
 
-    const USE_PLANO_ESTRATEGICO_MOCK = true;
+    const USE_PLANO_ESTRATEGICO_MOCK = false;
 
-    // MOCK TEMPORÁRIO - remover quando houver dados reais suficientes
+    // MOCK TEMPORÁRIO - manter apenas para testes visuais
     if (USE_PLANO_ESTRATEGICO_MOCK) {
         kpis = {
             totalObjetivos: 221,
@@ -182,8 +190,8 @@ const PlanejamentoEstrategico = () => {
 
     let compromissosList = data.compromissos || data.compromissosPrioritarios || [];
     
-    // MOCK TEMPORÁRIO - remover quando houver dados reais suficientes
-    if (compromissosList.length < 4) {
+    // MOCK TEMPORÁRIO - manter apenas para testes visuais
+    if (USE_PLANO_ESTRATEGICO_MOCK && compromissosList.length < 4) {
         const MOCK_COMPROMISSOS = [
             { id: 'mock-1', title: 'Nova Maternidade Municipal', eixoName: 'Saúde', objetivoName: 'Ampliar a rede de atendimento materno infantil', status: 'EM_ANDAMENTO', progresso: 72 },
             { id: 'mock-2', title: 'Escola Integral em Tempo Integral', eixoName: 'Educação', objetivoName: 'Ampliar a rede de Educação Integral, Escola Viva', status: 'EM_ANDAMENTO', progresso: 80 },
@@ -320,7 +328,7 @@ const PlanejamentoEstrategico = () => {
                         <div className="pe-kpi-icon" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>
                             <CheckCircle size={20} />
                         </div>
-                        <div className="pe-kpi-value">{kpis.execucaoGeral}%</div>
+                        <div className="pe-kpi-value">{formatPercent(kpis.execucaoGeral)}%</div>
                         <div className="pe-kpi-label">Execução das<br/>Ações Vinculadas</div>
                     </div>
                     <div className="pe-kpi-card">
@@ -357,10 +365,10 @@ const PlanejamentoEstrategico = () => {
                             
                             <div className="pe-eixo-progress-wrapper">
                                 <div className="pe-eixo-progress-header">
-                                    <span className="pe-eixo-progress-percent">{eixo.progresso}%</span>
+                                    <span className="pe-eixo-progress-percent">{formatPercent(eixo.progresso)}%</span>
                                 </div>
                                 <div className="pe-eixo-progress-bar-bg">
-                                    <div className="pe-eixo-progress-bar-fill" style={{ width: `${eixo.progresso}%`, background: eixo.color }}></div>
+                                    <div className="pe-eixo-progress-bar-fill" style={{ width: `${formatPercent(eixo.progresso)}%`, background: eixo.color }}></div>
                                 </div>
                             </div>
 
@@ -412,7 +420,7 @@ const PlanejamentoEstrategico = () => {
                                     <div style={{ width: '1px', background: 'var(--border-light)' }}></div>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Execução Média</span>
-                                        <span style={{ fontSize: '1.25rem', fontWeight: 700, color: currentActiveEixo.color }}>{currentActiveEixo.progresso}%</span>
+                                        <span style={{ fontSize: '1.25rem', fontWeight: 700, color: currentActiveEixo.color }}>{formatPercent(currentActiveEixo.progresso)}%</span>
                                     </div>
                                 </div>
                             </div>
@@ -440,19 +448,19 @@ const PlanejamentoEstrategico = () => {
                                         onClick={() => setExpandedObjectiveId(expandedObjectiveId === obj.id ? null : obj.id)}
                                         style={{ borderLeft: `3px solid ${currentActiveEixo.color}` }}
                                     >
-                                        <div className="pe-accordion-header-main">
-                                            <h4 className="pe-accordion-title">{obj.title}</h4>
-                                            <div className="pe-accordion-badges">
+                                        <div className="pe-accordion-header-main" style={{ minWidth: 0 }}>
+                                            <h4 className="pe-accordion-title" title={obj.title} style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{obj.title}</h4>
+                                            <div className="pe-accordion-badges" style={{ flexShrink: 0 }}>
                                                 <span className="pe-badge pe-badge-acao-com">Com ação</span>
                                                 <span className="pe-badge pe-badge-acoes-count">{obj.acoesVinculadas} {obj.acoesVinculadas === 1 ? 'ação' : 'ações'}</span>
                                             </div>
                                         </div>
-                                        <div className="pe-accordion-header-right">
-                                            <div className="pe-accordion-progress-wrapper">
+                                        <div className="pe-accordion-header-right" style={{ flexShrink: 0 }}>
+                                            <div className="pe-accordion-progress-wrapper" style={{ flexShrink: 0 }}>
                                                 <div className="pe-accordion-progress-bar">
-                                                    <div className="pe-accordion-progress-fill" style={{ width: `${objectiveProgress}%`, background: currentActiveEixo.color }}></div>
+                                                    <div className="pe-accordion-progress-fill" style={{ width: `${formatPercent(objectiveProgress)}%`, background: currentActiveEixo.color }}></div>
                                                 </div>
-                                                <span className="pe-accordion-progress-text">{objectiveProgress}%</span>
+                                                <span className="pe-accordion-progress-text" style={{ flexShrink: 0 }}>{formatPercent(objectiveProgress)}%</span>
                                             </div>
                                             <div className={`pe-accordion-chevron ${expandedObjectiveId === obj.id ? 'rotated' : ''}`}>
                                                 <ChevronRight size={20} />
@@ -471,17 +479,17 @@ const PlanejamentoEstrategico = () => {
                                                         const acaoProgress = acao.progress_percent ?? acao.progresso ?? acao.progress ?? 0;
                                                         return (
                                                         <div key={acao.id} className="pe-accordion-acao-item">
-                                                            <div className="pe-acao-info">
-                                                                <span className="pe-acao-title">{acao.title}</span>
-                                                                <span className={`pe-badge pe-badge-acao-status ${acao.status === 'CONCLUIDA' ? 'CONCLUIDA' : acao.status === 'EM_RISCO' || acao.status === 'PARALISADA' ? 'EM_RISCO' : 'EM_ANDAMENTO'}`}>
+                                                            <div className="pe-acao-info" style={{ minWidth: 0 }}>
+                                                                <span className="pe-acao-title" title={acao.title} style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{acao.title}</span>
+                                                                <span className={`pe-badge pe-badge-acao-status ${acao.status === 'CONCLUIDA' ? 'CONCLUIDA' : acao.status === 'EM_RISCO' || acao.status === 'PARALISADA' ? 'EM_RISCO' : 'EM_ANDAMENTO'}`} style={{ flexShrink: 0 }}>
                                                                     {formatStatusLabel(acao.status)}
                                                                 </span>
                                                             </div>
-                                                            <div className="pe-acao-progress-wrapper">
+                                                            <div className="pe-acao-progress-wrapper" style={{ flexShrink: 0 }}>
                                                                 <div className="pe-acao-progress-bar">
-                                                                    <div className="pe-acao-progress-fill" style={{ width: `${acaoProgress}%`, background: acao.status === 'CONCLUIDA' ? '#10b981' : acao.status === 'EM_RISCO' || acao.status === 'PARALISADA' ? '#ef4444' : '#8b5cf6' }}></div>
+                                                                    <div className="pe-acao-progress-fill" style={{ width: `${formatPercent(acaoProgress)}%`, background: acao.status === 'CONCLUIDA' ? '#10b981' : acao.status === 'EM_RISCO' || acao.status === 'PARALISADA' ? '#ef4444' : '#8b5cf6' }}></div>
                                                                 </div>
-                                                                <span className="pe-acao-progress-text">{acaoProgress}%</span>
+                                                                <span className="pe-acao-progress-text" style={{ flexShrink: 0 }}>{formatPercent(acaoProgress)}%</span>
                                                             </div>
                                                         </div>
                                                     )})}
@@ -513,9 +521,9 @@ const PlanejamentoEstrategico = () => {
                                     {showEmptyObjectives && (
                                         <div className="pe-empty-objectives-list">
                                             {currentActiveEixo.objetivos.filter(obj => obj.acoesVinculadas === 0).map(obj => (
-                                                <div key={obj.id} className="pe-empty-objective-item">
-                                                    <h4 className="pe-accordion-title">{obj.title}</h4>
-                                                    <span className="pe-badge pe-badge-acao-sem">Sem ação</span>
+                                                <div key={obj.id} className="pe-empty-objective-item" style={{ minWidth: 0 }}>
+                                                    <h4 className="pe-accordion-title" title={obj.title} style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{obj.title}</h4>
+                                                    <span className="pe-badge pe-badge-acao-sem" style={{ flexShrink: 0 }}>Sem ação</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -538,8 +546,10 @@ const PlanejamentoEstrategico = () => {
                         <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#cbd5e1' }}></div> Planejado</div>
                         <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#3b82f6' }}></div> Em andamento</div>
                         <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#10b981' }}></div> Concluído</div>
+                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#ef4444' }}></div> Atrasado</div>
                     </div>
 
+                    {/* Linha do tempo temporariamente estática até definição da regra real por ano. */}
                     <div className="pe-timeline-wrapper">
                         <div className="pe-timeline-line"></div>
                         <div className="pe-timeline-container">
@@ -548,11 +558,9 @@ const PlanejamentoEstrategico = () => {
                                 <div className="pe-timeline-year">2025</div>
                                 <div className="pe-timeline-dot active"></div>
                                 <div className="pe-timeline-content">
-                                    <span className="pe-timeline-title">Início</span>
-                                    <p className="pe-timeline-desc">Programas prioritários</p>
-                                    <div className="pe-timeline-badges">
-                                        <span className="pe-timeline-badge blue">Obras Base</span>
-                                        <span className="pe-timeline-badge green">Entregas Curtas</span>
+                                    <div className="pe-timeline-badges" style={{ flexDirection: 'column', width: '100%', gap: '8px' }}>
+                                        <span className="pe-timeline-badge blue" style={{ width: '100%' }}>32 objetivos em andamento</span>
+                                        <span className="pe-timeline-badge green" style={{ width: '100%' }}>8 entregas concluídas</span>
                                     </div>
                                 </div>
                             </div>
@@ -561,11 +569,9 @@ const PlanejamentoEstrategico = () => {
                                 <div className="pe-timeline-year">2026</div>
                                 <div className="pe-timeline-dot"></div>
                                 <div className="pe-timeline-content">
-                                    <span className="pe-timeline-title">Expansão</span>
-                                    <p className="pe-timeline-desc">Ações em maturação</p>
-                                    <div className="pe-timeline-badges">
-                                        <span className="pe-timeline-badge gray">Educação</span>
-                                        <span className="pe-timeline-badge gray">Saúde</span>
+                                    <div className="pe-timeline-badges" style={{ flexDirection: 'column', width: '100%', gap: '8px' }}>
+                                        <span className="pe-timeline-badge gray" style={{ width: '100%' }}>28 objetivos planejados</span>
+                                        <span className="pe-timeline-badge gray" style={{ width: '100%' }}>0 entregas</span>
                                     </div>
                                 </div>
                             </div>
@@ -574,10 +580,9 @@ const PlanejamentoEstrategico = () => {
                                 <div className="pe-timeline-year">2027</div>
                                 <div className="pe-timeline-dot"></div>
                                 <div className="pe-timeline-content">
-                                    <span className="pe-timeline-title">Consolidação</span>
-                                    <p className="pe-timeline-desc">Grandes entregas</p>
-                                    <div className="pe-timeline-badges">
-                                        <span className="pe-timeline-badge gray">Infraestrutura</span>
+                                    <div className="pe-timeline-badges" style={{ flexDirection: 'column', width: '100%', gap: '8px' }}>
+                                        <span className="pe-timeline-badge gray" style={{ width: '100%' }}>22 objetivos planejados</span>
+                                        <span className="pe-timeline-badge gray" style={{ width: '100%' }}>0 entregas</span>
                                     </div>
                                 </div>
                             </div>
@@ -586,10 +591,9 @@ const PlanejamentoEstrategico = () => {
                                 <div className="pe-timeline-year">2028</div>
                                 <div className="pe-timeline-dot"></div>
                                 <div className="pe-timeline-content">
-                                    <span className="pe-timeline-title">Fechamento</span>
-                                    <p className="pe-timeline-desc">Metas atingidas</p>
-                                    <div className="pe-timeline-badges">
-                                        <span className="pe-timeline-badge gray">Plano 2025-2028</span>
+                                    <div className="pe-timeline-badges" style={{ flexDirection: 'column', width: '100%', gap: '8px' }}>
+                                        <span className="pe-timeline-badge gray" style={{ width: '100%' }}>12 objetivos planejados</span>
+                                        <span className="pe-timeline-badge gray" style={{ width: '100%' }}>0 entregas</span>
                                     </div>
                                 </div>
                             </div>
@@ -623,9 +627,9 @@ const PlanejamentoEstrategico = () => {
                                             {formatStatusLabel(comp.status)}
                                         </span>
                                         <div className="pe-comp-progress-compact">
-                                            <span className="pe-comp-progress-val">{comp.progresso}%</span>
+                                            <span className="pe-comp-progress-val">{formatPercent(comp.progresso)}%</span>
                                             <div className="pe-comp-pbar">
-                                                <div className="pe-comp-pfill" style={{ width: `${comp.progresso}%`, background: getProgressColor(comp.status) }}></div>
+                                                <div className="pe-comp-pfill" style={{ width: `${formatPercent(comp.progresso)}%`, background: getProgressColor(comp.status) }}></div>
                                             </div>
                                         </div>
                                     </div>

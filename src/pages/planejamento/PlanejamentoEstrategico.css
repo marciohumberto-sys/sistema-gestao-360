@@ -1,9 +1,12 @@
 .plano-estrategico-container {
     padding: 2rem;
-    max-width: 1400px;
+    max-width: 100%;
+    width: 100%;
     margin: 0 auto;
     background-color: var(--bg-default, #f8fafc);
     min-height: 100vh;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 .pe-header {
@@ -275,9 +278,13 @@
 
 .pe-eixos-grid {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 1rem;
     margin-bottom: 1.5rem;
+    width: 100%;
+    max-width: 100%;
+    overflow: visible;
+    box-sizing: border-box;
 }
 
 .pe-eixo-card {
@@ -290,6 +297,10 @@
     flex-direction: column;
     border-top: 4px solid #cbd5e1;
     transition: transform 0.2s, box-shadow 0.2s;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .pe-eixo-card:hover {
@@ -320,6 +331,10 @@
     margin: 0 0 1rem 0;
     min-height: 38px;
     line-height: 1.2;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+    max-width: 100%;
 }
 
 .pe-eixo-progress-wrapper {
@@ -455,6 +470,8 @@
     background: #f8fafc;
     transition: background 0.2s;
     gap: 1rem;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .pe-accordion-header:hover {
@@ -467,6 +484,7 @@
     gap: 1rem;
     flex: 1;
     min-width: 0;
+    overflow: hidden;
 }
 
 .pe-accordion-title {
@@ -605,6 +623,7 @@
     gap: 1rem;
     flex: 1;
     min-width: 0;
+    overflow: hidden;
 }
 
 .pe-acao-title {
@@ -756,11 +775,12 @@
     flex-direction: column;
     height: 100%;
     box-sizing: border-box;
+    padding-bottom: 1.25rem;
 }
 
 .pe-timeline-wrapper {
     position: relative;
-    margin: auto 0;
+    margin-top: 1.5rem;
 }
 
 .pe-timeline-line {

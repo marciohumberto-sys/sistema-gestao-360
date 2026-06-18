@@ -317,8 +317,8 @@ class PlanejamentoService {
             { data: objectives, error: errObj },
             { data: actions, error: errActions }
         ] = await Promise.all([
-            supabase.from('planning_axes').select('*').eq('tenant_id', tenantId).order('display_order', { ascending: true }),
-            supabase.from('planning_objectives').select('*').eq('tenant_id', tenantId).order('display_order', { ascending: true }),
+            supabase.from('planning_axes').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('display_order', { ascending: true }),
+            supabase.from('planning_objectives').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('display_order', { ascending: true }),
             supabase.from('planning_actions').select('*').eq('tenant_id', tenantId).eq('module_id', MODULE_ID).not('objective_id', 'is', null)
         ]);
 
@@ -335,7 +335,7 @@ class PlanejamentoService {
         const totalAcoes = safeActions.length;
         
         const sumProgresso = safeActions.reduce((acc, a) => acc + (a.progress_percent || 0), 0);
-        const execucaoGeral = totalAcoes > 0 ? Math.round(sumProgresso / totalAcoes) : 0;
+        const execucaoGeral = totalAcoes > 0 ? parseFloat((sumProgresso / totalAcoes).toFixed(2)) : 0;
         
         const entregasConcluidas = safeActions.filter(a => a.status === 'CONCLUIDA').length;
         const acoesEmRisco = safeActions.filter(a => a.status === 'EM_RISCO' || a.status === 'PARALISADA').length;
@@ -351,15 +351,15 @@ class PlanejamentoService {
         // --- Compilação por Eixo ---
         const eixosCompilados = safeAxes.map(eixo => {
             const eixoObjectives = safeObjectives.filter(o => o.axis_id === eixo.id);
-            const eixoActions = safeActions.filter(a => a.axis_id === eixo.id);
+            const eixoActions = safeActions.filter(a => eixoObjectives.some(obj => obj.id === a.objective_id));
             
             const eSumProgresso = eixoActions.reduce((acc, a) => acc + (a.progress_percent || 0), 0);
-            const eExecucao = eixoActions.length > 0 ? Math.round(eSumProgresso / eixoActions.length) : 0;
+            const eExecucao = eixoActions.length > 0 ? parseFloat((eSumProgresso / eixoActions.length).toFixed(2)) : 0;
 
             const objsCompilados = eixoObjectives.map(obj => {
                 const objActions = eixoActions.filter(a => a.objective_id === obj.id);
                 const oSumProgresso = objActions.reduce((acc, a) => acc + (a.progress_percent || 0), 0);
-                const oExecucao = objActions.length > 0 ? Math.round(oSumProgresso / objActions.length) : 0;
+                const oExecucao = objActions.length > 0 ? parseFloat((oSumProgresso / objActions.length).toFixed(2)) : 0;
                 
                 // Status visual do objetivo baseado nas ações
                 let statusObj = 'EM_ANDAMENTO';
@@ -411,10 +411,10 @@ class PlanejamentoService {
                 // Desempate por progresso decrescente
                 return (b.progress_percent || 0) - (a.progress_percent || 0);
             })
-            .slice(0, 5)
+            .slice(0, 4)
             .map(a => {
-                const eixo = safeAxes.find(ex => ex.id === a.axis_id);
                 const obj = safeObjectives.find(o => o.id === a.objective_id);
+                const eixo = safeAxes.find(ex => ex.id === obj?.axis_id);
                 return {
                     id: a.id,
                     title: a.title,
