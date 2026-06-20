@@ -31,7 +31,7 @@ const MainLayout = () => {
         <div className="app-container">
             <Topbar />
             <Sidebar isPinned={isSidebarPinned} togglePin={toggleSidebar} />
-            <main className={`main-content ${isSidebarPinned ? 'sidebar-pinned' : 'sidebar-compact'}`}>
+            <main data-main-scroll className={`main-content ${isSidebarPinned ? 'sidebar-pinned' : 'sidebar-compact'}`}>
                 <div className="page-wrapper">
                     <Outlet />
                 </div>

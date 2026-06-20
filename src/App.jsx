@@ -4,6 +4,7 @@ import MainLayout from './components/layout/MainLayout';
 import { TenantProvider, useTenant } from './context/TenantContext';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import ScrollToTop from './components/ScrollToTop';
 
 import Login from './pages/auth/Login';
 import AcessoNegado from './pages/auth/AcessoNegado';
@@ -45,6 +46,18 @@ import PlanejamentoAtualizacoes from './pages/planejamento/PlanejamentoAtualizac
 import PlanejamentoEntraves from './pages/planejamento/PlanejamentoEntraves';
 import PlanejamentoEstrategico from './pages/planejamento/PlanejamentoEstrategico';
 
+// Módulo Laboratório (Mock)
+import LaboratorioDashboard from './pages/laboratorio/LaboratorioDashboard';
+import LaboratorioPlaceholder from './pages/laboratorio/LaboratorioPlaceholder';
+import LaboratorioPacientes from './pages/laboratorio/LaboratorioPacientes';
+import LaboratorioAtendimento from './pages/laboratorio/LaboratorioAtendimento';
+import LaboratorioMapas from './pages/laboratorio/LaboratorioMapas';
+import LaboratorioResultados from './pages/laboratorio/LaboratorioResultados';
+import LaboratorioConferencia from './pages/laboratorio/LaboratorioConferencia';
+import LaboratorioLaudos from './pages/laboratorio/LaboratorioLaudos';
+import LaboratorioRelatorios from './pages/laboratorio/LaboratorioRelatorios';
+import LaboratorioConfiguracoes from './pages/laboratorio/LaboratorioConfiguracoes';
+
 // Helper para redirecionamento dinâmico do preview
 const OfPreviewRedirect = () => {
   const { id } = useParams();
@@ -70,6 +83,7 @@ const AppContent = () => {
 function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <AuthProvider>
         <TenantProvider>
           <Routes>
@@ -131,7 +145,7 @@ function App() {
                     </Route>
                   </Route>
 
-                  {/* --- Galho Restrito: PLANEJAMENTO ESTRATÉGICO --- */}
+                {/* --- Galho Restrito: PLANEJAMENTO ESTRATÉGICO --- */}
                     <Route path="planejamento" element={<ProtectedRoute module="PLANEJAMENTO_ESTRATEGICO" />}>
                       <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<PlanejamentoDashboard />} />
@@ -141,6 +155,21 @@ function App() {
                       <Route path="entraves" element={<PlanejamentoEntraves />} />
                       <Route path="plano-estrategico" element={<PlanejamentoEstrategico />} />
                       <Route path="usuarios" element={<PlanejamentoUsuarios />} />
+                    </Route>
+
+                {/* --- Galho Restrito: LABORATÓRIO (Mock Visual) --- */}
+                    <Route path="laboratorio" element={<ProtectedRoute module="LABORATORIO" />}>
+                      <Route index element={<Navigate to="dashboard" replace />} />
+                      <Route path="dashboard" element={<LaboratorioDashboard />} />
+                      <Route path="pacientes" element={<LaboratorioPacientes />} />
+                      <Route path="atendimento" element={<LaboratorioAtendimento />} />
+                      <Route path="coleta" element={<LaboratorioAtendimento />} />
+                      <Route path="mapas" element={<LaboratorioMapas />} />
+                      <Route path="resultados" element={<LaboratorioResultados />} />
+                      <Route path="conferencia" element={<LaboratorioConferencia />} />
+                      <Route path="laudos" element={<LaboratorioLaudos />} />
+                      <Route path="relatorios" element={<LaboratorioRelatorios />} />
+                      <Route path="configuracoes" element={<LaboratorioConfiguracoes />} />
                     </Route>
 
                 </Route>

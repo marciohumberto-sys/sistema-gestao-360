@@ -1,0 +1,448 @@
+/* LaboratorioResultados.css */
+
+.lab-res-container {
+    padding: 1.5rem 2rem;
+    max-width: 100%;
+    width: 100%;
+    margin: 0 auto;
+    background-color: #f8fafc;
+    min-height: 100vh;
+    box-sizing: border-box;
+    font-family: var(--font-family, system-ui, sans-serif);
+}
+
+/* Filtros Resultados */
+.lab-res-container .lab-filters-card {
+    margin-bottom: 1.25rem;
+}
+
+.lab-res-container .lab-filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+    align-items: flex-end;
+}
+
+.lab-res-container .lab-filters-grid > * {
+    min-width: 0;
+}
+
+@media (min-width: 1024px) {
+    .lab-res-container .lab-filters-grid {
+        grid-template-columns: 0.8fr 0.8fr 1.8fr 1fr 1.1fr 130px;
+    }
+}
+
+.lab-res-container .lab-filter-actions {
+    display: flex;
+    align-items: flex-end;
+    height: 100%;
+}
+
+.lab-res-container .lab-filter-actions button {
+    height: 36px;
+    width: 100%;
+    margin-top: auto;
+}
+
+.lab-res-container .lab-filter-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.lab-res-container .lab-filter-item label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.lab-res-container .lab-filter-item input,
+.lab-res-container .lab-filter-item select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: #0f172a;
+    outline: none;
+    background-color: white;
+    transition: border-color 0.2s;
+    height: 36px;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.lab-res-container .lab-filter-item input:focus,
+.lab-res-container .lab-filter-item select:focus {
+    border-color: #3b82f6;
+}
+
+.lab-res-header {
+    margin-bottom: 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+/* Patient Summary Row */
+.lab-patient-summary {
+    margin-bottom: 1.25rem;
+    padding: 0.75rem 1.25rem !important;
+}
+
+.lab-patient-summary-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    align-items: center;
+}
+
+.lab-ps-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: #1e293b;
+}
+
+.lab-ps-label {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.text-primary {
+    color: #3b82f6;
+}
+
+/* Layout Principal */
+.lab-res-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+@media (max-width: 1024px) {
+    .lab-res-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Coluna Esquerda */
+.lab-res-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    position: sticky;
+    top: 1.5rem;
+    align-self: start;
+}
+
+.lab-exams-list-card {
+    padding: 1rem;
+}
+
+.lab-exams-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.lab-exam-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+}
+
+.lab-exam-item:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+
+.lab-exam-item.active {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    box-shadow: 0 0 0 1px #3b82f6;
+}
+
+.lab-exam-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+}
+
+.lab-exam-code {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #0f172a;
+}
+
+.lab-exam-name {
+    font-size: 0.85rem;
+    color: #475569;
+    font-weight: 500;
+}
+
+.lab-final-actions-card {
+    padding: 1rem;
+}
+
+.lab-final-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.lab-btn-block {
+    width: 100%;
+    justify-content: center;
+}
+
+/* Coluna Direita (Principal) */
+.lab-res-main {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.lab-typing-card {
+    padding: 1.5rem !important;
+}
+
+.lab-typing-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.lab-typing-title h2 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.lab-typing-badges {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.lab-badge-gray {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+}
+
+.lab-typing-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.lab-typing-result-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 2rem;
+}
+
+.lab-typing-input-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.lab-input-huge-container {
+    display: flex;
+    align-items: stretch;
+    border: 2px solid #cbd5e1;
+    border-radius: 12px;
+    background-color: #ffffff;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.04);
+    transition: all 0.2s ease;
+    width: fit-content;
+    overflow: hidden;
+}
+
+.lab-input-huge-container:focus-within {
+    border-color: #3b82f6;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.02), 0 0 0 4px rgba(59, 130, 246, 0.15);
+}
+
+.lab-input-huge-field {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #0f172a;
+    width: 140px;
+    padding: 0.5rem 1rem;
+    text-align: right;
+    border: none;
+    outline: none;
+    background: transparent;
+}
+
+.lab-input-huge-field::placeholder {
+    color: #cbd5e1;
+    font-weight: 400;
+}
+
+.lab-unit-addon {
+    display: flex;
+    align-items: center;
+    padding: 0 1rem;
+    background-color: #f8fafc;
+    color: #64748b;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-left: 1px solid #e2e8f0;
+}
+
+.lab-interp-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem; /* Alinha visualmente com o input */
+}
+
+.lab-interp-badge.success {
+    background: #d1fae5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+}
+
+.lab-interp-badge.danger {
+    background: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.lab-typing-ref-row {
+    margin-top: -0.5rem;
+}
+
+.lab-ref-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #f8fafc;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+}
+
+.lab-ref-label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: #64748b;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.lab-ref-value {
+    color: #0f172a;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.lab-typing-text-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.lab-text-group label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 0.4rem;
+}
+
+.lab-text-group textarea {
+    width: 100%;
+    height: 80px;
+    padding: 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    resize: none;
+    font-family: inherit;
+    font-size: 0.9rem;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.lab-text-group textarea:focus {
+    border-color: #3b82f6;
+}
+
+.lab-typing-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 1.25rem;
+}
+
+.lab-nav-buttons, .lab-save-buttons {
+    display: flex;
+    gap: 0.75rem;
+}
+
+/* Histórico */
+.lab-history-card {
+    padding: 1.25rem !important;
+}
+
+.lab-history-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.lab-history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.lab-history-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.lab-hist-date {
+    font-size: 0.85rem;
+    color: #64748b;
+    width: 120px;
+}
+
+.lab-hist-result {
+    font-size: 1rem;
+    color: #0f172a;
+    flex: 1;
+}
+
+/* Classes globais de cores caso faltem no LaboratorioMapas.css global */
+.status-success { background: #d1fae5; color: #047857; }
+.status-warning { background: #fef3c7; color: #b45309; }
+.status-default { background: #f1f5f9; color: #475569; }
+.status-info { background: #e0f2fe; color: #0369a1; }

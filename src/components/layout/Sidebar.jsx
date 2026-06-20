@@ -25,6 +25,13 @@ import {
     Pill,
     Target,
     Activity,
+    TestTubes,
+    Microscope,
+    ClipboardList,
+    ClipboardCheck,
+    CheckSquare,
+    Map,
+    Stethoscope
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessFarmacia } from '../../utils/farmaciaAcl';
@@ -128,6 +135,49 @@ const PLANEJAMENTO_MENU_ITEMS = [
     }
 ];
 
+// Menu contextual do módulo Laboratório
+const LABORATORIO_MENU_ITEMS = [
+    {
+        section: 'Principal',
+        items: [
+            { path: '/laboratorio/dashboard', icon: LayoutDashboard, label: 'Dashboard' }
+        ]
+    },
+    {
+        section: 'Atendimento',
+        items: [
+            { path: '/laboratorio/pacientes', icon: Users, label: 'Pacientes' },
+            { path: '/laboratorio/coleta', icon: Stethoscope, label: 'Atendimento / Coleta' }
+        ]
+    },
+    {
+        section: 'Processamento',
+        items: [
+            { path: '/laboratorio/mapas', icon: Map, label: 'Mapas' },
+            { path: '/laboratorio/resultados', icon: TestTubes, label: 'Resultados' }
+        ]
+    },
+    {
+        section: 'Liberação',
+        items: [
+            { path: '/laboratorio/conferencia', icon: CheckSquare, label: 'Conferência' },
+            { path: '/laboratorio/laudos', icon: ClipboardCheck, label: 'Laudos' }
+        ]
+    },
+    {
+        section: 'Análise',
+        items: [
+            { path: '/laboratorio/relatorios', icon: ClipboardList, label: 'Relatórios' }
+        ]
+    },
+    {
+        section: 'Administração',
+        items: [
+            { path: '/laboratorio/configuracoes', icon: Settings, label: 'Configurações' }
+        ]
+    }
+];
+
 const Sidebar = ({ isPinned, togglePin }) => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -135,7 +185,12 @@ const Sidebar = ({ isPinned, togglePin }) => {
     
     const isFarmacia = location.pathname.startsWith('/farmacia');
     const isPlanejamento = location.pathname.startsWith('/planejamento');
-    const activeMenu = isFarmacia ? FARMACIA_MENU_ITEMS : (isPlanejamento ? PLANEJAMENTO_MENU_ITEMS : MENU_ITEMS);
+    const isLaboratorio = location.pathname.startsWith('/laboratorio');
+    
+    let activeMenu = MENU_ITEMS;
+    if (isFarmacia) activeMenu = FARMACIA_MENU_ITEMS;
+    else if (isPlanejamento) activeMenu = PLANEJAMENTO_MENU_ITEMS;
+    else if (isLaboratorio) activeMenu = LABORATORIO_MENU_ITEMS;
     
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
 
@@ -162,6 +217,12 @@ const Sidebar = ({ isPinned, togglePin }) => {
                     <span className="sidebar-module-label" style={{ color: '#a78bfa', background: 'rgba(167, 139, 250, 0.15)' }}>
                         <Target size={13} strokeWidth={2} />
                         Planejamento
+                    </span>
+                )}
+                {isLaboratorio && isPinned && (
+                    <span className="sidebar-module-label" style={{ color: '#0ea5e9', background: 'rgba(14, 165, 233, 0.1)' }}>
+                        <Microscope size={13} strokeWidth={2} />
+                        Laboratório
                     </span>
                 )}
                 <button
@@ -240,7 +301,7 @@ const Sidebar = ({ isPinned, togglePin }) => {
                 ))}
             </div>
 
-            {!isFarmacia && !isPlanejamento && (
+            {!isFarmacia && !isPlanejamento && !isLaboratorio && (
             <div className="sidebar-footer">
                 <div className="footer-actions">
                     <button className="footer-btn btn-primary" title={!isPinned ? "Nova Ordem de Fornecimento" : ""} onClick={() => navigate('/compras/ordens-fornecimento', { state: { openModal: 'nova-of' } })}>

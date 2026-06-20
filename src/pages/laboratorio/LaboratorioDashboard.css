@@ -1,0 +1,463 @@
+.lab-dashboard-container {
+    padding: 1.5rem 2rem;
+    max-width: 100%;
+    width: 100%;
+    margin: 0 auto;
+    background-color: #f8fafc;
+    min-height: 100vh;
+    box-sizing: border-box;
+    font-family: var(--font-family, system-ui, sans-serif);
+}
+
+.lab-header {
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.lab-title {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0 0 0.5rem 0;
+    letter-spacing: -0.02em;
+}
+
+.lab-subtitle {
+    color: #64748b;
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 400;
+}
+
+/* KPIs Superiores */
+.lab-kpis-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+@media (max-width: 1280px) {
+    .lab-kpis-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .lab-kpis-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.lab-kpi-card {
+    background: white;
+    border-radius: 16px;
+    padding: 1.25rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+    border: 1px solid #f1f5f9;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.lab-kpi-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.06);
+    border-color: #e2e8f0;
+}
+
+.lab-kpi-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 0.85rem;
+}
+
+.lab-kpi-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lab-kpi-trend {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    background: #f8fafc;
+    padding: 0.25rem 0.6rem;
+    border-radius: 20px;
+    border: 1px solid #f1f5f9;
+}
+
+.lab-kpi-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.lab-kpi-value {
+    font-size: 1.85rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0 0 0.25rem 0;
+    line-height: 1;
+    letter-spacing: -0.03em;
+}
+
+.lab-kpi-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 0.25rem;
+}
+
+.lab-kpi-trend-text {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+/* Painéis (Middle & Bottom Sections) */
+.lab-sections-grid, .lab-secondary-grid {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.lab-sections-grid {
+    grid-template-columns: 1fr 1fr;
+}
+
+.lab-secondary-grid {
+    grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 1024px) {
+    .lab-sections-grid, .lab-secondary-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.lab-panel {
+    background: white;
+    border-radius: 16px;
+    padding: 1.25rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+    border: 1px solid #f1f5f9;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+.lab-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.lab-panel-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.lab-panel-action {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: none;
+    border: none;
+    color: #3b82f6;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.2s;
+}
+
+.lab-panel-action:hover {
+    color: #2563eb;
+}
+
+/* Produção por Setor (Barras) */
+.lab-sectors-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.lab-sector-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.lab-sector-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.lab-sector-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.lab-sector-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.lab-sector-value small {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #94a3b8;
+    margin-left: 0.2rem;
+}
+
+.lab-sector-progress-bg {
+    height: 8px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.lab-sector-progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.8s ease-out;
+}
+
+/* Status dos Exames */
+.lab-status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.lab-status-item {
+    display: flex;
+    flex-direction: column;
+    padding: 0.6rem 0.85rem;
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #f1f5f9;
+    gap: 0.5rem;
+    transition: all 0.2s;
+}
+
+.lab-status-item:hover {
+    background: #fff;
+    border-color: #e2e8f0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+}
+
+.lab-status-item.alert {
+    background: #fef2f2;
+    border-color: #fca5a5;
+    box-shadow: 0 0 0 1px #fca5a5;
+}
+
+.lab-status-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.lab-status-label-group {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.lab-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.lab-status-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.lab-status-item.alert .lab-status-label {
+    color: #991b1b;
+    font-weight: 700;
+}
+
+.lab-status-count {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.lab-status-item.alert .lab-status-count {
+    color: #991b1b;
+}
+
+.lab-status-progress-bg {
+    height: 4px;
+    background: rgba(0,0,0,0.05);
+    border-radius: 2px;
+}
+
+.lab-status-progress-fill {
+    height: 100%;
+    border-radius: 2px;
+}
+
+/* Atividades Recentes (Timeline) */
+.lab-timeline {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    padding-left: 1rem;
+}
+
+.lab-timeline::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 23px; /* Center of the 28px icon plus 1rem padding minus 1px half-width */
+    width: 2px;
+    background: #f1f5f9;
+    z-index: 0;
+}
+
+.lab-timeline-item {
+    display: flex;
+    gap: 1.25rem;
+    position: relative;
+    z-index: 1;
+    margin-bottom: 1.25rem;
+}
+
+.lab-timeline-item:last-child {
+    margin-bottom: 0;
+}
+
+.lab-timeline-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: white;
+    box-shadow: 0 0 0 4px white;
+}
+
+.lab-timeline-content {
+    display: flex;
+    flex-direction: column;
+    padding-top: 0.2rem;
+    flex: 1;
+}
+
+.lab-timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.25rem;
+}
+
+.lab-timeline-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.lab-timeline-time {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-weight: 600;
+    background: #f8fafc;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+}
+
+.lab-timeline-desc {
+    font-size: 0.85rem;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+/* Indicadores Operacionais (Cards) */
+.lab-indicadores-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+    .lab-indicadores-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.lab-indicador-card {
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 12px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    transition: all 0.2s;
+}
+
+.lab-indicador-card:hover {
+    background: #fff;
+    border-color: #e2e8f0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+.lab-indicador-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lab-indicador-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.lab-indicador-val {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+}
+
+.lab-indicador-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+    line-height: 1.3;
+}

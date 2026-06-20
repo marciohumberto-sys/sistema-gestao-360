@@ -2,6 +2,7 @@ export const MODULE_ROUTES = {
     FARMACIA: '/farmacia/dashboard',
     COMPRAS: '/compras/dashboard',
     PLANEJAMENTO_ESTRATEGICO: '/planejamento/dashboard',
+    LABORATORIO: '/laboratorio/dashboard',
 };
 
 export const normalizeEmail = (login, pathname, moduleContext) => {
@@ -26,7 +27,8 @@ export const normalizeEmail = (login, pathname, moduleContext) => {
         '@sistema.local',
         '@farmacia.local',
         '@compras.local',
-        '@planejamento.local'
+        '@planejamento.local',
+        '@laboratorio.local'
     ];
 
     // Determinar domínio prioritário baseado no contexto da URL ou do estado do app
@@ -38,6 +40,8 @@ export const normalizeEmail = (login, pathname, moduleContext) => {
     } else if (moduleContext === 'PLANEJAMENTO' || pathname?.includes('/planejamento')) {
         // Atualmente o planejamento usa @sistema.local, mas mantemos a lógica de prioridade
         priorityDomain = '@sistema.local';
+    } else if (moduleContext === 'LABORATORIO' || pathname?.includes('/laboratorio')) {
+        priorityDomain = '@laboratorio.local';
     }
 
     // Construir lista única de tentativas
@@ -100,6 +104,7 @@ export const getLogoClickRedirectPath = (pathname, isSuperAdmin, accessibleModul
     if (pathname?.startsWith('/farmacia')) return MODULE_ROUTES.FARMACIA;
     if (pathname?.startsWith('/compras')) return MODULE_ROUTES.COMPRAS;
     if (pathname?.startsWith('/planejamento')) return MODULE_ROUTES.PLANEJAMENTO_ESTRATEGICO;
+    if (pathname?.startsWith('/laboratorio')) return MODULE_ROUTES.LABORATORIO;
 
     // 3. Fora de contexto, aplicar regra de fallback:
     

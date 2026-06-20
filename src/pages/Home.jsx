@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FolderKanban, Pill, LogOut, ArrowRight, ShieldCheck, User, Target } from 'lucide-react';
+import { FolderKanban, Pill, LogOut, ArrowRight, ShieldCheck, User, Target, Microscope } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { brandConfig } from '../config/brand';
 import { getLogoClickRedirectPath } from '../utils/authUtils';
@@ -32,6 +32,7 @@ const Home = () => {
     const hasFarmacia = isSuperAdmin || accessibleModules?.includes('FARMACIA');
     const hasCompras = isSuperAdmin || accessibleModules?.includes('COMPRAS');
     const hasPlanejamento = isSuperAdmin || accessibleModules?.includes('PLANEJAMENTO_ESTRATEGICO');
+    const hasLaboratorio = isSuperAdmin || accessibleModules?.includes('LABORATORIO');
 
     const handleLogout = async () => {
         await logout();
@@ -126,6 +127,17 @@ const Home = () => {
                             icon={Target}
                             color="#8b5cf6"
                             onClick={() => navigate('/planejamento/dashboard')}
+                        />
+                    )}
+
+                    {/* Card Laboratório */}
+                    {hasLaboratorio && (
+                        <ModuleCard 
+                            title="Laboratório e Análises"
+                            description="Gestão integrada de exames, acompanhamento de coletas, mapas de trabalho e emissão de laudos com interface fluida."
+                            icon={Microscope}
+                            color="#0ea5e9"
+                            onClick={() => navigate('/laboratorio/dashboard')}
                         />
                     )}
 
