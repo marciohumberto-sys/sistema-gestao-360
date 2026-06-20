@@ -57,6 +57,13 @@ export const AuthProvider = ({ children }) => {
                 }
             }
 
+            // Mock frontend exclusivo para liberar o Laboratório para Osvaldo Albanez
+            if (user?.email === 'osvaldo.albanez@sistema.local' && data?.accessibleModules) {
+                if (!data.accessibleModules.includes('LABORATORIO')) {
+                    data.accessibleModules.push('LABORATORIO');
+                }
+            }
+
             setTenantLink(data.tenantLink);
             setScopes(data.scopes);
             setAccessibleModules(data.accessibleModules);
