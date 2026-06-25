@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessFarmacia } from '../../utils/farmaciaAcl';
+import { canAccessLaboratorio } from '../../utils/laboratorioAcl';
 import './Sidebar.css';
 
 const MENU_ITEMS = [
@@ -173,6 +174,7 @@ const LABORATORIO_MENU_ITEMS = [
     {
         section: 'Administração',
         items: [
+            { path: '/laboratorio/usuarios', icon: Users, label: 'Usuários' },
             { path: '/laboratorio/configuracoes', icon: Settings, label: 'Configurações' }
         ]
     }
@@ -199,6 +201,9 @@ const Sidebar = ({ isPinned, togglePin }) => {
         items: group.items.filter(item => {
             if (isFarmacia) {
                 return canAccessFarmacia(role, item.path);
+            }
+            if (isLaboratorio) {
+                return canAccessLaboratorio(role, item.path);
             }
             return true;
         })

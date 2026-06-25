@@ -57,6 +57,7 @@ import LaboratorioConferencia from './pages/laboratorio/LaboratorioConferencia';
 import LaboratorioLaudos from './pages/laboratorio/LaboratorioLaudos';
 import LaboratorioRelatorios from './pages/laboratorio/LaboratorioRelatorios';
 import LaboratorioConfiguracoes from './pages/laboratorio/LaboratorioConfiguracoes';
+import LaboratorioUsuarios from './pages/laboratorio/LaboratorioUsuarios';
 
 // Helper para redirecionamento dinâmico do preview
 const OfPreviewRedirect = () => {
@@ -170,6 +171,7 @@ function App() {
                       <Route path="laudos" element={<LaboratorioLaudos />} />
                       <Route path="relatorios" element={<LaboratorioRelatorios />} />
                       <Route path="configuracoes" element={<LaboratorioConfiguracoes />} />
+                      <Route path="usuarios" element={<LaboratorioUsuarios />} />
                     </Route>
 
                 </Route>
