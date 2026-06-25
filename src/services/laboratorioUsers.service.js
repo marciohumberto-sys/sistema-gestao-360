@@ -111,22 +111,93 @@ export const createLaboratorioUser = async (tenantId, userData) => {
         }
     }
 
-    // Se ainda não temos uma secretaria, buscar a primeira disponível no BD para garantir a criação do escopo
     if (!secretariatId) {
-        console.warn('[Laboratorio] Unidade não encontrada. Buscando qualquer secretaria para fallback...');
         const { data: fallbackSec } = await supabase
             .from('secretariats')
-            .select('id, name')
+            .select('id')
             .eq('tenant_id', tenantId)
             .limit(1)
             .maybeSingle();
-
         if (fallbackSec) {
             secretariatId = fallbackSec.id;
-            console.log('[Laboratorio] Fallback secretaria utilizada:', fallbackSec.name);
         }
     }
 
+    // 1. Tentar localizar o usuário existente pelo e-mail (reaproveitar e apenas vincular)
+    const { data: existingUsers } = await supabase.rpc('get_farmacia_users_with_auth', {
+        p_tenant_id: tenantId
+    });
+    
+    const existingUser = existingUsers?.find(u => (u.email || '').toLowerCase() === (userData.email || '').toLowerCase());
+    
+    if (existingUser) {
+        console.log('[Laboratorio] Usuário já existe. Realizando vínculo/update via PUT...');
+        const payload = {
+            user_id: existingUser.user_id || existingUser.id,
+            email: userData.email,
+            name: userData.name,
+            role: userData.profile,
+            is_active: userData.status === 'ATIVO',
+            tenant_id: tenantId,
+            module_key: 'LABORATORIO',
+            unit_id: unitId,
+            secretariat_id: secretariatId
+        };
+
+        const putResponse = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-user`,
+            {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                },
+                body: JSON.stringify(payload)
+            }
+        );
+
+        const putResult = await putResponse.json();
+        if (!putResponse.ok) {
+            throw new Error(putResult.error || 'Erro ao vincular usuário existente');
+        }
+
+        // GARANTIR O VÍNCULO NO BANCO (MANUAL UPSERT)
+        const { data: modData } = await supabase.from('system_modules').select('id').eq('key', 'LABORATORIO').maybeSingle();
+        if (modData) {
+            const { data: checkScope } = await supabase
+                .from('user_access_scopes')
+                .select('id')
+                .eq('user_id', payload.user_id)
+                .eq('tenant_id', tenantId)
+                .eq('module_id', modData.id)
+                .maybeSingle();
+
+            if (checkScope) {
+                const { error: updErr } = await supabase.from('user_access_scopes').update({
+                    is_active: true,
+                    unit_id: unitId,
+                    secretariat_id: secretariatId
+                }).eq('id', checkScope.id);
+                if (updErr) throw new Error('Falha ao atualizar user_access_scopes: ' + updErr.message);
+            } else {
+                const { error: insErr } = await supabase.from('user_access_scopes').insert({
+                    user_id: payload.user_id,
+                    tenant_id: tenantId,
+                    module_id: modData.id,
+                    is_active: true,
+                    unit_id: unitId,
+                    secretariat_id: secretariatId
+                });
+                if (insErr) throw new Error('Falha ao inserir em user_access_scopes: ' + insErr.message);
+            }
+        } else {
+            throw new Error('Módulo LABORATORIO não encontrado na tabela system_modules.');
+        }
+
+        return { success: true, user_id: payload.user_id };
+    }
+
+    // 2. Se não existe, prosseguir com a criação via POST
     const payload = {
         email: userData.email,
         password: tempPassword,
@@ -138,8 +209,6 @@ export const createLaboratorioUser = async (tenantId, userData) => {
         unit_id: unitId,
         secretariat_id: secretariatId
     };
-
-    console.log('[Laboratorio][createLaboratorioUser] Payload enviado:', { ...payload, password: '***' });
 
     const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-user`,
@@ -154,53 +223,45 @@ export const createLaboratorioUser = async (tenantId, userData) => {
     );
 
     const result = await response.json();
-    console.log('[Laboratorio][createLaboratorioUser] Result from manage-user:', result);
-
     if (!response.ok) {
-        // Se a Edge Function retornar que o e-mail já existe, vamos reaproveitar!
+        // Fallback catch em caso de existir no Auth mas não no tenant
         if (result.error && result.error.includes('already been registered')) {
-            console.log('[Laboratorio] E-mail já registrado no Auth. Tentando localizar o usuário para reaproveitamento...');
-            
-            // Buscar usuário existente via RPC do tenant
-            const { data: existingUsers } = await supabase.rpc('get_farmacia_users_with_auth', {
-                p_tenant_id: tenantId
-            });
-            
-            const existingUser = existingUsers?.find(u => u.email.toLowerCase() === userData.email.toLowerCase());
-            
-            if (existingUser) {
-                console.log('[Laboratorio] Usuário localizado no banco. Prosseguindo com criação de vínculos (Upsert).', existingUser.user_id);
-                const targetId = existingUser.user_tenant_id || existingUser.id || existingUser.user_id;
-                
-                // Reaproveita o fluxo de update para garantir user_tenants e user_access_scopes
-                await updateLaboratorioUser(targetId, userData);
-                return { success: true, user_id: existingUser.user_id || targetId };
-            } else {
-                // Falhou na criação e NÃO achamos no tenant. 
-                throw new Error('O e-mail já existe no sistema, mas não conseguimos localizar seu ID neste ambiente para vinculá-lo. Contate o suporte técnico.');
-            }
+             throw new Error('Este e-mail já pertence a outro usuário do sistema fora do seu ambiente.');
         }
-        
         throw new Error(result.error || 'Erro ao criar usuário');
     }
 
-    // Se a Edge Function retornar sucesso mas não criar escopos, podemos avisar (se a edge function retornar essa info)
-    if (result.scopes_created === 0) {
-        console.warn('[Laboratorio][createLaboratorioUser] Usuário criado, mas nenhum escopo foi gerado!', result);
-        throw new Error('Usuário criado na nuvem, mas sem vínculo (escopo) de Laboratório. Verifique as unidades/secretarias.');
-    }
-
-    // POST-CREATION VALIDATION: Verificar no BD se o escopo foi realmente criado
-    if (result.user_id) {
+    // GARANTIR O VÍNCULO NO BANCO (MANUAL UPSERT)
+    const { data: modData } = await supabase.from('system_modules').select('id').eq('key', 'LABORATORIO').maybeSingle();
+    if (modData) {
         const { data: checkScope } = await supabase
             .from('user_access_scopes')
-            .select('id, module_id')
+            .select('id')
             .eq('user_id', result.user_id)
-            .eq('tenant_id', tenantId);
+            .eq('tenant_id', tenantId)
+            .eq('module_id', modData.id)
+            .maybeSingle();
             
-        if (!checkScope || checkScope.length === 0) {
-            throw new Error(`Falha no vínculo: O usuário foi criado, mas a Edge Function não inseriu permissões para o Laboratório. Possível causa: Secretaria ou Unidade inválida no payload.`);
+        if (checkScope) {
+            const { error: updErr } = await supabase.from('user_access_scopes').update({
+                is_active: true,
+                unit_id: unitId,
+                secretariat_id: secretariatId
+            }).eq('id', checkScope.id);
+            if (updErr) throw new Error('Falha ao atualizar user_access_scopes: ' + updErr.message);
+        } else {
+            const { error: insErr } = await supabase.from('user_access_scopes').insert({
+                user_id: result.user_id,
+                tenant_id: tenantId,
+                module_id: modData.id,
+                is_active: true,
+                unit_id: unitId,
+                secretariat_id: secretariatId
+            });
+            if (insErr) throw new Error('Falha ao inserir em user_access_scopes: ' + insErr.message);
         }
+    } else {
+        throw new Error('Módulo LABORATORIO não encontrado na tabela system_modules.');
     }
 
     return { success: true, user_id: result.user_id };
@@ -232,15 +293,16 @@ export const updateLaboratorioUser = async (userTenantId, userData) => {
         }
     }
 
-    // Fallback para secretaria
     if (!secretariatId) {
         const { data: fallbackSec } = await supabase
             .from('secretariats')
-            .select('id, name')
+            .select('id')
             .eq('tenant_id', tenantLink.tenant_id)
             .limit(1)
             .maybeSingle();
-        if (fallbackSec) secretariatId = fallbackSec.id;
+        if (fallbackSec) {
+            secretariatId = fallbackSec.id;
+        }
     }
 
     const payload = {
@@ -255,8 +317,6 @@ export const updateLaboratorioUser = async (userTenantId, userData) => {
         secretariat_id: secretariatId
     };
 
-    console.log('[Laboratorio][updateLaboratorioUser] Payload:', payload);
-
     const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-user`,
         {
@@ -270,21 +330,41 @@ export const updateLaboratorioUser = async (userTenantId, userData) => {
     );
 
     const result = await response.json();
-    console.log('[Laboratorio][updateLaboratorioUser] Result:', result);
-
     if (!response.ok) {
         throw new Error(result.error || 'Erro ao atualizar usuário');
     }
 
-    // POST-UPDATE VALIDATION: Garantir que o escopo foi criado/mantido
-    const { data: checkScope } = await supabase
-        .from('user_access_scopes')
-        .select('id, module_id')
-        .eq('user_id', tenantLink.user_id)
-        .eq('tenant_id', tenantLink.tenant_id);
-        
-    if (!checkScope || checkScope.length === 0) {
-        throw new Error(`Falha no vínculo: O usuário foi atualizado no Auth, mas a Edge Function não inseriu/atualizou as permissões para o Laboratório. Verifique a Unidade ou Secretaria.`);
+    // GARANTIR O VÍNCULO NO BANCO (MANUAL UPSERT)
+    const { data: modData } = await supabase.from('system_modules').select('id').eq('key', 'LABORATORIO').maybeSingle();
+    if (modData) {
+        const { data: checkScope } = await supabase
+            .from('user_access_scopes')
+            .select('id')
+            .eq('user_id', payload.user_id)
+            .eq('tenant_id', tenantLink.tenant_id)
+            .eq('module_id', modData.id)
+            .maybeSingle();
+            
+        if (checkScope) {
+            const { error: updErr } = await supabase.from('user_access_scopes').update({
+                is_active: true,
+                unit_id: unitId,
+                secretariat_id: secretariatId
+            }).eq('id', checkScope.id);
+            if (updErr) throw new Error('Falha ao atualizar user_access_scopes: ' + updErr.message);
+        } else {
+            const { error: insErr } = await supabase.from('user_access_scopes').insert({
+                user_id: payload.user_id,
+                tenant_id: tenantLink.tenant_id,
+                module_id: modData.id,
+                is_active: true,
+                unit_id: unitId,
+                secretariat_id: secretariatId
+            });
+            if (insErr) throw new Error('Falha ao inserir em user_access_scopes: ' + insErr.message);
+        }
+    } else {
+        throw new Error('Módulo LABORATORIO não encontrado na tabela system_modules.');
     }
 
     return { success: true };
