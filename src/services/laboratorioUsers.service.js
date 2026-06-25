@@ -93,7 +93,7 @@ export const fetchLaboratorioUsers = async (tenantId) => {
 };
 
 export const createLaboratorioUser = async (tenantId, userData) => {
-    const tempPassword = 'Laboratorio@123';
+    const tempPassword = 'Lab@123';
     let unitId = null;
     let secretariatId = null;
 
