@@ -109,6 +109,8 @@ export const createLaboratorioUser = async (tenantId, userData) => {
             unitId = unitData.id;
             secretariatId = unitData.secretariat_id;
         }
+    }
+
     // Se ainda não temos uma secretaria, buscar a primeira disponível no BD para garantir a criação do escopo
     if (!secretariatId) {
         console.warn('[Laboratorio] Unidade não encontrada. Buscando qualquer secretaria para fallback...');
@@ -155,6 +157,30 @@ export const createLaboratorioUser = async (tenantId, userData) => {
     console.log('[Laboratorio][createLaboratorioUser] Result from manage-user:', result);
 
     if (!response.ok) {
+        // Se a Edge Function retornar que o e-mail já existe, vamos reaproveitar!
+        if (result.error && result.error.includes('already been registered')) {
+            console.log('[Laboratorio] E-mail já registrado no Auth. Tentando localizar o usuário para reaproveitamento...');
+            
+            // Buscar usuário existente via RPC do tenant
+            const { data: existingUsers } = await supabase.rpc('get_farmacia_users_with_auth', {
+                p_tenant_id: tenantId
+            });
+            
+            const existingUser = existingUsers?.find(u => u.email.toLowerCase() === userData.email.toLowerCase());
+            
+            if (existingUser) {
+                console.log('[Laboratorio] Usuário localizado no banco. Prosseguindo com criação de vínculos (Upsert).', existingUser.user_id);
+                const targetId = existingUser.user_tenant_id || existingUser.id || existingUser.user_id;
+                
+                // Reaproveita o fluxo de update para garantir user_tenants e user_access_scopes
+                await updateLaboratorioUser(targetId, userData);
+                return { success: true, user_id: existingUser.user_id || targetId };
+            } else {
+                // Falhou na criação e NÃO achamos no tenant. 
+                throw new Error('O e-mail já existe no sistema, mas não conseguimos localizar seu ID neste ambiente para vinculá-lo. Contate o suporte técnico.');
+            }
+        }
+        
         throw new Error(result.error || 'Erro ao criar usuário');
     }
 
@@ -204,6 +230,8 @@ export const updateLaboratorioUser = async (userTenantId, userData) => {
             unitId = unitData.id;
             secretariatId = unitData.secretariat_id;
         }
+    }
+
     // Fallback para secretaria
     if (!secretariatId) {
         const { data: fallbackSec } = await supabase
@@ -246,6 +274,17 @@ export const updateLaboratorioUser = async (userTenantId, userData) => {
 
     if (!response.ok) {
         throw new Error(result.error || 'Erro ao atualizar usuário');
+    }
+
+    // POST-UPDATE VALIDATION: Garantir que o escopo foi criado/mantido
+    const { data: checkScope } = await supabase
+        .from('user_access_scopes')
+        .select('id, module_id')
+        .eq('user_id', tenantLink.user_id)
+        .eq('tenant_id', tenantLink.tenant_id);
+        
+    if (!checkScope || checkScope.length === 0) {
+        throw new Error(`Falha no vínculo: O usuário foi atualizado no Auth, mas a Edge Function não inseriu/atualizou as permissões para o Laboratório. Verifique a Unidade ou Secretaria.`);
     }
 
     return { success: true };
