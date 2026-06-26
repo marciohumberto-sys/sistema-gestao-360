@@ -446,3 +446,10 @@
 .status-warning { background: #fef3c7; color: #b45309; }
 .status-default { background: #f1f5f9; color: #475569; }
 .status-info { background: #e0f2fe; color: #0369a1; }
+
+/* Override global do page-wrapper apenas quando estiver na tela de Resultados */
+.page-wrapper:has(.lab-res-container) {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+}

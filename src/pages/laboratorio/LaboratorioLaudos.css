@@ -454,3 +454,10 @@
     color: #666;
     font-size: 10px;
 }
+
+/* Override global do page-wrapper apenas quando estiver na tela de Laudos */
+.page-wrapper:has(.lab-laudos-container) {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+}

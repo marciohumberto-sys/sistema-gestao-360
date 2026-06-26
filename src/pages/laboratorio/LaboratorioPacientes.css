@@ -261,3 +261,10 @@
     width: 100%;
     margin-top: auto;
 }
+
+/* Override global do page-wrapper apenas quando estiver na tela de Pacientes */
+.page-wrapper:has(.lab-pac-container) {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+}

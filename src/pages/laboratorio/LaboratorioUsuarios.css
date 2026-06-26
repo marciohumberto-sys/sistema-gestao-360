@@ -225,3 +225,10 @@
     background: #f1f5f9;
     color: #ef4444;
 }
+
+/* Override global do page-wrapper apenas quando estiver na tela de Usuários */
+.page-wrapper:has(.lab-users-container) {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+}
