@@ -1471,7 +1471,7 @@ const AcoesList = () => {
                                     {renderSortIcon('prazo')}
                                 </div>
                             </th>
-                            <th>Responsável</th>
+                            <th style={{ maxWidth: '150px' }}>Responsável</th>
                             <th className="col-acoes" style={{ textAlign: 'right' }}>Ações</th>
                         </tr>
                     </thead>
@@ -1746,8 +1746,20 @@ const AcoesList = () => {
                                              {prazoUI}
                                          </div>
                                      </td>
-                                     <td className="col-responsavel">
-                                         <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{acao.responsavel || 'Não informado'}</span>
+                                     <td className="col-responsavel" style={{ maxWidth: '150px' }}>
+                                         <div 
+                                             title={acao.responsavel || 'Não informado'}
+                                             style={{ 
+                                                 fontSize: '0.85rem', 
+                                                 fontWeight: 500, 
+                                                 whiteSpace: 'nowrap', 
+                                                 overflow: 'hidden', 
+                                                 textOverflow: 'ellipsis',
+                                                 width: '100%'
+                                             }}
+                                         >
+                                             {acao.responsavel || 'Não informado'}
+                                         </div>
                                      </td>
                                     <td className="col-acoes">
                                         <div className="acoes-container">
