@@ -1427,6 +1427,45 @@ const AcoesList = () => {
                     opacity: 1;
                 }
                 
+                /* Tooltip Moderno para Responsável e Outros Campos Longos */
+                .responsavel-tooltip-wrapper { position: relative; display: inline-flex; align-items: center; width: 100%; cursor: help; }
+                .responsavel-tooltip-wrapper .responsavel-tooltip {
+                    visibility: hidden;
+                    width: max-content;
+                    max-width: 280px;
+                    background-color: #1e293b;
+                    color: #f8fafc;
+                    text-align: left;
+                    border-radius: 8px;
+                    padding: 10px 14px;
+                    position: absolute;
+                    z-index: 9999;
+                    bottom: 125%;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    opacity: 0;
+                    transition: opacity 0.2s;
+                    font-size: 0.8rem;
+                    line-height: 1.4;
+                    white-space: normal;
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+                    font-weight: 500;
+                    pointer-events: none;
+                }
+                .responsavel-tooltip-wrapper .responsavel-tooltip::after {
+                    content: "";
+                    position: absolute;
+                    top: 100%;
+                    left: 50%;
+                    margin-left: -6px;
+                    border-width: 6px;
+                    border-style: solid;
+                    border-color: #1e293b transparent transparent transparent;
+                }
+                .responsavel-tooltip-wrapper:hover .responsavel-tooltip {
+                    visibility: visible;
+                    opacity: 1;
+                }
                 `}</style>
                 <div className="farmacia-table-wrapper" style={{ border: 'none', boxShadow: 'none', margin: 0, borderRadius: '0 0 10px 10px' }}>
                 <table className="farmacia-table">
@@ -1747,18 +1786,22 @@ const AcoesList = () => {
                                          </div>
                                      </td>
                                      <td className="col-responsavel" style={{ maxWidth: '150px' }}>
-                                         <div 
-                                             title={acao.responsavel || 'Não informado'}
-                                             style={{ 
-                                                 fontSize: '0.85rem', 
-                                                 fontWeight: 500, 
-                                                 whiteSpace: 'nowrap', 
-                                                 overflow: 'hidden', 
-                                                 textOverflow: 'ellipsis',
-                                                 width: '100%'
-                                             }}
-                                         >
-                                             {acao.responsavel || 'Não informado'}
+                                         <div className="responsavel-tooltip-wrapper">
+                                             <div 
+                                                 style={{ 
+                                                     fontSize: '0.85rem', 
+                                                     fontWeight: 500, 
+                                                     whiteSpace: 'nowrap', 
+                                                     overflow: 'hidden', 
+                                                     textOverflow: 'ellipsis',
+                                                     width: '100%'
+                                                 }}
+                                             >
+                                                 {acao.responsavel || 'Não informado'}
+                                             </div>
+                                             <div className="responsavel-tooltip">
+                                                 {acao.responsavel || 'Não informado'}
+                                             </div>
                                          </div>
                                      </td>
                                     <td className="col-acoes">
@@ -2710,7 +2753,7 @@ const AcoesList = () => {
                         <div className="farmacia-modal-body custom-scrollbar" style={{ 
                             flex: 1, 
                             overflowY: 'auto', 
-                            padding: '1.25rem 1.75rem 2.5rem 1.75rem',
+                            padding: '1.25rem 1.75rem 100px 1.75rem',
                             backgroundColor: '#fff'
                         }}>
                             <style>{`
@@ -2976,87 +3019,102 @@ const AcoesList = () => {
                                 ) : (
                                     <div style={{ 
                                         marginTop: '0.5rem', 
-                                        padding: '2.5rem 1.5rem', 
+                                        padding: '1.25rem', 
                                         textAlign: 'center', 
                                         background: '#f8fafc', 
-                                        borderRadius: '12px', 
+                                        borderRadius: '10px', 
                                         border: '1px dashed #cbd5e1', 
                                         display: 'flex', 
                                         flexDirection: 'column', 
                                         alignItems: 'center', 
                                         justifyContent: 'center',
-                                        gap: '16px' 
+                                        gap: '10px' 
                                     }}>
                                         <div style={{ 
-                                            width: '56px', 
-                                            height: '56px', 
+                                            width: '40px', 
+                                            height: '40px', 
                                             borderRadius: '50%', 
                                             background: '#e2e8f0', 
                                             display: 'flex', 
                                             alignItems: 'center', 
                                             justifyContent: 'center', 
-                                            color: '#64748b',
-                                            marginBottom: '2px' 
+                                            color: '#64748b'
                                         }}>
-                                            <MessageSquare size={24} />
+                                            <MessageSquare size={18} />
                                         </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#1e293b' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <h5 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#475569' }}>
                                                 Nenhuma atualização registrada
                                             </h5>
-                                            <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8', maxWidth: '300px', lineHeight: '1.4' }}>
-                                                Esta ação ainda não recebeu registros de acompanhamento.
-                                            </p>
                                         </div>
                                         <button 
-                                            className="farmacia-btn-primary" 
+                                            className="farmacia-btn-secondary" 
                                             style={{ 
                                                 marginTop: '4px', 
-                                                padding: '8px 16px', 
-                                                fontSize: '0.8rem', 
-                                                gap: '8px', 
+                                                padding: '6px 14px', 
+                                                fontSize: '0.75rem', 
+                                                gap: '6px', 
                                                 height: 'auto', 
                                                 fontWeight: 600,
-                                                cursor: 'pointer'
+                                                cursor: 'pointer',
+                                                border: '1px solid #cbd5e1',
+                                                backgroundColor: '#fff',
+                                                color: '#475569'
                                             }}
                                             onClick={() => {
                                                 closeViewModal();
                                                 navigate('/planejamento/atualizacoes', { state: { openModal: 'nova-atualizacao', acaoId: viewingAcao.id } });
                                             }}
                                         >
-                                            <Plus size={14} /> Registrar primeira atualização
+                                            <Plus size={12} /> Primeira atualização
                                         </button>
                                     </div>
                                 )}
                                 {/* Grid de Informações */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', width: '100%' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: 0 }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tipo da Ação</span>
                                             <div style={{ marginTop: '2px' }}>{getActionTypeBadge(viewingAcao.action_type)}</div>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Eixo Estratégico</span>
-                                            <span style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 700 }}>{viewingAcao.eixo || 'Não informado'}</span>
+                                            <span style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{viewingAcao.eixo || 'Não informado'}</span>
                                         </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '100%', minWidth: 0 }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Objetivo Estratégico</span>
-                                            <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 500, lineHeight: '1.4' }}>{viewingAcao.objective_title || 'Objetivo não informado'}</span>
+                                            <div className="responsavel-tooltip-wrapper" style={{ display: 'block', width: '100%' }}>
+                                                <div style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 500, lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                                    {viewingAcao.objective_title || 'Objetivo não informado'}
+                                                </div>
+                                                {viewingAcao.objective_title && viewingAcao.objective_title.length > 50 && (
+                                                    <div className="responsavel-tooltip" style={{ fontWeight: 400, left: '0', transform: 'none', bottom: '100%', marginBottom: '5px' }}>
+                                                        {viewingAcao.objective_title}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Responsável Técnico</span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.7rem', fontWeight: 700 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
                                                     {(viewingAcao.responsible_name || viewingAcao.responsavel || 'N').charAt(0).toUpperCase()}
                                                 </div>
-                                                <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{viewingAcao.responsible_name || viewingAcao.responsavel || 'Não informado'}</span>
+                                                <div className="responsavel-tooltip-wrapper" style={{ minWidth: 0 }}>
+                                                    <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', width: '100%' }}>
+                                                        {viewingAcao.responsible_name || viewingAcao.responsavel || 'Não informado'}
+                                                    </span>
+                                                    <div className="responsavel-tooltip">
+                                                        {viewingAcao.responsible_name || viewingAcao.responsavel || 'Não informado'}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: 0 }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Secretaria Principal</span>
-                                            <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600 }}>{viewingAcao.secretariaFull || viewingAcao.secretaria || 'Não informada'}</span>
+                                            <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{viewingAcao.secretariaFull || viewingAcao.secretaria || 'Não informada'}</span>
                                             {viewingParticipantes && viewingParticipantes.length > 0 && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
                                                     <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Participantes</span>
@@ -3071,17 +3129,17 @@ const AcoesList = () => {
                                             )}
                                         </div>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: 0 }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Localização</span>
-                                            <div style={{ marginTop: '4px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <MapPin size={14} color="#64748b" style={{ flexShrink: 0 }} />
-                                                    <span style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600 }}>
+                                            <div style={{ marginTop: '4px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: '100%', overflow: 'hidden' }}>
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                                                    <MapPin size={14} color="#64748b" style={{ flexShrink: 0, marginTop: '2px' }} />
+                                                    <span style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600, wordBreak: 'break-word', whiteSpace: 'normal' }}>
                                                         {viewingAcao.address_street || viewingAcao.local || 'Rua/Local não informado'}{viewingAcao.address_number ? `, ${viewingAcao.address_number}` : ''}
                                                     </span>
                                                 </div>
-                                                <div style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                <div style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '2px', wordBreak: 'break-word' }}>
                                                     {(viewingAcao.address_district || viewingAcao.address_city) && (
                                                         <span style={{ fontSize: '0.8rem', color: '#475569' }}>
                                                             {viewingAcao.address_district || ''}{viewingAcao.address_district && viewingAcao.address_city ? ' - ' : ''}{viewingAcao.address_city || ''}{viewingAcao.address_state ? `/${viewingAcao.address_state}` : ''}
@@ -3094,7 +3152,7 @@ const AcoesList = () => {
                                         </div>
                                     </div>
                                     {/* Descrição Detalhada - Movida para cima */}
-                                    <div style={{ gridColumn: 'span 3', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
+                                    <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
                                         <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <Info size={14} /> Descrição Detalhada
                                         </span>
@@ -3102,79 +3160,79 @@ const AcoesList = () => {
                                             {viewingAcao.descricao || 'Sem descrição detalhada cadastrada.'}
                                         </div>
                                     </div>
-                                    {(() => {
-                                        const currentProgress = getDisplayProgress(viewingAcao);
-                                        let stageList = [];
-                                        let currentIdx = null;
-                                        
-                                        if (viewingAcao.action_type === 'ACAO_PONTUAL') {
-                                            if (typeof viewingAcao.custom_stages === 'string') {
-                                                try { stageList = JSON.parse(viewingAcao.custom_stages); } catch(e) {}
-                                            } else if (Array.isArray(viewingAcao.custom_stages)) {
-                                                stageList = viewingAcao.custom_stages;
+                                    <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
+                                        {(() => {
+                                            const currentProgress = getDisplayProgress(viewingAcao);
+                                            let stageList = [];
+                                            let currentIdx = null;
+                                            
+                                            if (viewingAcao.action_type === 'ACAO_PONTUAL') {
+                                                if (typeof viewingAcao.custom_stages === 'string') {
+                                                    try { stageList = JSON.parse(viewingAcao.custom_stages); } catch(e) {}
+                                                } else if (Array.isArray(viewingAcao.custom_stages)) {
+                                                    stageList = viewingAcao.custom_stages;
+                                                }
+                                                currentIdx = viewingAcao.current_stage_index;
+                                            } else {
+                                                stageList = getActionTypeStages(viewingAcao.action_type) || [];
+                                                let best = -1;
+                                                stageList.forEach((s, i) => { if (s.progress <= currentProgress) best = i; });
+                                                currentIdx = best >= 0 ? best : null;
                                             }
-                                            currentIdx = viewingAcao.current_stage_index;
-                                        } else {
-                                            stageList = getActionTypeStages(viewingAcao.action_type) || [];
-                                            let best = -1;
-                                            stageList.forEach((s, i) => { if (s.progress <= currentProgress) best = i; });
-                                            currentIdx = best >= 0 ? best : null;
-                                        }
-                                        
-                                        if (!stageList || stageList.length === 0) return null;
-                                        
-                                        const config = getActionTypeConfig ? getActionTypeConfig(viewingAcao.action_type) : null;
-                                        const stageTitle = config?.label ? `Etapas — ${config.label}` : 'Progresso por Etapas';
-                                        return (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
-                                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <Activity size={14} /> {stageTitle}
-                                            </span>
-                                            <div style={{ background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '280px', overflowY: 'auto', padding: '8px' }} className="custom-scrollbar">
-                                                    {stageList.map((stage, idx) => {
-                                                        const isCurrent = currentIdx === idx;
-                                                        const isCompleted = currentIdx !== null && idx < currentIdx;
-                                                        let bgColor = 'transparent', borderColor = 'transparent', titleColor = '#94a3b8', progColor = '#94a3b8';
-                                                        if (isCompleted) { bgColor = '#f0fdf4'; borderColor = '#bbf7d0'; titleColor = '#166534'; progColor = '#22c55e'; }
-                                                        else if (isCurrent) { bgColor = '#eff6ff'; borderColor = '#bfdbfe'; titleColor = '#1e3a8a'; progColor = '#3b82f6'; }
-                                                        return (
-                                                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', backgroundColor: bgColor, borderRadius: '6px', border: `1px solid ${borderColor}` }}>
-                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                        {isCompleted ? <CheckCircle2 size={13} color="#22c55e" /> : <span style={{ fontSize: '0.78rem', fontWeight: 700, color: titleColor, width: '16px' }}>{idx + 1}.</span>}
-                                                                        <span style={{ fontSize: '0.82rem', fontWeight: isCurrent ? 700 : 500, color: titleColor }}>{stage.name}</span>
-                                                                        {isCurrent && <span style={{ fontSize: '0.6rem', backgroundColor: '#bfdbfe', color: '#1e3a8a', padding: '1px 7px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atual</span>}
+
+                                            if (!stageList || stageList.length === 0) return null;
+                                            
+                                            const config = getActionTypeConfig ? getActionTypeConfig(viewingAcao.action_type) : null;
+                                            const stageTitle = config?.label ? `Etapas — ${config.label}` : 'Progresso por Etapas';
+                                            return (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
+                                                <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <Activity size={14} /> {stageTitle}
+                                                </span>
+                                                <div style={{ background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '350px', overflowY: 'auto', padding: '8px' }} className="custom-scrollbar">
+                                                        {stageList.map((stage, idx) => {
+                                                            const isCurrent = currentIdx === idx;
+                                                            const isCompleted = currentIdx !== null && idx < currentIdx;
+                                                            let bgColor = 'transparent', borderColor = 'transparent', titleColor = '#94a3b8', progColor = '#94a3b8';
+                                                            if (isCompleted) { bgColor = '#f0fdf4'; borderColor = '#bbf7d0'; titleColor = '#166534'; progColor = '#22c55e'; }
+                                                            else if (isCurrent) { bgColor = '#eff6ff'; borderColor = '#bfdbfe'; titleColor = '#1e3a8a'; progColor = '#3b82f6'; }
+                                                            return (
+                                                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', backgroundColor: bgColor, borderRadius: '6px', border: `1px solid ${borderColor}`, minWidth: 0 }}>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                                            {isCompleted ? <CheckCircle2 size={13} color="#22c55e" style={{ flexShrink: 0 }} /> : <span style={{ fontSize: '0.78rem', fontWeight: 700, color: titleColor, width: '16px', flexShrink: 0 }}>{idx + 1}.</span>}
+                                                                            <span style={{ fontSize: '0.82rem', fontWeight: isCurrent ? 700 : 500, color: titleColor, wordWrap: 'break-word', overflowWrap: 'anywhere' }}>{stage.label || stage.name}</span>
+                                                                            {isCurrent && <span style={{ fontSize: '0.6rem', backgroundColor: '#bfdbfe', color: '#1e3a8a', padding: '1px 7px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atual</span>}
+                                                                        </div>
+                                                                        {isCurrent && viewingAcao.current_stage_observation && (
+                                                                            <span style={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic', marginLeft: '24px', opacity: 0.9, wordBreak: 'break-word' }}>
+                                                                                "{viewingAcao.current_stage_observation}"
+                                                                            </span>
+                                                                        )}
                                                                     </div>
-                                                                    {isCurrent && viewingAcao.current_stage_observation && (
-                                                                        <span style={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic', marginLeft: '24px', opacity: 0.9 }}>
-                                                                            "{viewingAcao.current_stage_observation}"
-                                                                        </span>
-                                                                    )}
+                                                                    <span style={{ fontSize: '0.78rem', fontWeight: 800, color: progColor, flexShrink: 0, marginLeft: '8px' }}>{stage.progress}%</span>
                                                                 </div>
-                                                                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: progColor, flexShrink: 0, marginLeft: '8px' }}>{stage.progress}%</span>
-                                                            </div>
-                                                        );
-                                                    })}
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    );
-                                })()}
+                                            );
+                                        })()}
 
-
-
-                                {/* Observações Importantes */}
-                                {viewingAcao.observacoes && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '0.5rem', paddingTop: '1.5rem', borderTop: '2px dashed #f1f5f9' }}>
-                                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <AlertTriangle size={14} /> Observações Importantes
-                                        </span>
-                                        <div style={{ background: '#fffbeb', padding: '1.25rem', borderRadius: '10px', border: '1px solid #fde68a', fontSize: '0.9rem', color: '#92400e', lineHeight: '1.6', boxShadow: '0 1px 3px rgba(251,191,36,0.1)' }}>
-                                            {viewingAcao.observacoes}
-                                        </div>
+                                        {/* Observações Importantes */}
+                                        {viewingAcao.observacoes && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
+                                                <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <AlertTriangle size={14} /> Observações Importantes
+                                                </span>
+                                                <div className="custom-scrollbar" style={{ background: '#fffbeb', padding: '1.25rem', borderRadius: '10px', border: '1px solid #fde68a', fontSize: '0.9rem', color: '#92400e', lineHeight: '1.6', boxShadow: '0 1px 3px rgba(251,191,36,0.1)', wordBreak: 'break-word', maxHeight: '350px', overflowY: 'auto' }}>
+                                                    {viewingAcao.observacoes}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
 
                             </div>
                         </div>
