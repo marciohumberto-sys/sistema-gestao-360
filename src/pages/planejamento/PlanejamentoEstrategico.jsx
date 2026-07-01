@@ -4,6 +4,13 @@ import { useAuth } from '../../context/AuthContext';
 import { planejamentoService } from '../../services/api/planejamento.service';
 import './PlanejamentoEstrategico.css';
 
+const strategicTimelineMockData = [
+    { year: 2025, active: true, badges: [{ text: '32 objetivos em andamento', color: 'blue' }, { text: '8 entregas concluídas', color: 'green' }] },
+    { year: 2026, active: false, badges: [{ text: '28 objetivos planejados', color: 'gray' }, { text: '0 entregas', color: 'gray' }] },
+    { year: 2027, active: false, badges: [{ text: '22 objetivos planejados', color: 'gray' }, { text: '0 entregas', color: 'gray' }] },
+    { year: 2028, active: false, badges: [{ text: '12 objetivos planejados', color: 'gray' }, { text: '0 entregas', color: 'gray' }] }
+];
+
 const PlanejamentoEstrategico = () => {
     const { tenantLink } = useAuth();
     const [data, setData] = useState(null);
@@ -553,51 +560,21 @@ const PlanejamentoEstrategico = () => {
                     <div className="pe-timeline-wrapper">
                         <div className="pe-timeline-line"></div>
                         <div className="pe-timeline-container">
-                            
-                            <div className="pe-timeline-step">
-                                <div className="pe-timeline-year">2025</div>
-                                <div className="pe-timeline-dot active"></div>
-                                <div className="pe-timeline-content">
-                                    <div className="pe-timeline-badges" style={{ flexDirection: 'column', width: '100%', gap: '8px' }}>
-                                        <span className="pe-timeline-badge blue" style={{ width: '100%' }}>32 objetivos em andamento</span>
-                                        <span className="pe-timeline-badge green" style={{ width: '100%' }}>8 entregas concluídas</span>
+                            {strategicTimelineMockData.map((step, idx) => (
+                                <div key={idx} className="pe-timeline-step">
+                                    <div className="pe-timeline-year">{step.year}</div>
+                                    <div className={`pe-timeline-dot ${step.active ? 'active' : ''}`}></div>
+                                    <div className="pe-timeline-content">
+                                        <div className="pe-timeline-badges" style={{ flexDirection: 'column', width: '100%', gap: '8px' }}>
+                                            {step.badges.map((badge, bIdx) => (
+                                                <span key={bIdx} className={`pe-timeline-badge ${badge.color}`} style={{ width: '100%' }}>
+                                                    {badge.text}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <div className="pe-timeline-step">
-                                <div className="pe-timeline-year">2026</div>
-                                <div className="pe-timeline-dot"></div>
-                                <div className="pe-timeline-content">
-                                    <div className="pe-timeline-badges" style={{ flexDirection: 'column', width: '100%', gap: '8px' }}>
-                                        <span className="pe-timeline-badge gray" style={{ width: '100%' }}>28 objetivos planejados</span>
-                                        <span className="pe-timeline-badge gray" style={{ width: '100%' }}>0 entregas</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="pe-timeline-step">
-                                <div className="pe-timeline-year">2027</div>
-                                <div className="pe-timeline-dot"></div>
-                                <div className="pe-timeline-content">
-                                    <div className="pe-timeline-badges" style={{ flexDirection: 'column', width: '100%', gap: '8px' }}>
-                                        <span className="pe-timeline-badge gray" style={{ width: '100%' }}>22 objetivos planejados</span>
-                                        <span className="pe-timeline-badge gray" style={{ width: '100%' }}>0 entregas</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="pe-timeline-step">
-                                <div className="pe-timeline-year">2028</div>
-                                <div className="pe-timeline-dot"></div>
-                                <div className="pe-timeline-content">
-                                    <div className="pe-timeline-badges" style={{ flexDirection: 'column', width: '100%', gap: '8px' }}>
-                                        <span className="pe-timeline-badge gray" style={{ width: '100%' }}>12 objetivos planejados</span>
-                                        <span className="pe-timeline-badge gray" style={{ width: '100%' }}>0 entregas</span>
-                                    </div>
-                                </div>
-                            </div>
-
+                            ))}
                         </div>
                     </div>
                 </div>

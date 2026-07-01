@@ -209,6 +209,7 @@ const AcoesList = () => {
     const [statusFiltro, setStatusFiltro] = useState('Todos');
     const [secretariaFiltro, setSecretariaFiltro] = useState('Todas');
     const [tipoFiltro, setTipoFiltro] = useState('Todos');
+    const [eixoFiltro, setEixoFiltro] = useState('Todos');
     const [secretariatsTooltip, setSecretariatsTooltip] = useState(null);
 
     // Estado dos dados reais
@@ -899,7 +900,8 @@ const AcoesList = () => {
             const mStatus = statusFiltro === 'Todos' || a.status === statusFiltro;
             const mSec = secretariaFiltro === 'Todas' || a.secretaria === secretariaFiltro || a.secretariaId === secretariaFiltro;
             const mTipo = tipoFiltro === 'Todos' || (a.action_type || 'PROJETO') === tipoFiltro || (tipoFiltro === 'ACAO_PONTUAL' && a.action_type === 'ACAO');
-            return mBusca && mStatus && mSec && mTipo;
+            const mEixo = eixoFiltro === 'Todos' || a.axis_id === eixoFiltro || a.eixoId === eixoFiltro || a.axisId === eixoFiltro || a.eixo_id === eixoFiltro;
+            return mBusca && mStatus && mSec && mTipo && mEixo;
         });
 
         if (sortConfig.key) {
@@ -923,7 +925,7 @@ const AcoesList = () => {
         }
 
         return filtered;
-    }, [busca, statusFiltro, secretariaFiltro, tipoFiltro, acoes, sortConfig]);
+    }, [busca, statusFiltro, secretariaFiltro, tipoFiltro, eixoFiltro, acoes, sortConfig]);
 
     const metrics = useMemo(() => {
         const now = new Date();
@@ -942,9 +944,9 @@ const AcoesList = () => {
             if (a.status === 'CONCLUIDA') concluidas++;
             if (a.status === 'EM_RISCO') emRisco++;
 
-            const lastUpdate = new Date(a.last_manual_update_at || a.created_at || now);
-            const diffDaysUpdate = Math.floor((now - lastUpdate) / (1000 * 60 * 60 * 24));
-            if (diffDaysUpdate > 15) semAtualizacao++;
+            if (!a.last_manual_update_at && a.status !== 'CONCLUIDA' && a.status !== 'CANCELADA') {
+                semAtualizacao++;
+            }
 
             if (a.prazo && a.status !== 'CONCLUIDA') {
                 const prazoDate = new Date(`${a.prazo}T12:00:00`);
@@ -1207,10 +1209,15 @@ const AcoesList = () => {
                         </div>
 
                         <div className="farmacia-select-wrapper eixo-wrapper" style={{ minWidth: '160px', position: 'relative' }}>
-                            <select className="farmacia-filter-select" style={{ width: '100%' }}>
+                            <select 
+                                className="farmacia-filter-select" 
+                                style={{ width: '100%' }}
+                                value={eixoFiltro}
+                                onChange={(e) => setEixoFiltro(e.target.value)}
+                            >
                                 <option value="Todos">Eixo: Todos</option>
                                 {axes.map(ax => (
-                                    <option key={ax.id} value={ax.name}>{ax.name}</option>
+                                    <option key={ax.id} value={ax.id}>{ax.name}</option>
                                 ))}
                             </select>
                             <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />

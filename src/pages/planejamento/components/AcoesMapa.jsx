@@ -414,7 +414,7 @@ const AcoesMapa = ({ data }) => {
                         ) : (
                             <>
                                 <span style={{color: '#f59e0b', fontSize: '0.8rem'}}>ℹ</span>
-                                {qtdSemLocalizacao} {qtdSemLocalizacao === 1 ? 'ação não exibida' : 'ações ocultas'} por falta de localização
+                                {qtdSemLocalizacao} {qtdSemLocalizacao === 1 ? 'ação sem localização georreferenciada' : 'ações sem localização georreferenciada'}
                             </>
                         )}
                     </div>

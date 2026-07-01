@@ -1,10 +1,9 @@
 import { supabase } from '../../lib/supabase';
 
 class PlanejamentoService {
-    async getDashboardData(tenantId: string) {
+    async getRawDashboardData(tenantId: string) {
         if (!tenantId) return null;
 
-        // module_id fixo do módulo PLANEJAMENTO_ESTRATEGICO
         const MODULE_ID = '2d53a6f6-5638-45bc-a87e-1ab5d88d6134';
 
         const [
@@ -12,14 +11,15 @@ class PlanejamentoService {
             { data: updates, error: errUpdates },
             { data: issues, error: errIssues },
             { data: axes, error: errAxes },
-            { data: secretariats, error: errSecs }
+            { data: secretariats, error: errSecs },
+            { data: actionSecretariats, error: errActSecs }
         ] = await Promise.all([
             supabase.from('planning_actions').select('*').eq('tenant_id', tenantId).eq('module_id', MODULE_ID),
-            // Usar created_at — campo real da tabela planning_action_updates
             supabase.from('planning_action_updates').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
             supabase.from('planning_action_issues').select('*').eq('tenant_id', tenantId),
             supabase.from('planning_axes').select('*').eq('tenant_id', tenantId).order('display_order', { ascending: true }),
-            supabase.from('secretariats').select('*').eq('tenant_id', tenantId)
+            supabase.from('secretariats').select('*').eq('tenant_id', tenantId),
+            supabase.from('planning_action_secretariats').select('*').eq('tenant_id', tenantId)
         ]);
 
         if (errActions) { console.error('Erro ações:', errActions); throw errActions; }
@@ -27,16 +27,74 @@ class PlanejamentoService {
         if (errIssues)  { console.error('Erro issues:', errIssues);  throw errIssues;  }
         if (errAxes)    { console.error('Erro axes:', errAxes);      throw errAxes;    }
         if (errSecs)    { console.error('Erro secs:', errSecs);      throw errSecs;    }
+        if (errActSecs) { console.error('Erro action_secretariats:', errActSecs); }
 
-        console.log('--- DIAGNÓSTICO PLANEJAMENTO DASHBOARD ---');
-        console.log('Tenant:', tenantId, '| Module:', MODULE_ID);
-        console.log(`actions: ${actions?.length ?? 0} | updates: ${updates?.length ?? 0} | issues: ${issues?.length ?? 0} | axes: ${axes?.length ?? 0}`);
+        return {
+            actions: actions || [],
+            updates: updates || [],
+            issues: issues || [],
+            axes: axes || [],
+            secretariats: secretariats || [],
+            actionSecretariats: actionSecretariats || []
+        };
+    }
 
-        const safeActions      = actions      || [];
-        const safeUpdates      = updates      || [];
-        const safeIssues       = issues       || [];
-        const safeAxes         = axes         || [];
-        const safeSecretariats = secretariats || [];
+    computeDashboardData(rawData: any, filters?: any) {
+        if (!rawData) return null;
+
+        const { actions, updates, issues, axes, secretariats, actionSecretariats } = rawData;
+
+        // Apply filters
+        let filteredActions = actions;
+
+        if (filters?.eixoId && filters.eixoId !== 'todos') {
+            filteredActions = filteredActions.filter((a: any) => a.axis_id === filters.eixoId);
+        }
+
+        if (filters?.secretariaId && filters.secretariaId !== 'todas') {
+            filteredActions = filteredActions.filter((a: any) => {
+                const isMain = a.secretariat_id === filters.secretariaId;
+                const isParticipant = actionSecretariats.some((as: any) => as.action_id === a.id && as.secretariat_id === filters.secretariaId);
+                return isMain || isParticipant;
+            });
+        }
+
+        if (filters?.periodo && filters.periodo !== 'todos') {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            let startDate = new Date(0);
+            let endDate = new Date(today.getFullYear() + 10, 0, 1);
+
+            if (filters.periodo === 'este-mes') {
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59);
+            } else if (filters.periodo === 'ultimos-30') {
+                startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+                endDate = new Date();
+                endDate.setHours(23, 59, 59, 999);
+            } else if (filters.periodo === 'ultimos-6') {
+                startDate = new Date(today.getFullYear(), today.getMonth() - 6, today.getDate());
+                endDate = new Date();
+                endDate.setHours(23, 59, 59, 999);
+            } else if (filters.periodo === 'este-ano') {
+                startDate = new Date(today.getFullYear(), 0, 1);
+                endDate = new Date(today.getFullYear(), 11, 31, 23, 59, 59);
+            }
+
+            filteredActions = filteredActions.filter((a: any) => {
+                const rawDate = a.due_date || a.completion_date || a.created_at;
+                if (!rawDate) return true; // fallback
+                const actionDate = new Date(rawDate);
+                return actionDate >= startDate && actionDate <= endDate;
+            });
+        }
+
+        const safeActions      = filteredActions;
+        const safeUpdates      = updates;
+        const safeIssues       = issues;
+        const safeAxes         = axes;
+        const safeSecretariats = secretariats;
 
         // ── 1. Pré-processar issues (entraves ativos: tudo exceto RESOLVIDO) ──
         const openIssues = safeIssues.filter(i => i.status !== 'RESOLVIDO');
@@ -62,7 +120,7 @@ class PlanejamentoService {
                 riskStatus = 'ATENCAO';
             }
 
-            if (riskStatus !== 'OK') emRiscoCount++;
+            if (action.status === 'EM_RISCO') emRiscoCount++;
 
             actionsMap.set(action.id, {
                 ...action,
@@ -209,8 +267,8 @@ class PlanejamentoService {
             .map(action => {
                 const lastUpdateTs = latestUpdateMap.get(action.id) || null;
                 
-                // Regra: Sem atualização OU última atualização > 30 dias
-                const isSemAtualizacaoRecente = !lastUpdateTs || (now - lastUpdateTs > THIRTY_DAYS_MS);
+                // Regra: Sem nenhuma atualização em planning_action_updates (mesma regra do KPI)
+                const isSemAtualizacaoRecente = !lastUpdateTs;
 
                 if (!isSemAtualizacaoRecente) return null;
 
@@ -242,7 +300,7 @@ class PlanejamentoService {
 
         // ── 8. Ações em Risco ────────────────────────────────────────────────
         const acoesEmRisco = Array.from(actionsMap.values())
-            .filter(a => a.riskStatus === 'CRITICO' || a.riskStatus === 'ATENCAO')
+            .filter(a => a.status === 'EM_RISCO')
             .sort((a, b) => {
                 // 1. CRITICO primeiro
                 if (a.riskStatus === 'CRITICO' && b.riskStatus !== 'CRITICO') return -1;
@@ -307,6 +365,11 @@ class PlanejamentoService {
         };
     }
 
+    async getDashboardData(tenantId: string) {
+        const raw = await this.getRawDashboardData(tenantId);
+        return this.computeDashboardData(raw);
+    }
+
     async getPlanoEstrategicoData(tenantId: string) {
         if (!tenantId) return null;
 
@@ -338,7 +401,7 @@ class PlanejamentoService {
         const execucaoGeral = totalAcoes > 0 ? parseFloat((sumProgresso / totalAcoes).toFixed(2)) : 0;
         
         const entregasConcluidas = safeActions.filter(a => a.status === 'CONCLUIDA').length;
-        const acoesEmRisco = safeActions.filter(a => a.status === 'EM_RISCO' || a.status === 'PARALISADA').length;
+        const acoesEmRisco = safeActions.filter(a => a.status === 'EM_RISCO').length;
 
         const kpis = {
             totalObjetivos,

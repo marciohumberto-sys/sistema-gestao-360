@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, Filter, MapPin } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { planejamentoService } from '../../services/api/planejamento.service';
@@ -15,16 +15,22 @@ import AcoesMapa from './components/AcoesMapa';
 
 const PlanejamentoDashboard = () => {
     const { tenantLink } = useAuth();
-    const [dashboardData, setDashboardData] = useState(null);
+    const [rawData, setRawData] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    const [filters, setFilters] = useState({
+        periodo: 'todos',
+        eixoId: 'todos',
+        secretariaId: 'todas'
+    });
 
     useEffect(() => {
         const loadData = async () => {
             if (!tenantLink?.tenant_id) return;
             try {
                 setLoading(true);
-                const data = await planejamentoService.getDashboardData(tenantLink.tenant_id);
-                setDashboardData(data);
+                const data = await planejamentoService.getRawDashboardData(tenantLink.tenant_id);
+                setRawData(data);
             } catch (error) {
                 console.error('Erro ao carregar dados do dashboard:', error);
             } finally {
@@ -34,6 +40,11 @@ const PlanejamentoDashboard = () => {
 
         loadData();
     }, [tenantLink]);
+
+    const dashboardData = useMemo(() => {
+        if (!rawData) return null;
+        return planejamentoService.computeDashboardData(rawData, filters);
+    }, [rawData, filters]);
 
     if (loading) {
         return (
@@ -64,15 +75,60 @@ const PlanejamentoDashboard = () => {
                     <p>Visão executiva do monitoramento das ações</p>
                 </div>
                 <div className="planejamento-filters">
-                    <button className="filter-button-mock">
-                        <Calendar size={16} /> Período
-                    </button>
-                    <button className="filter-button-mock">
-                        <Filter size={16} /> Eixo Estratégico
-                    </button>
-                    <button className="filter-button-mock">
-                        <MapPin size={16} /> Secretaria
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: '10px', pointerEvents: 'none', color: '#64748b', display: 'flex' }}>
+                            <Calendar size={16} />
+                        </div>
+                        <select 
+                            className="filter-button-mock" 
+                            style={{ appearance: 'none', paddingLeft: '32px', paddingRight: '28px', cursor: 'pointer', outline: 'none' }}
+                            value={filters.periodo}
+                            onChange={(e) => setFilters(f => ({ ...f, periodo: e.target.value }))}
+                        >
+                            <option value="todos">Todos os períodos</option>
+                            <option value="este-mes">Este mês</option>
+                            <option value="ultimos-30">Últimos 30 dias</option>
+                            <option value="ultimos-6">Últimos 6 meses</option>
+                            <option value="este-ano">Este ano</option>
+                        </select>
+                        <div style={{ position: 'absolute', right: '10px', pointerEvents: 'none', color: '#64748b', fontSize: '0.6rem' }}>▼</div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: '10px', pointerEvents: 'none', color: '#64748b', display: 'flex' }}>
+                            <Filter size={16} />
+                        </div>
+                        <select 
+                            className="filter-button-mock" 
+                            style={{ appearance: 'none', paddingLeft: '32px', paddingRight: '28px', cursor: 'pointer', outline: 'none', maxWidth: '200px' }}
+                            value={filters.eixoId}
+                            onChange={(e) => setFilters(f => ({ ...f, eixoId: e.target.value }))}
+                        >
+                            <option value="todos">Todos os Eixos</option>
+                            {rawData?.axes?.map(a => (
+                                <option key={a.id} value={a.id}>{a.name}</option>
+                            ))}
+                        </select>
+                        <div style={{ position: 'absolute', right: '10px', pointerEvents: 'none', color: '#64748b', fontSize: '0.6rem' }}>▼</div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: '10px', pointerEvents: 'none', color: '#64748b', display: 'flex' }}>
+                            <MapPin size={16} />
+                        </div>
+                        <select 
+                            className="filter-button-mock" 
+                            style={{ appearance: 'none', paddingLeft: '32px', paddingRight: '28px', cursor: 'pointer', outline: 'none', maxWidth: '200px' }}
+                            value={filters.secretariaId}
+                            onChange={(e) => setFilters(f => ({ ...f, secretariaId: e.target.value }))}
+                        >
+                            <option value="todas">Todas as Secretarias</option>
+                            {rawData?.secretariats?.map(s => (
+                                <option key={s.id} value={s.id}>{s.name || s.sigla}</option>
+                            ))}
+                        </select>
+                        <div style={{ position: 'absolute', right: '10px', pointerEvents: 'none', color: '#64748b', fontSize: '0.6rem' }}>▼</div>
+                    </div>
                 </div>
             </header>
 
