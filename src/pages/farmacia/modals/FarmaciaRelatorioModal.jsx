@@ -35,6 +35,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
     const [loading, setLoading] = useState(false);
     const [tableData, setTableData] = useState([]);
     const [columns, setColumns] = useState([]);
+    const [totaisAbc, setTotaisAbc] = useState(null);
     const [errorMsg, setErrorMsg] = useState(null);
     const [emptyMsg, setEmptyMsg] = useState(null);
 
@@ -63,6 +64,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
             setDataFim('');
             setTableData([]);
             setColumns([]);
+            setTotaisAbc(null);
             setErrorMsg(null);
             setEmptyMsg(null);
         }
@@ -142,9 +144,15 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
             } else if (result.emptyMessage) {
                 setEmptyMsg(result.emptyMessage);
                 setColumns(result.columns || []);
+                setTotaisAbc(null);
             } else {
                 setTableData(result.data);
                 setColumns(result.columns);
+                if (result.totais) {
+                    setTotaisAbc(result.totais);
+                } else {
+                    setTotaisAbc(null);
+                }
             }
         } catch (e) {
             setErrorMsg(e.message);
@@ -204,6 +212,25 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                 </div>
                             </td>
                         </tr>
+
+                        {reportType === 'CURVA_ABC' && totaisAbc && (
+                            <tr>
+                                <td colSpan={columns ? columns.length : 1} className="print-no-border">
+                                    <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', padding: '0 5px' }}>
+                                        <div style={{ flex: 1, border: '1px solid #ddd', padding: '12px 15px', borderRadius: '6px', background: '#fafafa' }}>
+                                            <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Medicamentos</div>
+                                            <div style={{ fontSize: '9px', color: '#888', marginBottom: '8px' }}>Total movimentado</div>
+                                            <div style={{ fontSize: '18px', fontWeight: 800, color: '#111' }}>{totaisAbc.medicamentos.toLocaleString('pt-BR')}</div>
+                                        </div>
+                                        <div style={{ flex: 1, border: '1px solid #ddd', padding: '12px 15px', borderRadius: '6px', background: '#fafafa' }}>
+                                            <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Insumos e Materiais</div>
+                                            <div style={{ fontSize: '9px', color: '#888', marginBottom: '8px' }}>Total movimentado</div>
+                                            <div style={{ fontSize: '18px', fontWeight: 800, color: '#111' }}>{totaisAbc.insumosMateriais.toLocaleString('pt-BR')}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        )}
 
                         {/* Sub-Header das Colunas - Ficará colado abaixo do Metadado em toda nova página */}
                         <tr className="print-column-headers">
@@ -408,6 +435,30 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                         ) : (
                             // Tabela Flexível
                             <div style={{ flex: 1, overflowX: 'hidden', overflowY: 'auto' }}>
+                                {reportType === 'CURVA_ABC' && totaisAbc && (
+                                    <div className="farmacia-abc-summary" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1.25rem 1.5rem', background: 'var(--bg-muted-light)', borderBottom: '1px solid var(--border)' }}>
+                                        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', border: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                            <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'var(--color-primary-light)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Activity size={24} />
+                                            </div>
+                                            <div>
+                                                <h4 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Medicamentos</h4>
+                                                <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Total movimentado</p>
+                                                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{totaisAbc.medicamentos.toLocaleString('pt-BR')}</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', border: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                            <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'rgba(234, 88, 12, 0.1)', color: '#ea580c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Package size={24} />
+                                            </div>
+                                            <div>
+                                                <h4 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Insumos e Materiais</h4>
+                                                <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Total movimentado</p>
+                                                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{totaisAbc.insumosMateriais.toLocaleString('pt-BR')}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                                 <table className="farmacia-table" style={{ borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderTopLeftRadius: 0, borderTopRightRadius: 0, width: '100%', tableLayout: 'fixed' }}>
                                     <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-muted-light)', zIndex: 1, boxShadow: '0 1px 0 var(--border)' }}>
                                         <tr>
@@ -528,6 +579,10 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                                 periodo: periodoLabel
                                             };
                                             
+                                            if (totaisAbc && reportType === 'CURVA_ABC') {
+                                                excelMetadata.totaisAbc = totaisAbc;
+                                            }
+
                                             if (exigeTipoItem) excelMetadata.tipo_item = tipoItem;
                                             if (exigeTipoMovimentacao) excelMetadata.tipo_movimentacao = tipoMovimentacao;
 

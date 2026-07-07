@@ -588,13 +588,25 @@ export const generateAbcConsumptionReport = async (tenantId, dataInicio, dataFim
         const unitIdToName = {};
         units.forEach(u => unitIdToName[u.id] = u.name);
 
+        const itemTypeMap = {};
+        validItems.forEach(i => itemTypeMap[i.id] = i.item_type);
+
         let totalConsumo = 0;
+        let totalMedicamentos = 0;
+        let totalInsumosMateriais = 0;
         const itemConsumo = {};
         
         allExits.forEach(m => {
             if (!validItemIds.has(m.inventory_item_id)) return;
             const q = Math.abs(m.quantity || 0);
             
+            const tipo = itemTypeMap[m.inventory_item_id];
+            if (tipo === 'MEDICAMENTO') {
+                totalMedicamentos += q;
+            } else if (tipo === 'INSUMO' || tipo === 'MATERIAL') {
+                totalInsumosMateriais += q;
+            }
+
             const key = targetUnitId ? m.inventory_item_id : `${m.unit_id}_${m.inventory_item_id}`;
             itemConsumo[key] = (itemConsumo[key] || 0) + q;
             totalConsumo += q;
@@ -604,6 +616,8 @@ export const generateAbcConsumptionReport = async (tenantId, dataInicio, dataFim
         console.log('quantidade de registros brutos (encontrados):', allExits.length);
         console.log('se é consolidado ou não:', targetUnitId ? 'Não (Unidade Específica)' : 'Sim (Consolidado)');
         console.log('total geral consumido:', totalConsumo);
+        console.log('total medicamentos:', totalMedicamentos);
+        console.log('total insumos e materiais:', totalInsumosMateriais);
         // ===================================
 
         if (totalConsumo === 0) {
@@ -678,7 +692,12 @@ export const generateAbcConsumptionReport = async (tenantId, dataInicio, dataFim
             { key: 'classificacao', label: 'Classificação Ponderada ABC' }
         ];
 
-        return { data: dataArray, columns, error: null };
+        const totaisMovimentados = {
+            medicamentos: totalMedicamentos,
+            insumosMateriais: totalInsumosMateriais
+        };
+
+        return { data: dataArray, columns, error: null, totais: totaisMovimentados };
     } catch (e) {
         console.error('[Service] generateAbcConsumptionReport catch:', e);
         return { data: null, columns: null, error: e.message };
