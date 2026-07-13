@@ -363,19 +363,11 @@ export const createAcao = async (tenantId, formData, axes) => {
 
     const allowedSecretariatIds = userScopes?.map(s => s.secretariat_id).filter(Boolean) || [];
 
-    // 4. Validar/Ajustar secretaria_id (Garantir que bate com o escopo)
-    let finalSecretariatId = formData.secretariatId;
-
-    if (allowedSecretariatIds.length > 0) {
-        const isAllowed = allowedSecretariatIds.includes(finalSecretariatId);
-        if (!isAllowed) {
-            console.warn('[planejamentoAcoes] Secretaria enviada não está no escopo ou vazia. Usando fallback do primeiro escopo ativo.');
-            finalSecretariatId = allowedSecretariatIds[0];
-        }
-    }
+    // 4. Validar/Ajustar secretaria_id
+    let finalSecretariatId = formData.secretariatId || formData.secretariat_id;
 
     if (!finalSecretariatId) {
-        throw new Error('A secretaria é obrigatória e não foi encontrada no seu perfil de acesso.');
+        throw new Error('A secretaria é obrigatória. Selecione uma secretaria responsável.');
     }
 
     // 5. Obter objetivo fornecido pelo form, ou fallback para o primeiro ativo do eixo

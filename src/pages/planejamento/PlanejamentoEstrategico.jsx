@@ -213,11 +213,18 @@ const PlanejamentoEstrategico = () => {
         compromissosList = [...compromissosList, ...mocksToAdd].slice(0, 4);
     }
 
-    eixos = eixos.map((e, idx) => ({
-        ...e,
-        color: axisColors[idx] || e.color || '#3b82f6',
-        IconComponent: axisIcons[idx] || Target
-    }));
+    eixos = eixos.map((e, idx) => {
+        const totalObjetivos = e.objetivosVinculados || (e.objetivos ? e.objetivos.length : 0);
+        const objComAcao = e.objetivos ? e.objetivos.filter(obj => obj.acoesVinculadas > 0 || (obj.acoes && obj.acoes.length > 0)).length : 0;
+        const novoProgresso = totalObjetivos > 0 ? (objComAcao / totalObjetivos) * 100 : 0;
+
+        return {
+            ...e,
+            progresso: novoProgresso,
+            color: axisColors[idx] || e.color || '#3b82f6',
+            IconComponent: axisIcons[idx] || Target
+        };
+    });
 
     // Update activeEixo reference if it is open
     const currentActiveEixo = activeEixo ? eixos.find(e => e.id === activeEixo.id) : null;
@@ -426,7 +433,7 @@ const PlanejamentoEstrategico = () => {
                                     </div>
                                     <div style={{ width: '1px', background: 'var(--border-light)' }}></div>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Execução Média</span>
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Objetivos com Ação</span>
                                         <span style={{ fontSize: '1.25rem', fontWeight: 700, color: currentActiveEixo.color }}>{formatPercent(currentActiveEixo.progresso)}%</span>
                                     </div>
                                 </div>
