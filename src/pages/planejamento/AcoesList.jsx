@@ -29,7 +29,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, deleteAcao, fetchObjectivesByAxis, createAtualizacao, fetchActionSecretariats, recordActionHistory, fetchActionDeletions, fetchUpdatesByAction } from '../../services/api/planejamentoAcoes.service';
+import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, deleteAcao, fetchObjectivesByAxis, fetchAllObjectives, fetchActionObjectives, createAtualizacao, fetchActionSecretariats, recordActionHistory, fetchActionDeletions, fetchUpdatesByAction } from '../../services/api/planejamentoAcoes.service';
 
 import { PLANNING_ACTION_TYPES_ARRAY, getActionTypeConfig, getActionTypeStages } from '../../modules/planejamento/constants/planningActionTypes';
 
@@ -427,13 +427,16 @@ const AcoesList = () => {
         current_stage_index: null,
         current_stage_observation: '',
         objectiveId: '',
+        relatedObjectives: [],
         latitude: null,
         longitude: null
     };
     const [formData, setFormData] = useState(emptyForm);
     const [objectivesList, setObjectivesList] = useState([]);
+    const [allObjectivesList, setAllObjectivesList] = useState([]);
     const [loadingObjectives, setLoadingObjectives] = useState(false);
     const [objectiveSearch, setObjectiveSearch] = useState('');
+    const [relatedObjectiveSearch, setRelatedObjectiveSearch] = useState('');
     const [isObjDropdownOpen, setIsObjDropdownOpen] = useState(false);
     const [isObjTextModalOpen, setIsObjTextModalOpen] = useState(false);
 
@@ -456,6 +459,14 @@ const AcoesList = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    useEffect(() => {
+        if (tenantId) {
+            fetchAllObjectives(tenantId).then(data => {
+                setAllObjectivesList(data || []);
+            }).catch(console.error);
+        }
+    }, [tenantId]);
 
     useEffect(() => {
         const validateAxisObjectives = async () => {
@@ -514,6 +525,7 @@ const AcoesList = () => {
                 axisId: acao.eixoId || '',
                 eixo: acao.eixo || '',
                 objectiveId: acao.objective_id || '',
+                relatedObjectives: [],
                 status: acao.status || 'NAO_INICIADA',
                 progresso: initialProgress,
                 prazo: acao.prazo || '',
@@ -546,6 +558,13 @@ const AcoesList = () => {
                     setFormData(prev => ({ ...prev, participantes: participants }));
                 }
             }).catch(console.warn);
+            
+            // Carregar objetivos relacionados
+            fetchActionObjectives(acao.id).then(result => {
+                if (result && result.relatedObjectiveIds && result.relatedObjectiveIds.length > 0) {
+                    setFormData(prev => ({ ...prev, relatedObjectives: result.relatedObjectiveIds }));
+                }
+            }).catch(console.warn);
         } else {
             setEditingAcao(null);
             const firstSec = secretariats[0];
@@ -568,6 +587,7 @@ const AcoesList = () => {
         setDeleteError(null);
         setEditingAcao(null);
         setObjectiveSearch('');
+        setRelatedObjectiveSearch('');
         setIsObjDropdownOpen(false);
         setIsObjTextModalOpen(false);
     };
@@ -575,6 +595,35 @@ const AcoesList = () => {
     const openViewModal = (acao) => {
         setViewingAcao(acao);
         setIsViewModalOpen(true);
+        
+        Promise.all([
+            fetchActionObjectives(acao.id),
+            fetchActionSecretariats(acao.id)
+        ]).then(([objResult, secResult]) => {
+            setViewingAcao(prev => {
+                if (!prev || prev.id !== acao.id) return prev;
+                
+                const updates = {};
+                if (objResult && objResult.relatedObjectiveIds && objResult.relatedObjectiveIds.length > 0) {
+                    updates.relatedObjectives = objResult.relatedObjectiveIds;
+                }
+                
+                if (secResult && secResult.length > 0) {
+                    // is_primary = false to avoid duplicating main secretariat if the user wants so, but the rule says:
+                    // "Se existir is_primary = true nessa tabela, não duplicar a Secretaria Principal... O ideal é exibir apenas participantes adicionais"
+                    const additionalSecs = secResult
+                        .filter(s => !s.is_primary)
+                        .map(s => s.secretariat_id);
+                    updates.participantes_adicionais = additionalSecs;
+                }
+                
+                if (Object.keys(updates).length > 0) {
+                    return { ...prev, ...updates };
+                }
+                
+                return prev;
+            });
+        }).catch(console.warn);
     };
 
     const closeViewModal = () => {
@@ -1135,11 +1184,11 @@ const AcoesList = () => {
                         <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ef4444' }}>{metrics.emRisco}</span>
                     </div>
                     <div className="farmacia-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '3px solid #f59e0b' }}>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sem Atualização</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ativas sem Atualização</span>
                         <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f59e0b' }}>{metrics.semAtualizacao}</span>
                     </div>
                     <div className="farmacia-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '3px solid #d946ef' }}>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prazo Próximo/Vencido</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prazo Vencido</span>
                         <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#d946ef' }}>{metrics.prazoProximoVencido}</span>
                     </div>
                 </div>
@@ -2104,6 +2153,114 @@ const AcoesList = () => {
                                                 </div>
                                             );
                                         })()}
+                                        {formData.objectiveId && (
+                                            <div className="farmacia-form-group col-span-2">
+                                                <label className="farmacia-form-label">Objetivos Relacionados (Opcional)</label>
+                                                
+                                                {/* Campo de Busca */}
+                                                <div style={{ position: 'relative', marginBottom: '12px' }}>
+                                                    <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                                    <input
+                                                        type="text"
+                                                        className="farmacia-form-input"
+                                                        placeholder="Buscar objetivo por palavra-chave, eixo ou trecho do texto..."
+                                                        value={relatedObjectiveSearch}
+                                                        onChange={e => setRelatedObjectiveSearch(e.target.value)}
+                                                        style={{ paddingLeft: '34px', marginBottom: 0 }}
+                                                    />
+                                                </div>
+
+                                                {/* Resultados da Busca */}
+                                                {relatedObjectiveSearch.trim().length > 0 && (
+                                                    <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '6px', maxHeight: '200px', overflowY: 'auto', marginBottom: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+                                                        {(() => {
+                                                            const term = relatedObjectiveSearch.toLowerCase();
+                                                            const available = allObjectivesList.filter(o => {
+                                                                if (o.id === formData.objectiveId) return false;
+                                                                if (formData.relatedObjectives?.includes(o.id)) return false;
+                                                                
+                                                                const eixoName = axes.find(a => a.id === o.axis_id)?.name || '';
+                                                                return (o.title || '').toLowerCase().includes(term) ||
+                                                                       (o.code || '').toLowerCase().includes(term) ||
+                                                                       eixoName.toLowerCase().includes(term);
+                                                            });
+
+                                                            if (available.length === 0) {
+                                                                return <div style={{ padding: '12px 14px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nenhum objetivo encontrado para a busca atual.</div>;
+                                                            }
+
+                                                            return available.map(o => {
+                                                                const eixoName = axes.find(a => a.id === o.axis_id)?.name || 'Sem Eixo';
+                                                                return (
+                                                                    <div key={o.id} style={{ padding: '10px 14px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                                                                        <div>
+                                                                            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '2px' }}>{eixoName}</div>
+                                                                            <div style={{ fontSize: '0.78rem', color: '#334155', lineHeight: '1.3' }}>
+                                                                                {o.code && <strong style={{color: '#64748b'}}>{o.code} </strong>}
+                                                                                {o.title}
+                                                                            </div>
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setFormData(prev => ({
+                                                                                    ...prev,
+                                                                                    relatedObjectives: [...(prev.relatedObjectives || []), o.id]
+                                                                                }));
+                                                                                setRelatedObjectiveSearch(''); // Limpa a busca ao adicionar
+                                                                            }}
+                                                                            style={{
+                                                                                background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 10px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0
+                                                                            }}
+                                                                        >
+                                                                            Adicionar
+                                                                        </button>
+                                                                    </div>
+                                                                );
+                                                            });
+                                                        })()}
+                                                    </div>
+                                                )}
+
+                                                {/* Selecionados */}
+                                                {formData.relatedObjectives && formData.relatedObjectives.length > 0 && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Objetivos Selecionados:</span>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                            {formData.relatedObjectives.map(objId => {
+                                                                const o = allObjectivesList.find(x => x.id === objId);
+                                                                if (!o) return null;
+                                                                const eixoName = axes.find(a => a.id === o.axis_id)?.name || 'Sem Eixo';
+                                                                return (
+                                                                    <div key={o.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                                                                        <div>
+                                                                            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '2px' }}>{eixoName}</div>
+                                                                            <div style={{ fontSize: '0.75rem', color: '#334155', lineHeight: '1.3' }}>
+                                                                                {o.code && <strong style={{color: '#64748b'}}>{o.code} </strong>}
+                                                                                {o.title}
+                                                                            </div>
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setFormData(prev => ({
+                                                                                    ...prev,
+                                                                                    relatedObjectives: prev.relatedObjectives.filter(id => id !== o.id)
+                                                                                }));
+                                                                            }}
+                                                                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                                            title="Remover"
+                                                                        >
+                                                                            <X size={14} />
+                                                                        </button>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                         <div className="farmacia-form-group col-span-2">
                                             <label className="farmacia-form-label">Secretarias Participantes</label>
                                             <div style={{ background: '#f8fafc', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '6px', padding: '12px 14px' }}>
@@ -3079,85 +3236,120 @@ const AcoesList = () => {
                                 )}
                                 {/* Grid de Informações */}
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', width: '100%' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: 0 }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tipo da Ação</span>
-                                            <div style={{ marginTop: '2px' }}>{getActionTypeBadge(viewingAcao.action_type)}</div>
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Eixo Estratégico</span>
-                                            <span style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{viewingAcao.eixo || 'Não informado'}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '100%', minWidth: 0 }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Objetivo Estratégico</span>
-                                            <div className="responsavel-tooltip-wrapper" style={{ display: 'block', width: '100%' }}>
-                                                <div style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 500, lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                                                    {viewingAcao.objective_title || 'Objetivo não informado'}
-                                                </div>
-                                                {viewingAcao.objective_title && viewingAcao.objective_title.length > 50 && (
-                                                    <div className="responsavel-tooltip" style={{ fontWeight: 400, left: '0', transform: 'none', bottom: '100%', marginBottom: '5px' }}>
-                                                        {viewingAcao.objective_title}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Responsável Técnico</span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
-                                                    {(viewingAcao.responsible_name || viewingAcao.responsavel || 'N').charAt(0).toUpperCase()}
-                                                </div>
-                                                <div className="responsavel-tooltip-wrapper" style={{ minWidth: 0 }}>
-                                                    <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', width: '100%' }}>
-                                                        {viewingAcao.responsible_name || viewingAcao.responsavel || 'Não informado'}
-                                                    </span>
-                                                    <div className="responsavel-tooltip">
-                                                        {viewingAcao.responsible_name || viewingAcao.responsavel || 'Não informado'}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    
+                                    {/* Linha 1 */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tipo da Ação</span>
+                                        <div style={{ marginTop: '2px' }}>{getActionTypeBadge(viewingAcao.action_type)}</div>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: 0 }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Secretaria Principal</span>
-                                            <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{viewingAcao.secretariaFull || viewingAcao.secretaria || 'Não informada'}</span>
-                                            {viewingParticipantes && viewingParticipantes.length > 0 && (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
-                                                    <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Participantes</span>
-                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                                        {viewingParticipantes.map((part, idx) => (
-                                                            <span key={idx} style={{ display: 'inline-flex', alignItems: 'center', background: '#f8fafc', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', color: '#475569', border: '1px solid #e2e8f0', fontWeight: 600, lineHeight: '1.2' }}>
-                                                                {part}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Secretaria Principal</span>
+                                        <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{viewingAcao.secretariaFull || viewingAcao.secretaria || 'Não informada'}</span>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: 0 }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Localização</span>
-                                            <div style={{ marginTop: '4px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: '100%', overflow: 'hidden' }}>
-                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                                    <MapPin size={14} color="#64748b" style={{ flexShrink: 0, marginTop: '2px' }} />
-                                                    <span style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600, wordBreak: 'break-word', whiteSpace: 'normal' }}>
-                                                        {viewingAcao.address_street || viewingAcao.local || 'Rua/Local não informado'}{viewingAcao.address_number ? `, ${viewingAcao.address_number}` : ''}
-                                                    </span>
-                                                </div>
-                                                <div style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '2px', wordBreak: 'break-word' }}>
-                                                    {(viewingAcao.address_district || viewingAcao.address_city) && (
-                                                        <span style={{ fontSize: '0.8rem', color: '#475569' }}>
-                                                            {viewingAcao.address_district || ''}{viewingAcao.address_district && viewingAcao.address_city ? ' - ' : ''}{viewingAcao.address_city || ''}{viewingAcao.address_state ? `/${viewingAcao.address_state}` : ''}
+
+                                    {/* Secretarias Participantes movidas para cá */}
+                                    {viewingAcao.participantes_adicionais && viewingAcao.participantes_adicionais.length > 0 && (
+                                        <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '0.25rem' }}>
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                Secretarias Participantes
+                                            </span>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                                {viewingAcao.participantes_adicionais.map((secId, idx) => {
+                                                    const secName = secretariats.find(s => s.id === secId)?.name || 'Secretaria não encontrada';
+                                                    return (
+                                                        <span key={idx} style={{ display: 'inline-flex', alignItems: 'center', background: '#f8fafc', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', color: '#475569', border: '1px solid #e2e8f0', fontWeight: 600, lineHeight: '1.2' }}>
+                                                            {secName}
                                                         </span>
-                                                    )}
-                                                    {viewingAcao.address_zipcode && <span style={{ fontSize: '0.75rem', color: '#64748b' }}>CEP: {viewingAcao.address_zipcode}</span>}
-                                                    {viewingAcao.address_reference && <span style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginTop: '2px' }}>Ref: {viewingAcao.address_reference}</span>}
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Linha 2 */}
+                                    <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Eixo Estratégico</span>
+                                        <span style={{ fontSize: '1rem', color: '#0f172a', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{viewingAcao.eixo || 'Não informado'}</span>
+                                    </div>
+
+                                    {/* Linha 3: Objetivo Estratégico */}
+                                    <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Objetivo Estratégico</span>
+                                        <div className="responsavel-tooltip-wrapper" style={{ display: 'block', width: '100%' }}>
+                                            <div style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 500, lineHeight: '1.4', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                                {viewingAcao.objective_title || 'Objetivo não informado'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Linha 4: Objetivos Relacionados */}
+                                    {viewingAcao.relatedObjectives && viewingAcao.relatedObjectives.length > 0 && (
+                                        <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '0.5rem' }}>
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <Target size={14} style={{ opacity: 0 }} /> Objetivos Relacionados
+                                            </span>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                {viewingAcao.relatedObjectives.map(objId => {
+                                                    const o = allObjectivesList.find(x => x.id === objId);
+                                                    if (!o) return null;
+                                                    const eixoName = axes.find(a => a.id === o.axis_id)?.name || 'Sem Eixo';
+                                                    return (
+                                                        <div key={objId} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                            <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                                [ {eixoName} ]
+                                                            </div>
+                                                            <div style={{ fontSize: '0.9rem', color: '#334155', lineHeight: '1.5', fontWeight: 500 }}>
+                                                                {o.title}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+
+
+                                    {/* Outros campos: Responsável Técnico, Localização */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, paddingTop: '1rem', borderTop: '1px solid #f1f5f9', gridColumn: '1 / -1' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', width: '100%' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                                                <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Responsável Técnico</span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, marginTop: '4px' }}>
+                                                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
+                                                        {(viewingAcao.responsible_name || viewingAcao.responsavel || 'N').charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="responsavel-tooltip-wrapper" style={{ minWidth: 0 }}>
+                                                        <span style={{ fontSize: '0.9rem', color: '#1e293b', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', width: '100%' }}>
+                                                            {viewingAcao.responsible_name || viewingAcao.responsavel || 'Não informado'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                                                <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Localização</span>
+                                                <div style={{ marginTop: '4px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: '100%', overflow: 'hidden' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                                                        <MapPin size={14} color="#64748b" style={{ flexShrink: 0, marginTop: '2px' }} />
+                                                        <span style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600, wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                                                            {viewingAcao.address_street || viewingAcao.local || 'Rua/Local não informado'}{viewingAcao.address_number ? `, ${viewingAcao.address_number}` : ''}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '2px', wordBreak: 'break-word' }}>
+                                                        {(viewingAcao.address_district || viewingAcao.address_city) && (
+                                                            <span style={{ fontSize: '0.8rem', color: '#475569' }}>
+                                                                {viewingAcao.address_district || ''}{viewingAcao.address_district && viewingAcao.address_city ? ' - ' : ''}{viewingAcao.address_city || ''}{viewingAcao.address_state ? `/${viewingAcao.address_state}` : ''}
+                                                            </span>
+                                                        )}
+                                                        {viewingAcao.address_zipcode && <span style={{ fontSize: '0.75rem', color: '#64748b' }}>CEP: {viewingAcao.address_zipcode}</span>}
+                                                        {viewingAcao.address_reference && <span style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', marginTop: '2px' }}>Ref: {viewingAcao.address_reference}</span>}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
+
                                     {/* Descrição Detalhada - Movida para cima */}
                                     <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
                                         <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>

@@ -4,9 +4,7 @@
     width: 100%;
     margin: 0 auto;
     background-color: var(--bg-default, #f8fafc);
-    min-height: 100vh;
     box-sizing: border-box;
-    overflow-x: hidden;
 }
 
 .pe-header {

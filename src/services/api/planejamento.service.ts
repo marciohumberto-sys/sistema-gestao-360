@@ -378,20 +378,24 @@ class PlanejamentoService {
         const [
             { data: axes, error: errAxes },
             { data: objectives, error: errObj },
-            { data: actions, error: errActions }
+            { data: actions, error: errActions },
+            { data: actionObjectives, error: errActionObj }
         ] = await Promise.all([
             supabase.from('planning_axes').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('display_order', { ascending: true }),
             supabase.from('planning_objectives').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('display_order', { ascending: true }),
-            supabase.from('planning_actions').select('*').eq('tenant_id', tenantId).eq('module_id', MODULE_ID).not('objective_id', 'is', null)
+            supabase.from('planning_actions').select('*').eq('tenant_id', tenantId).eq('module_id', MODULE_ID).not('objective_id', 'is', null),
+            supabase.from('planning_action_objectives').select('*') // Buscando vínculos de múltiplos objetivos
         ]);
 
         if (errAxes) { console.error('Erro axes:', errAxes); throw errAxes; }
         if (errObj) { console.error('Erro objectives:', errObj); throw errObj; }
         if (errActions) { console.error('Erro actions:', errActions); throw errActions; }
+        if (errActionObj) { console.error('Erro action objectives:', errActionObj); }
 
         const safeAxes = axes || [];
         const safeObjectives = objectives || [];
         const safeActions = actions || [];
+        const safeActionObjectives = actionObjectives || [];
 
         // --- KPIs Gerais ---
         const totalObjetivos = safeObjectives.length;
@@ -414,13 +418,25 @@ class PlanejamentoService {
         // --- Compilação por Eixo ---
         const eixosCompilados = safeAxes.map(eixo => {
             const eixoObjectives = safeObjectives.filter(o => o.axis_id === eixo.id);
-            const eixoActions = safeActions.filter(a => eixoObjectives.some(obj => obj.id === a.objective_id));
+            
+            // Para encontrar as ações do eixo, primeiro encontramos todas as ações para os objetivos deste eixo
+            const eixoObjectivesIds = eixoObjectives.map(o => o.id);
+            const actionIdsForEixo = safeActionObjectives
+                .filter(link => eixoObjectivesIds.includes(link.objective_id))
+                .map(link => link.action_id);
+                
+            const uniqueActionIdsForEixo = [...new Set(actionIdsForEixo)];
+            const eixoActions = safeActions.filter(a => uniqueActionIdsForEixo.includes(a.id));
             
             const eSumProgresso = eixoActions.reduce((acc, a) => acc + (a.progress_percent || 0), 0);
             const eExecucao = eixoActions.length > 0 ? parseFloat((eSumProgresso / eixoActions.length).toFixed(2)) : 0;
 
             const objsCompilados = eixoObjectives.map(obj => {
-                const objActions = eixoActions.filter(a => a.objective_id === obj.id);
+                const actionIdsForObj = safeActionObjectives
+                    .filter(link => link.objective_id === obj.id)
+                    .map(link => link.action_id);
+                    
+                const objActions = safeActions.filter(a => actionIdsForObj.includes(a.id));
                 const oSumProgresso = objActions.reduce((acc, a) => acc + (a.progress_percent || 0), 0);
                 const oExecucao = objActions.length > 0 ? parseFloat((oSumProgresso / objActions.length).toFixed(2)) : 0;
                 

@@ -145,6 +145,104 @@ export const fetchObjectivesByAxis = async (tenantId, axisId) => {
     return data || [];
 };
 
+export const fetchAllObjectives = async (tenantId) => {
+    if (!tenantId) return [];
+    
+    const { data, error } = await supabase
+        .from('planning_objectives')
+        .select('id, title, axis_id, tenant_id, display_order, is_active, code')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
+    
+    if (error) {
+        console.error('[Planejamento] Erro ao buscar todos os objetivos:', error);
+        return [];
+    }
+    return data || [];
+};
+
+export const fetchActionObjectives = async (actionId) => {
+    if (!actionId) return { primaryObjectiveId: null, relatedObjectiveIds: [] };
+    try {
+        const { data, error } = await supabase
+            .from('planning_action_objectives')
+            .select('objective_id, is_primary')
+            .eq('action_id', actionId);
+        if (error) throw error;
+        
+        let primaryObjectiveId = null;
+        const relatedObjectiveIds = [];
+        
+        if (data) {
+            data.forEach(link => {
+                if (link.is_primary) primaryObjectiveId = link.objective_id;
+                else relatedObjectiveIds.push(link.objective_id);
+            });
+        }
+        
+        return { primaryObjectiveId, relatedObjectiveIds };
+    } catch (err) {
+        console.error('[planejamentoAcoes] Erro ao buscar objetivos da ação:', err);
+        return { primaryObjectiveId: null, relatedObjectiveIds: [] };
+    }
+};
+
+export const syncActionObjectives = async (actionId, tenantId, primaryObjectiveId, relatedObjectiveIds, createdBy) => {
+    if (!actionId || !tenantId) return;
+    
+    try {
+        // 1. Sanitizar relatedObjectiveIds
+        const validRelatedIds = [...new Set(relatedObjectiveIds || [])]
+            .filter(id => id && id !== primaryObjectiveId);
+            
+        // 2. Deletar vínculos antigos
+        const { error: errDelete } = await supabase
+            .from('planning_action_objectives')
+            .delete()
+            .eq('action_id', actionId);
+            
+        if (errDelete) {
+            console.error('[planejamentoAcoes] Erro ao deletar vínculos de objetivos antigos:', errDelete);
+            return; // Se falhar o delete, não prosseguir para evitar duplicidade suja
+        }
+        
+        // 3. Montar inserts
+        const inserts = [];
+        if (primaryObjectiveId) {
+            inserts.push({
+                tenant_id: tenantId,
+                action_id: actionId,
+                objective_id: primaryObjectiveId,
+                is_primary: true,
+                created_by: createdBy
+            });
+        }
+        
+        validRelatedIds.forEach(objId => {
+            inserts.push({
+                tenant_id: tenantId,
+                action_id: actionId,
+                objective_id: objId,
+                is_primary: false,
+                created_by: createdBy
+            });
+        });
+        
+        if (inserts.length > 0) {
+            const { error: errInsert } = await supabase
+                .from('planning_action_objectives')
+                .insert(inserts);
+                
+            if (errInsert) {
+                console.error('[planejamentoAcoes] Erro no insert de vínculos de objetivos:', errInsert);
+            }
+        }
+    } catch (err) {
+        console.error('[planejamentoAcoes] Falha fatal em syncActionObjectives:', err);
+    }
+};
+
 // ── Secretarias ────────────────────────────────────────────────────────────────
 export const fetchSecretariats = async (tenantId) => {
     try {
@@ -445,6 +543,9 @@ export const createAcao = async (tenantId, formData, axes) => {
     // Sincronizar secretarias participantes (garantindo RLS via sync function)
     await syncActionSecretariats(tenantId, data.id, payload.secretariat_id, formData.participantes || []);
 
+    // Sincronizar múltiplos objetivos (principal e adicionais)
+    await syncActionObjectives(data.id, tenantId, payload.objective_id, formData.relatedObjectives || [], user.id);
+
     return data;
 };
 
@@ -465,6 +566,10 @@ export const updateAcao = async (tenantId, id, formData) => {
     if (progress >= 100) {
         finalStatus = 'CONCLUIDA';
     }
+
+    // Obter usuário logado para auditoria
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Não foi possível identificar o usuário logado.");
 
     const payload = {
         title: formData.nome.trim(),
@@ -515,6 +620,9 @@ export const updateAcao = async (tenantId, id, formData) => {
     // Atenção: a primarySecId pode vir do formData.secretariatId ou manter a original.
     // formData tem `secretariatId` definido na edição.
     await syncActionSecretariats(tenantId, id, formData.secretariatId, formData.participantes || []);
+
+    // Sincronizar múltiplos objetivos (principal e adicionais)
+    await syncActionObjectives(id, tenantId, payload.objective_id, formData.relatedObjectives || [], user.id);
 
     return data;
 };
