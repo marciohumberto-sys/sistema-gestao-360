@@ -86,7 +86,7 @@ const PlanejamentoEstrategico = () => {
         );
     }
 
-    let { kpis, eixos, compromissos } = data;
+    let { kpis, eixos, compromissos, actions } = data;
 
     const USE_PLANO_ESTRATEGICO_MOCK = false;
 
@@ -213,10 +213,79 @@ const PlanejamentoEstrategico = () => {
         compromissosList = [...compromissosList, ...mocksToAdd].slice(0, 4);
     }
 
+    const getYear = (dateStr) => {
+        if (!dateStr) return null;
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? null : d.getFullYear();
+    };
+
+    let strategicTimelineRealData = strategicTimelineMockData;
+    
+    if (actions && actions.length > 0) {
+        const timelineByYear = {
+            2025: { year: 2025, NAO_INICIADA: 0, EM_ANDAMENTO: 0, CONCLUIDA: 0 },
+            2026: { year: 2026, NAO_INICIADA: 0, EM_ANDAMENTO: 0, CONCLUIDA: 0 },
+            2027: { year: 2027, NAO_INICIADA: 0, EM_ANDAMENTO: 0, CONCLUIDA: 0 },
+            2028: { year: 2028, NAO_INICIADA: 0, EM_ANDAMENTO: 0, CONCLUIDA: 0 }
+        };
+
+        actions.forEach(a => {
+            const dateStr = a.due_date || a.start_date || a.created_at;
+            const year = getYear(dateStr);
+            if (!year) return;
+
+            if (!timelineByYear[year]) {
+                timelineByYear[year] = { year, NAO_INICIADA: 0, EM_ANDAMENTO: 0, CONCLUIDA: 0 };
+            }
+
+            if (a.status === 'NAO_INICIADA') timelineByYear[year].NAO_INICIADA++;
+            else if (a.status === 'EM_ANDAMENTO') timelineByYear[year].EM_ANDAMENTO++;
+            else if (a.status === 'CONCLUIDA') timelineByYear[year].CONCLUIDA++;
+        });
+
+        const sortedYears = Object.keys(timelineByYear).sort((a, b) => parseInt(a) - parseInt(b));
+        
+        strategicTimelineRealData = sortedYears.map(yearStr => {
+            const stats = timelineByYear[yearStr];
+            const badges = [];
+            
+            if (stats.EM_ANDAMENTO > 0) {
+                badges.push({ text: `${stats.EM_ANDAMENTO} ações em andamento`, color: 'blue' });
+            }
+            if (stats.CONCLUIDA > 0) {
+                badges.push({ text: `${stats.CONCLUIDA} entregas concluídas`, color: 'green' });
+            }
+            if (stats.NAO_INICIADA > 0) {
+                badges.push({ text: `${stats.NAO_INICIADA} ações planejadas`, color: 'gray' });
+            }
+            
+            if (badges.length === 0) {
+                badges.push({ text: `Sem ações cadastradas`, color: 'gray' });
+            }
+
+            return {
+                year: parseInt(yearStr),
+                active: stats.EM_ANDAMENTO > 0 || stats.CONCLUIDA > 0,
+                badges
+            };
+        });
+        
+        if (strategicTimelineRealData.length > 4) {
+            const currentYear = new Date().getFullYear();
+            let startIdx = strategicTimelineRealData.findIndex(d => d.year >= currentYear);
+            if (startIdx === -1) startIdx = strategicTimelineRealData.length - 4;
+            if (startIdx > strategicTimelineRealData.length - 4) startIdx = strategicTimelineRealData.length - 4;
+            startIdx = Math.max(0, startIdx);
+            
+            strategicTimelineRealData = strategicTimelineRealData.slice(startIdx, startIdx + 4);
+        }
+    }
+
     eixos = eixos.map((e, idx) => {
         const totalObjetivos = e.objetivosVinculados || (e.objetivos ? e.objetivos.length : 0);
         const objComAcao = e.objetivos ? e.objetivos.filter(obj => obj.acoesVinculadas > 0 || (obj.acoes && obj.acoes.length > 0)).length : 0;
         const novoProgresso = totalObjetivos > 0 ? (objComAcao / totalObjetivos) * 100 : 0;
+
 
         return {
             ...e,
@@ -563,11 +632,11 @@ const PlanejamentoEstrategico = () => {
                         <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#ef4444' }}></div> Atrasado</div>
                     </div>
 
-                    {/* Linha do tempo temporariamente estática até definição da regra real por ano. */}
+                    {/* Linha do tempo baseada nas ações ativas */}
                     <div className="pe-timeline-wrapper">
                         <div className="pe-timeline-line"></div>
                         <div className="pe-timeline-container">
-                            {strategicTimelineMockData.map((step, idx) => (
+                            {strategicTimelineRealData.map((step, idx) => (
                                 <div key={idx} className="pe-timeline-step">
                                     <div className="pe-timeline-year">{step.year}</div>
                                     <div className={`pe-timeline-dot ${step.active ? 'active' : ''}`}></div>
@@ -586,9 +655,9 @@ const PlanejamentoEstrategico = () => {
                     </div>
                 </div>
 
-                {/* Compromissos Prioritários */}
+                {/* Ações em Destaque */}
                 <div className="pe-panel">
-                    <h3 className="pe-section-title" style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Compromissos Prioritários</h3>
+                    <h3 className="pe-section-title" style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Ações em Destaque</h3>
                     
                     {compromissosList.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Nenhuma ação cadastrada.</div>

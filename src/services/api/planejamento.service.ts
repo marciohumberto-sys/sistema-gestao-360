@@ -507,7 +507,8 @@ class PlanejamentoService {
         return {
             kpis,
             eixos: eixosCompilados,
-            compromissos: compromissosPrioritarios
+            compromissos: compromissosPrioritarios,
+            actions: safeActions
         };
     }
 }
