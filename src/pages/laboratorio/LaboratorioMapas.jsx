@@ -273,15 +273,18 @@ const LaboratorioMapas = () => {
             margin-bottom: 20px;
         }
         .header-top {
-            display: flex;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto 60px;
             align-items: center;
-            justify-content: space-between;
+            gap: 12px;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
             margin-bottom: 10px;
         }
         .header-text-block {
-            flex: 0 0 70%;
+            min-width: 0;
             text-align: left;
-            padding-right: 15px;
         }
         .header-text-block h3 {
             margin: 0 0 4px 0;
@@ -298,24 +301,31 @@ const LaboratorioMapas = () => {
         }
         .header-divider {
             width: 1px;
-            background-color: #e2e8f0;
+            background-color: #cbd5e1;
             align-self: stretch;
-            margin: 0 10px;
         }
         .header-logos-stacked {
-            flex: 0 0 28%;
+            width: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
         }
         .header-logos-stacked img {
-            height: 30px;
+            height: auto;
             width: auto;
             max-width: 100%;
             object-fit: contain;
             opacity: 0.9;
+        }
+        .header-logos-stacked img:first-child {
+            max-width: 58px;
+            max-height: 24px;
+        }
+        .header-logos-stacked img:last-child {
+            max-width: 30px;
+            max-height: 24px;
         }
         .header-horizontal-line {
             height: 1px;
