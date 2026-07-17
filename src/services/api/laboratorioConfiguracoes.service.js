@@ -77,23 +77,9 @@ export const laboratorioConfiguracoesService = {
                 `)
                 .eq('tenant_id', tenantId);
 
-            if (filters.search) {
-                const searchLower = filters.search.toLowerCase();
-                
-                // Busca em exames primeiro
-                const { data: examesMatch } = await supabase
-                    .from('lab_exams')
-                    .select('id')
-                    .or(`name.ilike.%${searchLower}%,code.ilike.%${searchLower}%`)
-                    .eq('tenant_id', tenantId);
-                
-                const examIds = examesMatch ? examesMatch.map(e => e.id) : [];
-                
-                if (examIds.length > 0) {
-                    query = query.or(`name.ilike.%${searchLower}%,code.ilike.%${searchLower}%,exam_id.in.(${examIds.join(',')})`);
-                } else {
-                    query = query.or(`name.ilike.%${searchLower}%,code.ilike.%${searchLower}%`);
-                }
+            if (filters.search && filters.search.trim() !== '') {
+                const searchLower = filters.search.trim().toLowerCase();
+                query = query.or(`name.ilike.%${searchLower}%,code.ilike.%${searchLower}%`);
             }
             if (filters.sector_id && filters.sector_id !== 'todos') {
                 query = query.eq('sector_id', filters.sector_id);
@@ -198,12 +184,12 @@ export const laboratorioConfiguracoesService = {
                 .filter(val => val !== null && val !== undefined && val.trim() !== '')
                 .map(val => val.trim());
 
-            // Remove duplicados case-insensitive, mantendo a primeira forma visual
+            // Remove duplicados case-insensitive e sem acentos, mantendo a primeira forma visual
             const distinctMap = new Map();
             for (const val of values) {
-                const lower = val.toLowerCase();
-                if (!distinctMap.has(lower)) {
-                    distinctMap.set(lower, val);
+                const normalized = val.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+                if (!distinctMap.has(normalized)) {
+                    distinctMap.set(normalized, val);
                 }
             }
 
@@ -300,13 +286,23 @@ export const laboratorioConfiguracoesService = {
                 `, { count: 'exact' })
                 .eq('tenant_id', tenantId);
 
-            if (filters.search) {
-                const searchLower = filters.search.toLowerCase();
-                // Estratégia A: Busca ilike (limitação nativa com acentos se PostgREST não for estendido)
-                // Vamos tentar buscar no nome do parametro, código do parametro, e também usando os nomes do exame, 
-                // mas a tabela estrangeira requer filtro embutido ou or não-suportado de primeira ordem.
-                // Como PostgREST não permite `.or()` cross-table diretamente sem syntax especial, vamos focar nos locais:
-                query = query.or(`name.ilike.%${searchLower}%,code.ilike.%${searchLower}%`);
+            if (filters.search && filters.search.trim() !== '') {
+                const searchLower = filters.search.trim().toLowerCase();
+                
+                // Busca no exame vinculado
+                const { data: examesMatch } = await supabase
+                    .from('lab_exams')
+                    .select('id')
+                    .or(`name.ilike.%${searchLower}%,code.ilike.%${searchLower}%`)
+                    .eq('tenant_id', tenantId);
+                
+                const examIds = examesMatch ? examesMatch.map(e => e.id) : [];
+                
+                if (examIds.length > 0) {
+                    query = query.or(`name.ilike.%${searchLower}%,code.ilike.%${searchLower}%,exam_id.in.(${examIds.join(',')})`);
+                } else {
+                    query = query.or(`name.ilike.%${searchLower}%,code.ilike.%${searchLower}%`);
+                }
             }
             if (filters.exam_id && filters.exam_id !== 'todos') {
                 query = query.eq('exam_id', filters.exam_id);
@@ -493,5 +489,143 @@ export const laboratorioConfiguracoesService = {
             console.error('Erro ao atualizar parâmetro:', error);
             throw error;
         }
-    }
+    },
+
+    async getSectors(filters = {}) {
+        try {
+            const tenantId = await getCurrentTenantId();
+            let query = supabase
+                .from('lab_exam_sectors')
+                .select('*')
+                .eq('tenant_id', tenantId);
+
+            if (filters.status && filters.status !== 'todos') {
+                query = query.eq('is_active', filters.status === 'ativos');
+            }
+
+            if (filters.search && filters.search.trim() !== '') {
+                const searchLower = filters.search.trim().toLowerCase();
+                query = query.or(`name.ilike.%${searchLower}%,code.ilike.%${searchLower}%`);
+            }
+
+            // Ordenar por print_order (nulls last) e depois por name
+            query = query.order('print_order', { ascending: true, nullsFirst: false }).order('name', { ascending: true });
+
+            const { data, error } = await query;
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Erro ao buscar setores:', error);
+            throw error;
+        }
+    },
+
+    async checkSectorCodeExists(code, currentSectorId = null) {
+        try {
+            const tenantId = await getCurrentTenantId();
+            let query = supabase
+                .from('lab_exam_sectors')
+                .select('id')
+                .eq('tenant_id', tenantId)
+                .eq('code', code.trim().toUpperCase());
+
+            if (currentSectorId) {
+                query = query.neq('id', currentSectorId);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+            return data.length > 0;
+        } catch (error) {
+            console.error('Erro ao verificar código do setor:', error);
+            throw error;
+        }
+    },
+
+    async createSector(sectorData) {
+        try {
+            const tenantId = await getCurrentTenantId();
+            const payload = {
+                ...sectorData,
+                tenant_id: tenantId,
+                code: sectorData.code.trim().toUpperCase(),
+                name: sectorData.name.trim(),
+                description: sectorData.description ? sectorData.description.trim() : null
+            };
+
+            const { data, error } = await supabase
+                .from('lab_exam_sectors')
+                .insert([payload])
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Erro ao criar setor:', error);
+            throw error;
+        }
+    },
+
+    async updateSector(id, sectorData) {
+        try {
+            const payload = {
+                ...sectorData,
+                code: sectorData.code.trim().toUpperCase(),
+                name: sectorData.name.trim(),
+                description: sectorData.description ? sectorData.description.trim() : null,
+                updated_at: new Date().toISOString()
+            };
+
+            const { data, error } = await supabase
+                .from('lab_exam_sectors')
+                .update(payload)
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Erro ao atualizar setor:', error);
+            throw error;
+        }
+    },
+
+    async toggleSectorStatus(id, isActive) {
+        try {
+            const { data, error } = await supabase
+                .from('lab_exam_sectors')
+                .update({ 
+                    is_active: isActive,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Erro ao alternar status do setor:', error);
+            throw error;
+        }
+    },
+
+    async getSectorExamCount(sectorId) {
+        try {
+            const tenantId = await getCurrentTenantId();
+            const { count, error } = await supabase
+                .from('lab_exams')
+                .select('*', { count: 'exact', head: true })
+                .eq('tenant_id', tenantId)
+                .eq('sector_id', sectorId);
+
+            if (error) throw error;
+            return count;
+        } catch (error) {
+            console.error('Erro ao buscar contagem de exames do setor:', error);
+            throw error;
+        }
+    },
 };

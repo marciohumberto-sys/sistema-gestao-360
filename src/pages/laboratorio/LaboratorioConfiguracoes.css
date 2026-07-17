@@ -128,6 +128,70 @@
     }
 }
 
+/* Override de grid para a aba Setores (busca + status + botao) */
+.lab-cfg-filters-grid--sectors {
+    grid-template-columns: 1fr auto auto;
+}
+
+@media (max-width: 768px) {
+    .lab-cfg-filters-grid--sectors {
+        grid-template-columns: 1fr;
+    }
+}
+
+.lab-filter-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.lab-filter-item label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.lab-filter-item input,
+.lab-filter-item select {
+    min-width: 0;
+    width: 100%;
+}
+
+.lab-filter-actions {
+    display: flex;
+    align-items: flex-end;
+}
+
+/* Animacoes utilitarias */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+    animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Badge cinza (inativo) */
+.lab-badge-gray {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+}
+
 .lab-cfg-table-wrapper {
     overflow-x: auto;
 }
@@ -281,9 +345,10 @@
     color: #0f172a;
 }
 
-/* Override global do page-wrapper apenas quando estiver na tela de Configurações */
+/* Override global do page-wrapper apenas quando estiver na tela de Configuraï¿½ï¿½es */
 .page-wrapper:has(.lab-cfg-container) {
     max-width: 100% !important;
     width: 100% !important;
     padding: 0 !important;
 }
+

@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
     Settings, RefreshCw, Plus, AlertTriangle, 
     FileSignature, Layers, Activity, Users, 
-    Search, Loader2, Eye,
-    Ban, CheckCircle2, ChevronLeft, ChevronRight, Lock, Edit
+    Search, Loader2, Eye, FlaskConical,
+    Ban, CheckCircle2, ChevronLeft, ChevronRight, Lock, Edit, CheckCircle, Filter
 } from 'lucide-react';
 import { laboratorioConfiguracoesService } from '../../services/api/laboratorioConfiguracoes.service';
 
@@ -20,6 +20,8 @@ const LabCombobox = ({
     disabled,
     required,
     allowCustomValue = true,
+    searchable = false,
+    emptyMessage = "Nenhum resultado encontrado.",
     error,
     inputId,
     name
@@ -56,7 +58,7 @@ const LabCombobox = ({
     };
 
     const handleInputChange = (e) => {
-        if (!allowCustomValue && e.target.value !== '' && !isOpen) return;
+        if (!allowCustomValue && !searchable && e.target.value !== '' && !isOpen) return;
         const val = e.target.value;
         setSearchText(val);
         setIsOpen(true);
@@ -280,7 +282,7 @@ const LabCombobox = ({
                 </>
             ) : (
                 <li style={{ padding: '10px 12px', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic', textAlign: 'center' }}>
-                    Nenhuma opção encontrada.
+                    {emptyMessage}
                 </li>
             )}
         </ul>
@@ -317,7 +319,7 @@ const LabCombobox = ({
                     type="text"
                     role="combobox"
                     aria-expanded={isOpen}
-                    aria-autocomplete={allowCustomValue ? "list" : "none"}
+                    aria-autocomplete={allowCustomValue || searchable ? "list" : "none"}
                     aria-controls={isOpen ? `${inputId}-listbox` : undefined}
                     value={searchText}
                     onChange={handleInputChange}
@@ -326,7 +328,7 @@ const LabCombobox = ({
                     onKeyDown={handleKeyDown}
                     placeholder={placeholder}
                     disabled={disabled}
-                    readOnly={!allowCustomValue}
+                    readOnly={!allowCustomValue && !searchable}
                     style={{ 
                         width: '100%', 
                         height: '38px', 
@@ -336,7 +338,7 @@ const LabCombobox = ({
                         fontSize: '0.9rem',
                         color: disabled ? '#94a3b8' : '#0f172a',
                         outline: 'none',
-                        cursor: !allowCustomValue ? 'pointer' : 'text'
+                        cursor: (!allowCustomValue && !searchable) ? 'pointer' : 'text'
                     }}
                     autoComplete="off"
                 />
@@ -367,6 +369,19 @@ const LaboratorioConfiguracoes = () => {
     const [activeTab, setActiveTab] = useState('exames');
     
     // Cards State
+    // -- SETORES STATES --
+    const [sectorsList, setSectorsList] = useState([]);
+    const [selectedSectorId, setSelectedSectorId] = useState(null);
+    const [sectorFilters, setSectorFilters] = useState({ search: '', status: 'ativos' });
+    const [showSectorModal, setShowSectorModal] = useState(false);
+    const [editingSector, setEditingSector] = useState(null);
+    const [sectorForm, setSectorForm] = useState({ code: '', name: '', description: '', print_order: '', is_active: true });
+    const [initialSectorForm, setInitialSectorForm] = useState(null);
+    const [showUnsavedSectorModal, setShowUnsavedSectorModal] = useState(false);
+    const [sectorActionModal, setSectorActionModal] = useState({ isOpen: false, type: '', sector: null, examCount: 0 });
+    const [selectedSectorExamCount, setSelectedSectorExamCount] = useState(null);
+    const [loadingSectors, setLoadingSectors] = useState(false);
+
     const [loadingCards, setLoadingCards] = useState(false);
     const [cards, setCards] = useState({
         examesAtivos: 0,
@@ -554,6 +569,7 @@ const LaboratorioConfiguracoes = () => {
         await Promise.all([
             loadDashboardCards(),
             activeTab === 'exames' ? loadExames() : Promise.resolve(),
+            activeTab === 'setores' ? loadSectors() : Promise.resolve(),
             activeTab === 'parametros' ? loadParametros() : Promise.resolve()
         ]);
     };
@@ -591,6 +607,143 @@ const LaboratorioConfiguracoes = () => {
     };
     
     // --- Funções de Exames ---
+    // --- Funções de Setores ---
+    const loadSectors = async () => {
+        try {
+            setLoadingSectors(true);
+            const data = await laboratorioConfiguracoesService.getSectors(sectorFilters);
+            setSectorsList(data);
+            if (data.length > 0) {
+                const stillExists = data.find(s => s.id === selectedSectorId);
+                if (!stillExists) setSelectedSectorId(data[0].id);
+            } else {
+                setSelectedSectorId(null);
+            }
+        } catch (error) {
+            console.error(error);
+            showFeedback('error', 'Falha ao carregar setores.');
+        } finally {
+            setLoadingSectors(false);
+        }
+    };
+    
+    useEffect(() => {
+        if (activeTab === 'setores') loadSectors();
+    }, [activeTab, sectorFilters]); // eslint-disable-line react-hooks/exhaustive-deps
+    
+    useEffect(() => {
+        if (activeTab === 'setores' && selectedSectorId) {
+            laboratorioConfiguracoesService.getSectorExamCount(selectedSectorId)
+                .then(setSelectedSectorExamCount)
+                .catch(() => setSelectedSectorExamCount(null));
+        }
+    }, [selectedSectorId, activeTab]);
+
+    const handleFilterSector = (field, value) => {
+        setSectorFilters(prev => ({ ...prev, [field]: value }));
+    };
+    
+    const openNewSectorModal = () => {
+        const initial = { code: '', name: '', description: '', print_order: '', is_active: true };
+        setSectorForm(initial);
+        setInitialSectorForm(initial);
+        setEditingSector(null);
+        setShowSectorModal(true);
+    };
+
+    const openEditSectorModal = (sector) => {
+        const initial = {
+            code: sector.code || '',
+            name: sector.name || '',
+            description: sector.description || '',
+            print_order: sector.print_order !== null ? sector.print_order : '',
+            is_active: sector.is_active
+        };
+        setSectorForm(initial);
+        setInitialSectorForm(initial);
+        setEditingSector(sector);
+        setShowSectorModal(true);
+    };
+
+    const handleCloseSectorModal = () => {
+        if (JSON.stringify(sectorForm) !== JSON.stringify(initialSectorForm)) {
+            setShowUnsavedSectorModal(true);
+        } else {
+            setShowSectorModal(false);
+        }
+    };
+
+    const confirmDiscardSectorChanges = () => {
+        setShowUnsavedSectorModal(false);
+        setShowSectorModal(false);
+    };
+    
+    const handleSaveSector = async () => {
+        try {
+            if (!sectorForm.code.trim()) { showFeedback('error', 'O Código é obrigatório.'); return; }
+            if (!sectorForm.name.trim()) { showFeedback('error', 'O Nome é obrigatório.'); return; }
+            
+            setLoadingSectors(true);
+            const payload = {
+                ...sectorForm,
+                print_order: sectorForm.print_order !== '' ? parseInt(sectorForm.print_order, 10) : null
+            };
+
+            const codeExists = await laboratorioConfiguracoesService.checkSectorCodeExists(payload.code, editingSector?.id);
+            if (codeExists) {
+                setLoadingSectors(false);
+                showFeedback('error', 'Já existe um setor cadastrado com este código.');
+                return;
+            }
+
+            if (editingSector) {
+                await laboratorioConfiguracoesService.updateSector(editingSector.id, payload);
+                showFeedback('success', 'Setor atualizado com sucesso.');
+            } else {
+                const newSec = await laboratorioConfiguracoesService.createSector(payload);
+                showFeedback('success', 'Setor cadastrado com sucesso.');
+                setSelectedSectorId(newSec.id);
+            }
+            
+            await loadSectors();
+            await loadDashboardCards();
+            setShowSectorModal(false);
+            setLoadingSectors(false);
+        } catch (error) {
+            console.error(error);
+            setLoadingSectors(false);
+            showFeedback('error', 'Erro ao salvar setor.');
+        }
+    };
+    
+    const requestSectorAction = async (sector, type) => {
+        try {
+            let count = 0;
+            if (type === 'inactivate') {
+                count = await laboratorioConfiguracoesService.getSectorExamCount(sector.id);
+            }
+            setSectorActionModal({ isOpen: true, type, sector, examCount: count });
+        } catch (err) {
+            showFeedback('error', 'Erro ao consultar exames vinculados.');
+        }
+    };
+
+    const confirmSectorAction = async () => {
+        try {
+            setLoadingSectors(true);
+            const isActive = sectorActionModal.type === 'activate';
+            await laboratorioConfiguracoesService.toggleSectorStatus(sectorActionModal.sector.id, isActive);
+            showFeedback('success', isActive ? 'Setor ativado com sucesso.' : 'Setor inativado com sucesso.');
+            await loadSectors();
+            await loadDashboardCards();
+            setSectorActionModal({ isOpen: false, type: '', sector: null, examCount: 0 });
+            setLoadingSectors(false);
+        } catch (error) {
+            setLoadingSectors(false);
+            showFeedback('error', 'Erro ao alterar status do setor.');
+        }
+    };
+
     const openNewExamModal = () => {
         const initial = {
             code: '',
@@ -951,7 +1104,6 @@ const LaboratorioConfiguracoes = () => {
         { id: 'exames', label: 'Exames' },
         { id: 'setores', label: 'Setores' },
         { id: 'parametros', label: 'Parâmetros e Referências' },
-        { id: 'usuarios', label: 'Usuários' },
     ];
 
     const currentExam = examesList.find(e => e.id === selectedExamId);
@@ -974,7 +1126,7 @@ const LaboratorioConfiguracoes = () => {
         <div className="lab-cfg-container">
             {feedbackMsg && (
                 <div style={{
-                    position: 'fixed', top: '20px', right: '20px', zIndex: 9999,
+                    position: 'fixed', top: '20px', right: '20px', zIndex: 110000,
                     background: feedbackMsg.type === 'success' ? '#d1fae5' : '#fee2e2',
                     color: feedbackMsg.type === 'success' ? '#047857' : '#b91c1c',
                     border: `1px solid ${feedbackMsg.type === 'success' ? '#10b981' : '#ef4444'}`,
@@ -1006,6 +1158,14 @@ const LaboratorioConfiguracoes = () => {
                             onClick={openNewExamModal}
                         >
                             <Plus size={16} /> Novo exame
+                        </button>
+                    )}
+                    {activeTab === 'setores' && (
+                        <button 
+                            className="lab-btn lab-btn-primary" 
+                            onClick={openNewSectorModal}
+                        >
+                            <Plus size={16} /> Novo setor
                         </button>
                     )}
                     {activeTab === 'parametros' && (
@@ -1252,10 +1412,197 @@ const LaboratorioConfiguracoes = () => {
             )}
 
             {activeTab === 'setores' && (
-                <div className="lab-card" style={{ padding: '4rem', textAlign: 'center', color: '#64748b' }}>
-                    <Layers size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
-                    <h3 style={{ fontSize: '1.25rem', color: '#1e293b', marginBottom: '0.5rem' }}>Setores</h3>
-                    <p>Gerenciamento de setores será reativado na próxima etapa.</p>
+                <div className="lab-cfg-layout fade-in">
+                    <div className="lab-cfg-main-col">
+                        <div className="lab-card lab-cfg-list-card">
+                            <div className="lab-cfg-list-header">
+                                <div className="lab-cfg-filters-grid lab-cfg-filters-grid--sectors">
+                                    <div className="lab-filter-item">
+                                        <label>Nome / Código</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Buscar setor (Código ou Nome)"
+                                            value={sectorFilters.search}
+                                            onChange={e => handleFilterSector('search', e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Enter') loadSectors(); }}
+                                            style={{ height: '38px', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px' }}
+                                        />
+                                    </div>
+                                    <div className="lab-filter-item">
+                                        <label>Status</label>
+                                        <select
+                                            value={sectorFilters.status}
+                                            onChange={e => handleFilterSector('status', e.target.value)}
+                                            style={{ height: '38px', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px' }}
+                                        >
+                                            <option value="todos">Todos os status</option>
+                                            <option value="ativos">Somente Ativos</option>
+                                            <option value="inativos">Somente Inativos</option>
+                                        </select>
+                                    </div>
+                                    <div className="lab-filter-actions">
+                                        <button className="lab-btn lab-btn-primary" style={{ height: '38px' }} onClick={loadSectors}>
+                                            <Search size={16} /> Buscar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="lab-cfg-table-wrapper">
+                                {loadingSectors ? (
+                                    <table className="lab-cfg-table">
+                                        <tbody>
+                                            <tr>
+                                                <td colSpan="6" style={{ textAlign: 'center', padding: '3rem' }}>
+                                                    <Loader2 size={32} className="spin text-gray-400" style={{ margin: '0 auto' }} />
+                                                    <p style={{ marginTop: '1rem', color: '#64748b' }}>Carregando setores...</p>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                ) : sectorsList.length === 0 ? (
+                                    <table className="lab-cfg-table">
+                                        <tbody>
+                                            <tr>
+                                                <td colSpan="6" style={{ textAlign: 'center', padding: '3rem' }}>
+                                                    <p style={{ color: '#64748b' }}>Nenhum setor encontrado com os filtros atuais.</p>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                ) : (
+                                    <table className="lab-cfg-table">
+                                        <thead>
+                                            <tr>
+                                                <th style={{ width: '70px', textAlign: 'center' }}>Ordem</th>
+                                                <th style={{ width: '90px' }}>Código</th>
+                                                <th style={{ width: '160px' }}>Setor</th>
+                                                <th>Descrição</th>
+                                                <th style={{ width: '90px', textAlign: 'center' }}>Status</th>
+                                                <th style={{ width: '90px', textAlign: 'center' }}>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {sectorsList.map(sector => (
+                                                <tr
+                                                    key={sector.id}
+                                                    className={selectedSectorId === sector.id ? 'active' : ''}
+                                                    onClick={() => setSelectedSectorId(sector.id)}
+                                                    style={{ opacity: sector.is_active ? 1 : 0.6 }}
+                                                >
+                                                    <td style={{ textAlign: 'center', fontFamily: 'monospace', color: '#64748b', fontWeight: '600' }}>
+                                                        {sector.print_order !== null ? sector.print_order : '—'}
+                                                    </td>
+                                                    <td className="font-bold text-gray-500" style={{ fontSize: '0.85rem' }}>
+                                                        {sector.code}
+                                                    </td>
+                                                    <td className="font-bold text-primary">{sector.name}</td>
+                                                    <td style={{ color: '#475569', fontSize: '0.9rem' }}>
+                                                        <span title={sector.description}>
+                                                            {sector.description
+                                                                ? sector.description.length > 50
+                                                                    ? sector.description.substring(0, 50) + '...'
+                                                                    : sector.description
+                                                                : '—'}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ textAlign: 'center' }}>
+                                                        <span className={`lab-badge ${sector.is_active ? 'lab-badge-success' : 'lab-badge-gray'}`} style={!sector.is_active ? { background: '#fee2e2', color: '#ef4444', borderColor: '#fca5a5' } : {}}>
+                                                            {sector.is_active ? 'Ativo' : 'Inativo'}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                                                            <button
+                                                                className="lab-btn lab-btn-outline"
+                                                                style={{ padding: '0.4rem', border: 'none', background: 'transparent', color: '#3b82f6' }}
+                                                                title="Editar setor"
+                                                                onClick={(e) => { e.stopPropagation(); openEditSectorModal(sector); }}
+                                                            >
+                                                                <Edit size={16} />
+                                                            </button>
+                                                            <button
+                                                                className="lab-btn lab-btn-outline"
+                                                                style={{ padding: '0.4rem', border: 'none', background: 'transparent', color: sector.is_active ? '#ef4444' : '#10b981' }}
+                                                                title={sector.is_active ? 'Inativar setor' : 'Ativar setor'}
+                                                                onClick={(e) => { e.stopPropagation(); requestSectorAction(sector, sector.is_active ? 'inactivate' : 'activate'); }}
+                                                            >
+                                                                {sector.is_active ? <Ban size={16} /> : <CheckCircle size={16} />}
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="lab-cfg-side-col">
+                        {(() => {
+                            const sel = sectorsList.find(s => s.id === selectedSectorId);
+                            return sel ? (
+                                <div className="lab-cfg-details-panel fade-in">
+                                    <div className="cfg-panel-header">
+                                        <div className="cfg-panel-title">
+                                            <h2>{sel.code} — {sel.name}</h2>
+                                        </div>
+                                        <div className="cfg-panel-badges mt-2" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                                            {sel.print_order !== null && (
+                                                <span className="lab-badge lab-badge-gray">Ordem: {sel.print_order}</span>
+                                            )}
+                                            <span className={`lab-badge ${sel.is_active ? 'lab-badge-success' : 'lab-badge-gray'}`} style={!sel.is_active ? { background: '#fee2e2', color: '#ef4444', borderColor: '#fca5a5' } : {}}>
+                                                {sel.is_active ? 'Ativo' : 'Inativo'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="cfg-panel-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        <div className="cfg-info-box" style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}>
+                                            <label style={{ color: '#64748b', fontSize: '0.85rem' }}>Código</label>
+                                            <span className="font-semibold text-primary">{sel.code || '---'}</span>
+                                        </div>
+                                        <div className="cfg-info-box" style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}>
+                                            <label style={{ color: '#64748b', fontSize: '0.85rem' }}>Nome</label>
+                                            <span className="font-bold">{sel.name}</span>
+                                        </div>
+                                        <div className="cfg-info-box" style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}>
+                                            <label style={{ color: '#64748b', fontSize: '0.85rem' }}>Ordem</label>
+                                            <span>{sel.print_order !== null ? sel.print_order : '—'}</span>
+                                        </div>
+                                        <div className="cfg-info-box" style={{ display: 'grid', gridTemplateColumns: '120px 1fr' }}>
+                                            <label style={{ color: '#64748b', fontSize: '0.85rem' }}>Status</label>
+                                            <span style={{ color: sel.is_active ? '#047857' : '#ef4444', fontWeight: '600' }}>
+                                                {sel.is_active ? 'Ativo' : 'Inativo'}
+                                            </span>
+                                        </div>
+                                        <hr style={{ border: 0, borderTop: '1px solid #e2e8f0', margin: '0.25rem 0' }} />
+                                        <div className="cfg-info-box">
+                                            <label style={{ color: '#64748b', fontSize: '0.85rem' }}>Descrição</label>
+                                            <span style={{ whiteSpace: 'pre-wrap', color: '#334155' }}>{sel.description || '—'}</span>
+                                        </div>
+                                        <hr style={{ border: 0, borderTop: '1px solid #e2e8f0', margin: '0.25rem 0' }} />
+                                        <div className="cfg-info-box">
+                                            <label style={{ color: '#3b82f6', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                <FlaskConical size={14} /> Exames Vinculados
+                                            </label>
+                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                                <span style={{ fontSize: '2rem', fontWeight: '700', color: '#1e293b', lineHeight: '1' }}>
+                                                    {selectedSectorExamCount !== null ? selectedSectorExamCount : '...'}
+                                                </span>
+                                                <span style={{ color: '#64748b', fontWeight: '500', fontSize: '0.9rem' }}>exames neste setor</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="lab-cfg-details-panel" style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+                                    <Layers size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                                    <p>Selecione um setor para visualizar os detalhes.</p>
+                                </div>
+                            );
+                        })()}
+                    </div>
                 </div>
             )}
 
@@ -1528,41 +1875,50 @@ const LaboratorioConfiguracoes = () => {
                 </div>
             )}
 
-            {activeTab === 'usuarios' && (
-                <div className="lab-card" style={{ padding: '4rem', textAlign: 'center', color: '#64748b' }}>
-                    <Users size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
-                    <h3 style={{ fontSize: '1.25rem', color: '#1e293b', marginBottom: '0.5rem' }}>Usuários</h3>
-                    <p>Gerenciamento de usuários será reativado na próxima etapa.</p>
-                </div>
-            )}
 
             {/* ---------------- MODAIS DE PARÂMETROS ---------------- */}
 
             {/* Modal Novo/Editar Parâmetro */}
             {showParamModal && (
-                <div className="lab-modal-overlay">
-                    <div className="lab-modal-content" style={{ maxWidth: '700px' }}>
-                        <div className="lab-modal-header">
-                            <h2>{editingParam ? 'Editar Parâmetro' : 'Novo Parâmetro'}</h2>
-                            <button className="lab-modal-close" onClick={handleCloseParamModal}>×</button>
+                <div className="lab-modal-overlay" onClick={handleCloseParamModal} style={{ zIndex: 10000 }}>
+                    <div className="lab-modal-content" style={{ maxWidth: '600px', width: '90%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                        <div className="lab-modal-header" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+                            <h2 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <FileSignature size={20} color="#3b82f6" /> 
+                                {editingParam ? 'Editar Parâmetro' : 'Novo Parâmetro'}
+                            </h2>
+                            <button onClick={handleCloseParamModal} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer' }}>✕</button>
                         </div>
-                        <div className="lab-modal-body" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div style={{ padding: '0 1.5rem 1rem', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.85rem' }}>
+                            {editingParam ? 'Edite as informações principais do parâmetro.' : 'Cadastre as informações principais do parâmetro.'}
+                        </div>
+                        <div className="lab-modal-body" style={{ padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
                                 
                                 {/* 1. Vínculo com Exame */}
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#475569', marginBottom: '0.5rem' }}>Exame Vinculado <span style={{color:'red'}}>*</span></label>
-                                    <select 
-                                        value={paramForm.exam_id} 
-                                        onChange={e => setParamForm({...paramForm, exam_id: e.target.value})}
-                                        style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px' }}
-                                        disabled={!!editingParam} // Geralmente não se muda o exame do parâmetro depois de criado
-                                    >
-                                        <option value="">Selecione um exame</option>
-                                        {allExamsLookup.map(ex => (
-                                            <option key={ex.id} value={ex.id}>{ex.code} - {ex.name}</option>
-                                        ))}
-                                    </select>
+                                    <LabCombobox
+                                        label="Exame Vinculado"
+                                        required
+                                        inputId="param-exam"
+                                        name="exam_id"
+                                        disabled={!!editingParam}
+                                        value={(() => {
+                                            if (!paramForm.exam_id) return '';
+                                            const ex = allExamsLookup.find(e => e.id === paramForm.exam_id);
+                                            return ex ? `${ex.code} - ${ex.name}` : '';
+                                        })()}
+                                        onChange={(val) => {
+                                            const ex = allExamsLookup.find(e => `${e.code} - ${e.name}` === val);
+                                            if (ex) setParamForm({...paramForm, exam_id: ex.id});
+                                            else setParamForm({...paramForm, exam_id: ''});
+                                        }}
+                                        options={allExamsLookup.map(ex => `${ex.code} - ${ex.name}`)}
+                                        allowCustomValue={false}
+                                        searchable={true}
+                                        emptyMessage="Nenhum exame encontrado."
+                                        placeholder="Buscar ou selecionar exame..."
+                                    />
                                 </div>
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 3fr', gap: '1rem' }}>
@@ -1802,13 +2158,14 @@ const LaboratorioConfiguracoes = () => {
                                         required
                                         inputId="exam-sector"
                                         name="sector_id"
-                                        value={sectorsFilter.find(s => s.id === examForm.sector_id)?.name || 'Selecione...'}
+                                        value={sectorsFilter.find(s => s.id === examForm.sector_id)?.name || ''}
                                         onChange={(val) => {
                                             const sec = sectorsFilter.find(s => s.name === val);
                                             if (sec) setExamForm({...examForm, sector_id: sec.id});
                                         }}
-                                        options={['Selecione...', ...sectorsFilter.map(s => s.name)]}
+                                        options={sectorsFilter.map(s => s.name)}
                                         allowCustomValue={false}
+                                        placeholder="Selecione o setor"
                                     />
                                     <div style={{ display: 'flex', alignItems: 'center', paddingTop: '1.5rem' }}>
                                         <input 
@@ -1851,17 +2208,24 @@ const LaboratorioConfiguracoes = () => {
                                         required
                                         inputId="exam-result-type"
                                         name="result_type"
-                                        value={['ESTRUTURADO', 'NUMERICO', 'QUALITATIVO', 'TEXTO'].includes(examForm.result_type) 
-                                            ? examForm.result_type.charAt(0) + examForm.result_type.slice(1).toLowerCase() 
-                                            : 'Selecione...'}
+                                        value={examForm.result_type ? ({
+                                            'ESTRUTURADO': 'Estruturado',
+                                            'NUMERICO': 'Numérico',
+                                            'QUALITATIVO': 'Qualitativo',
+                                            'TEXTO': 'Texto'
+                                        }[examForm.result_type] || '') : ''}
                                         onChange={(val) => {
-                                            if (val === 'Estruturado') setExamForm({...examForm, result_type: 'ESTRUTURADO'});
-                                            else if (val === 'Numérico') setExamForm({...examForm, result_type: 'NUMERICO'});
-                                            else if (val === 'Qualitativo') setExamForm({...examForm, result_type: 'QUALITATIVO'});
-                                            else if (val === 'Texto') setExamForm({...examForm, result_type: 'TEXTO'});
+                                            const map = {
+                                                'Estruturado': 'ESTRUTURADO',
+                                                'Numérico': 'NUMERICO',
+                                                'Qualitativo': 'QUALITATIVO',
+                                                'Texto': 'TEXTO'
+                                            };
+                                            if (map[val]) setExamForm({...examForm, result_type: map[val]});
                                         }}
                                         options={['Estruturado', 'Numérico', 'Qualitativo', 'Texto']}
                                         allowCustomValue={false}
+                                        placeholder="Selecione o tipo"
                                     />
                                     <LabCombobox 
                                         label="Unidade"
@@ -1959,6 +2323,177 @@ const LaboratorioConfiguracoes = () => {
             )}
 
             {/* Modal de confirmação de inativação/ativação de Exame */}
+            {/* Modal de Setor */}
+            {showSectorModal && (
+                <div className="lab-modal-overlay">
+                    <div className="lab-modal-content" style={{ maxWidth: '600px' }}>
+                        <div className="lab-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid #e2e8f0' }}>
+                            <h2 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Layers size={20} color="#3b82f6" /> 
+                                {editingSector ? 'Editar setor' : 'Novo setor'}
+                            </h2>
+                            <button onClick={handleCloseSectorModal} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer' }}>✕</button>
+                        </div>
+                        <div style={{ padding: '0 1.5rem 1rem', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.85rem' }}>
+                            {editingSector ? 'Atualize as informações do setor laboratorial.' : 'Cadastre as informações principais do setor laboratorial.'}
+                        </div>
+                        <div className="lab-modal-body" style={{ padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#475569', marginBottom: '0.5rem' }}>Código <span style={{color: '#ef4444'}}>*</span></label>
+                                    <input 
+                                        type="text" 
+                                        value={sectorForm.code} 
+                                        onChange={e => setSectorForm({...sectorForm, code: e.target.value.toUpperCase()})}
+                                        placeholder="Ex: BIOQ"
+                                        style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', textTransform: 'uppercase' }} 
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#475569', marginBottom: '0.5rem' }}>Nome do setor <span style={{color: '#ef4444'}}>*</span></label>
+                                    <input 
+                                        type="text" 
+                                        value={sectorForm.name} 
+                                        onChange={e => setSectorForm({...sectorForm, name: e.target.value})}
+                                        placeholder="Ex: Bioquímica"
+                                        style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px' }} 
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#475569', marginBottom: '0.5rem' }}>Descrição</label>
+                                <textarea 
+                                    value={sectorForm.description} 
+                                    onChange={e => setSectorForm({...sectorForm, description: e.target.value})}
+                                    placeholder="Descrição detalhada do setor..."
+                                    style={{ width: '100%', minHeight: '80px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '10px', resize: 'vertical' }} 
+                                />
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#475569', marginBottom: '0.5rem' }}>Ordem de impressão</label>
+                                    <input 
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        value={sectorForm.print_order} 
+                                        onChange={e => setSectorForm({...sectorForm, print_order: e.target.value})}
+                                        placeholder="Ex: 1"
+                                        style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px' }} 
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', paddingTop: '1.5rem' }}>
+                                    <label className="lab-checkbox-label">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={sectorForm.is_active} 
+                                            onChange={e => setSectorForm({...sectorForm, is_active: e.target.checked})}
+                                        />
+                                        Setor ativo
+                                    </label>
+                                </div>
+                            </div>
+
+                        </div>
+                        <div className="lab-modal-footer" style={{ padding: '1.5rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '1rem', background: '#f8fafc' }}>
+                            <button className="lab-btn lab-btn-outline" onClick={handleCloseSectorModal}>Cancelar</button>
+                            <button className="lab-btn lab-btn-primary" onClick={handleSaveSector} disabled={loadingSectors}>
+                                {loadingSectors ? 'Salvando...' : 'Salvar setor'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Descarte de Setor */}
+            {showUnsavedSectorModal && (
+                <div className="lab-modal-overlay" style={{ zIndex: 10001 }}>
+                    <div className="lab-modal-content" style={{ maxWidth: '400px', textAlign: 'center' }}>
+                        <div style={{ padding: '2rem' }}>
+                            <AlertTriangle size={48} color="#f59e0b" style={{ margin: '0 auto 1rem' }} />
+                            <h3 style={{ fontSize: '1.25rem', color: '#0f172a', marginBottom: '0.5rem' }}>
+                                {editingSector ? 'Descartar alterações?' : 'Descartar cadastro?'}
+                            </h3>
+                            <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>
+                                {editingSector ? 'As alterações realizadas no setor não foram salvas.' : 'As informações preenchidas não foram salvas.'}
+                            </p>
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                                <button className="lab-btn lab-btn-outline" onClick={() => setShowUnsavedSectorModal(false)}>
+                                    Continuar editando
+                                </button>
+                                <button className="lab-btn lab-btn-primary" style={{ background: '#ef4444', borderColor: '#ef4444' }} onClick={confirmDiscardSectorChanges}>
+                                    {editingSector ? 'Descartar alterações' : 'Descartar cadastro'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Ação de Status de Setor */}
+            {sectorActionModal.isOpen && (
+                <div className="lab-modal-overlay" style={{ zIndex: 10001 }}>
+                    <div className="lab-modal-content" style={{ maxWidth: '450px' }}>
+                        <div style={{ padding: '2rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                                {sectorActionModal.type === 'activate' ? (
+                                    <CheckCircle size={48} color="#10b981" />
+                                ) : (
+                                    <Ban size={48} color="#ef4444" />
+                                )}
+                            </div>
+                            <h3 style={{ fontSize: '1.25rem', color: '#0f172a', marginBottom: '1rem', textAlign: 'center' }}>
+                                {sectorActionModal.type === 'activate' ? 'Ativar setor?' : 'Inativar setor?'}
+                            </h3>
+                            <p style={{ color: '#475569', marginBottom: '1rem', textAlign: 'center', lineHeight: '1.5' }}>
+                                {sectorActionModal.type === 'activate' 
+                                    ? 'O setor voltará a ficar disponível para novos cadastros de exames.'
+                                    : 'O setor deixará de ficar disponível para novos cadastros de exames. Os exames já vinculados serão preservados.'}
+                            </p>
+                            
+                            <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '6px', marginBottom: '1.5rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                    <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Código</span>
+                                    <span style={{ fontWeight: '600', color: '#0f172a' }}>{sectorActionModal.sector?.code}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                    <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Nome</span>
+                                    <span style={{ fontWeight: '500', color: '#0f172a' }}>{sectorActionModal.sector?.name}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                    <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Status atual</span>
+                                    <span className={`lab-status-badge ${sectorActionModal.sector?.is_active ? 'active' : 'inactive'}`}>
+                                        {sectorActionModal.sector?.is_active ? 'Ativo' : 'Inativo'}
+                                    </span>
+                                </div>
+                                {sectorActionModal.type === 'inactivate' && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', marginTop: '0.5rem', paddingTop: '0.5rem' }}>
+                                        <span style={{ color: '#ef4444', fontSize: '0.85rem', fontWeight: '500' }}>Este setor possui {sectorActionModal.examCount} exame(s) vinculado(s). Eles continuarão preservados.</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                                <button className="lab-btn lab-btn-outline" onClick={() => setSectorActionModal({ isOpen: false, type: '', sector: null, examCount: 0 })} disabled={loadingSectors}>
+                                    Cancelar
+                                </button>
+                                <button 
+                                    className="lab-btn lab-btn-primary" 
+                                    style={{ background: sectorActionModal.type === 'activate' ? '#10b981' : '#ef4444', borderColor: sectorActionModal.type === 'activate' ? '#10b981' : '#ef4444' }} 
+                                    onClick={confirmSectorAction}
+                                    disabled={loadingSectors}
+                                >
+                                    {loadingSectors ? 'Processando...' : (sectorActionModal.type === 'activate' ? 'Ativar setor' : 'Inativar setor')}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showConfirmToggleExam && examToToggle && (
                 <div className="lab-modal-overlay" style={{ zIndex: 10000 }}>
                     <div className="lab-modal-content" style={{ maxWidth: '450px', textAlign: 'center' }}>

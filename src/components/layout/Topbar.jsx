@@ -21,6 +21,7 @@ const Topbar = () => {
     const isFarmacia = location.pathname.startsWith('/farmacia');
     const isCompras = location.pathname.startsWith('/compras');
     const isPlanejamento = location.pathname.startsWith('/planejamento');
+    const showGlobalAddButton = isPlanejamento || isFarmacia || isCompras;
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -98,19 +99,21 @@ const Topbar = () => {
             </div>
 
             <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                <div style={{ position: 'relative' }} className="topbar-action-group">
-                    <button aria-label={ariaLabelTex} className="topbar-global-add-btn"
-                        onClick={handleActionClick}
-                        style={{ backgroundColor: 'var(--color-secondary)', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: 'var(--shadow-sm)' }}
-                        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04) translateY(-1px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.filter = 'brightness(1.05)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.filter = 'brightness(1)'; }}
-                    >
-                        <Plus size={20} strokeWidth={2.5} />
-                    </button>
-                    <span className="premium-tooltip">{tooltipText}</span>
-                </div>
+                {showGlobalAddButton && (
+                    <div style={{ position: 'relative' }} className="topbar-action-group">
+                        <button aria-label={ariaLabelTex} className="topbar-global-add-btn"
+                            onClick={handleActionClick}
+                            style={{ backgroundColor: 'var(--color-secondary)', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: 'var(--shadow-sm)' }}
+                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04) translateY(-1px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.filter = 'brightness(1.05)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.filter = 'brightness(1)'; }}
+                        >
+                            <Plus size={20} strokeWidth={2.5} />
+                        </button>
+                        <span className="premium-tooltip">{tooltipText}</span>
+                    </div>
+                )}
 
-                <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border)', margin: '0 0.25rem' }} />
+                {showGlobalAddButton && <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border)', margin: '0 0.25rem' }} />}
 
                 <button className="topbar-action-btn" aria-label="Notificações"
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', transition: 'all 0.2s ease' }}
