@@ -268,3 +268,254 @@
     width: 100% !important;
     padding: 0 !important;
 }
+
+/* Correção definitiva de Box Model para Tabelas nesta tela */
+.lab-pac-container .lab-table {
+    width: 100% !important;
+    max-width: 100%;
+    table-layout: fixed !important;
+    box-sizing: border-box !important;
+}
+
+.lab-pac-container .lab-table th,
+.lab-pac-container .lab-table td {
+    box-sizing: border-box !important;
+}
+
+/* --- Ajustes Visuais Fase 1 --- */
+
+.lab-pac-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    color: #475569;
+    white-space: nowrap;
+}
+
+.lab-clickable-row {
+    cursor: pointer;
+    transition: background 150ms ease;
+}
+
+.lab-clickable-row:hover {
+    background: #eff6ff;
+}
+
+.lab-btn-icon-edit {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
+    color: #3b82f6;
+    cursor: pointer;
+    transition: all 150ms ease;
+}
+
+.lab-btn-icon-edit:hover {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1d4ed8;
+}
+
+.lab-badge-modern {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 1px solid transparent;
+}
+
+/* Reusing colors from system */
+.lab-badge-modern.lab-badge-success {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #bbf7d0;
+}
+
+.lab-badge-modern.lab-badge-gray {
+    background: #f1f5f9;
+    color: #475569;
+    border-color: #e2e8f0;
+}
+
+/* Modern CSS Tooltip */
+[data-tooltip] {
+    position: relative;
+}
+
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: #1e293b;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-family: inherit;
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+    white-space: nowrap;
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 150ms ease, transform 150ms ease;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+[data-tooltip]:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* --- Modal Pacientes --- */
+
+.lab-pac-modal-content {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 1000px;
+    max-height: 85vh;
+    overflow: hidden;
+}
+
+.lab-pac-modal-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8fafc;
+}
+
+.lab-pac-modal-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.lab-pac-modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.lab-pac-modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    background: #f8fafc;
+}
+
+.lab-pac-form-section {
+    margin-bottom: 2rem;
+}
+
+.lab-pac-form-section:last-child {
+    margin-bottom: 0;
+}
+
+.lab-pac-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #334155;
+    margin: 0 0 1rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.lab-pac-form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.lab-pac-form-grid.two-cols {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.lab-pac-form-grid.one-col {
+    grid-template-columns: 1fr;
+}
+
+@media (max-width: 900px) {
+    .lab-pac-form-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .lab-pac-form-grid, .lab-pac-form-grid.two-cols {
+        grid-template-columns: 1fr;
+    }
+}
+
+.lab-pac-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.lab-pac-form-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.lab-pac-form-input, .lab-pac-form-select, .lab-pac-form-textarea {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: #1e293b;
+    background: #fff;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+.lab-pac-form-input:focus, .lab-pac-form-select:focus, .lab-pac-form-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.lab-pac-form-input:disabled, .lab-pac-form-select:disabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.lab-pac-form-textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.lab-pac-form-error {
+    font-size: 0.75rem;
+    color: #ef4444;
+    margin-top: 0.25rem;
+}

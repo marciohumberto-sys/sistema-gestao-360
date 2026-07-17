@@ -1,0 +1,13 @@
+diff a/src/pages/laboratorio/LaboratorioConfiguracoes.jsx b/src/pages/laboratorio/LaboratorioConfiguracoes.jsx	(rejected hunks)
+@@ -1220,9 +1220,9 @@
+                                                 <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>Histórico</h3>
+                                                 <div style={{ fontSize: '0.85rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                     {selectedParamHistory === null ? (
+-                                                        <><Loader2 size={14} className="spin text-gray-400" /> <span>Verificando...</span></>
++                                                        <span style={{ color: '#64748b' }}>Verificando...</span>
+                                                     ) : selectedParamHistory ? (
+-                                                        <><Lock size={14} style={{ color: '#ea580c' }} /> <span style={{ color: '#ea580c', fontWeight: 600 }}>Possui resultados registrados</span></>
++                                                        <span style={{ color: '#ea580c', fontWeight: 600 }}>Possui resultados registrados</span>
+                                                     ) : (
+                                                         <span style={{ color: '#10b981' }}>Ainda não utilizado</span>
+                                                     )}

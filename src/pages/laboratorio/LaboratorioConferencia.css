@@ -18,19 +18,77 @@
 
 .lab-conf-container .lab-filters-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 1rem;
-    align-items: flex-end;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    align-items: end;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow: visible;
 }
 
 .lab-conf-container .lab-filters-grid > * {
     min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
-@media (min-width: 1024px) {
+.lab-conf-container .lab-filters-grid input,
+.lab-conf-container .lab-filters-grid select {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.lab-conf-container .lab-filter-actions {
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+}
+
+.lab-conf-container .lab-filter-actions button {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    align-self: end;
+    margin: 0;
+    transform: none;
+}
+
+@media (min-width: 1200px) {
     .lab-conf-container .lab-filters-grid {
-        grid-template-columns: 0.9fr 0.9fr 1.8fr 1.1fr 1.9fr 130px;
+        grid-template-columns: 115px 130px minmax(150px, 1fr) 120px 110px 110px 115px;
+        gap: 8px;
     }
+}
+
+@media (min-width: 1366px) {
+    .lab-conf-container .lab-filters-grid {
+        grid-template-columns: 120px 140px minmax(180px, 1fr) 130px 120px 120px 130px;
+        gap: 10px;
+    }
+}
+
+@media (min-width: 1500px) {
+    .lab-conf-container .lab-filters-grid {
+        grid-template-columns: minmax(130px, 0.65fr) minmax(150px, 0.85fr) minmax(220px, 1.3fr) minmax(140px, 0.8fr) minmax(130px, 0.7fr) minmax(130px, 0.7fr) 140px;
+        gap: 12px;
+    }
+}
+
+@media (max-width: 1199px) {
+    .lab-conf-container .lab-filters-grid {
+        grid-template-columns: 1fr 1fr 1fr;
+    }
+}
+
+@media (max-width: 767px) {
+    .lab-conf-container .lab-filters-grid {
+        grid-template-columns: 1fr;
+    }
+}
 }
 
 .lab-conf-container .lab-filter-actions {
@@ -343,4 +401,30 @@
     max-width: 100% !important;
     width: 100% !important;
     padding: 0 !important;
+}
+
+/* Fix Alignment */
+.lab-conf-container .lab-filters-grid {
+    --filter-control-height: 36px;
+}
+
+.lab-conf-container .lab-filters-grid input,
+.lab-conf-container .lab-filters-grid select,
+.lab-conf-container .lab-filter-actions button {
+    height: var(--filter-control-height) !important;
+    min-height: var(--filter-control-height) !important;
+    box-sizing: border-box !important;
+}
+
+.filter-label-spacer {
+    visibility: hidden;
+    display: block;
+    margin-bottom: 0.15rem;
+    line-height: 1.2;
+}
+
+.lab-conf-container .lab-filter-actions {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
 }

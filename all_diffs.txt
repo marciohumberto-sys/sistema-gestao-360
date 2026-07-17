@@ -1,0 +1,2615 @@
+
+
+--- STEP 5711 ---
+Created At: 2026-07-16T20:08:43Z
+Completed At: 2026-07-16T20:08:45Z
+Created file file:///c:/Users/marci/OneDrive/Documentos/Antigravity/GPI/src/pages/laboratorio/LaboratorioConfiguracoes.jsx with requested content.
+If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+
+--- STEP 5724 ---
+Created At: 2026-07-16T20:09:09Z
+Completed At: 2026-07-16T20:09:11Z
+The following changes were made by the replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -114,7 +114,8 @@
+             const newStatus = !examToToggle.is_active;
+             await laboratorioConfiguracoesService.toggleExamStatus(examToToggle.id, newStatus);
+             
+-            showFeedback('success', \`Exame \${newStatus ? 'ativado' : 'inativado'} com sucesso.\`);
++            showFeedback('success', `Exame ${newStatus ? 'ativado' : 'inativado'} com sucesso.`);
++
+             
+             // Atualizar lista e cards
+             await loadExames();
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 5730 ---
+Created At: 2026-07-16T20:09:29Z
+Completed At: 2026-07-16T20:09:31Z
+The following changes were made by the multi_replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -161,7 +161,7 @@
+                             transform: 'translateY(-50%)', marginRight: '1rem',
+                             background: feedbackMsg.type === 'success' ? '#d1fae5' : '#fee2e2',
+                             color: feedbackMsg.type === 'success' ? '#047857' : '#b91c1c',
+-                            border: \`1px solid \${feedbackMsg.type === 'success' ? '#10b981' : '#ef4444'}\`,
++                            border: `1px solid ${feedbackMsg.type === 'success' ? '#10b981' : '#ef4444'}`,
+                             padding: '0.5rem 1rem', borderRadius: '8px',
+                             fontWeight: '600', fontSize: '0.85rem', zIndex: 10,
+                             whiteSpace: 'nowrap',
+@@ -194,7 +194,7 @@
+                         <div key={idx} className="lab-kpi-card">
+                             <div className="lab-kpi-header">
+                                 <span className="lab-kpi-label">{item.label}</span>
+-                                <div className="lab-kpi-icon-wrapper" style={{ backgroundColor: \`\${item.color}15\`, color: item.color, width: '36px', height: '36px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
++                                <div className="lab-kpi-icon-wrapper" style={{ backgroundColor: `${item.color}15`, color: item.color, width: '36px', height: '36px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                     <Icon size={18} />
+                                 </div>
+                             </div>
+@@ -210,7 +210,7 @@
+                 {tabs.map(tab => (
+                     <button 
+                         key={tab.id} 
+-                        className={\`lab-cfg-tab \${activeTab === tab.id ? 'active' : ''}\`}
++                        className={`lab-cfg-tab ${activeTab === tab.id ? 'active' : ''}`}
+                         onClick={() => setActiveTab(tab.id)}
+                     >
+                         {tab.label}
+@@ -310,7 +310,7 @@
+                                                 <td><span className="lab-badge lab-badge-gray" style={{ background: '#f1f5f9', color: '#475569', border: 'none' }}>{ex.sector_name}</span></td>
+                                                 <td style={{ color: '#475569', fontSize: '0.9rem' }}>{ex.material || '---'}</td>
+                                                 <td>
+-                                                    <span className={\`lab-badge \${ex.is_active ? 'lab-badge-success' : 'lab-badge-gray'}\`}>
++                                                    <span className={`lab-badge ${ex.is_active ? 'lab-badge-success' : 'lab-badge-gray'}`}>
+                                                         {ex.is_active ? 'Ativo' : 'Inativo'}
+                                                     </span>
+                                                 </td>
+@@ -346,7 +346,7 @@
+                                     </div>
+                                     <div className="cfg-panel-badges mt-2" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                         <span className="lab-badge lab-badge-gray">{currentExam.sector_name}</span>
+-                                        <span className={\`lab-badge \${currentExam.is_active ? 'lab-badge-success' : 'lab-badge-gray'}\`}>
++                                        <span className={`lab-badge ${currentExam.is_active ? 'lab-badge-success' : 'lab-badge-gray'}`}>
+                                             {currentExam.is_active ? 'Ativo' : 'Inativo'}
+                                         </span>
+                                     </div>
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 5760 ---
+Created At: 2026-07-16T20:17:29Z
+Completed At: 2026-07-16T20:17:31Z
+The following changes were made by the multi_replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -2,7 +2,7 @@
+ import { 
+     Settings, RefreshCw, Plus, AlertTriangle, 
+     FileSignature, Layers, TestTube2, Users, 
+-    Search, Edit, Copy, Trash2, Eye, ShieldCheck, Lock, Activity,
++    Search, Edit, Copy, Ban, Eye, ShieldCheck, Lock, Activity,
+     Loader2, CheckCircle2, XCircle
+ } from 'lucide-react';
+ import './LaboratorioConfiguracoes.css';
+@@ -123,7 +123,7 @@
+             setShowConfirmModal(false);
+             setExamToToggle(null);
+         } catch (error) {
+-            showFeedback('error', 'Não foi possível alterar o status do exame.');
++            showFeedback('error', examToToggle.is_active ? 'Não foi possível inativar o exame. Tente novamente.' : 'Não foi possível ativar o exame. Tente novamente.');
+         } finally {
+             setActionLoading(false);
+         }
+@@ -322,11 +322,12 @@
+                                                         </button>
+                                                         <button 
+                                                             className="lab-btn lab-btn-outline" 
+-                                                            style={{ padding: '0.35rem', border: '1px solid #e2e8f0', color: ex.is_active ? '#ef4444' : '#10b981' }} 
+-                                                            title={ex.is_active ? "Inativar" : "Ativar"}
++                                                            style={{ padding: '0.35rem', border: '1px solid #e2e8f0', color: ex.is_active ? '#ea580c' : '#10b981' }} 
++                                                            title={ex.is_active ? "Inativar exame" : "Ativar exame"}
+                                                             onClick={() => handleToggleStatus(ex)}
++                                                            disabled={actionLoading}
+                                                         >
+-                                                            {ex.is_active ? <Trash2 size={14} /> : <CheckCircle2 size={14} />}
++                                                            {ex.is_active ? <Ban size={14} /> : <CheckCircle2 size={14} />}
+                                                         </button>
+                                                     </div>
+                                                 </td>
+@@ -426,11 +426,16 @@
+                         <div className="unsaved-result-modal-body" style={{ paddingLeft: '26px' }}>
+                             <p style={{ color: '#475569', marginBottom: '1rem' }}>
+                                 {examToToggle.is_active 
+-                                    ? 'Este exame deixará de ficar disponível para novos atendimentos. Os registros anteriores serão preservados.'
+-                                    : 'O exame voltará a ficar disponível para seleção nos novos atendimentos.'}
++                                    ? 'O exame deixará de ficar disponível para novos atendimentos. Os atendimentos, resultados e laudos anteriores serão preservados.'
++                                    : 'O exame voltará a ficar disponível para novos atendimentos.'}
+                             </p>
+                             <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', fontSize: '0.9rem' }}>
+-                                <strong>Exame:</strong> {examToToggle.code} — {examToToggle.name}
++                                <div style={{ marginBottom: '4px' }}><strong>Código:</strong> {examToToggle.code}</div>
++                                <div style={{ marginBottom: '4px' }}><strong>Nome:</strong> {examToToggle.name}</div>
++                                <div style={{ marginBottom: '4px' }}><strong>Setor:</strong> {examToToggle.sector_name}</div>
++                                {examToToggle.is_active && (
++                                    <div><strong>Status atual:</strong> <span style={{ color: '#10b981', fontWeight: 600 }}>Ativo</span></div>
++                                )}
+                             </div>
+                         </div>
+                         <div className="unsaved-result-modal-footer">
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 5780 ---
+Created At: 2026-07-16T20:25:42Z
+Completed At: 2026-07-16T20:25:45Z
+The following changes were made by the replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -453,9 +453,11 @@
+                             <button 
+                                 className={examToToggle.is_active ? "lab-btn-danger" : "lab-btn-success"} 
+                                 style={{ 
+-                                    height: '46px', padding: '0 20px', borderRadius: '10px', border: 'none', 
++                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', 
++                                    minWidth: '200px', height: '46px', padding: '0 22px', boxSizing: 'border-box',
++                                    borderRadius: '10px', border: 'none', 
+                                     background: examToToggle.is_active ? '#ef4444' : '#10b981', 
+-                                    color: '#fff', fontWeight: 600, cursor: 'pointer' 
++                                    color: '#fff', fontWeight: 600, cursor: 'pointer', textAlign: 'center'
+                                 }} 
+                                 onClick={confirmToggleStatus} 
+                                 disabled={actionLoading}
+@@ -462,5 +462,11 @@
+-                                {actionLoading ? <Loader2 size={16} className="spin" style={{ display: 'inline-block', marginRight: '8px' }}/> : null}
+-                                {actionLoading ? (examToToggle.is_active ? 'Inativando...' : 'Ativando...') : (examToToggle.is_active ? 'Confirmar inativação' : 'Confirmar ativação')}
++                                {actionLoading ? (
++                                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '9px', width: '100%', lineHeight: 1 }}>
++                                        <Loader2 size={18} className="spin" style={{ flex: '0 0 18px' }} />
++                                        <span>{examToToggle.is_active ? 'Inativando...' : 'Ativando...'}</span>
++                                    </span>
++                                ) : (
++                                    <span>{examToToggle.is_active ? 'Confirmar inativação' : 'Confirmar ativação'}</span>
++                                )}
+                             </button>
+                         </div>
+                     </div>
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 5840 ---
+Created At: 2026-07-16T20:55:42Z
+Completed At: 2026-07-16T20:55:42Z
+The following changes were made by the multi_replace_file_content tool to: C:\Users\marci\.gemini\antigravity-ide\brain\6f44cbff-d078-4c37-ad90-a99c7f83a129\task.md. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -1,10 +1,10 @@
+ # Tarefas de Execução: Fase 2
+ 
+-- `[/]` 1. Adicionar métodos em `laboratorioConfiguracoes.service.js`
+-  - `[ ]` 1.1. `getDistinctValues(column)` com whitelist segura
+-  - `[ ]` 1.2. `checkExamCodeExists(code, currentExamId, tenantId)` com case-insensitive exato
+-  - `[ ]` 1.3. `createExam(payload)` com os campos exatos
+-  - `[ ]` 1.4. `updateExam(id, tenantId, payload)` restrito a ID e Tenant
++- `[x]` 1. Adicionar métodos em `laboratorioConfiguracoes.service.js`
++  - `[x]` 1.1. `getDistinctValues(column)` com whitelist segura
++  - `[x]` 1.2. `checkExamCodeExists(code, currentExamId, tenantId)` com case-insensitive exato
++  - `[x]` 1.3. `createExam(payload)` com os campos exatos
++  - `[x]` 1.4. `updateExam(id, tenantId, payload)` restrito a ID e Tenant
+ 
+ - `[ ]` 2. Implementar a interface em `LaboratorioConfiguracoes.jsx`
+   - `[ ]` 2.1. Estados para modais (novo/editar exame e alterações não salvas)
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 5846 ---
+Created At: 2026-07-16T20:56:51Z
+Completed At: 2026-07-16T20:56:53Z
+The following changes were made by the multi_replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -39,6 +39,23 @@
+     const [showConfirmModal, setShowConfirmModal] = useState(false);
+     const [examToToggle, setExamToToggle] = useState(null);
+ 
++    // Modal Exam
++    const [showExamModal, setShowExamModal] = useState(false);
++    const [editingExam, setEditingExam] = useState(null);
++    const [examForm, setExamForm] = useState({
++        code: '', name: '', sector_id: '', material: '', method: '', result_type: '',
++        unit: '', analyzer_name: '', print_order: '', requires_conference: false,
++        prints_on_report: false, is_active: true
++    });
++    const [initialExamForm, setInitialExamForm] = useState(null);
++    const [showUnsavedModal, setShowUnsavedModal] = useState(false);
++    
++    // Autocompletes
++    const [distinctMaterials, setDistinctMaterials] = useState([]);
++    const [distinctMethods, setDistinctMethods] = useState([]);
++    const [distinctUnits, setDistinctUnits] = useState([]);
++    const [distinctAnalyzers, setDistinctAnalyzers] = useState([]);
++
+     // Initial Load
+     useEffect(() => {
+         loadDashboardCards();
+@@ -45,3 +45,4 @@
++        loadDistinctValues();
+     }, []);
+ 
+     useEffect(() => {
+@@ -70,6 +70,23 @@
+         }
+     };
+ 
++    const loadDistinctValues = async () => {
++        try {
++            const [materials, methods, units, analyzers] = await Promise.all([
++                laboratorioConfiguracoesService.getDistinctValues('material'),
++                laboratorioConfiguracoesService.getDistinctValues('method'),
++                laboratorioConfiguracoesService.getDistinctValues('unit'),
++                laboratorioConfiguracoesService.getDistinctValues('analyzer_name')
++            ]);
++            setDistinctMaterials(materials);
++            setDistinctMethods(methods);
++            setDistinctUnits(units);
++            setDistinctAnalyzers(analyzers);
++        } catch (error) {
++            console.error('Erro ao carregar distinct values', error);
++        }
++    };
++
+     const loadExames = async () => {
+         try {
+             setLoading(true);
+@@ -127,6 +127,155 @@
+         }
+     };
+ 
++    const openNewExamModal = () => {
++        const initial = {
++            code: '', name: '', sector_id: '', material: '', method: '', result_type: '',
++            unit: '', analyzer_name: '', print_order: 10, requires_conference: true,
++            prints_on_report: true, is_active: true
++        };
++        setExamForm(initial);
++        setInitialExamForm(initial);
++        setEditingExam(null);
++        setShowExamModal(true);
++    };
++
++    const openEditExamModal = (exam) => {
++        const initial = {
++            code: exam.code || '',
++            name: exam.name || '',
++            sector_id: exam.sector_id || '',
++            material: exam.material || '',
++            method: exam.method || '',
++            result_type: exam.result_type || '',
++            unit: exam.unit || '',
++            analyzer_name: exam.analyzer_name || '',
++            print_order: exam.print_order !== null && exam.print_order !== undefined ? exam.print_order : 10,
++            requires_conference: !!exam.requires_conference,
++            prints_on_report: !!exam.prints_on_report,
++            is_active: !!exam.is_active
++        };
++        setExamForm(initial);
++        setInitialExamForm(initial);
++        setEditingExam(exam);
++        setShowExamModal(true);
++    };
++
++    const isFormDirty = () => {
++        if (!initialExamForm) return false;
++        
++        const normalizeField = (val) => {
++            if (val === null || val === undefined) return '';
++            if (typeof val === 'string') return val.trim();
++            if (typeof val === 'number') return String(val);
++            return val;
++        };
++
++        const formA = { ...examForm };
++        const formB = { ...initialExamForm };
++
++        if (formA.code) formA.code = formA.code.trim().toUpperCase();
++        if (formB.code) formB.code = formB.code.trim().toUpperCase();
++
++        for (const key of Object.keys(initialExamForm)) {
++            if (normalizeField(formA[key]) !== normalizeField(formB[key])) {
++                return true;
++            }
++        }
++        return false;
++    };
++
++    const handleCloseModal = () => {
++        if (isFormDirty()) {
++            setShowUnsavedModal(true);
++        } else {
++            setShowExamModal(false);
++        }
++    };
++
++    const handleSaveExam = async () => {
++        const normalizedCode = (examForm.code || '').trim().toUpperCase();
++        if (!normalizedCode) {
++            showFeedback('error', 'Informe o código do exame.');
++            document.getElementById('examCode')?.focus();
++            return;
++        }
++        if (!(examForm.name || '').trim()) {
++            showFeedback('error', 'Informe o nome do exame.');
++            document.getElementById('examName')?.focus();
++            return;
++        }
++        if (!examForm.sector_id) {
++            showFeedback('error', 'Selecione o setor.');
++            document.getElementById('examSector')?.focus();
++            return;
++        }
++        if (!examForm.result_type) {
++            showFeedback('error', 'Selecione o tipo de resultado.');
++            document.getElementById('examResultType')?.focus();
++            return;
++        }
++
++        let parsedPrintOrder = parseInt(examForm.print_order, 10);
++        if (isNaN(parsedPrintOrder) || parsedPrintOrder < 0) {
++            showFeedback('error', 'Informe uma ordem de impressão válida.');
++            document.getElementById('examPrintOrder')?.focus();
++            return;
++        }
++
++        try {
++            setActionLoading(true);
++
++            const exists = await laboratorioConfiguracoesService.checkExamCodeExists(
++                normalizedCode, 
++                editingExam ? editingExam.id : null
++            );
++
++            if (exists) {
++                showFeedback('error', 'Já existe um exame cadastrado com este código.');
++                document.getElementById('examCode')?.focus();
++                return;
++            }
++
++            const cleanString = (val) => (val || '').trim() === '' ? null : (val || '').trim();
++            
++            const payload = {
++                code: normalizedCode,
++                name: (examForm.name || '').trim(),
++                sector_id: examForm.sector_id,
++                material: cleanString(examForm.material),
++                method: cleanString(examForm.method),
++                result_type: examForm.result_type,
++                unit: cleanString(examForm.unit),
++                analyzer_name: cleanString(examForm.analyzer_name),
++                print_order: parsedPrintOrder,
++                requires_conference: examForm.requires_conference,
++                prints_on_report: examForm.prints_on_report,
++                is_active: examForm.is_active
++            };
++
++            if (editingExam) {
++                await laboratorioConfiguracoesService.updateExam(editingExam.id, payload);
++                showFeedback('success', 'Exame atualizado com sucesso.');
++                if (selectedExamId === editingExam.id) {
++                    // Current active exam being edited; will just reload
++                }
++            } else {
++                const newExam = await laboratorioConfiguracoesService.createExam(payload);
++                setSelectedExamId(newExam.id);
++                showFeedback('success', 'Exame cadastrado com sucesso.');
++            }
++
++            await loadExames();
++            await loadDashboardCards();
++            setShowExamModal(false);
++
++        } catch (error) {
++            showFeedback('error', editingExam ? 'Não foi possível atualizar o exame. Tente novamente.' : 'Não foi possível cadastrar o exame. Tente novamente.');
++        } finally {
++            setActionLoading(false);
++        }
++    };
++
+     const kpis = [
+         { label: 'Exames ativos', value: cards.examesAtivos, icon: FileSignature, color: '#3b82f6' },
+         { label: 'Setores ativos', value: cards.setoresAtivos, icon: Layers, color: '#10b981' },
+@@ -176,7 +176,7 @@
+                         Atualizar lista
+                     </button>
+                     {activeTab === 'exames' && (
+-                        <button className="lab-btn lab-btn-primary">
++                        <button className="lab-btn lab-btn-primary" onClick={openNewExamModal}>
+                             <Plus size={16} /> Novo exame
+                         </button>
+                     )}
+@@ -314,7 +314,15 @@
+                                                 </td>
+                                                 <td style={{ textAlign: 'right' }}>
+                                                     <div style={{ display: 'inline-flex', gap: '0.5rem' }} onClick={e => e.stopPropagation()}>
+-                                                        <button className="lab-btn lab-btn-outline" style={{ padding: '0.35rem', border: '1px solid #e2e8f0' }} title="Editar">
++                                                        <button 
++                                                            className="lab-btn lab-btn-outline" 
++                                                            style={{ padding: '0.35rem', border: '1px solid #e2e8f0' }} 
++                                                            title="Editar exame"
++                                                            onClick={(e) => {
++                                                                e.stopPropagation();
++                                                                openEditExamModal(ex);
++                                                            }}
++                                                        >
+                                                             <Edit size={14} />
+                                                         </button>
+                                                         <button 
+@@ -469,6 +469,275 @@
+                     </div>
+                 </div>
+             )}
++
++            {/* Modal Novo/Editar Exame */}
++            {showExamModal && (
++                <div className="unsaved-result-modal-overlay" role="dialog" aria-modal="true" onMouseDown={(e) => {
++                    if (e.target === e.currentTarget) handleCloseModal();
++                }}>
++                    <div className="lab-exam-modal-container" style={{ 
++                        background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '800px', 
++                        maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
++                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
++                    }}>
++                        <div style={{ padding: '24px 32px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
++                            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>
++                                {editingExam ? 'Editar exame' : 'Novo exame'}
++                            </h2>
++                            <p style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '0.9rem' }}>
++                                {editingExam ? 'Atualize as informações principais do exame laboratorial.' : 'Cadastre as informações principais do exame laboratorial.'}
++                            </p>
++                        </div>
++                        
++                        <div style={{ padding: '24px 32px', overflowY: 'auto', flex: 1 }}>
++                            
++                            {/* Seção 1 - Identificação */}
++                            <div style={{ marginBottom: '2rem' }}>
++                                <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>Identificação</h3>
++                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
++                                    <div style={{ gridColumn: 'span 1' }}>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Código *</label>
++                                        <input 
++                                            id="examCode"
++                                            type="text" 
++                                            value={examForm.code} 
++                                            onChange={e => setExamForm({...examForm, code: e.target.value.toUpperCase()})}
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        />
++                                    </div>
++                                    <div style={{ gridColumn: 'span 2' }}>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Nome do exame *</label>
++                                        <input 
++                                            id="examName"
++                                            type="text" 
++                                            value={examForm.name} 
++                                            onChange={e => setExamForm({...examForm, name: e.target.value})}
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        />
++                                    </div>
++                                    <div style={{ gridColumn: 'span 1' }}>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Setor *</label>
++                                        <select 
++                                            id="examSector"
++                                            value={examForm.sector_id} 
++                                            onChange={e => setExamForm({...examForm, sector_id: e.target.value})}
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        >
++                                            <option value="">Selecione...</option>
++                                            {sectorsFilter.map(s => (
++                                                <option key={s.id} value={s.id}>{s.name}</option>
++                                            ))}
++                                        </select>
++                                    </div>
++                                </div>
++                                
++                                <div style={{ marginTop: '1rem' }}>
++                                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
++                                        <input 
++                                            type="checkbox" 
++                                            checked={examForm.is_active}
++                                            onChange={e => setExamForm({...examForm, is_active: e.target.checked})}
++                                            style={{ width: '18px', height: '18px', marginRight: '8px', cursor: 'pointer' }}
++                                        />
++                                        <div>
++                                            <div style={{ fontWeight: 600, color: '#334155', fontSize: '0.9rem' }}>Exame ativo</div>
++                                            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Disponível para novos atendimentos.</div>
++                                        </div>
++                                    </label>
++                                </div>
++                            </div>
++
++                            {/* Seção 2 - Processamento */}
++                            <div style={{ marginBottom: '2rem' }}>
++                                <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>Processamento</h3>
++                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
++                                    
++                                    <div>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Material</label>
++                                        <input 
++                                            type="text" 
++                                            list="materialsList"
++                                            value={examForm.material} 
++                                            onChange={e => setExamForm({...examForm, material: e.target.value})}
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        />
++                                        <datalist id="materialsList">
++                                            {distinctMaterials.map(m => <option key={m} value={m} />)}
++                                        </datalist>
++                                    </div>
++                                    
++                                    <div>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Método</label>
++                                        <input 
++                                            type="text" 
++                                            list="methodsList"
++                                            value={examForm.method} 
++                                            onChange={e => setExamForm({...examForm, method: e.target.value})}
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        />
++                                        <datalist id="methodsList">
++                                            {distinctMethods.map(m => <option key={m} value={m} />)}
++                                        </datalist>
++                                    </div>
++                                    
++                                    <div>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Tipo de resultado *</label>
++                                        <select 
++                                            id="examResultType"
++                                            value={examForm.result_type} 
++                                            onChange={e => setExamForm({...examForm, result_type: e.target.value})}
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        >
++                                            <option value="">Selecione...</option>
++                                            <option value="ESTRUTURADO">Estruturado</option>
++                                            <option value="NUMERICO">Numérico</option>
++                                            <option value="QUALITATIVO">Qualitativo</option>
++                                            <option value="TEXTO">Texto</option>
++                                        </select>
++                                    </div>
++
++                                    <div>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Unidade</label>
++                                        <input 
++                                            type="text" 
++                                            list="unitsList"
++                                            value={examForm.unit} 
++                                            onChange={e => setExamForm({...examForm, unit: e.target.value})}
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        />
++                                        <datalist id="unitsList">
++                                            {distinctUnits.map(m => <option key={m} value={m} />)}
++                                        </datalist>
++                                    </div>
++                                    
++                                    <div>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Analisador</label>
++                                        <input 
++                                            type="text" 
++                                            list="analyzersList"
++                                            value={examForm.analyzer_name} 
++                                            onChange={e => setExamForm({...examForm, analyzer_name: e.target.value})}
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        />
++                                        <datalist id="analyzersList">
++                                            {distinctAnalyzers.map(m => <option key={m} value={m} />)}
++                                        </datalist>
++                                    </div>
++                                </div>
++                            </div>
++
++                            {/* Seção 3 - Impressão e Fluxo */}
++                            <div>
++                                <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>Impressão e Fluxo</h3>
++                                
++                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
++                                    <div>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Ordem de impressão</label>
++                                        <input 
++                                            id="examPrintOrder"
++                                            type="number" 
++                                            min="0"
++                                            value={examForm.print_order} 
++                                            onChange={e => setExamForm({...examForm, print_order: e.target.value})}
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        />
++                                    </div>
++                                </div>
++
++                                <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
++                                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
++                                        <input 
++                                            type="checkbox" 
++                                            checked={examForm.requires_conference}
++                                            onChange={e => setExamForm({...examForm, requires_conference: e.target.checked})}
++                                            style={{ width: '18px', height: '18px', marginRight: '8px', cursor: 'pointer' }}
++                                        />
++                                        <div>
++                                            <div style={{ fontWeight: 600, color: '#334155', fontSize: '0.9rem' }}>Exige conferência</div>
++                                            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>O exame deverá passar pela etapa de conferência.</div>
++                                        </div>
++                                    </label>
++                                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
++                                        <input 
++                                            type="checkbox" 
++                                            checked={examForm.prints_on_report}
++                                            onChange={e => setExamForm({...examForm, prints_on_report: e.target.checked})}
++                                            style={{ width: '18px', height: '18px', marginRight: '8px', cursor: 'pointer' }}
++                                        />
++                                        <div>
++                                            <div style={{ fontWeight: 600, color: '#334155', fontSize: '0.9rem' }}>Imprime no laudo</div>
++                                            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>O exame será exibido no laudo do paciente.</div>
++                                        </div>
++                                    </label>
++                                </div>
++                            </div>
++                        </div>
++
++                        <div style={{ padding: '16px 32px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
++                            <button 
++                                className="unsaved-btn-neutral" 
++                                onClick={handleCloseModal} 
++                                disabled={actionLoading}
++                            >
++                                Cancelar
++                            </button>
++                            <button 
++                                className="lab-btn-primary" 
++                                style={{ 
++                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', 
++                                    minWidth: '160px', height: '46px', padding: '0 22px', boxSizing: 'border-box',
++                                    borderRadius: '8px', border: 'none', 
++                                    background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: 'pointer', textAlign: 'center'
++                                }} 
++                                onClick={handleSaveExam} 
++                                disabled={actionLoading}
++                            >
++                                {actionLoading ? (
++                                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '9px', width: '100%', lineHeight: 1 }}>
++                                        <Loader2 size={18} className="spin" style={{ flex: '0 0 18px' }} />
++                                        <span>{editingExam ? 'Salvando...' : 'Cadastrando...'}</span>
++                                    </span>
++                                ) : (
++                                    <span>{editingExam ? 'Salvar exame' : 'Cadastrar exame'}</span>
++                                )}
++                            </button>
++                        </div>
++                    </div>
++                </div>
++            )}
++
++            {/* Modal Alterações Não Salvas */}
++            {showUnsavedModal && (
++                <div className="unsaved-result-modal-overlay" role="dialog" aria-modal="true" style={{ zIndex: 9999 }}>
++                    <div className="unsaved-result-modal">
++                        <div className="unsaved-result-modal-header">
++                            <div className="unsaved-result-modal-icon">
++                                <AlertTriangle size={24} />
++                            </div>
++                            <div>
++                                <h2 className="unsaved-result-modal-title">Descartar alterações?</h2>
++                            </div>
++                        </div>
++                        <div className="unsaved-result-modal-body">
++                            <p>As alterações realizadas não foram salvas.</p>
++                        </div>
++                        <div className="unsaved-result-modal-footer">
++                            <button 
++                                className="unsaved-btn-neutral" 
++                                onClick={() => setShowUnsavedModal(false)}
++                            >
++                                Continuar editando
++                            </button>
++                            <button 
++                                className="unsaved-btn-discard" 
++                                onClick={confirmDiscardChanges}
++                            >
++                                Descartar alterações
++                            </button>
++                        </div>
++                    </div>
++                </div>
++            )}
+         </div>
+     );
+ };
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 5850 ---
+Created At: 2026-07-16T20:57:02Z
+Completed At: 2026-07-16T20:57:04Z
+The following changes were made by the replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -230,6 +230,11 @@
+         }
+     };
+ 
++    const confirmDiscardChanges = () => {
++        setShowUnsavedModal(false);
++        setShowExamModal(false);
++    };
++
+     const handleSaveExam = async () => {
+         const normalizedCode = (examForm.code || '').trim().toUpperCase();
+         if (!normalizedCode) {
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 5876 ---
+Created At: 2026-07-16T20:58:15Z
+Completed At: 2026-07-16T20:58:15Z
+The following changes were made by the multi_replace_file_content tool to: C:\Users\marci\.gemini\antigravity-ide\brain\6f44cbff-d078-4c37-ad90-a99c7f83a129\task.md. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -6,16 +6,16 @@
+   - `[x]` 1.3. `createExam(payload)` com os campos exatos
+   - `[x]` 1.4. `updateExam(id, tenantId, payload)` restrito a ID e Tenant
+ 
+-- `[ ]` 2. Implementar a interface em `LaboratorioConfiguracoes.jsx`
+-  - `[ ]` 2.1. Estados para modais (novo/editar exame e alterações não salvas)
+-  - `[ ]` 2.2. Buscar valores distintos no `useEffect` (material, método, unidade, analisador)
+-  - `[ ]` 2.3. Modal customizado de Formulário de Exames
+-  - `[ ]` 2.4. Integração de `datalist` para os inputs textuais
+-  - `[ ]` 2.5. Lógica de `normalizeCode` (trim + upper) e validações
+-  - `[ ]` 2.6. Submissão (insert/update) protegida e spinner
+-  - `[ ]` 2.7. Lógica de "isDirty" / Modal Descartar Alterações
+-
+-- `[ ]` 3. Testes
+-  - `[ ]` 3.1. Build `npm run build`
+-  - `[ ]` 3.2. Testes lógicos A-F e 1-12
++- `[x]` 2. Implementar a interface em `LaboratorioConfiguracoes.jsx`
++  - `[x]` 2.1. Estados para modais (novo/editar exame e alterações não salvas)
++  - `[x]` 2.2. Buscar valores distintos no `useEffect` (material, método, unidade, analisador)
++  - `[x]` 2.3. Modal customizado de Formulário de Exames
++  - `[x]` 2.4. Integração de `datalist` para os inputs textuais
++  - `[x]` 2.5. Lógica de `normalizeCode` (trim + upper) e validações
++  - `[x]` 2.6. Submissão (insert/update) protegida e spinner
++  - `[x]` 2.7. Lógica de "isDirty" / Modal Descartar Alterações
++
++- `[x]` 3. Testes
++  - `[x]` 3.1. Build `npm run build`
++  - `[x]` 3.2. Testes lógicos A-F e 1-12
+ 
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 5918 ---
+Created At: 2026-07-16T21:13:39Z
+Completed At: 2026-07-16T21:13:41Z
+The following changes were made by the multi_replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -8,6 +8,90 @@
+ import './LaboratorioConfiguracoes.css';
+ import { laboratorioConfiguracoesService } from '../../services/api/laboratorioConfiguracoes.service';
+ 
++const LabAutocomplete = ({ value, onChange, options, placeholder, id }) => {
++    const [isOpen, setIsOpen] = useState(false);
++    const [isFocused, setIsFocused] = useState(false);
++    const wrapperRef = React.useRef(null);
++
++    React.useEffect(() => {
++        const handleClickOutside = (event) => {
++            if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
++                setIsOpen(false);
++                setIsFocused(false);
++            }
++        };
++        document.addEventListener('mousedown', handleClickOutside);
++        return () => document.removeEventListener('mousedown', handleClickOutside);
++    }, []);
++
++    const exactMatch = options.some(opt => opt.toLowerCase() === (value || '').trim().toLowerCase());
++    const displayOptions = (exactMatch || !(value || '').trim()) 
++        ? options 
++        : options.filter(opt => opt.toLowerCase().includes((value || '').toLowerCase()));
++
++    return (
++        <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
++            <div style={{ position: 'relative' }}>
++                <input
++                    id={id}
++                    type="text"
++                    value={value}
++                    onChange={(e) => {
++                        onChange(e.target.value);
++                        setIsOpen(true);
++                    }}
++                    onFocus={() => {
++                        setIsFocused(true);
++                        setIsOpen(true);
++                    }}
++                    placeholder={placeholder}
++                    style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 30px 0 12px' }}
++                    autoComplete="off"
++                />
++                <button 
++                    type="button"
++                    onClick={(e) => {
++                        e.preventDefault();
++                        setIsOpen(!isOpen);
++                        if (!isOpen) {
++                            document.getElementById(id)?.focus();
++                        }
++                    }}
++                    style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}
++                >
++                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
++                </button>
++            </div>
++            {isOpen && (
++                <ul style={{ 
++                    position: 'absolute', top: '100%', left: 0, right: 0, 
++                    maxHeight: '200px', overflowY: 'auto', background: '#fff', 
++                    border: '1px solid #cbd5e1', borderRadius: '6px', marginTop: '4px', 
++                    zIndex: 1000, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', padding: 0, margin: 0, listStyle: 'none'
++                }}>
++                    {displayOptions.length > 0 ? displayOptions.map(opt => (
++                        <li 
++                            key={opt}
++                            onMouseDown={(e) => {
++                                e.preventDefault();
++                                onChange(opt);
++                                setIsOpen(false);
++                            }}
++                            style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.9rem', color: '#334155' }}
++                            onMouseEnter={e => e.target.style.backgroundColor = '#f8fafc'}
++                            onMouseLeave={e => e.target.style.backgroundColor = 'transparent'}
++                        >
++                            {opt}
++                        </li>
++                    )) : (
++                        <li style={{ padding: '8px 12px', color: '#94a3b8', fontSize: '0.9rem' }}>Nenhuma sugestão encontrada</li>
++                    )}
++                </ul>
++            )}
++        </div>
++    );
++};
++
+ const LaboratorioConfiguracoes = () => {
+     const [activeTab, setActiveTab] = useState('exames');
+     
+@@ -103,6 +103,7 @@
+             setDistinctAnalyzers(analyzers);
+         } catch (error) {
+             console.error('Erro ao carregar distinct values', error);
++            showFeedback('error', 'Não foi possível carregar algumas sugestões. Você ainda pode digitar os valores manualmente.');
+         }
+     };
+ 
+@@ -306,6 +306,9 @@
+                 showFeedback('success', 'Exame cadastrado com sucesso.');
+             }
+ 
++            // Recarregar os distintos sem bloquear a UI
++            loadDistinctValues();
++            
+             await loadExames();
+             await loadDashboardCards();
+             setShowExamModal(false);
+@@ -754,16 +754,13 @@
+                                     
+                                     <div>
+                                         <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Material</label>
+-                                        <input 
+-                                            type="text" 
+-                                            list="materialsList"
++                                        <LabAutocomplete 
++                                            id="lab-exam-material-options"
+                                             value={examForm.material} 
+-                                            onChange={e => setExamForm({...examForm, material: e.target.value})}
+-                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
+-                                        />
+-                                        <datalist id="materialsList">
+-                                            {distinctMaterials.map(m => <option key={m} value={m} />)}
+-                                        </datalist>
++                                            onChange={(val) => setExamForm({...examForm, material: val})}
++                                            options={distinctMaterials}
++                                            placeholder="Buscar ou digitar..."
++                                        />
+                                     </div>
+                                     
+                                     <div>
+@@ -770,13 +770,10 @@
+-                                        <input 
+-                                            type="text" 
+-                                            list="methodsList"
++                                        <LabAutocomplete 
++                                            id="lab-exam-method-options"
+                                             value={examForm.method} 
+-                                            onChange={e => setExamForm({...examForm, method: e.target.value})}
+-                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
+-                                        />
+-                                        <datalist id="methodsList">
+-                                            {distinctMethods.map(m => <option key={m} value={m} />)}
+-                                        </datalist>
++                                            onChange={(val) => setExamForm({...examForm, method: val})}
++                                            options={distinctMethods}
++                                            placeholder="Buscar ou digitar..."
++                                        />
+                                     </div>
+                                     
+                                     <div>
+@@ -796,16 +796,13 @@
+ 
+                                     <div>
+                                         <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Unidade</label>
+-                                        <input 
+-                                            type="text" 
+-                                            list="unitsList"
++                                        <LabAutocomplete 
++                                            id="lab-exam-unit-options"
+                                             value={examForm.unit} 
+-                                            onChange={e => setExamForm({...examForm, unit: e.target.value})}
+-                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
+-                                        />
+-                                        <datalist id="unitsList">
+-                                            {distinctUnits.map(m => <option key={m} value={m} />)}
+-                                        </datalist>
++                                            onChange={(val) => setExamForm({...examForm, unit: val})}
++                                            options={distinctUnits}
++                                            placeholder="Buscar ou digitar..."
++                                        />
+                                     </div>
+                                     
+                                     <div>
+@@ -812,13 +812,10 @@
+-                                        <input 
+-                                            type="text" 
+-                                            list="analyzersList"
++                                        <LabAutocomplete 
++                                            id="lab-exam-analyzer-options"
+                                             value={examForm.analyzer_name} 
+-                                            onChange={e => setExamForm({...examForm, analyzer_name: e.target.value})}
+-                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
+-                                        />
+-                                        <datalist id="analyzersList">
+-                                            {distinctAnalyzers.map(m => <option key={m} value={m} />)}
+-                                        </datalist>
++                                            onChange={(val) => setExamForm({...examForm, analyzer_name: val})}
++                                            options={distinctAnalyzers}
++                                            placeholder="Buscar ou digitar..."
++                                        />
+                                     </div>
+                                 </div>
+                             </div>
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 5950 ---
+Created At: 2026-07-16T21:28:10Z
+Completed At: 2026-07-16T21:28:12Z
+The following changes were made by the replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -364,7 +364,23 @@
+                 return;
+             }
+ 
+-            const cleanString = (val) => (val || '').trim() === '' ? null : (val || '').trim();
++            const normalizeText = (val, applyTitleCase = false) => {
++                if (!val) return null;
++                const trimmed = val.replace(/\s+/g, ' ').trim();
++                if (!trimmed) return null;
++                
++                if (applyTitleCase) {
++                    return trimmed.split(' ').map((word, index) => {
++                        if (word.length === 0) return '';
++                        const lower = word.toLowerCase();
++                        const smallWords = ['de', 'do', 'da', 'dos', 'das', 'com', 'e', 'em', 'sem'];
++                        // Don't lower small words if it's the very first word
++                        if (index > 0 && smallWords.includes(lower)) return lower;
++                        return word.charAt(0).toUpperCase() + lower.slice(1);
++                    }).join(' ');
++                }
++                return trimmed;
++            };
+             
+             const payload = {
+                 code: normalizedCode,
+@@ -371,9 +371,9 @@
+                 sector_id: examForm.sector_id,
+-                material: cleanString(examForm.material),
+-                method: cleanString(examForm.method),
++                material: normalizeText(examForm.material, true),
++                method: normalizeText(examForm.method, true),
+                 result_type: examForm.result_type,
+-                unit: cleanString(examForm.unit),
+-                analyzer_name: cleanString(examForm.analyzer_name),
++                unit: normalizeText(examForm.unit, false), // Unidades costumam ter cases específicos como mg/dL
++                analyzer_name: normalizeText(examForm.analyzer_name, false), // Equipamentos podem ter cases específicos (ex: XN-1000)
+                 print_order: parsedPrintOrder,
+                 requires_conference: examForm.requires_conference,
+                 prints_on_report: examForm.prints_on_report,
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 5977 ---
+Created At: 2026-07-16T21:36:27Z
+Completed At: 2026-07-16T21:36:29Z
+The following changes were made by the replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -10,8 +10,9 @@
+ 
+ const LabAutocomplete = ({ value, onChange, options, placeholder, id }) => {
+     const [isOpen, setIsOpen] = useState(false);
+-    const [isFocused, setIsFocused] = useState(false);
++    const [activeIndex, setActiveIndex] = useState(-1);
+     const wrapperRef = React.useRef(null);
++    const listRef = React.useRef(null);
+ 
+     React.useEffect(() => {
+         const handleClickOutside = (event) => {
+@@ -18,5 +18,4 @@
+                 setIsOpen(false);
+-                setIsFocused(false);
+             }
+         };
+         document.addEventListener('mousedown', handleClickOutside);
+@@ -23,10 +23,60 @@
+     }, []);
+ 
+-    const exactMatch = options.some(opt => opt.toLowerCase() === (value || '').trim().toLowerCase());
+-    const displayOptions = (exactMatch || !(value || '').trim()) 
++    const displayOptions = !(value || '').trim()
+         ? options 
+         : options.filter(opt => opt.toLowerCase().includes((value || '').toLowerCase()));
+ 
++    const handleKeyDown = (e) => {
++        if (!isOpen && e.key === 'ArrowDown') {
++            setIsOpen(true);
++            return;
++        }
++        if (!isOpen) return;
++
++        if (e.key === 'ArrowDown') {
++            e.preventDefault();
++            setActiveIndex(prev => (prev < displayOptions.length - 1 ? prev + 1 : prev));
++        } else if (e.key === 'ArrowUp') {
++            e.preventDefault();
++            setActiveIndex(prev => (prev > 0 ? prev - 1 : 0));
++        } else if (e.key === 'Enter') {
++            e.preventDefault();
++            if (activeIndex >= 0 && activeIndex < displayOptions.length) {
++                onChange(displayOptions[activeIndex]);
++                setIsOpen(false);
++            }
++        } else if (e.key === 'Escape') {
++            setIsOpen(false);
++        }
++    };
++
++    React.useEffect(() => {
++        if (isOpen && listRef.current && activeIndex >= 0) {
++            const list = listRef.current;
++            const item = list.children[activeIndex];
++            if (item) {
++                if (item.offsetTop < list.scrollTop) {
++                    list.scrollTop = item.offsetTop;
++                } else if (item.offsetTop + item.offsetHeight > list.scrollTop + list.offsetHeight) {
++                    list.scrollTop = item.offsetTop + item.offsetHeight - list.offsetHeight;
++                }
++            }
++        }
++    }, [activeIndex, isOpen]);
++
++    const highlightMatch = (text, query) => {
++        if (!query) return text;
++        const index = text.toLowerCase().indexOf(query.toLowerCase());
++        if (index === -1) return text;
++        return (
++            <React.Fragment>
++                {text.substring(0, index)}
++                <strong style={{ color: '#0f172a', fontWeight: 700 }}>{text.substring(index, index + query.length)}</strong>
++                {text.substring(index + query.length)}
++            </React.Fragment>
++        );
++    };
++
+     return (
+         <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+             <div style={{ position: 'relative' }}>
+@@ -33,16 +33,16 @@
+                     id={id}
+                     type="text"
+-                    value={value}
++                    value={value || ''}
+                     onChange={(e) => {
+                         onChange(e.target.value);
+                         setIsOpen(true);
+-                    }}
+-                    onFocus={() => {
+-                        setIsFocused(true);
+-                        setIsOpen(true);
+-                    }}
++                        setActiveIndex(-1);
++                    }}
++                    onKeyDown={handleKeyDown}
+                     placeholder={placeholder}
+-                    style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 30px 0 12px' }}
++                    style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 30px 0 12px', outline: 'none', transition: 'border-color 0.2s' }}
++                    onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
++                    onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                     autoComplete="off"
+                 />
+                 <button 
+@@ -50,6 +50,7 @@
+                         e.preventDefault();
+                         setIsOpen(!isOpen);
+                         if (!isOpen) {
++                            setActiveIndex(-1);
+                             document.getElementById(id)?.focus();
+                         }
+                     }}
+@@ -56,3 +56,4 @@
++                    tabIndex={-1}
+                 >
+                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                 </button>
+@@ -59,25 +59,31 @@
+             {isOpen && (
+-                <ul style={{ 
++                <ul ref={listRef} style={{ 
+                     position: 'absolute', top: '100%', left: 0, right: 0, 
+-                    maxHeight: '200px', overflowY: 'auto', background: '#fff', 
++                    maxHeight: '185px', overflowY: 'auto', background: '#fff', 
+                     border: '1px solid #cbd5e1', borderRadius: '6px', marginTop: '4px', 
+-                    zIndex: 1000, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', padding: 0, margin: 0, listStyle: 'none'
+-                }}>
+-                    {displayOptions.length > 0 ? displayOptions.map(opt => (
+-                        <li 
+-                            key={opt}
+-                            onMouseDown={(e) => {
+-                                e.preventDefault();
+-                                onChange(opt);
+-                                setIsOpen(false);
+-                            }}
+-                            style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.9rem', color: '#334155' }}
+-                            onMouseEnter={e => e.target.style.backgroundColor = '#f8fafc'}
+-                            onMouseLeave={e => e.target.style.backgroundColor = 'transparent'}
+-                        >
+-                            {opt}
+-                        </li>
+-                    )) : (
++                    zIndex: 1000, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', padding: '4px 0', margin: 0, listStyle: 'none'
++                }}>
++                    {displayOptions.length > 0 ? displayOptions.map((opt, idx) => {
++                        const isActive = idx === activeIndex;
++                        return (
++                            <li 
++                                key={opt}
++                                onMouseDown={(e) => {
++                                    e.preventDefault();
++                                    onChange(opt);
++                                    setIsOpen(false);
++                                }}
++                                onMouseEnter={() => setActiveIndex(idx)}
++                                style={{ 
++                                    padding: '8px 12px', cursor: 'pointer', 
++                                    fontSize: '0.9rem', color: '#475569',
++                                    backgroundColor: isActive ? '#f1f5f9' : 'transparent'
++                                }}
++                            >
++                                {highlightMatch(opt, value)}
++                            </li>
++                        );
++                    }) : (
+                         <li style={{ padding: '8px 12px', color: '#94a3b8', fontSize: '0.9rem' }}>Nenhuma sugestão encontrada</li>
+                     )}
+                 </ul>
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 6004 ---
+Created At: 2026-07-16T21:45:06Z
+Completed At: 2026-07-16T21:45:08Z
+The following changes were made by the replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -11,8 +11,15 @@
+ const LabAutocomplete = ({ value, onChange, options, placeholder, id }) => {
+     const [isOpen, setIsOpen] = useState(false);
+     const [activeIndex, setActiveIndex] = useState(-1);
++    const [inputValue, setInputValue] = useState(value || '');
+     const wrapperRef = React.useRef(null);
+     const listRef = React.useRef(null);
++    const inputValueRef = React.useRef(inputValue);
++
++    React.useEffect(() => {
++        setInputValue(value || '');
++        inputValueRef.current = value || '';
++    }, [value]);
+ 
+     React.useEffect(() => {
+         const handleClickOutside = (event) => {
+@@ -19,4 +19,7 @@
+                 setIsOpen(false);
++                if (inputValueRef.current !== (value || '')) {
++                    onChange(inputValueRef.current);
++                }
+             }
+         };
+         document.addEventListener('mousedown', handleClickOutside);
+@@ -23,15 +23,64 @@
+-    }, []);
+-
+-    const displayOptions = !(value || '').trim()
+-        ? options 
+-        : options.filter(opt => opt.toLowerCase().includes((value || '').toLowerCase()));
++    }, [onChange, value]);
++
++    // 1. Filtragem e Ordenação (Starts with, Contains, Alphabetical)
++    const exactMatch = options.some(opt => opt.toLowerCase() === inputValue.trim().toLowerCase());
++    let displayOptions = [];
++    
++    if (!inputValue.trim() || (exactMatch && !isOpen)) {
++        displayOptions = [...options].sort((a, b) => a.localeCompare(b, 'pt-BR'));
++    } else {
++        const lowerInput = inputValue.toLowerCase();
++        const startsWith = [];
++        const contains = [];
++        
++        options.forEach(opt => {
++            const lowerOpt = opt.toLowerCase();
++            if (lowerOpt.startsWith(lowerInput)) {
++                startsWith.push(opt);
++            } else if (lowerOpt.includes(lowerInput)) {
++                contains.push(opt);
++            }
++        });
++
++        startsWith.sort((a, b) => a.localeCompare(b, 'pt-BR'));
++        contains.sort((a, b) => a.localeCompare(b, 'pt-BR'));
++        
++        displayOptions = [...startsWith, ...contains];
++    }
+ 
+     const handleKeyDown = (e) => {
+-        if (!isOpen && e.key === 'ArrowDown') {
++        if (!isOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+             setIsOpen(true);
+             return;
+         }
+-        if (!isOpen) return;
++        
++        if (e.key === 'Tab') {
++            if (isOpen && displayOptions.length === 1 && activeIndex === -1) {
++                e.preventDefault();
++                setInputValue(displayOptions[0]);
++                inputValueRef.current = displayOptions[0];
++                onChange(displayOptions[0]);
++                setIsOpen(false);
++            } else if (isOpen && activeIndex >= 0) {
++                e.preventDefault();
++                setInputValue(displayOptions[activeIndex]);
++                inputValueRef.current = displayOptions[activeIndex];
++                onChange(displayOptions[activeIndex]);
++                setIsOpen(false);
++            } else {
++                setIsOpen(false);
++                onChange(inputValue);
++            }
++            return;
++        }
++
++        if (!isOpen) {
++            if (e.key === 'Enter') {
++                e.preventDefault();
++                onChange(inputValue);
++            }
++            return;
++        }
+ 
+         if (e.key === 'ArrowDown') {
+             e.preventDefault();
+@@ -41,9 +41,17 @@
+         } else if (e.key === 'Enter') {
+             e.preventDefault();
+             if (activeIndex >= 0 && activeIndex < displayOptions.length) {
+-                onChange(displayOptions[activeIndex]);
+-                setIsOpen(false);
+-            }
++                setInputValue(displayOptions[activeIndex]);
++                inputValueRef.current = displayOptions[activeIndex];
++                onChange(displayOptions[activeIndex]);
++            } else if (displayOptions.length === 1) {
++                setInputValue(displayOptions[0]);
++                inputValueRef.current = displayOptions[0];
++                onChange(displayOptions[0]);
++            } else {
++                onChange(inputValue);
++            }
++            setIsOpen(false);
+         } else if (e.key === 'Escape') {
+             setIsOpen(false);
+         }
+@@ -81,9 +81,10 @@
+                 <input
+                     id={id}
+                     type="text"
+-                    value={value || ''}
++                    value={inputValue}
+                     onChange={(e) => {
+-                        onChange(e.target.value);
++                        setInputValue(e.target.value);
++                        inputValueRef.current = e.target.value;
+                         setIsOpen(true);
+                         setActiveIndex(-1);
+                     }}
+@@ -90,7 +90,9 @@
+                     placeholder={placeholder}
+                     style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 30px 0 12px', outline: 'none', transition: 'border-color 0.2s' }}
+                     onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+-                    onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
++                    onBlur={(e) => {
++                        e.target.style.borderColor = '#cbd5e1';
++                    }}
+                     autoComplete="off"
+                 />
+                 <button 
+@@ -108,7 +108,7 @@
+                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                 </button>
+             </div>
+-            {isOpen && (
++            {isOpen && displayOptions.length > 0 && (
+                 <ul ref={listRef} style={{ 
+                     position: 'absolute', top: '100%', left: 0, right: 0, 
+                     maxHeight: '185px', overflowY: 'auto', background: '#fff', 
+@@ -115,6 +115,6 @@
+                     zIndex: 1000, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', padding: '4px 0', margin: 0, listStyle: 'none'
+                 }}>
+-                    {displayOptions.length > 0 ? displayOptions.map((opt, idx) => {
++                    {displayOptions.map((opt, idx) => {
+                         const isActive = idx === activeIndex;
+                         return (
+                             <li 
+@@ -121,5 +121,7 @@
+                                 onMouseDown={(e) => {
+                                     e.preventDefault();
++                                    setInputValue(opt);
++                                    inputValueRef.current = opt;
+                                     onChange(opt);
+                                     setIsOpen(false);
+                                 }}
+@@ -129,12 +129,10 @@
+                                     backgroundColor: isActive ? '#f1f5f9' : 'transparent'
+                                 }}
+                             >
+-                                {highlightMatch(opt, value)}
++                                {highlightMatch(opt, inputValue)}
+                             </li>
+                         );
+-                    }) : (
+-                        <li style={{ padding: '8px 12px', color: '#94a3b8', fontSize: '0.9rem' }}>Nenhuma sugestão encontrada</li>
+-                    )}
++                    })}
+                 </ul>
+             )}
+         </div>
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 6068 ---
+Created At: 2026-07-16T21:51:28Z
+Completed At: 2026-07-16T21:51:30Z
+The following changes were made by the multi_replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -3,7 +3,7 @@
+     Settings, RefreshCw, Plus, AlertTriangle, 
+     FileSignature, Layers, TestTube2, Users, 
+     Search, Edit, Copy, Ban, Eye, ShieldCheck, Lock, Activity,
+-    Loader2, CheckCircle2, XCircle
++    Loader2, CheckCircle2, XCircle, Trash2
+ } from 'lucide-react';
+ import './LaboratorioConfiguracoes.css';
+ import { laboratorioConfiguracoesService } from '../../services/api/laboratorioConfiguracoes.service';
+@@ -1143,9 +1143,18 @@
+                         <div className="unsaved-result-modal-body">
+                             <p>As alterações realizadas não foram salvas.</p>
+                         </div>
+-                        <div className="unsaved-result-modal-footer">
+-                            <button 
+-                                className="unsaved-btn-neutral" 
++                        <div className="unsaved-result-modal-footer" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
++                            <button 
++                                className="unsaved-btn-neutral" 
++                                style={{
++                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
++                                    minWidth: '220px', height: '46px', padding: '0 22px', boxSizing: 'border-box',
++                                    borderRadius: '10px', border: '1px solid #cbd5e1', 
++                                    background: 'transparent', color: '#475569', fontWeight: 600, cursor: 'pointer', textAlign: 'center',
++                                    transition: 'background-color 0.2s'
++                                }}
++                                onMouseEnter={e => e.target.style.backgroundColor = '#f1f5f9'}
++                                onMouseLeave={e => e.target.style.backgroundColor = 'transparent'}
+                                 onClick={() => setShowUnsavedModal(false)}
+                             >
+                                 Continuar editando
+@@ -1152,8 +1152,18 @@
+                             <button 
+-                                className="unsaved-btn-discard" 
++                                className="lab-btn-danger" 
++                                style={{
++                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
++                                    minWidth: '220px', height: '46px', padding: '0 22px', boxSizing: 'border-box',
++                                    borderRadius: '10px', border: 'none', 
++                                    background: '#ef4444', color: '#fff', fontWeight: 600, cursor: 'pointer', textAlign: 'center',
++                                    transition: 'background-color 0.2s'
++                                }}
++                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#dc2626'}
++                                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ef4444'}
+                                 onClick={confirmDiscardChanges}
+                             >
+-                                Descartar alterações
++                                <Trash2 size={18} />
++                                <span>Descartar alterações</span>
+                             </button>
+                         </div>
+                     </div>
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 6384 ---
+Created At: 2026-07-16T23:00:10Z
+Completed At: 2026-07-16T23:00:16Z
+The following changes were made by the multi_replace_file_content tool to: C:\Users\marci\.gemini\antigravity-ide\brain\6f44cbff-d078-4c37-ad90-a99c7f83a129\implementation_plan.md. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -45,28 +45,47 @@
+ ---
+ 
+ ### 2. Navegação Eficiente (Listas Laterais)
+-Na aba da Esquerda das telas de **Conferência** e **Laudos**, implementaremos:
+-
+-**Busca Local:**
+-- Um campo de pesquisa no topo da lista, filtrando o array em memória, buscando por paciente, protocolo ou código de exame.
+-- Aplicaremos `trim` e normalização sem acentos (ignora maiúsculas e acentos).
+-
+-**Agrupamento por Protocolo/Paciente:**
+-- Em vez de um *card* por exame, a lista lateral exibirá **1 card por Protocolo/Atendimento**.
+-- Dentro do card mostrará o contador (ex: "3 exames para conferir").
+-- Ao clicar no protocolo, todos os exames atrelados a ele que estão aptos serão carregados no lado direito.
+-
+-**Teclado e Produtividade:**
+-- A lista de pacientes terá suporte nativo a Navegação por Setas (↑ ↓) e Enter para abrir.
+-- Seleção automática: Após confirmar a conferência/liberação, a lista selecionará o próximo protocolo da fila automaticamente. Se a pesquisa filtrar 1 único paciente e o usuário apertar Enter, ele será selecionado.
+-
+-**Mensagens Claras:**
+-- Sem resultados na pesquisa: "Nenhum item encontrado nesta lista."
+-- Lista vazia original: "Nenhum exame aguardando conferência / liberação."
+-- Atendimento sem exames que exijam conferência (caso o usuário tente clicar no botão Enviar pela tela de Resultados): Validar e bloquear com mensagem clara.
+-
+-## Plano de Validação (Testes Funcionais)
+-Garantiremos a cobertura dos 14 testes estipulados no seu escopo, do T1 ao T14, validando as regras operacionais.
++Na aba da Esquerda das telas de **Conferência** e **Laudos**,# Fase 3 – Implementação Completa da Aba "Parâmetros e Referências"
++
++O objetivo desta fase é criar a funcionalidade completa de administração de parâmetros e referências vinculados aos exames laboratoriais na tela de Configurações, utilizando exclusivamente a estrutura de banco de dados e APIs existentes.
++
++## Proposed Changes
++
++### `src/services/api/laboratorioConfiguracoes.service.js`
++Adicionar os seguintes métodos para manipulação dos parâmetros:
++- `getParametros(filters)`: Listar parâmetros baseados no tenant atual e nos filtros (exame_id, texto da busca e status), puxando também dados de `lab_exams` relacionados.
++- `checkParamCodeExists(examId, code, currentParamId)`: Validação de código duplicado dentro do *mesmo exame*.
++- `checkParamOrderExists(examId, order, currentParamId)`: Validação de ordem de exibição duplicada dentro do *mesmo exame*.
++- `hasParameterHistory(paramId)`: Verificar se o parâmetro possui histórico na tabela `lab_results` para barrar a troca de `result_type` em edições.
++- `toggleParamStatus(paramId, isActive)`: Inativar (ou ativar) o parâmetro.
++- `createParameter(data)`: Criar um novo parâmetro em `lab_exam_parameters`.
++- `updateParameter(id, data)`: Atualizar o parâmetro existente (respeitando a restrição de tipo de resultado caso exista histórico).
++
++### `src/pages/laboratorio/LaboratorioConfiguracoes.jsx`
++Implementar o bloco condicional para exibição do layout da aba de "Parâmetros e Referências" (`activeTab === 'referencias'`):
++- **Estado Local e Filtros**: Criar states como `parametros`, `selectedParamId`, formulários, filtros (`search`, `exam_id`, `status`), listagens e controles de modals.
++- **Painel Principal**:
++  - Filtros superiores (por exame, texto de busca, status).
++  - Listagem principal com a ordenação descrita (Exame, Ordem, Código), exibindo colunas: Ordem, Código, Nome, Tipo, Unidade, Obrigatório, Status e as ações (Editar e Inativar).
++- **Painel Lateral**: Visualização dos dados ricos (incluindo quebras de linha da referência) e demais campos do parâmetro selecionado.
++- **Modais**:
++  - Novo/Editar Parâmetro (utilizando textarea para referência, `LabAutocomplete` para unidade, checkboxes padronizados e validações).
++  - Ao editar, se o parâmetro já possuir resultados históricos (validado no banco via serviço), desabilitar a seleção do tipo de resultado e informar no cabeçalho do campo o motivo (exatamente como solicitado).
++  - Modal de descarte de alterações caso haja navegação fora do formulário com estado 'dirty'.
++  - Confirmação de inativação/ativação.
++  
++## Verification Plan
++
++### Testes Manuais
++- [ ] Acessar `Laboratório > Configurações > Parâmetros e Referências`.
++- [ ] Listar parâmetros e testar todos os filtros (Busca por nome/código/exame sem considerar maiúsculas ou acentos).
++- [ ] Iniciar a criação de um novo parâmetro testando validações de código duplicado e ordem repetida para o *mesmo exame*.
++- [ ] Inserir referências longas com quebras de linha e verificar exibição correta no painel lateral de detalhes.
++- [ ] Editar um parâmetro antigo que já tenha resultados (teste simulado ou real) para comprovar bloqueio de `result_type`.
++- [ ] Testar autocomplete do campo Unidade (verificando se mesclou as strings das duas tabelas sem duplicar opções).
++- [ ] Confirmar o bloqueio de números decimais/negativos no campo de ordem.
++- [ ] Salvar, cancelar via botão, descartar via "unsaved modal" com feedback visual de toast idêntico à aba Exames.
++- [ ] Executar `npm run build` para checagem final de lint/JSX.
+ 
+ ---
+ 
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+We did our best to apply changes despite some inaccuracies. Double check if the edit applied is what you intended.
+
+--- STEP 6409 ---
+Created At: 2026-07-16T23:09:46Z
+Completed At: 2026-07-16T23:09:46Z
+The following changes were made by the multi_replace_file_content tool to: C:\Users\marci\.gemini\antigravity-ide\brain\6f44cbff-d078-4c37-ad90-a99c7f83a129\task.md. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -1,13 +1,13 @@
+ # Tarefas: Aba "Parâmetros e Referências"
+ 
+-- `[ ]` **Parte 1: Serviços de API (`laboratorioConfiguracoes.service.js`)**
+-  - `[ ]` Criar `getParametros(filters, pagination)` implementando paginação real (Supabase range e count) e ordenação por `exam_id`, `display_order`, `code`. Buscar `code` e `name` do exame na relação para visualização se preciso. Usar query `.ilike()` para busca (Estratégia A).
+-  - `[ ]` Criar `checkParamCodeExists(examId, code, currentParamId)` validando igualdade exata de código por exame (incluindo inativos).
+-  - `[ ]` Criar `checkParamOrderExists(examId, order, currentParamId)` para evitar duplicação de `display_order` no mesmo exame.
+-  - `[ ]` Criar `hasParameterHistory(paramId)` consultando `lab_result_values.parameter_id` e retornando booleano.
+-  - `[ ]` Criar `createParameter(data)`.
+-  - `[ ]` Criar `updateParameter(id, data)` refazendo a checagem de histórico localmente antes de permitir envio de `result_type`. Se houver histórico e o tipo mudou, bloquear no backend.
+-  - `[ ]` Criar `toggleParameterStatus(paramId, isActive)`.
++- `[x]` **Parte 1: Serviços de API (`laboratorioConfiguracoes.service.js`)**
++  - `[x]` Criar `getParametros(filters, pagination)` implementando paginação real (Supabase range e count) e ordenação por `exam_id`, `display_order`, `code`. Buscar `code` e `name` do exame na relação para visualização se preciso. Usar query `.ilike()` para busca (Estratégia A).
++  - `[x]` Criar `checkParamCodeExists(examId, code, currentParamId)` validando igualdade exata de código por exame (incluindo inativos).
++  - `[x]` Criar `checkParamOrderExists(examId, order, currentParamId)` para evitar duplicação de `display_order` no mesmo exame.
++  - `[x]` Criar `hasParameterHistory(paramId)` consultando `lab_result_values.parameter_id` e retornando booleano.
++  - `[x]` Criar `createParameter(data)`.
++  - `[x]` Criar `updateParameter(id, data)` refazendo a checagem de histórico localmente antes de permitir envio de `result_type`. Se houver histórico e o tipo mudou, bloquear no backend.
++  - `[x]` Criar `toggleParameterStatus(paramId, isActive)`.
+ 
+ - `[ ]` **Parte 2: UI e Componentes (`LaboratorioConfiguracoes.jsx`)**
+   - `[ ]` Estruturar barra de filtros e listagem paginada (20 itens por pág).
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 6419 ---
+Created At: 2026-07-16T23:10:09Z
+Completed At: 2026-07-16T23:10:11Z
+The following changes were made by the multi_replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -268,6 +268,36 @@
+     const [distinctUnits, setDistinctUnits] = useState([]);
+     const [distinctAnalyzers, setDistinctAnalyzers] = useState([]);
+ 
++    // ---------------------------------------------------------
++    // Parâmetros (Fase 3)
++    // ---------------------------------------------------------
++    const [parametros, setParametros] = useState([]);
++    const [selectedParamId, setSelectedParamId] = useState(null);
++    const [paramFilters, setParamFilters] = useState({
++        search: '',
++        exam_id: 'todos',
++        status: 'ativos'
++    });
++    const [paramPagination, setParamPagination] = useState({
++        page: 1,
++        pageSize: 20,
++        total: 0,
++        totalPages: 1
++    });
++    const [examesListForParams, setExamesListForParams] = useState([]); // Apenas id e nome para selects
++
++    const [showParamModal, setShowParamModal] = useState(false);
++    const [editingParam, setEditingParam] = useState(null);
++    const [paramForm, setParamForm] = useState({
++        exam_id: '', code: '', name: '', result_type: '', unit: '',
++        reference_text: '', min_value: '', max_value: '', display_order: '',
++        is_required: true, is_active: true
++    });
++    const [initialParamForm, setInitialParamForm] = useState(null);
++    const [paramHasHistory, setParamHasHistory] = useState(false);
++    const [paramToToggle, setParamToToggle] = useState(null);
++    const [showParamConfirmModal, setShowParamConfirmModal] = useState(false);
++
+     // Initial Load
+     useEffect(() => {
+         loadDashboardCards();
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 6424 ---
+Created At: 2026-07-16T23:10:24Z
+Completed At: 2026-07-16T23:10:26Z
+The following changes were made by the multi_replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -308,9 +308,22 @@
+     useEffect(() => {
+         if (activeTab === 'exames') {
+             loadExames();
++        } else if (activeTab === 'referencias') {
++            if (examesListForParams.length === 0) {
++                loadExamesListForParams();
++            }
++            loadParametros();
+         }
+     }, [activeTab]); // Load data when tab changes or initially
+ 
++    // Recarregar os parâmetros quando filtros mudam
++    useEffect(() => {
++        if (activeTab === 'referencias') {
++            setParamPagination(prev => ({ ...prev, page: 1 }));
++            loadParametros(1);
++        }
++    }, [paramFilters.exam_id, paramFilters.status]); // Busca textual não será automática por keystroke para não afogar a api, e sim pelo enter ou botão.
++
+     const loadDashboardCards = async () => {
+         try {
+             setLoadingCards(true);
+@@ -366,6 +366,40 @@
+         }
+     };
+ 
++    const loadExamesListForParams = async () => {
++        try {
++            // Reaproveita a busca de exames já existente para preencher os selects
++            const data = await laboratorioConfiguracoesService.getExames({});
++            setExamesListForParams(data.map(e => ({ id: e.id, name: e.name, code: e.code })).sort((a, b) => a.name.localeCompare(b.name)));
++        } catch (error) {
++            console.error('Erro ao listar exames (params)', error);
++        }
++    };
++
++    const loadParametros = async (pageToLoad = paramPagination.page) => {
++        try {
++            setLoading(true);
++            const res = await laboratorioConfiguracoesService.getParametros(paramFilters, pageToLoad, paramPagination.pageSize);
++            setParametros(res.data);
++            setParamPagination(prev => ({
++                ...prev,
++                page: pageToLoad,
++                total: res.total,
++                totalPages: res.totalPages
++            }));
++            
++            if (res.data.length > 0 && !res.data.find(p => p.id === selectedParamId)) {
++                setSelectedParamId(res.data[0].id);
++            } else if (res.data.length === 0) {
++                setSelectedParamId(null);
++            }
++        } catch (error) {
++            showFeedback('error', 'Erro ao listar parâmetros. Tente novamente.');
++        } finally {
++            setLoading(false);
++        }
++    };
++
+     const showFeedback = (type, text) => {
+         setFeedbackMsg({ type, text });
+         setTimeout(() => setFeedbackMsg(null), 5000);
+@@ -373,7 +373,12 @@
+     const handleFilterKeyDown = (e) => {
+         if (e.key === 'Enter') {
+             e.preventDefault();
+-            loadExames();
++            if (activeTab === 'exames') {
++                loadExames();
++            } else if (activeTab === 'referencias') {
++                setParamPagination(prev => ({ ...prev, page: 1 }));
++                loadParametros(1);
++            }
+         }
+     };
+ 
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 6427 ---
+Created At: 2026-07-16T23:10:47Z
+Completed At: 2026-07-16T23:10:49Z
+The following changes were made by the multi_replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -640,6 +640,232 @@
+         { label: 'Usuários vinculados', value: cards.usuariosVinculados, icon: Users, color: '#64748b' },
+     ];
+ 
++    // -----------------------------------------------------
++    // Handlers Parâmetros
++    // -----------------------------------------------------
++
++    const handleToggleParamStatus = (param) => {
++        setParamToToggle(param);
++        setShowParamConfirmModal(true);
++    };
++
++    const confirmToggleParamStatus = async () => {
++        if (!paramToToggle) return;
++        try {
++            setActionLoading(true);
++            const newStatus = !paramToToggle.is_active;
++            await laboratorioConfiguracoesService.toggleParamStatus(paramToToggle.id, newStatus);
++            
++            showFeedback('success', `Parâmetro ${newStatus ? 'ativado' : 'inativado'} com sucesso.`);
++            await loadParametros();
++            await loadDashboardCards();
++            
++            setShowParamConfirmModal(false);
++            setParamToToggle(null);
++        } catch (error) {
++            showFeedback('error', paramToToggle.is_active ? 'Não foi possível inativar o parâmetro. Tente novamente.' : 'Não foi possível ativar o parâmetro. Tente novamente.');
++        } finally {
++            setActionLoading(false);
++        }
++    };
++
++    const openNewParamModal = () => {
++        const initial = {
++            exam_id: paramFilters.exam_id !== 'todos' ? paramFilters.exam_id : '',
++            code: '', name: '', result_type: '', unit: '',
++            reference_text: '', min_value: '', max_value: '', display_order: '',
++            is_required: true, is_active: true
++        };
++        setParamForm(initial);
++        setInitialParamForm(initial);
++        setEditingParam(null);
++        setParamHasHistory(false);
++        setShowParamModal(true);
++    };
++
++    const openEditParamModal = async (param) => {
++        try {
++            setActionLoading(true);
++            const hasHistory = await laboratorioConfiguracoesService.hasParameterHistory(param.id);
++            setParamHasHistory(hasHistory);
++            
++            const initial = {
++                exam_id: param.exam_id || '',
++                code: param.code || '',
++                name: param.name || '',
++                result_type: param.result_type || '',
++                unit: param.unit || '',
++                reference_text: param.reference_text || '',
++                min_value: param.min_value !== null && param.min_value !== undefined ? param.min_value : '',
++                max_value: param.max_value !== null && param.max_value !== undefined ? param.max_value : '',
++                display_order: param.display_order !== null && param.display_order !== undefined ? param.display_order : '',
++                is_required: !!param.is_required,
++                is_active: !!param.is_active
++            };
++            setParamForm(initial);
++            setInitialParamForm(initial);
++            setEditingParam(param);
++            setShowParamModal(true);
++        } catch(error) {
++            showFeedback('error', 'Erro ao carregar detalhes do parâmetro.');
++        } finally {
++            setActionLoading(false);
++        }
++    };
++
++    const isParamFormDirty = () => {
++        if (!initialParamForm) return false;
++        
++        const normalizeField = (val) => {
++            if (val === null || val === undefined) return '';
++            if (typeof val === 'string') return val.trim();
++            if (typeof val === 'number') return String(val);
++            return val;
++        };
++
++        const formA = { ...paramForm };
++        const formB = { ...initialParamForm };
++
++        if (formA.code) formA.code = formA.code.trim().toUpperCase();
++        if (formB.code) formB.code = formB.code.trim().toUpperCase();
++
++        for (const key of Object.keys(initialParamForm)) {
++            if (normalizeField(formA[key]) !== normalizeField(formB[key])) {
++                return true;
++            }
++        }
++        return false;
++    };
++
++    const handleCloseParamModal = () => {
++        if (isParamFormDirty()) {
++            setShowUnsavedModal(true);
++            // Reutiliza o mesmo modal, então precisamos sinalizar quem chamou? 
++            // Na verdade, ambos usam a mesma logica de fechar os modais
++        } else {
++            setShowParamModal(false);
++        }
++    };
++
++    const confirmDiscardChanges = () => {
++        setShowUnsavedModal(false);
++        setShowExamModal(false);
++        setShowParamModal(false);
++    };
++
++    const handleSaveParam = async () => {
++        const normalizedCode = (paramForm.code || '').trim().toUpperCase();
++        if (!paramForm.exam_id) {
++            showFeedback('error', 'Selecione o exame ao qual o parâmetro pertence.');
++            document.getElementById('paramExam')?.focus();
++            return;
++        }
++        if (!normalizedCode) {
++            showFeedback('error', 'Informe o código do parâmetro.');
++            document.getElementById('paramCode')?.focus();
++            return;
++        }
++        if (!(paramForm.name || '').trim()) {
++            showFeedback('error', 'Informe o nome do parâmetro.');
++            document.getElementById('paramName')?.focus();
++            return;
++        }
++        if (!paramForm.result_type) {
++            showFeedback('error', 'Selecione o tipo de resultado.');
++            document.getElementById('paramResultType')?.focus();
++            return;
++        }
++        let parsedOrder = parseInt(paramForm.display_order, 10);
++        if (isNaN(parsedOrder) || parsedOrder < 0 || String(paramForm.display_order).includes('.') || String(paramForm.display_order).includes(',')) {
++            showFeedback('error', 'A ordem deve ser um número inteiro positivo.');
++            document.getElementById('paramOrder')?.focus();
++            return;
++        }
++
++        let minVal = paramForm.min_value !== '' && paramForm.min_value !== null ? parseFloat(String(paramForm.min_value).replace(',', '.')) : null;
++        let maxVal = paramForm.max_value !== '' && paramForm.max_value !== null ? parseFloat(String(paramForm.max_value).replace(',', '.')) : null;
++        
++        if (minVal !== null && isNaN(minVal)) minVal = null;
++        if (maxVal !== null && isNaN(maxVal)) maxVal = null;
++        
++        if (minVal !== null && maxVal !== null && minVal > maxVal) {
++            showFeedback('error', 'O valor mínimo não pode ser maior que o valor máximo.');
++            document.getElementById('paramMin')?.focus();
++            return;
++        }
++
++        try {
++            setActionLoading(true);
++
++            // Validações
++            const codeExists = await laboratorioConfiguracoesService.checkParamCodeExists(
++                paramForm.exam_id, normalizedCode, editingParam ? editingParam.id : null
++            );
++            if (codeExists) {
++                showFeedback('error', 'Já existe um parâmetro com este código neste exame.');
++                document.getElementById('paramCode')?.focus();
++                return;
++            }
++
++            const orderExists = await laboratorioConfiguracoesService.checkParamOrderExists(
++                paramForm.exam_id, parsedOrder, editingParam ? editingParam.id : null
++            );
++            if (orderExists) {
++                showFeedback('error', 'Já existe um parâmetro utilizando esta ordem para este exame.');
++                document.getElementById('paramOrder')?.focus();
++                return;
++            }
++
++            const cleanReference = (text) => {
++                if (!text) return null;
++                // Preserva inner spacing e quebras de linha, trim só nas bordas
++                const trimmed = text.trim();
++                return trimmed || null;
++            };
++
++            const payload = {
++                exam_id: paramForm.exam_id,
++                code: normalizedCode,
++                name: (paramForm.name || '').trim().replace(/\s+/g, ' '),
++                result_type: paramForm.result_type,
++                unit: (paramForm.unit || '').trim() || null,
++                reference_text: cleanReference(paramForm.reference_text),
++                min_value: minVal,
++                max_value: maxVal,
++                display_order: parsedOrder,
++                is_required: paramForm.is_required,
++                is_active: paramForm.is_active
++            };
++
++            if (editingParam) {
++                // exam_id is ignored on edit in payload (read-only in UI, but good practice to enforce)
++                delete payload.exam_id;
++                await laboratorioConfiguracoesService.updateParameter(editingParam.id, payload);
++                showFeedback('success', 'Parâmetro atualizado com sucesso.');
++            } else {
++                const newParam = await laboratorioConfiguracoesService.createParameter(payload);
++                setSelectedParamId(newParam.id);
++                showFeedback('success', 'Parâmetro cadastrado com sucesso.');
++            }
++            
++            // Recarregar os distintos sem bloquear a UI
++            loadDistinctValues();
++            
++            await loadParametros();
++            await loadDashboardCards();
++            setShowParamModal(false);
++            
++        } catch (error) {
++            if (error.message?.includes("OPERATION_BLOCKED")) {
++                showFeedback('error', "Operação bloqueada: " + error.message.replace("OPERATION_BLOCKED: ", ""));
++            } else {
++                showFeedback('error', editingParam ? 'Não foi possível atualizar o parâmetro.' : 'Não foi possível cadastrar o parâmetro.');
++            }
++        } finally {
++            setActionLoading(false);
++        }
++    };
++
+     const tabs = [
+         { id: 'exames', label: 'Exames' },
+         { id: 'setores', label: 'Setores' },
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 6439 ---
+Created At: 2026-07-16T23:11:40Z
+Completed At: 2026-07-16T23:11:42Z
+The following changes were made by the multi_replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -913,6 +913,11 @@
+                             <Plus size={16} /> Novo exame
+                         </button>
+                     )}
++                    {activeTab === 'referencias' && (
++                        <button className="lab-btn lab-btn-primary" onClick={openNewParamModal}>
++                            <Plus size={16} /> Novo parâmetro
++                        </button>
++                    )}
+                 </div>
+             </header>
+ 
+@@ -1140,8 +1140,274 @@
+                 </div>
+             )}
+ 
++            {/* Aba de Parâmetros e Referências */}
++            {activeTab === 'referencias' && (
++                <div className="lab-cfg-layout" style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
++                    <div className="lab-cfg-main-col" style={{ flex: '1 1 auto', minWidth: 0 }}>
++                        <div className="lab-card lab-cfg-list-card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
++                            <div className="lab-cfg-list-header">
++                                <div className="lab-cfg-filters-grid" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
++                                    <div className="lab-filter-item" style={{ flex: '1 1 200px' }}>
++                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem', display: 'block' }}>Exame</label>
++                                        <select 
++                                            value={paramFilters.exam_id}
++                                            onChange={(e) => setParamFilters({...paramFilters, exam_id: e.target.value})}
++                                            style={{ height: '38px', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px' }}
++                                        >
++                                            <option value="todos">Todos</option>
++                                            {examesListForParams.map(ex => (
++                                                <option key={ex.id} value={ex.id}>{ex.code} — {ex.name}</option>
++                                            ))}
++                                        </select>
++                                    </div>
++                                    <div className="lab-filter-item" style={{ flex: '1 1 200px' }}>
++                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem', display: 'block' }}>Nome / Código</label>
++                                        <input 
++                                            type="text" 
++                                            placeholder="Buscar parâmetro..." 
++                                            value={paramFilters.search}
++                                            onChange={(e) => setParamFilters({...paramFilters, search: e.target.value})}
++                                            onKeyDown={handleFilterKeyDown}
++                                            style={{ height: '38px', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px' }} 
++                                        />
++                                    </div>
++                                    <div className="lab-filter-item" style={{ flex: '0 0 120px' }}>
++                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem', display: 'block' }}>Status</label>
++                                        <select 
++                                            value={paramFilters.status}
++                                            onChange={(e) => setParamFilters({...paramFilters, status: e.target.value})}
++                                            style={{ height: '38px', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px' }}
++                                        >
++                                            <option value="todos">Todos</option>
++                                            <option value="ativos">Ativos</option>
++                                            <option value="inativos">Inativos</option>
++                                        </select>
++                                    </div>
++                                    <div className="lab-filter-actions" style={{ display: 'flex', alignItems: 'flex-end' }}>
++                                        <button className="lab-btn lab-btn-primary" onClick={() => { setParamPagination(prev => ({...prev, page: 1})); loadParametros(1); }} disabled={loading} style={{ height: '38px' }}>
++                                            {loading ? <Loader2 size={16} className="spin" /> : <Search size={16} />} 
++                                            Buscar
++                                        </button>
++                                    </div>
++                                </div>
++                            </div>
++                            <div className="lab-cfg-table-wrapper" style={{ overflowX: 'auto', flex: '1 1 auto' }}>
++                                <table className="lab-cfg-table">
++                                    <thead>
++                                        <tr>
++                                            <th>Exame</th>
++                                            <th>Ordem</th>
++                                            <th>Cód</th>
++                                            <th>Parâmetro</th>
++                                            <th>Tipo</th>
++                                            <th>Unid</th>
++                                            <th>Status</th>
++                                            <th style={{ textAlign: 'right' }}>Ação</th>
++                                        </tr>
++                                    </thead>
++                                    <tbody>
++                                        {loading && parametros.length === 0 && (
++                                            <tr>
++                                                <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
++                                                    <Loader2 size={24} className="spin" style={{ margin: '0 auto' }} />
++                                                    <div style={{ marginTop: '0.5rem' }}>Carregando parâmetros...</div>
++                                                </td>
++                                            </tr>
++                                        )}
++                                        {!loading && parametros.length === 0 && (
++                                            <tr>
++                                                <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
++                                                    Nenhum parâmetro encontrado com os filtros atuais.
++                                                </td>
++                                            </tr>
++                                        )}
++                                        {parametros.map(p => (
++                                            <tr 
++                                                key={p.id} 
++                                                className={selectedParamId === p.id ? 'active' : ''}
++                                                onClick={() => setSelectedParamId(p.id)}
++                                                style={{ cursor: 'pointer' }}
++                                            >
++                                                <td style={{ fontSize: '0.8rem' }}><span className="lab-badge lab-badge-gray" style={{ background: '#f1f5f9', color: '#475569', border: 'none' }}>{p.exam_code}</span></td>
++                                                <td style={{ color: '#64748b' }}>{p.display_order}</td>
++                                                <td className="font-bold text-gray-500" style={{ fontSize: '0.8rem' }}>{p.code}</td>
++                                                <td className="font-bold text-primary">{p.name}</td>
++                                                <td style={{ fontSize: '0.85rem' }}>{
++                                                    p.result_type === 'TEXTO' ? 'Texto' : 
++                                                    p.result_type === 'NUMERICO' ? 'Numérico' : 
++                                                    p.result_type === 'QUALITATIVO' ? 'Qualitativo' : 
++                                                    p.result_type === 'ESTRUTURADO' ? 'Estruturado' : p.result_type
++                                                }</td>
++                                                <td style={{ color: '#475569', fontSize: '0.85rem' }}>{p.unit || '-'}</td>
++                                                <td>
++                                                    <span className={`lab-badge ${p.is_active ? 'lab-badge-success' : 'lab-badge-gray'}`}>
++                                                        {p.is_active ? 'Ativo' : 'Inativo'}
++                                                    </span>
++                                                </td>
++                                                <td style={{ textAlign: 'right' }}>
++                                                    <div style={{ display: 'inline-flex', gap: '0.5rem' }} onClick={e => e.stopPropagation()}>
++                                                        <button 
++                                                            className="lab-btn lab-btn-outline" 
++                                                            style={{ padding: '0.35rem', border: '1px solid #e2e8f0' }} 
++                                                            title="Editar parâmetro"
++                                                            onClick={(e) => {
++                                                                e.stopPropagation();
++                                                                openEditParamModal(p);
++                                                            }}
++                                                        >
++                                                            <Edit size={14} />
++                                                        </button>
++                                                        <button 
++                                                            className="lab-btn lab-btn-outline" 
++                                                            style={{ padding: '0.35rem', border: '1px solid #e2e8f0', color: p.is_active ? '#ea580c' : '#10b981' }} 
++                                                            title={p.is_active ? "Inativar parâmetro" : "Ativar parâmetro"}
++                                                            onClick={() => handleToggleParamStatus(p)}
++                                                            disabled={actionLoading}
++                                                        >
++                                                            {p.is_active ? <Ban size={14} /> : <CheckCircle2 size={14} />}
++                                                        </button>
++                                                    </div>
++                                                </td>
++                                            </tr>
++                                        ))}
++                                    </tbody>
++                                </table>
++                            </div>
++                            
++                            {/* Paginação */}
++                            {paramPagination.totalPages > 1 && (
++                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
++                                    <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
++                                        Exibindo {parametros.length} de {paramPagination.total} registros
++                                    </div>
++                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
++                                        <button 
++                                            className="lab-btn lab-btn-outline" 
++                                            disabled={paramPagination.page === 1}
++                                            onClick={() => loadParametros(paramPagination.page - 1)}
++                                            style={{ padding: '0.35rem 0.75rem', height: '32px' }}
++                                        >
++                                            Anterior
++                                        </button>
++                                        <span style={{ fontSize: '0.85rem', color: '#475569', padding: '0 0.5rem' }}>
++                                            Página {paramPagination.page} de {paramPagination.totalPages}
++                                        </span>
++                                        <button 
++                                            className="lab-btn lab-btn-outline" 
++                                            disabled={paramPagination.page === paramPagination.totalPages}
++                                            onClick={() => loadParametros(paramPagination.page + 1)}
++                                            style={{ padding: '0.35rem 0.75rem', height: '32px' }}
++                                        >
++                                            Próxima
++                                        </button>
++                                    </div>
++                                </div>
++                            )}
++
++                        </div>
++                    </div>
++                    
++                    {/* Detalhe do Parâmetro (Painel Lateral) */}
++                    <div className="lab-cfg-side-col" style={{ flex: '0 0 350px' }}>
++                        {(() => {
++                            const currentParam = parametros.find(p => p.id === selectedParamId);
++                            if (currentParam) {
++                                return (
++                                    <div className="lab-cfg-details-panel lab-card">
++                                        <div className="cfg-panel-header">
++                                            <div className="cfg-panel-title">
++                                                <h2>{currentParam.code} — {currentParam.name}</h2>
++                                            </div>
++                                            <div className="cfg-panel-badges mt-2" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
++                                                <span className="lab-badge lab-badge-gray">{currentParam.exam_code}</span>
++                                                <span className={`lab-badge ${currentParam.is_active ? 'lab-badge-success' : 'lab-badge-gray'}`}>
++                                                    {currentParam.is_active ? 'Ativo' : 'Inativo'}
++                                                </span>
++                                            </div>
++                                        </div>
++                                        <div className="cfg-panel-body" style={{ padding: '1rem 1.25rem' }}>
++                                            <div className="cfg-info-box" style={{ marginBottom: '0.75rem' }}>
++                                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Código</label>
++                                                <div className="font-semibold text-primary">{currentParam.code}</div>
++                                            </div>
++                                            <div className="cfg-info-box" style={{ marginBottom: '0.75rem' }}>
++                                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Nome</label>
++                                                <div className="font-bold text-gray-900">{currentParam.name}</div>
++                                            </div>
++                                            <div className="cfg-info-box" style={{ marginBottom: '0.75rem' }}>
++                                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Tipo de Resultado</label>
++                                                <div>{currentParam.result_type}</div>
++                                            </div>
++                                            <div className="cfg-info-box" style={{ marginBottom: '0.75rem' }}>
++                                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Unidade</label>
++                                                <div>{currentParam.unit || '---'}</div>
++                                            </div>
++                                            
++                                            <hr style={{ border: 0, borderTop: '1px solid #e2e8f0', margin: '1rem 0' }} />
++                                            
++                                            <div className="cfg-info-box" style={{ marginBottom: '0.75rem', display: 'flex', gap: '1rem' }}>
++                                                <div style={{ flex: 1 }}>
++                                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Valor Mínimo</label>
++                                                    <div>{currentParam.min_value !== null ? currentParam.min_value : '---'}</div>
++                                                </div>
++                                                <div style={{ flex: 1 }}>
++                                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Valor Máximo</label>
++                                                    <div>{currentParam.max_value !== null ? currentParam.max_value : '---'}</div>
++                                                </div>
++                                            </div>
++
++                                            <div className="cfg-info-box" style={{ marginBottom: '0.75rem' }}>
++                                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Ordem de exibição</label>
++                                                <div>{currentParam.display_order}</div>
++                                            </div>
++                                            <div className="cfg-info-box" style={{ marginBottom: '0.75rem' }}>
++                                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Obrigatório na digitação?</label>
++                                                <div>{currentParam.is_required ? 'Sim' : 'Não'}</div>
++                                            </div>
++
++                                            <hr style={{ border: 0, borderTop: '1px solid #e2e8f0', margin: '1rem 0' }} />
++                                            
++                                            <div className="cfg-info-box" style={{ marginBottom: '0.75rem' }}>
++                                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Texto de Referência</label>
++                                                <div style={{ 
++                                                    marginTop: '0.25rem', 
++                                                    padding: '0.5rem', 
++                                                    background: '#f8fafc', 
++                                                    borderRadius: '6px',
++                                                    fontSize: '0.85rem',
++                                                    whiteSpace: 'pre-wrap', // Preserva quebras
++                                                    color: '#334155'
++                                                }}>
++                                                    {currentParam.reference_text || <span style={{color: '#94a3b8', fontStyle: 'italic'}}>Nenhum texto informado</span>}
++                                                </div>
++                                            </div>
++
++                                            <div className="cfg-info-box" style={{ marginBottom: '0.75rem', marginTop: '1rem' }}>
++                                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Exame Vinculado</label>
++                                                <div style={{ fontSize: '0.85rem', color: '#475569' }}>
++                                                    {currentParam.exam_name} <br/>
++                                                    {currentParam.exam_material && <span>Material: {currentParam.exam_material} <br/></span>}
++                                                    {currentParam.exam_method && <span>Método: {currentParam.exam_method}</span>}
++                                                </div>
++                                            </div>
++                                        </div>
++                                    </div>
++                                );
++                            } else {
++                                return (
++                                    <div className="lab-card" style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', padding: '2rem', textAlign: 'center' }}>
++                                        <Activity size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
++                                        <p>Selecione um parâmetro na lista para visualizar os detalhes.</p>
++                                    </div>
++                                );
++                            }
++                        })()}
++                    </div>
++                </div>
++            )}
++
+             {/* Outras abas (Em Construção ou Somente Leitura) */}
+-            {activeTab !== 'exames' && (
++            {activeTab !== 'exames' && activeTab !== 'referencias' && (
+                 <div className="lab-card" style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
+                     <Settings size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                     <h3 style={{ fontSize: '1.25rem', color: '#1e293b', marginBottom: '0.5rem' }}>Aba {tabs.find(t => t.id === activeTab)?.label} em construção</h3>
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 6446 ---
+Created At: 2026-07-16T23:12:22Z
+Completed At: 2026-07-16T23:12:24Z
+The following changes were made by the multi_replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -1708,6 +1708,303 @@
+                 </div>
+             )}
+ 
++            {/* Modal Confirmar Ativação / Inativação Parâmetro */}
++            {showParamConfirmModal && paramToToggle && (
++                <div className="unsaved-result-modal-overlay" role="dialog" aria-modal="true">
++                    <div className="unsaved-result-modal" style={{ maxWidth: '450px' }}>
++                        <div className="unsaved-result-modal-header" style={{ paddingBottom: '12px' }}>
++                            <div className="unsaved-result-modal-icon" style={{ background: paramToToggle.is_active ? '#fee2e2' : '#d1fae5', color: paramToToggle.is_active ? '#dc2626' : '#047857' }}>
++                                {paramToToggle.is_active ? <AlertTriangle size={24} /> : <CheckCircle2 size={24} />}
++                            </div>
++                            <div>
++                                <h2 className="unsaved-result-modal-title">
++                                    {paramToToggle.is_active ? 'Inativar parâmetro?' : 'Ativar parâmetro?'}
++                                </h2>
++                            </div>
++                        </div>
++                        <div className="unsaved-result-modal-body" style={{ paddingLeft: '26px' }}>
++                            <p style={{ color: '#475569', marginBottom: '1rem' }}>
++                                {paramToToggle.is_active 
++                                    ? 'O parâmetro deixará de ser utilizado em novos resultados. Os registros anteriores serão preservados.'
++                                    : 'O parâmetro voltará a ficar disponível para digitação nos resultados deste exame.'}
++                            </p>
++                            <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', fontSize: '0.9rem' }}>
++                                <div style={{ marginBottom: '4px' }}><strong>Exame:</strong> {paramToToggle.exam_code}</div>
++                                <div style={{ marginBottom: '4px' }}><strong>Código:</strong> {paramToToggle.code}</div>
++                                <div style={{ marginBottom: '4px' }}><strong>Nome:</strong> {paramToToggle.name}</div>
++                                {paramToToggle.is_active && (
++                                    <div><strong>Status atual:</strong> <span style={{ color: '#10b981', fontWeight: 600 }}>Ativo</span></div>
++                                )}
++                            </div>
++                        </div>
++                        <div className="unsaved-result-modal-footer">
++                            <button 
++                                className="unsaved-btn-neutral" 
++                                onClick={() => setShowParamConfirmModal(false)} 
++                                disabled={actionLoading}
++                            >
++                                Cancelar
++                            </button>
++                            <button 
++                                className={paramToToggle.is_active ? "lab-btn-danger" : "lab-btn-success"} 
++                                style={{ 
++                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', 
++                                    minWidth: '200px', height: '46px', padding: '0 22px', boxSizing: 'border-box',
++                                    borderRadius: '10px', border: 'none', 
++                                    background: paramToToggle.is_active ? '#ef4444' : '#10b981', 
++                                    color: '#fff', fontWeight: 600, cursor: 'pointer', textAlign: 'center'
++                                }} 
++                                onClick={confirmToggleParamStatus} 
++                                disabled={actionLoading}
++                            >
++                                {actionLoading ? (
++                                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '9px', width: '100%', lineHeight: 1 }}>
++                                        <Loader2 size={18} className="spin" style={{ flex: '0 0 18px' }} />
++                                        <span>{paramToToggle.is_active ? 'Inativando...' : 'Ativando...'}</span>
++                                    </span>
++                                ) : (
++                                    <span>{paramToToggle.is_active ? 'Confirmar inativação' : 'Confirmar ativação'}</span>
++                                )}
++                            </button>
++                        </div>
++                    </div>
++                </div>
++            )}
++
++            {/* Modal Novo/Editar Parâmetro */}
++            {showParamModal && (
++                <div className="unsaved-result-modal-overlay" role="dialog" aria-modal="true" onMouseDown={(e) => {
++                    if (e.target === e.currentTarget) handleCloseParamModal();
++                }}>
++                    <div className="lab-exam-modal-container" style={{ 
++                        background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '800px', 
++                        maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
++                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
++                    }}>
++                        <div style={{ padding: '24px 32px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
++                            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>
++                                {editingParam ? 'Editar parâmetro' : 'Novo parâmetro'}
++                            </h2>
++                            <p style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '0.9rem' }}>
++                                {editingParam ? 'Atualize as configurações do parâmetro para o exame.' : 'Cadastre as configurações de um novo parâmetro para o exame.'}
++                            </p>
++                        </div>
++                        
++                        <div style={{ padding: '24px 32px', overflowY: 'auto', flex: 1 }}>
++                            
++                            {/* Seção 1 - Identificação */}
++                            <div style={{ marginBottom: '2rem' }}>
++                                <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>Identificação</h3>
++                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
++                                    <div style={{ gridColumn: 'span 2' }}>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Exame Vinculado *</label>
++                                        <select 
++                                            id="paramExam"
++                                            value={paramForm.exam_id} 
++                                            onChange={e => setParamForm({...paramForm, exam_id: e.target.value})}
++                                            disabled={!!editingParam}
++                                            style={{ 
++                                                width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px',
++                                                backgroundColor: editingParam ? '#f1f5f9' : '#fff', color: editingParam ? '#64748b' : '#334155'
++                                            }}
++                                        >
++                                            <option value="">Selecione o exame...</option>
++                                            {examesListForParams.map(ex => (
++                                                <option key={ex.id} value={ex.id}>{ex.code} — {ex.name}</option>
++                                            ))}
++                                        </select>
++                                    </div>
++                                    <div style={{ gridColumn: 'span 1' }}>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Código *</label>
++                                        <input 
++                                            id="paramCode"
++                                            type="text" 
++                                            value={paramForm.code} 
++                                            onChange={e => setParamForm({...paramForm, code: e.target.value.toUpperCase()})}
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        />
++                                    </div>
++                                    <div style={{ gridColumn: 'span 2' }}>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Nome do parâmetro *</label>
++                                        <input 
++                                            id="paramName"
++                                            type="text" 
++                                            value={paramForm.name} 
++                                            onChange={e => setParamForm({...paramForm, name: e.target.value})}
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        />
++                                    </div>
++                                    <div style={{ gridColumn: 'span 1' }}>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Ordem de Exibição *</label>
++                                        <input 
++                                            id="paramOrder"
++                                            type="number" 
++                                            min="0"
++                                            step="1"
++                                            value={paramForm.display_order} 
++                                            onChange={e => setParamForm({...paramForm, display_order: e.target.value})}
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        />
++                                    </div>
++                                </div>
++                            </div>
++
++                            {/* Seção 2 - Configuração do Resultado */}
++                            <div style={{ marginBottom: '2rem' }}>
++                                <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>Configuração do Resultado</h3>
++                                
++                                {paramHasHistory && (
++                                    <div style={{ marginBottom: '1rem', padding: '12px', background: '#fffbeb', border: '1px solid #fef3c7', borderLeft: '4px solid #f59e0b', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '12px', color: '#92400e', fontSize: '0.9rem' }}>
++                                        <Lock size={18} />
++                                        <span>Este parâmetro já possui resultados registrados e o tipo de resultado não pode ser alterado.</span>
++                                    </div>
++                                )}
++                                
++                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
++                                    
++                                    <div>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Tipo de resultado *</label>
++                                        <select 
++                                            id="paramResultType"
++                                            value={paramForm.result_type} 
++                                            onChange={e => setParamForm({...paramForm, result_type: e.target.value})}
++                                            disabled={paramHasHistory}
++                                            style={{ 
++                                                width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px',
++                                                backgroundColor: paramHasHistory ? '#f1f5f9' : '#fff', color: paramHasHistory ? '#64748b' : '#334155'
++                                            }}
++                                        >
++                                            <option value="">Selecione...</option>
++                                            <option value="ESTRUTURADO">Estruturado</option>
++                                            <option value="NUMERICO">Numérico</option>
++                                            <option value="QUALITATIVO">Qualitativo</option>
++                                            <option value="TEXTO">Texto</option>
++                                        </select>
++                                    </div>
++                                    
++                                    <div>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Unidade</label>
++                                        <LabAutocomplete 
++                                            id="lab-param-unit-options"
++                                            value={paramForm.unit} 
++                                            onChange={(val) => setParamForm({...paramForm, unit: val})}
++                                            options={distinctUnits}
++                                            placeholder="Buscar ou digitar..."
++                                        />
++                                    </div>
++                                    
++                                    <div>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Valor Mínimo</label>
++                                        <input 
++                                            id="paramMin"
++                                            type="text" 
++                                            value={paramForm.min_value} 
++                                            onChange={e => setParamForm({...paramForm, min_value: e.target.value})}
++                                            placeholder="Ex: 4.5"
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        />
++                                    </div>
++
++                                    <div>
++                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Valor Máximo</label>
++                                        <input 
++                                            id="paramMax"
++                                            type="text" 
++                                            value={paramForm.max_value} 
++                                            onChange={e => setParamForm({...paramForm, max_value: e.target.value})}
++                                            placeholder="Ex: 10.0"
++                                            style={{ width: '100%', height: '40px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 12px' }}
++                                        />
++                                    </div>
++
++                                </div>
++                            </div>
++
++                            {/* Seção 3 - Referência */}
++                            <div style={{ marginBottom: '2rem' }}>
++                                <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>Referência</h3>
++                                <div>
++                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Texto de Referência</label>
++                                    <textarea 
++                                        id="paramReference"
++                                        value={paramForm.reference_text}
++                                        onChange={e => setParamForm({...paramForm, reference_text: e.target.value})}
++                                        rows={6}
++                                        placeholder="Digite os valores de referência..."
++                                        style={{ width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '12px', resize: 'vertical', fontFamily: 'inherit' }}
++                                    />
++                                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
++                                        As quebras de linha serão preservadas na exibição e na impressão.
++                                    </div>
++                                </div>
++                            </div>
++
++                            {/* Seção 4 - Status */}
++                            <div>
++                                <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>Status</h3>
++                                
++                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
++                                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
++                                        <input 
++                                            type="checkbox" 
++                                            checked={paramForm.is_required}
++                                            onChange={e => setParamForm({...paramForm, is_required: e.target.checked})}
++                                            style={{ width: '18px', height: '18px', marginRight: '8px', cursor: 'pointer' }}
++                                        />
++                                        <div>
++                                            <div style={{ fontWeight: 600, color: '#334155', fontSize: '0.9rem' }}>Obrigatório na digitação</div>
++                                            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>O exame não poderá ser conferido se este parâmetro estiver em branco.</div>
++                                        </div>
++                                    </label>
++                                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
++                                        <input 
++                                            type="checkbox" 
++                                            checked={paramForm.is_active}
++                                            onChange={e => setParamForm({...paramForm, is_active: e.target.checked})}
++                                            style={{ width: '18px', height: '18px', marginRight: '8px', cursor: 'pointer' }}
++                                        />
++                                        <div>
++                                            <div style={{ fontWeight: 600, color: '#334155', fontSize: '0.9rem' }}>Parâmetro ativo</div>
++                                            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Disponível para digitação em novos atendimentos.</div>
++                                        </div>
++                                    </label>
++                                </div>
++                            </div>
++                        </div>
++
++                        <div style={{ padding: '16px 32px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
++                            <button 
++                                className="unsaved-btn-neutral" 
++                                onClick={handleCloseParamModal} 
++                                disabled={actionLoading}
++                            >
++                                Cancelar
++                            </button>
++                            <button 
++                                className="lab-btn-primary" 
++                                style={{ 
++                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', 
++                                    minWidth: '160px', height: '46px', padding: '0 22px', boxSizing: 'border-box',
++                                    borderRadius: '8px', border: 'none', 
++                                    background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: 'pointer', textAlign: 'center'
++                                }} 
++                                onClick={handleSaveParam} 
++                                disabled={actionLoading}
++                            >
++                                {actionLoading ? (
++                                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '9px', width: '100%', lineHeight: 1 }}>
++                                        <Loader2 size={18} className="spin" style={{ flex: '0 0 18px' }} />
++                                        <span>{editingParam ? 'Salvando...' : 'Cadastrando...'}</span>
++                                    </span>
++                                ) : (
++                                    <span>{editingParam ? 'Salvar parâmetro' : 'Cadastrar parâmetro'}</span>
++                                )}
++                            </button>
++                        </div>
++                    </div>
++                </div>
++            )}
++
+             {/* Modal Alterações Não Salvas */}
+             {showUnsavedModal && (
+                 <div className="unsaved-result-modal-overlay" role="dialog" aria-modal="true" style={{ zIndex: 9999 }}>
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+--- STEP 6481 ---
+Created At: 2026-07-16T23:13:58Z
+Completed At: 2026-07-16T23:14:00Z
+The following changes were made by the multi_replace_file_content tool to: C:\Users\marci\.gemini\antigravity-ide\brain\6f44cbff-d078-4c37-ad90-a99c7f83a129\task.md. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -7,11 +7,11 @@
+   - `[x]` Criar `hasParameterHistory(paramId)` consultando `lab_result_values.parameter_id` e retornando booleano.
+   - `[x]` Criar `createParameter(data)`.
+   - `[x]` Criar `updateParameter(id, data)` refazendo a checagem de histórico localmente antes de permitir envio de `result_type`. Se houver histórico e o tipo mudou, bloquear no backend.
+-  - `[x]` Criar `toggleParameterStatus(paramId, isActive)`.
+-
+-- `[ ]` **Parte 2: UI e Componentes (`LaboratorioConfiguracoes.jsx`)**
+-  - `[ ]` Estruturar barra de filtros e listagem paginada (20 itens por pág).
+-  - `[ ]` Criar estado e funções do modal de cadastro de parâmetro com layout amplo (1 Identificação, 2 Result, 3 Ref, 4 Status).
++  - `[x]` Update `laboratorioConfiguracoes.service.js` with CRUD for `lab_exam_parameters` (preserving `result_type` blocking rules).
++- `[x]` Add React state to `LaboratorioConfiguracoes.jsx` for parameter list and forms.
++- `[x]` Implement parameter modal (Identification, Config, References, Status) with disabled `result_type` if history exists.
++- `[x]` Construct side-panel view for selected parameter details.
++- `[x]` Final QA to ensure no SQL/migration was executed. amplo (1 Identificação, 2 Result, 3 Ref, 4 Status).
+   - `[ ]` Painel lateral de detalhes: Exibir referências com `white-space: pre-wrap`, exibir informações vinculadas ao exame, exibir status e restrições.
+   - `[ ]` Regras de edição:
+     - Se histórico for detectado, bloquear dropdown de Tipo e exibir alerta "Este parâmetro já possui resultados registrados...".
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+
+We did our best to apply changes despite some inaccuracies. Double check if the edit applied is what you intended.
+
+--- STEP 6512 ---
+Created At: 2026-07-16T23:19:55Z
+Completed At: 2026-07-16T23:19:57Z
+The previous CodeEdit was suggested by the multi_replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. The diff was not immediately applied to the file due to the changes being flagged as potentially incomplete or incorrect. The user will manually review the changes and may decide to apply them.
+
+--- STEP 6599 ---
+Created At: 2026-07-16T23:41:57Z
+Completed At: 2026-07-16T23:41:59Z
+The following changes were made by the replace_file_content tool to: c:\Users\marci\OneDrive\Documentos\Antigravity\GPI\src\pages\laboratorio\LaboratorioConfiguracoes.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -1220,9 +1220,9 @@
+                                                 <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>Histórico</h3>
+                                                 <div style={{ fontSize: '0.85rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                     {selectedParamHistory === null ? (
+-                                                        <><Loader2 size={14} className="spin text-gray-400" /> <span>Verificando...</span></>
++                                                        <span style={{ color: '#64748b' }}>Verificando...</span>
+                                                     ) : selectedParamHistory ? (
+-                                                        <><Lock size={14} style={{ color: '#ea580c' }} /> <span style={{ color: '#ea580c', fontWeight: 600 }}>Possui resultados registrados</span></>
++                                                        <span style={{ color: '#ea580c', fontWeight: 600 }}>Possui resultados registrados</span>
+                                                     ) : (
+                                                         <span style={{ color: '#10b981' }}>Ainda não utilizado</span>
+                                                     )}
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.

@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+const fs = require('fs');
+const jsxPath = 'src/pages/laboratorio/LaboratorioConferencia.jsx';
+
+const originalContent = `import React, { useState, useEffect } from 'react';
 import { formatCpf } from '../../utils/formatters';
 import { 
     CheckCircle2, AlertTriangle, XCircle, Search, RefreshCw, 
@@ -13,7 +16,7 @@ const getLocalDateInputValue = (date = new Date()) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return \`\${year}-\${month}-\${day}\`;
 };
 
 const LaboratorioConferencia = () => {
@@ -25,11 +28,6 @@ const LaboratorioConferencia = () => {
         attendance_origin: ''
     });
     
-    const [localSearch, setLocalSearch] = useState('');
-    const [selectedProtocol, setSelectedProtocol] = useState(null);
-    const [keyboardSelectedIndex, setKeyboardSelectedIndex] = useState(-1);
-    const listRef = useRef(null);
-
     const [loading, setLoading] = useState(false);
     const [searchResults, setSearchResults] = useState([]);
     
@@ -64,98 +62,6 @@ const LaboratorioConferencia = () => {
         if (event.key === 'Enter') {
             event.preventDefault();
             handleSearch();
-        }
-    };
-
-    const filteredResults = useMemo(() => {
-        if (!localSearch) return searchResults;
-        const lower = localSearch.toLowerCase().trim();
-        const removeAccents = str => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const term = removeAccents(lower);
-
-        return searchResults.filter(item => {
-            const p = removeAccents((item.protocolo || '').toLowerCase());
-            const n = removeAccents((item.pacienteNome || '').toLowerCase());
-            const ec = removeAccents((item.exameCodigo || '').toLowerCase());
-            const en = removeAccents((item.exameNome || '').toLowerCase());
-            const cns = removeAccents((item.pacienteCns || '').toLowerCase());
-            const cpf = removeAccents((item.pacienteCpf || '').toLowerCase());
-
-            return p.includes(term) || n.includes(term) || ec.includes(term) || en.includes(term) || cns.includes(term) || cpf.includes(term);
-        });
-    }, [searchResults, localSearch]);
-
-    const groupedProtocols = useMemo(() => {
-        const groups = {};
-        filteredResults.forEach(ex => {
-            if (!groups[ex.protocolo]) {
-                groups[ex.protocolo] = {
-                    protocolo: ex.protocolo,
-                    dataAtendimento: ex.dataAtendimento,
-                    pacienteNome: ex.pacienteNome,
-                    pacienteIdade: ex.pacienteIdade,
-                    pacienteSexo: ex.pacienteSexo,
-                    pacienteCns: ex.pacienteCns,
-                    pacienteCpf: ex.pacienteCpf,
-                    convenio: ex.convenio,
-                    medico: ex.medico,
-                    local_entrega: ex.local_entrega,
-                    exams: []
-                };
-            }
-            groups[ex.protocolo].exams.push(ex);
-        });
-        return Object.values(groups);
-    }, [filteredResults]);
-
-    useEffect(() => {
-        if (groupedProtocols.length > 0 && selectedProtocol === null) {
-            setSelectedProtocol(groupedProtocols[0]);
-        } else if (groupedProtocols.length === 0) {
-            setSelectedProtocol(null);
-            setSelectedExam(null);
-            setExamDetails([]);
-        } else if (selectedProtocol) {
-            const found = groupedProtocols.find(g => g.protocolo === selectedProtocol.protocolo);
-            if (found) {
-                setSelectedProtocol(found);
-                if (selectedExam && !found.exams.find(e => e.id === selectedExam.id)) {
-                    if (found.exams.length > 0) {
-                        handleSelectExam(found.exams[0]);
-                    } else {
-                        setSelectedExam(null);
-                        setExamDetails([]);
-                    }
-                }
-            } else {
-                setSelectedProtocol(groupedProtocols[0]);
-                setSelectedExam(null);
-                setExamDetails([]);
-            }
-        }
-    }, [groupedProtocols, selectedProtocol, searchResults]); // depend on searchResults to force update
-
-    useEffect(() => {
-        if (selectedProtocol && selectedProtocol.exams.length > 0 && !selectedExam) {
-            handleSelectExam(selectedProtocol.exams[0]);
-        }
-    }, [selectedProtocol]);
-
-    const handleLocalSearchKeyDown = (e) => {
-        if (groupedProtocols.length === 0) return;
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            setKeyboardSelectedIndex(prev => Math.min(prev + 1, groupedProtocols.length - 1));
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            setKeyboardSelectedIndex(prev => Math.max(prev - 1, 0));
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            if (keyboardSelectedIndex >= 0 && keyboardSelectedIndex < groupedProtocols.length) {
-                setSelectedProtocol(groupedProtocols[keyboardSelectedIndex]);
-            } else if (groupedProtocols.length === 1) {
-                setSelectedProtocol(groupedProtocols[0]);
-            }
         }
     };
 
@@ -278,7 +184,7 @@ const LaboratorioConferencia = () => {
                             transform: 'translateY(-50%)', marginRight: '1rem',
                             background: feedbackMsg.type === 'success' ? '#d1fae5' : '#fee2e2',
                             color: feedbackMsg.type === 'success' ? '#047857' : '#b91c1c',
-                            border: `1px solid ${feedbackMsg.type === 'success' ? '#10b981' : '#ef4444'}`,
+                            border: \`1px solid \${feedbackMsg.type === 'success' ? '#10b981' : '#ef4444'}\`,
                             padding: '0.5rem 1rem', borderRadius: '8px',
                             fontWeight: '600', fontSize: '0.85rem', zIndex: 10,
                             whiteSpace: 'nowrap',
@@ -295,7 +201,7 @@ const LaboratorioConferencia = () => {
             </header>
 
             {/* Filtros */}
-            <div className={`lab-card lab-filters-card ${selectedExam ? 'compact' : ''}`}>
+            <div className={\`lab-card lab-filters-card \${selectedExam ? 'compact' : ''}\`}>
                 <div className="lab-filters-grid">
                     <div className="lab-filter-item lab-filter-group">
                         <label>Data</label>
@@ -366,56 +272,36 @@ const LaboratorioConferencia = () => {
                     <div className="lab-card lab-queue-card">
                         <div className="lab-card-header">
                             <h3 className="lab-card-title"><Clock size={18} /> Resultados Encontrados</h3>
-                            <span className="lab-badge lab-badge-primary">{groupedProtocols.length} atendimentos / {filteredResults.length} exames</span>
+                            <span className="lab-badge lab-badge-primary">{searchResults.length} registros</span>
                         </div>
-                        <div style={{ padding: '0.75rem', borderBottom: '1px solid #e2e8f0' }}>
-                            <div style={{ position: 'relative' }}>
-                                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                <input 
-                                    type="text" 
-                                    placeholder="Pesquisar nesta lista..." 
-                                    value={localSearch}
-                                    onChange={(e) => {
-                                        setLocalSearch(e.target.value);
-                                        setKeyboardSelectedIndex(-1);
-                                    }}
-                                    onKeyDown={handleLocalSearchKeyDown}
-                                    style={{ width: '100%', padding: '0.5rem 0.5rem 0.5rem 2rem', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
-                                />
-                            </div>
-                        </div>
-                        <div className="lab-queue-list" ref={listRef}>
-                            {groupedProtocols.length === 0 && !loading && (
+                        <div className="lab-queue-list">
+                            {searchResults.length === 0 && !loading && (
                                 <div className="text-center p-4 text-gray-500 text-sm">
-                                    Nenhum item encontrado nesta lista.
+                                    Nenhum exame encontrado com os filtros atuais.
                                 </div>
                             )}
-                            {groupedProtocols.map((group, idx) => {
-                                const isSelected = selectedProtocol?.protocolo === group.protocolo;
-                                const isKeyboardSelected = keyboardSelectedIndex === idx;
-                                return (
-                                    <div 
-                                        key={group.protocolo} 
-                                        className={`lab-queue-item ${isSelected ? 'active' : ''}`}
-                                        style={{ borderLeft: isKeyboardSelected && !isSelected ? '3px solid #cbd5e1' : undefined }}
-                                        onClick={() => {
-                                            setSelectedProtocol(group);
-                                            setKeyboardSelectedIndex(idx);
-                                        }}
-                                    >
-                                        <div className="lab-qi-header">
-                                            <span className="font-bold text-gray-900">{group.protocolo}</span>
-                                            <span className="text-gray-500 text-sm">{group.dataAtendimento}</span>
-                                        </div>
-                                        <div className="lab-qi-name font-semibold text-primary">{group.pacienteNome}</div>
-                                        <div className="lab-qi-meta mt-1 flex justify-between items-center">
-                                            <span className="text-gray-600 font-medium text-sm">
-                                                {group.exams.length} {group.exams.length === 1 ? 'exame' : 'exames'} para conferir
-                                            </span>
-                                        </div>
+                            {searchResults.map((item) => (
+                                <div 
+                                    key={item.id} 
+                                    className={\`lab-queue-item \${selectedExam?.id === item.id ? 'active' : ''}\`}
+                                    onClick={() => handleSelectExam(item)}
+                                >
+                                    <div className="lab-qi-header">
+                                        <span className="font-bold text-gray-900">{item.protocolo}</span>
+                                        <span className="text-gray-500 text-sm">{item.dataAtendimento}</span>
                                     </div>
-                                );
-                            })}
+                                    <div className="lab-qi-name font-semibold text-primary">{item.pacienteNome}</div>
+                                    <div className="lab-qi-meta mt-1">
+                                        <span className="font-medium text-gray-800 text-sm">{item.exameCodigo} — {item.exameNome}</span>
+                                    </div>
+                                    <div className="lab-qi-meta mt-1">
+                                        <span className="text-gray-500 text-xs">{item.parametros} parâmetros</span>
+                                    </div>
+                                    <div className="lab-qi-status mt-2">
+                                        <span className={\`lab-badge \${item.status === 'CONFERIDO' ? 'lab-badge-success' : 'lab-badge-success'}\`}>{item.status}</span>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -423,12 +309,12 @@ const LaboratorioConferencia = () => {
                 {/* Coluna Direita: Painel de Revisão */}
                 <div className="lab-conf-main">
                     
-                    {!selectedProtocol && (
+                    {!selectedExam && (
                         <div className="lab-card flex flex-col items-center justify-center p-8 text-center h-full" style={{ minHeight: '400px' }}>
                             <Activity size={48} className="text-gray-300 mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-700">Nenhum atendimento selecionado</h3>
+                            <h3 className="text-lg font-semibold text-gray-700">Nenhum exame selecionado</h3>
                             <p className="text-gray-500 max-w-md mt-2">
-                                Selecione um atendimento na lista lateral para revisar os exames e realizar a conferência.
+                                Selecione um exame na lista lateral para revisar os valores digitados e realizar a conferência.
                             </p>
                         </div>
                     )}
@@ -439,7 +325,7 @@ const LaboratorioConferencia = () => {
                             <div className="lab-card lab-patient-summary" style={{ marginBottom: '1rem', padding: '0.75rem 1.25rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
                                     <div style={{ fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <User size={16} className="text-primary" /> Exames do Atendimento: {selectedProtocol?.protocolo}
+                                        <User size={16} className="text-primary" /> Dados do Atendimento
                                     </div>
                                     
                                     <div className="lab-header-actions" style={{ position: 'relative', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -449,7 +335,7 @@ const LaboratorioConferencia = () => {
                                                 transform: 'translateY(-50%)', marginRight: '1rem',
                                                 background: feedbackMsg.type === 'success' ? '#d1fae5' : '#fee2e2',
                                                 color: feedbackMsg.type === 'success' ? '#047857' : '#b91c1c',
-                                                border: `1px solid ${feedbackMsg.type === 'success' ? '#10b981' : '#ef4444'}`,
+                                                border: \`1px solid \${feedbackMsg.type === 'success' ? '#10b981' : '#ef4444'}\`,
                                                 padding: '0.4rem 0.8rem', borderRadius: '6px',
                                                 fontWeight: '600', fontSize: '0.85rem', zIndex: 10,
                                                 whiteSpace: 'nowrap',
@@ -480,34 +366,6 @@ const LaboratorioConferencia = () => {
                                         </button>
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
-                                    {selectedProtocol?.exams.map(ex => (
-                                        <button 
-                                            key={ex.id}
-                                            onClick={() => handleSelectExam(ex)}
-                                            style={{
-                                                padding: '0.4rem 0.8rem',
-                                                borderRadius: '6px',
-                                                fontSize: '0.85rem',
-                                                fontWeight: '600',
-                                                border: selectedExam?.id === ex.id ? '1px solid #2563eb' : '1px solid #e2e8f0',
-                                                backgroundColor: selectedExam?.id === ex.id ? '#eff6ff' : '#f8fafc',
-                                                color: selectedExam?.id === ex.id ? '#1d4ed8' : '#475569',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s'
-                                            }}
-                                        >
-                                            {ex.exameCodigo}
-                                        </button>
-                                    ))}
-                                </div>
-                                
-                                {selectedExam && (
-                                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
-                                        <h3 style={{ fontSize: '1rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '0.75rem' }}>
-                                            {selectedExam?.exameCodigo} - {selectedExam?.exameNome}
-                                        </h3>
-
 
                                 <div className="lab-patient-summary-grid" style={{ gap: '0.5rem 1.25rem' }}>
                                     <div className="lab-ps-item"><span className="lab-ps-label">Protocolo:</span> <span className="lab-ps-val font-semibold">{selectedExam.protocolo}</span></div>
@@ -519,11 +377,7 @@ const LaboratorioConferencia = () => {
                                     <div className="lab-ps-item"><span className="lab-ps-label">CPF:</span> <span className="lab-ps-val">{formatCpf(selectedExam.pacienteCpf)}</span></div>
                                     <div className="lab-ps-item"><span className="lab-ps-label">Médico:</span> <span className="lab-ps-val">{selectedExam.medico || 'Não informado'}</span></div>
                                 </div>
-                                    </div>
-                                )}
                             </div>
-                            
-                            {/* Painel do Exame Específico */}
 
                             {/* Painel do Exame Específico */}
                             <div className="lab-card lab-review-panel">
@@ -567,7 +421,7 @@ const LaboratorioConferencia = () => {
                                                             <div className="lab-review-result-box" style={{ flex: 1, minWidth: '200px' }}>
                                                                 <label style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Valor Digitado</label>
                                                                 <div className="result-display" style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.25rem' }}>
-                                                                    <span className={`result-value ${abnormalStatus !== 'normal' && abnormalStatus !== false ? 'text-danger font-bold' : 'font-semibold'}`} style={{ fontSize: '1.25rem', color: abnormalStatus !== 'normal' && abnormalStatus !== false ? '#ef4444' : '#0f172a' }}>
+                                                                    <span className={\`result-value \${abnormalStatus !== 'normal' && abnormalStatus !== false ? 'text-danger font-bold' : 'font-semibold'}\`} style={{ fontSize: '1.25rem', color: abnormalStatus !== 'normal' && abnormalStatus !== false ? '#ef4444' : '#0f172a' }}>
                                                                         {displayValue}
                                                                     </span>
                                                                     {param.unit && <span className="result-unit" style={{ color: '#64748b', fontSize: '0.9rem' }}>{param.unit}</span>}
@@ -582,7 +436,7 @@ const LaboratorioConferencia = () => {
                                                             <div className="lab-review-ref-box" style={{ flex: 1, minWidth: '200px', borderLeft: '1px solid #e2e8f0', paddingLeft: '2rem' }}>
                                                                 <label style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Referência</label>
                                                                 <div className="ref-line" style={{ marginTop: '0.25rem', color: '#334155', fontSize: '0.9rem' }}>
-                                                                    {param.reference_text || (param.min_value !== null || param.max_value !== null ? `${param.min_value || 0} a ${param.max_value || '∞'}` : 'Não cadastrada')}
+                                                                    {param.reference_text || (param.min_value !== null || param.max_value !== null ? \`\${param.min_value || 0} a \${param.max_value || '∞'}\` : 'Não cadastrada')}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -671,3 +525,7 @@ const LaboratorioConferencia = () => {
 };
 
 export default LaboratorioConferencia;
+`;
+
+fs.writeFileSync(jsxPath, originalContent, 'utf8');
+console.log('LaboratorioConferencia.jsx successfully rewritten with correct syntax.');

@@ -265,11 +265,24 @@
     font-weight: 700;
 }
 
+@keyframes slideDownDropdown {
+    from {
+        opacity: 0;
+        transform: scaleY(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
 /* Table */
 .lab-table-container {
-    overflow-x: auto;
+    overflow-x: hidden;
     border-radius: 8px;
     border: 1px solid #e2e8f0;
+    width: 100%;
+    max-width: 100%;
 }
 
 .lab-table {

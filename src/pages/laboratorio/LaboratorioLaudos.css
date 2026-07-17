@@ -74,32 +74,49 @@
 
 .lab-laudos-container .lab-filters-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 1rem;
-    align-items: flex-end;
-}
-
-.lab-laudos-container .lab-filters-grid > * {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    align-items: end;
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
+    box-sizing: border-box;
+    overflow: visible;
 }
 
-@media (min-width: 1024px) {
+
+
+
+
+
+
+
+
+@media (min-width: 1200px) {
     .lab-laudos-container .lab-filters-grid {
-        grid-template-columns: 1fr 1.1fr 1.8fr 1.4fr 1.3fr 140px;
+        display: grid;
+        grid-template-columns: minmax(135px, 0.75fr) minmax(165px, 0.90fr) minmax(220px, 1.5fr) minmax(125px, 0.70fr) minmax(120px, 0.65fr);
+        gap: 10px;
+        align-items: end;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
     }
 }
 
-.lab-laudos-container .lab-filter-actions {
-    display: flex;
-    align-items: flex-end;
-    height: 100%;
+
+
+
+
+
+}
+}
 }
 
-.lab-laudos-container .lab-filter-actions button {
-    height: 36px;
-    width: 100%;
-    margin-top: auto;
-}
+
+
+
 
 .lab-laudos-container .lab-filter-item {
     display: flex;
@@ -285,6 +302,17 @@
     flex-wrap: wrap;
 }
 
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: scaleY(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
 /* Paper A4 */
 .lab-paper-wrapper {
     background: #e2e8f0;
@@ -461,3 +489,470 @@
     width: 100% !important;
     padding: 0 !important;
 }
+
+/* ---------------------------------------------------
+   LAUDO VIEW - VISUALIZAﾃ�ﾃグ EM TELA (REFINADA)
+--------------------------------------------------- */
+
+.laudo-view-actions {
+  position: absolute;
+  top: 10px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 20;
+}
+
+.laudo-view-action-button {
+  appearance: none;
+  -webkit-appearance: none;
+
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  padding: 0;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #d7e0ea;
+  border-radius: 10px;
+
+  background: #ffffff;
+  color: #475569;
+
+  cursor: pointer;
+
+  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.08);
+
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.laudo-view-action-button:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #60a5fa;
+  box-shadow: 0 5px 14px rgba(37, 99, 235, 0.16);
+  transform: translateY(-1px);
+}
+
+.laudo-view-action-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1);
+}
+
+.laudo-view-action-button:focus-visible {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.2),
+    0 2px 7px rgba(15, 23, 42, 0.08);
+}
+
+.laudo-view-action-button svg {
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+
+.laudo-view-action-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Modern Tooltip */
+.modern-tooltip {
+    position: relative;
+}
+
+.modern-tooltip::before,
+.modern-tooltip::after {
+    position: absolute;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.modern-tooltip::after {
+    content: attr(aria-label);
+    bottom: calc(100% + 8px);
+    right: 50%;
+    transform: translateX(50%) translateY(4px);
+    background: #0f172a;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 9px;
+    border-radius: 7px;
+    white-space: nowrap;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+}
+
+.modern-tooltip::before {
+    content: '';
+    bottom: calc(100% + 3px);
+    right: 50%;
+    transform: translateX(50%) translateY(4px);
+    border-width: 5px 5px 0 5px;
+    border-style: solid;
+    border-color: #0f172a transparent transparent transparent;
+}
+
+.modern-tooltip:hover::before,
+.modern-tooltip:hover::after,
+.modern-tooltip:focus-visible::before,
+.modern-tooltip:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modern-tooltip:hover::after,
+.modern-tooltip:focus-visible::after,
+.modern-tooltip:hover::before,
+.modern-tooltip:focus-visible::before {
+    transform: translateX(50%) translateY(0);
+}
+
+/* ---------------------------------------------------
+   OTIMIZAﾃ�ﾃグ E DIMENSIONAMENTO PARA IMPRESSﾃグ E PDF
+--------------------------------------------------- */
+
+@media print {
+    /* 1. Isolar completamente o sistema (Oculta tinta de elementos nﾃ｣o laudo) */
+    body * {
+        visibility: hidden !important;
+    }
+
+    .laudo-print-area,
+    .laudo-print-area * {
+        visibility: visible !important;
+    }
+
+    /* 2. REMOVER LIMITADORES REAIS DE LARGURA (A CAUSA DO PROBLEMA) */
+    /* Ao forﾃｧar position: static nos pais, a laudo-print-area (absolute) ancora no body real */
+    html,
+    body,
+    #root,
+    .app-layout,
+    .main-content,
+    .lab-conf-container,
+    .lab-conf-layout,
+    .lab-conf-main {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        transform: none !important;
+        position: static !important;
+    }
+
+    /* 3. Posicionar o laudo no topo-esquerdo absoluto do papel */
+    .laudo-print-area {
+        position: absolute !important;
+        inset: 0 auto auto 0 !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        box-shadow: none !important;
+        border: none !important;
+        background: #ffffff !important;
+    }
+
+    /* Ocultar Interface Interna da laudo-print-area */
+    .laudo-view-actions,
+    .no-print,
+    .screen-only {
+        display: none !important;
+    }
+
+    /* Remover limitadores de largura das subseﾃｧﾃｵes herdeiras da tela */
+    .laudo-screen-header,
+    .print-body,
+    .print-footer {
+        width: 100% !important;
+        max-width: none !important;
+        padding-left: 6mm !important;
+        padding-right: 6mm !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Refinamento de Escala de Tipografia para Impressﾃ｣o */
+    .print-body .print-section div,
+    .print-body .print-section span {
+        font-size: 11px !important; /* Dados do Paciente e infos */
+    }
+    
+    .print-title-main { 
+        font-size: 15px !important; /* Tﾃｭtulo do Exame */
+    }
+    
+    .print-table-header th { 
+        font-size: 11px !important; 
+        padding: 0.5rem 1rem !important; 
+    }
+    
+    .print-table-row td { 
+        font-size: 11px !important; 
+        padding: 0.4rem 1rem !important; 
+    }
+    
+    .print-table-row td:last-child { 
+        font-size: 11px !important; /* Valores de Referﾃｪncia */
+    }
+    
+    .print-signature div { 
+        font-size: 10px !important; /* Biomeﾌ‥ico */
+    }
+    
+    .print-footer-inner div { 
+        font-size: 10px !important; /* Horﾃ｡rios e Datas */
+    }
+
+    /* Manter layout do cabeﾃｧalho validado */
+    .laudo-screen-header {
+        grid-template-columns: minmax(120px, 1fr) minmax(280px, 2fr) minmax(140px, 1fr) !important;
+        padding: 0.5rem 1rem !important;
+        margin-bottom: 1rem !important;
+    }
+
+    .laudo-screen-logo-lab { max-height: 50px !important; }
+    .laudo-screen-logo-prefeitura { max-height: 46px !important; }
+    .print-title-pref { font-size: 19px !important; }
+    .print-title-sub { font-size: 11px !important; }
+    .lab-status-tag { font-size: 10px !important; padding: 2px 8px !important; }
+}
+
+/* PDF GENERATION MODE (html2pdf captures this via .pdf-export-mode) */
+.pdf-export-mode .laudo-view-actions,
+.pdf-export-mode .no-print,
+.pdf-export-mode .screen-only {
+    display: none !important;
+}
+
+.pdf-export-mode .laudo-screen-header {
+    grid-template-columns: minmax(120px, 1fr) minmax(280px, 2fr) minmax(140px, 1fr) !important;
+    padding: 0.5rem 1rem !important;
+    margin-bottom: 1rem !important;
+}
+
+.pdf-export-mode .laudo-screen-logo-lab { max-height: 48px !important; }
+.pdf-export-mode .laudo-screen-logo-prefeitura { max-height: 42px !important; }
+.pdf-export-mode .print-title-pref { font-size: 19px !important; }
+.pdf-export-mode .print-title-sub { font-size: 11px !important; }
+.pdf-export-mode .lab-status-tag { font-size: 10px !important; padding: 2px 8px !important; }
+
+/* CONFIGURAﾃ�ﾃグ GLOBAL DE Pﾃ；INA A4 PARA IMPRESSﾃグ */
+@page {
+    size: A4 portrait;
+    margin: 6mm 8mm;
+}
+
+/* Fix Alignment */
+.lab-laudos-container .lab-filters-grid {
+    --filter-control-height: 36px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* FLEXBOX FINAL FIX FOR LAUDOS FIRST ROW */
+.lab-laudos-container .lab-filters-grid {
+    display: flex !important;
+    align-items: flex-end !important;
+    gap: 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+}
+
+@media (min-width: 1200px) {
+    .lab-laudos-container .lab-filters-grid {
+        flex-wrap: nowrap !important;
+    }
+}
+
+@media (max-width: 1199px) {
+    .lab-laudos-container .lab-filters-grid {
+        flex-wrap: wrap !important;
+    }
+}
+
+/* LIMPANDO REGRAS DOS FILHOS */
+.lab-laudos-container .lab-filters-grid > * {
+    max-width: none !important;
+    box-sizing: border-box !important;
+}
+
+/* DATA (1ｺ filho) */
+.lab-laudos-container .lab-filters-grid > div:nth-child(1) {
+    flex: 0 0 160px !important;
+    width: 160px !important;
+    min-width: 160px !important;
+}
+
+/* PROTOCOLO (2ｺ filho) */
+.lab-laudos-container .lab-filters-grid > div:nth-child(2) {
+    flex: 0 0 195px !important;
+    width: 195px !important;
+    min-width: 195px !important;
+}
+
+/* PACIENTE (3ｺ filho) */
+.lab-laudos-container .lab-filters-grid > div:nth-child(3) {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 240px !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+}
+.lab-laudos-container .lab-filters-grid > div:nth-child(3) input {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+}
+
+/* BUSCAR (4ｺ filho) */
+.lab-laudos-container .lab-filters-grid > div:nth-child(4) {
+    flex: 0 0 185px !important;
+    width: 185px !important;
+    min-width: 185px !important;
+}
+.lab-laudos-container .lab-filters-grid > div:nth-child(4) button {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    height: var(--filter-control-height, 36px) !important;
+    min-height: var(--filter-control-height, 36px) !important;
+    white-space: nowrap !important;
+}
+
+/* FILTROS (5ｺ filho) */
+.lab-laudos-container .lab-filters-grid > div:nth-child(5) {
+    flex: 0 0 165px !important;
+    width: 165px !important;
+    min-width: 165px !important;
+}
+.lab-laudos-container .lab-filters-grid > div:nth-child(5) button {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    height: var(--filter-control-height, 36px) !important;
+    min-height: var(--filter-control-height, 36px) !important;
+    white-space: nowrap !important;
+}
+
+
+
+/* LAUDOS EXACT UNIQUE CLASSES (FLEXBOX) */
+.laudos-first-row-flex {
+    display: flex !important;
+    align-items: flex-end !important;
+    gap: 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    flex-wrap: nowrap !important;
+}
+
+@media (max-width: 1199px) {
+    .laudos-first-row-flex {
+        flex-wrap: wrap !important;
+    }
+}
+
+.laudos-flex-data {
+    flex: 0 0 160px !important;
+    width: 160px !important;
+    min-width: 160px !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+}
+
+.laudos-flex-protocolo {
+    flex: 0 0 195px !important;
+    width: 195px !important;
+    min-width: 195px !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+}
+
+.laudos-flex-paciente {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 240px !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+}
+
+.laudos-paciente-input {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+}
+
+.laudos-flex-buscar {
+    flex: 0 0 185px !important;
+    width: 185px !important;
+    min-width: 185px !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+}
+
+.laudos-flex-buscar button {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.laudos-flex-filtros {
+    flex: 0 0 165px !important;
+    width: 165px !important;
+    min-width: 165px !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+}
+
+.laudos-flex-filtros button {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+

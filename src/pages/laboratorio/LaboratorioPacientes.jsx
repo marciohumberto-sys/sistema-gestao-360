@@ -1,367 +1,268 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-    Users, UserPlus, RefreshCw, Activity, Search,
-    CheckCircle2, AlertTriangle, ShieldAlert,
-    MapPin, Phone, Edit, Printer, FileText, ChevronRight
+    Users, UserPlus, RefreshCw, Search,
+    AlertTriangle, Edit, Loader2, CheckCircle, AlertCircle
 } from 'lucide-react';
+import { formatCpf } from '../../utils/formatters';
+import { laboratorioPacientesService } from '../../services/api/laboratorioPacientes.service';
+import PacienteFormModal from '../../components/laboratorio/PacienteFormModal';
 import './LaboratorioPacientes.css';
 
+const calculateAge = (birthDateString) => {
+    if (!birthDateString) return '---';
+    const birthDate = new Date(birthDateString);
+    if (isNaN(birthDate.getTime())) return '---';
+    const today = new Date();
+    const parts = birthDateString.split('-');
+    if (parts.length === 3) {
+        const bd = new Date(parts[0], parts[1] - 1, parts[2]);
+        let age = today.getFullYear() - bd.getFullYear();
+        const m = today.getMonth() - bd.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) {
+            age--;
+        }
+        return age;
+    }
+    return '---';
+};
+
+const formatSex = (sex) => {
+    if (!sex) return '---';
+    const s = sex.toUpperCase();
+    if (s === 'M' || s === 'MASCULINO') return 'Masculino';
+    if (s === 'F' || s === 'FEMININO') return 'Feminino';
+    return sex;
+};
+
+const formatDate = (dateStr) => {
+    if (!dateStr) return '---';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+};
+
 const LaboratorioPacientes = () => {
-    const [selectedPatient, setSelectedPatient] = useState('113443');
+    // Lista
+    const [patients, setPatients] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('Ativos');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(0);
+    const [totalCount, setTotalCount] = useState(0);
+    const ITEMS_PER_PAGE = 15;
 
-    const resumo = [
-        { label: 'Total de Pacientes', value: '14.285', icon: Users, color: '#3b82f6' },
-        { label: 'Cadastrados hoje', value: '28', icon: UserPlus, color: '#10b981' },
-        { label: 'Cadastros incompletos', value: '142', icon: ShieldAlert, color: '#ef4444' },
-        { label: 'Atendimentos ativos', value: '45', icon: Activity, color: '#f59e0b' },
-        { label: 'Pacientes SUS', value: '13.950', icon: CheckCircle2, color: '#10b981' },
-    ];
+    // Modal state
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState('create');
+    const [editingId, setEditingId] = useState(null);
+    
+    // Toast global
+    const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
 
-    const pacientesList = [
-        { 
-            id: '113443', 
-            nome: 'Maria Aparecida da Silva', 
-            idade: '58', 
-            nascimento: '15/04/1968',
-            sexo: 'Feminino', 
-            cns: '702.1234.5678.9012', 
-            rg: '4.582.111 SSP/PE',
-            bairro: 'Santo Antônio', 
-            cidade: 'Bezerros/PE', 
-            rua: 'Rua Imperador Dom Pedro II',
-            numero: '76',
-            cep: '55660-000',
-            telefone: '(81) 99888-7777',
-            status: 'Completo', 
-            statusClass: 'lab-badge-success',
-            ultimoAtendimento: '20/06/2026',
-            historico: [
-                { prot: '113443', data: '20/06/2026', exames: 5, status: 'Em aberto', statusClass: 'text-warning' },
-                { prot: '98441', data: '10/01/2026', exames: 3, status: 'Entregue', statusClass: 'text-success' },
-                { prot: '81220', data: '05/08/2025', exames: 8, status: 'Entregue', statusClass: 'text-success' },
-            ]
-        },
-        { 
-            id: '113444', 
-            nome: 'João Carlos Santos', 
-            idade: '42', 
-            nascimento: '10/11/1983',
-            sexo: 'Masculino', 
-            cns: '701.9999.8888.7777', 
-            rg: '7.888.999 SSP/PE',
-            bairro: 'Centro', 
-            cidade: 'Bezerros/PE', 
-            rua: 'Rua da Matriz',
-            numero: '12',
-            cep: '55660-000',
-            telefone: '(81) 99111-2222',
-            status: 'Completo', 
-            statusClass: 'lab-badge-success',
-            ultimoAtendimento: '20/06/2026',
-            historico: [
-                { prot: '113444', data: '20/06/2026', exames: 4, status: 'Em aberto', statusClass: 'text-warning' }
-            ]
-        },
-        { 
-            id: '113445', 
-            nome: 'Ana Paula Ferreira', 
-            idade: '36', 
-            nascimento: '22/07/1989',
-            sexo: 'Feminino', 
-            cns: '700.5555.4444.3333', 
-            rg: 'Não informado',
-            bairro: 'São Pedro', 
-            cidade: 'Bezerros/PE', 
-            rua: 'Rua da Paz',
-            numero: 'S/N',
-            cep: '55660-000',
-            telefone: 'Não informado',
-            status: 'Incompleto', 
-            statusClass: 'lab-badge-danger',
-            ultimoAtendimento: '20/06/2026',
-            historico: []
-        },
-        { 
-            id: '113446', 
-            nome: 'José Bento da Silva', 
-            idade: '71', 
-            nascimento: '03/02/1955',
-            sexo: 'Masculino', 
-            cns: '708.2222.1111.0000', 
-            rg: '1.222.333 SSP/PE',
-            bairro: 'Cruzeiro', 
-            cidade: 'Bezerros/PE', 
-            rua: 'Rua do Sol',
-            numero: '45',
-            cep: '55660-000',
-            telefone: '(81) 99333-4444',
-            status: 'Revisar', 
-            statusClass: 'lab-badge-warning',
-            ultimoAtendimento: '19/06/2026',
-            historico: [
-                { prot: '113400', data: '19/06/2026', exames: 2, status: 'Liberado', statusClass: 'text-primary' }
-            ]
-        },
-    ];
+    const showToast = (message, type = 'success') => {
+        setToast({ visible: true, message, type });
+        setTimeout(() => setToast({ visible: false, message: '', type: 'success' }), 4000);
+    };
 
-    const currentPac = pacientesList.find(p => p.id === selectedPatient) || pacientesList[0];
+    const loadPatients = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const res = await laboratorioPacientesService.buscarPacientes({
+                termo: appliedSearchTerm,
+                status: statusFilter,
+                pagina: currentPage,
+                porPagina: ITEMS_PER_PAGE,
+                ordenacao: 'Nome — A a Z'
+            });
+            setPatients(res.pacientes);
+            setTotalCount(res.total);
+            setTotalPages(res.totalPaginas);
+            if (currentPage > 1 && currentPage > res.totalPaginas && res.totalPaginas > 0) setCurrentPage(1);
+        } catch (err) {
+            setError('Não foi possível carregar os pacientes. Tente novamente.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => { loadPatients(); }, [currentPage, statusFilter, appliedSearchTerm]);
+
+    const openCreateModal = () => {
+        setModalMode('create');
+        setEditingId(null);
+        setIsModalOpen(true);
+    };
+
+    const openEditModal = (p) => {
+        setModalMode('edit');
+        setEditingId(p.id);
+        setIsModalOpen(true);
+    };
+
+    const handleSearchClick = () => {
+        setAppliedSearchTerm(searchTerm);
+        setCurrentPage(1);
+    };
 
     return (
         <div className="lab-pac-container">
-            {/* Header */}
             <header className="lab-pac-header">
                 <div>
-                    <h1 className="lab-title">Pacientes</h1>
-                    <p className="lab-subtitle">Cadastro, consulta e histórico de pacientes do laboratório</p>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem' }}>
+                        <h1 className="lab-title" style={{ margin: 0 }}>Pacientes</h1>
+                        {!loading && (
+                            <span style={{ fontSize: '0.95rem', color: '#64748b', fontWeight: 400, display: 'flex', alignItems: 'center' }}>
+                                <span style={{ width: '4px', height: '4px', background: '#cbd5e1', borderRadius: '50%', margin: '0 0.75rem' }}></span>
+                                {totalCount === 0 ? 'Nenhum paciente encontrado' : 
+                                 totalCount === 1 ? '1 paciente encontrado' : 
+                                 totalPages > 1 ? `Mostrando ${(currentPage - 1) * ITEMS_PER_PAGE + 1}–${Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} de ${totalCount} pacientes` :
+                                 `${totalCount} pacientes encontrados`}
+                            </span>
+                        )}
+                    </div>
+                    <p className="lab-subtitle" style={{ marginTop: '0.25rem' }}>Cadastro e consulta de pacientes do laboratório</p>
                 </div>
                 <div className="lab-header-actions">
-                    <button className="lab-btn lab-btn-outline"><RefreshCw size={16} /> Atualizar lista</button>
-                    <button className="lab-btn lab-btn-primary"><Activity size={16} /> Abrir atendimento</button>
-                    <button className="lab-btn lab-btn-success"><UserPlus size={16} /> Novo paciente</button>
+                    <button className="lab-btn lab-btn-outline" onClick={loadPatients} disabled={loading}>
+                        {loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Atualizar lista
+                    </button>
+                    <button className="lab-btn lab-btn-success" onClick={openCreateModal}>
+                        <UserPlus size={16} /> Novo paciente
+                    </button>
                 </div>
             </header>
 
-            {/* KPIs */}
-            <div className="lab-kpis-grid" style={{ marginBottom: '1.25rem' }}>
-                {resumo.map((item, idx) => {
-                    const Icon = item.icon;
-                    return (
-                        <div key={idx} className="lab-kpi-card">
-                            <div className="lab-kpi-header">
-                                <span className="lab-kpi-label">{item.label}</span>
-                                <div className="lab-kpi-icon-wrapper" style={{ backgroundColor: `${item.color}15`, color: item.color, width: '36px', height: '36px', borderRadius: '8px' }}>
-                                    <Icon size={18} />
-                                </div>
-                            </div>
-                            <div className="lab-kpi-value" style={{ fontSize: '1.6rem' }}>{item.value}</div>
+            <div className="lab-card lab-filters-card" style={{ marginBottom: '1.25rem', overflow: 'visible', boxSizing: 'border-box' }}>
+                <div className="lab-filters-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 180px 145px', gap: '1rem', alignItems: 'flex-end', boxSizing: 'border-box' }}>
+                    <div className="lab-filter-item" style={{ margin: 0, minWidth: 0 }}>
+                        <label>Pesquisar paciente</label>
+                        <div style={{ position: 'relative' }}>
+                            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                            <input type="text" placeholder="Buscar por nome, código, CPF, RG ou CNS..." value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
+                                style={{ paddingLeft: '38px', width: '100%', boxSizing: 'border-box' }}
+                            />
                         </div>
-                    );
-                })}
-            </div>
-
-            {/* Filtros */}
-            <div className="lab-card lab-filters-card">
-                <div className="lab-filters-grid">
-                    <div className="lab-filter-item">
-                        <label>Nome / Cartão SUS / CNS</label>
-                        <input type="text" placeholder="Buscar..." />
                     </div>
-                    <div className="lab-filter-item">
-                        <label>Código</label>
-                        <input type="text" placeholder="Ex: 113443" />
+                    <div className="lab-filter-item" style={{ margin: 0, minWidth: 0 }}>
+                        <label>Status</label>
+                        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }} style={{ boxSizing: 'border-box', width: '100%' }}>
+                            <option value="Ativos">Ativos</option>
+                            <option value="Inativos">Inativos</option>
+                            <option value="Todos">Todos</option>
+                        </select>
                     </div>
-                    <div className="lab-filter-item">
-                        <label>CPF/RG</label>
-                        <input type="text" placeholder="Apenas números..." />
-                    </div>
-                    <div className="lab-filter-item">
-                        <label>Bairro</label>
-                        <input type="text" placeholder="Ex: Centro" />
-                    </div>
-                    <div className="lab-filter-item">
-                        <label>Cidade</label>
-                        <input type="text" defaultValue="Bezerros" />
-                    </div>
-                    <div className="lab-filter-actions">
-                        <button className="lab-btn lab-btn-primary"><Search size={16} /> Buscar</button>
+                    <div className="lab-filter-actions" style={{ margin: 0, minWidth: 0 }}>
+                        <button className="lab-btn lab-btn-primary" onClick={handleSearchClick} disabled={loading} style={{ width: '100%', boxSizing: 'border-box' }}>
+                            {loading && appliedSearchTerm !== searchTerm ? <Loader2 size={16} className="spin" /> : <Search size={16} />} Buscar
+                        </button>
                     </div>
                 </div>
             </div>
 
-            {/* Layout Principal: 2 Colunas */}
-            <div className="lab-pac-layout">
-                
-                {/* Coluna Esquerda: Lista de Pacientes em Cards */}
-                <div className="lab-pac-sidebar">
-                    <div className="lab-pac-card-list">
-                        {pacientesList.map((pac) => (
-                            <div 
-                                key={pac.id} 
-                                className={`lab-pac-item-card ${selectedPatient === pac.id ? 'active' : ''}`}
-                                onClick={() => setSelectedPatient(pac.id)}
-                            >
-                                <div className="pac-item-header">
-                                    <span className="font-extrabold text-gray-900" style={{ fontSize: '0.9rem' }}>#{pac.id}</span>
-                                    <span className={`lab-badge ${pac.statusClass}`}>{pac.status}</span>
-                                </div>
-                                <div className="pac-item-name font-bold text-primary" style={{ fontSize: '1.05rem', marginBottom: '0.2rem' }}>{pac.nome}</div>
-                                <div className="pac-item-meta text-gray-500 text-sm">
-                                    {pac.idade} anos &bull; {pac.sexo}
-                                </div>
-                                <div className="pac-item-docs text-gray-500 text-sm" style={{ marginBottom: '0.5rem' }}>
-                                    SUS: <span className="text-gray-700 font-medium">{pac.cns}</span>
-                                </div>
-                                <div className="pac-item-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#64748b', borderTop: '1px solid #f1f5f9', paddingTop: '0.5rem' }}>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={12} /> {pac.bairro}</span>
-                                    <span>Último: {pac.ultimoAtendimento}</span>
-                                </div>
-                            </div>
-                        ))}
+            <div className="lab-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', minHeight: '400px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+                {error ? (
+                    <div className="lab-error-state" style={{ padding: '4rem 2rem', textAlign: 'center', color: '#ef4444', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                        <AlertTriangle size={40} style={{ margin: '0 auto 1rem', opacity: 0.8 }} />
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0 0 0.5rem' }}>{error}</h3>
+                        <button className="lab-btn lab-btn-outline" onClick={loadPatients} style={{ marginTop: '1rem' }}>Tentar novamente</button>
                     </div>
-                </div>
-
-                {/* Coluna Direita: Painel de Detalhes */}
-                <div className="lab-pac-main">
-                    
-                    <div className="lab-card lab-pac-details-panel">
-                        
-                        {/* Header do Painel */}
-                        <div className="pac-panel-header">
-                            <div className="pac-panel-title">
-                                <h2>{currentPac.nome}</h2>
-                                <div className="pac-panel-badges">
-                                    <span className="lab-badge lab-badge-gray">{currentPac.idade} anos</span>
-                                    <span className={`lab-badge ${currentPac.statusClass}`}>{currentPac.status}</span>
-                                </div>
+                ) : loading && patients.length === 0 ? (
+                    <div className="lab-loading-state" style={{ padding: '4rem 2rem', textAlign: 'center', color: '#64748b', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                        <Loader2 size={40} className="spin" style={{ margin: '0 auto 1rem', color: '#3b82f6' }} />
+                        <p style={{ fontSize: '1rem' }}>Carregando pacientes...</p>
+                    </div>
+                ) : patients.length === 0 ? (
+                    <div className="lab-empty-state" style={{ padding: '4rem 2rem', textAlign: 'center', color: '#64748b', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                        <Users size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                        <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#334155', margin: '0 0 0.5rem' }}>Nenhum paciente encontrado</h3>
+                        <p style={{ fontSize: '0.95rem' }}>Ajuste os filtros ou realize uma nova busca.</p>
+                    </div>
+                ) : (
+                    <>
+                        <div className="lab-table-responsive" style={{ flex: 1, width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden', boxSizing: 'border-box' }}>
+                            <table className="lab-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr>
+                                        <th>Código</th><th>Nome</th><th>Data Nasc.</th><th>Idade</th><th>Sexo</th><th>CPF</th><th>CNS</th>
+                                        <th style={{ textAlign: 'center' }}>Status</th>
+                                        <th style={{ textAlign: 'center', width: '60px' }}>Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody style={{ opacity: loading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
+                                    {patients.map(p => {
+                                        const ageVal = calculateAge(p.birth_date);
+                                        const ageDisplay = ageVal === '---' ? '---' : `${ageVal} ${ageVal === 1 ? 'ano' : 'anos'}`;
+                                        return (
+                                        <tr key={p.id} onClick={() => openEditModal(p)} className="lab-clickable-row">
+                                            <td style={{ overflowWrap: 'anywhere' }}><span className="lab-pac-code">{p.code || '---'}</span></td>
+                                            <td className="font-semibold text-primary">{p.full_name}</td>
+                                            <td>{formatDate(p.birth_date)}</td>
+                                            <td>{ageDisplay}</td>
+                                            <td>{formatSex(p.sex)}</td>
+                                            <td style={{ overflowWrap: 'anywhere' }}>{p.cpf ? formatCpf(p.cpf) : '---'}</td>
+                                            <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>{p.cns || '---'}</td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <span className={`lab-badge-modern ${p.is_active ? 'lab-badge-success' : 'lab-badge-gray'}`}>
+                                                    {p.is_active ? 'Ativo' : 'Inativo'}
+                                                </span>
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <button className="lab-btn-icon-edit" data-tooltip="Editar paciente" onClick={(e) => { e.stopPropagation(); openEditModal(p); }}>
+                                                    <Edit size={16} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    )})}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="lab-pagination" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', borderTop: '1px solid #e2e8f0', background: '#f8fafc', borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px', minWidth: 0 }}>
+                            <div className="lab-pagination-info" style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                                {totalCount === 0 ? 'Nenhum paciente encontrado' : 
+                                 totalCount === 1 ? '1 paciente encontrado' : 
+                                 totalPages > 1 ? `Mostrando ${(currentPage - 1) * ITEMS_PER_PAGE + 1}–${Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} de ${totalCount} pacientes` :
+                                 `${totalCount} pacientes encontrados`}
                             </div>
-                            <div className="pac-panel-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                <button className="lab-btn lab-btn-outline"><Edit size={14} /> Editar</button>
-                                <button className="lab-btn lab-btn-outline"><FileText size={14} /> Histórico</button>
-                                <button className="lab-btn lab-btn-outline"><Printer size={14} /> Imprimir ficha</button>
-                                <button className="lab-btn lab-btn-primary"><Activity size={14} /> Novo atendimento</button>
+                            <div className="lab-pagination-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.85rem', color: '#64748b', marginRight: '0.5rem' }}>Página {currentPage} de {Math.max(1, totalPages)}</span>
+                                <button className="lab-btn lab-btn-outline" disabled={currentPage === 1 || loading} onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Anterior</button>
+                                <button className="lab-btn lab-btn-outline" disabled={currentPage >= totalPages || loading || totalPages === 0} onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Próxima</button>
                             </div>
                         </div>
-
-                        {/* Corpo do Painel */}
-                        <div className="pac-panel-body">
-                            
-                            {/* Bloco: Dados do Paciente */}
-                            <div className="pac-info-section">
-                                <h3 className="pac-section-title"><Users size={16} /> Dados do Paciente</h3>
-                                <div className="pac-info-grid">
-                                    <div className="pac-info-box">
-                                        <label>Código</label>
-                                        <span>{currentPac.id}</span>
-                                    </div>
-                                    <div className="pac-info-box" style={{ gridColumn: 'span 2' }}>
-                                        <label>Nome Completo</label>
-                                        <span className="font-semibold text-gray-900">{currentPac.nome}</span>
-                                    </div>
-                                    <div className="pac-info-box">
-                                        <label>Sexo</label>
-                                        <span>{currentPac.sexo}</span>
-                                    </div>
-                                    <div className="pac-info-box">
-                                        <label>Data de Nascimento</label>
-                                        <span>{currentPac.nascimento}</span>
-                                    </div>
-                                    <div className="pac-info-box">
-                                        <label>Idade</label>
-                                        <span>{currentPac.idade} anos</span>
-                                    </div>
-                                    <div className="pac-info-box">
-                                        <label>RG</label>
-                                        <span>{currentPac.rg}</span>
-                                    </div>
-                                    <div className="pac-info-box" style={{ gridColumn: 'span 2' }}>
-                                        <label>CNS / Cartão SUS</label>
-                                        <span className="font-semibold text-primary">{currentPac.cns}</span>
-                                    </div>
-                                    <div className="pac-info-box">
-                                        <label>Telefone / Celular</label>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Phone size={14} /> {currentPac.telefone}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <hr className="pac-divider" />
-
-                            {/* Bloco: Endereço e Infos */}
-                            <div className="pac-info-row-split">
-                                <div className="pac-info-section flex-1">
-                                    <h3 className="pac-section-title"><MapPin size={16} /> Endereço</h3>
-                                    <div className="pac-info-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                                        <div className="pac-info-box" style={{ gridColumn: 'span 2' }}>
-                                            <label>Rua</label>
-                                            <span>{currentPac.rua}</span>
-                                        </div>
-                                        <div className="pac-info-box">
-                                            <label>Número</label>
-                                            <span>{currentPac.numero}</span>
-                                        </div>
-                                        <div className="pac-info-box">
-                                            <label>Bairro</label>
-                                            <span>{currentPac.bairro}</span>
-                                        </div>
-                                        <div className="pac-info-box">
-                                            <label>Cidade</label>
-                                            <span>{currentPac.cidade}</span>
-                                        </div>
-                                        <div className="pac-info-box">
-                                            <label>CEP</label>
-                                            <span>{currentPac.cep}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="pac-info-section flex-1">
-                                    <h3 className="pac-section-title"><ShieldAlert size={16} /> Informações do SUS</h3>
-                                    <div className="pac-info-grid" style={{ gridTemplateColumns: '1fr' }}>
-                                        <div className="pac-info-box">
-                                            <label>Convênio</label>
-                                            <span className="font-semibold text-gray-900">SUS</span>
-                                        </div>
-                                        <div className="pac-info-box">
-                                            <label>Matrícula SUS</label>
-                                            <span>Não informada</span>
-                                        </div>
-                                        <div className="pac-info-box">
-                                            <label>Local Padrão de Entrega</label>
-                                            <span>CENTRAL</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <hr className="pac-divider" />
-
-                            {/* Bloco: Histórico de Atendimentos */}
-                            <div className="pac-info-section">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                    <h3 className="pac-section-title" style={{ margin: 0 }}><FileText size={16} /> Histórico de Atendimentos</h3>
-                                    <button className="lab-btn lab-btn-outline" style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}>Ver histórico completo</button>
-                                </div>
-                                
-                                {currentPac.historico.length > 0 ? (
-                                    <div className="pac-history-list">
-                                        {currentPac.historico.map((hist, idx) => (
-                                            <div key={idx} className="pac-history-item">
-                                                <div className="phi-col" style={{ flex: '0.8' }}>
-                                                    <span className="phi-label">Protocolo</span>
-                                                    <span className="phi-val font-semibold text-primary">#{hist.prot}</span>
-                                                </div>
-                                                <div className="phi-col" style={{ flex: '1' }}>
-                                                    <span className="phi-label">Data</span>
-                                                    <span className="phi-val">{hist.data}</span>
-                                                </div>
-                                                <div className="phi-col" style={{ flex: '1' }}>
-                                                    <span className="phi-label">Exames</span>
-                                                    <span className="phi-val">{hist.exames} solicitados</span>
-                                                </div>
-                                                <div className="phi-col" style={{ flex: '1.2' }}>
-                                                    <span className="phi-label">Status</span>
-                                                    <span className={`phi-val font-bold ${hist.statusClass}`}>{hist.status}</span>
-                                                </div>
-                                                <div className="phi-action">
-                                                    <button className="lab-btn lab-btn-outline" style={{ border: 'none', color: '#3b82f6', padding: '0.3rem' }}><ChevronRight size={16} /></button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="lab-history-empty text-center" style={{ padding: '2rem 1rem', color: '#64748b', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
-                                        <FileText size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
-                                        <p style={{ fontSize: '0.9rem', margin: 0 }}>Nenhum atendimento recente encontrado.</p>
-                                        <p style={{ fontSize: '0.8rem', margin: '0.3rem 0 0', opacity: 0.8 }}>Histórico completo disponível após integração/migração dos dados anteriores.</p>
-                                    </div>
-                                )}
-                            </div>
-
-                        </div>
-                    </div>
-
-                </div>
-
+                    </>
+                )}
             </div>
+
+            <PacienteFormModal 
+                isOpen={isModalOpen}
+                mode={modalMode}
+                patientId={editingId}
+                onClose={() => setIsModalOpen(false)}
+                onSuccess={(msg) => {
+                    showToast(msg);
+                    setIsModalOpen(false);
+                    if (modalMode === 'create') {
+                        setStatusFilter('Ativos');
+                        setCurrentPage(1);
+                    }
+                    loadPatients();
+                }}
+                onError={(msg) => showToast(msg, 'error')}
+            />
+
+            {toast.visible && (
+                <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 10000, background: toast.type === 'success' ? '#10b981' : '#ef4444', color: '#fff', padding: '12px 24px', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500 }}>
+                    {toast.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+                    {toast.message}
+                </div>
+            )}
         </div>
     );
 };
