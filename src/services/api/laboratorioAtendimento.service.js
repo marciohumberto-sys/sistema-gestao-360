@@ -68,6 +68,41 @@ class LaboratorioAtendimentoService {
         return Array.isArray(data) ? data : [];
     }
 
+    async buscarPacientesRecentes(limit = 10) {
+        let query = supabase
+            .from('lab_patients')
+            .select(`
+                id,
+                tenant_id,
+                code,
+                full_name,
+                birth_date,
+                sex,
+                cpf,
+                rg,
+                cns,
+                phone,
+                mobile,
+                mother_name,
+                father_name,
+                notes,
+                is_active,
+                created_at
+            `)
+            .eq('tenant_id', LaboratorioAtendimentoService.TENANT_ID)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        const { data, error } = await query;
+
+        if (error) {
+            console.error('[LaboratorioAtendimento][buscarPacientesRecentes] Erro', error);
+            throw error;
+        }
+
+        return data || [];
+    }
+
     async buscarExamesAtivos() {
         const { data, error } = await supabase
             .from('lab_exams')

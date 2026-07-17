@@ -382,6 +382,16 @@
     transform: translateX(-50%) translateY(0);
 }
 
+[data-tooltip][data-tooltip-dir="left"]::after {
+    left: auto;
+    right: calc(100% + 8px);
+    bottom: 50%;
+    transform: translateY(50%) translateX(4px);
+}
+
+[data-tooltip][data-tooltip-dir="left"]:hover::after {
+    transform: translateY(50%) translateX(0);
+}
 /* --- Modal Pacientes --- */
 
 .lab-pac-modal-content {

@@ -41,14 +41,14 @@ const EXAM_STATUS_CONFIG = {
 };
 
 const LaboratorioResultados = () => {
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [attendances, setAttendances] = useState([]); // This stores the full data when an attendance is selected
     const [selectedExamId, setSelectedExamId] = useState(null);
     const [formValues, setFormValues] = useState({});
     const [initialFormValues, setInitialFormValues] = useState({});
     const [pendingNavigation, setPendingNavigation] = useState(null);
     const [showUnsavedModal, setShowUnsavedModal] = useState(false);
-                    const [saving, setSaving] = useState(false);
+    const [saving, setSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'success' | 'error'
     const [feedbackMsg, setFeedbackMsg] = useState(null);
     const inputRefs = useRef([]);
@@ -57,10 +57,10 @@ const LaboratorioResultados = () => {
     
     // New workflow states
     const [searchFilters, setSearchFilters] = useState({
-        date: location.state?.attendanceDate || '',
+        date: location.state?.attendanceDate || getLocalDateInputValue(),
         protocol: location.state?.protocolNumber || '',
         patient: '',
-        status: '',
+        status: 'TODOS',
         sector: '',
         attendance_origin: ''
     });
@@ -70,7 +70,10 @@ const LaboratorioResultados = () => {
     useEffect(() => {
         if (location.state?.protocolNumber) {
             handleSearch(location.state.attendanceDate, location.state.protocolNumber);
+        } else {
+            handleSearch();
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleFilterKeyDown = (event) => {
@@ -436,8 +439,14 @@ const LaboratorioResultados = () => {
                 <div className="lab-search-results" style={{ marginTop: '1.5rem' }}>
                     <h3 style={{ fontSize: '1.1rem', color: '#1e293b', marginBottom: '1rem', fontWeight: '700' }}>Atendimentos Encontrados ({searchResults.length})</h3>
                     {searchResults.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '3rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                            <p style={{ color: '#64748b', fontSize: '1.05rem' }}>Nenhum atendimento encontrado para os filtros informados.</p>
+                        <div style={{ textAlign: 'center', padding: '4rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            <Search size={48} color="#cbd5e1" style={{ margin: '0 auto 1rem auto', display: 'block' }} />
+                            <h3 style={{ fontSize: '1.2rem', color: '#334155', marginBottom: '0.5rem', fontWeight: '700' }}>
+                                {searchFilters.date === getLocalDateInputValue()
+                                    ? "Nenhum atendimento encontrado para hoje."
+                                    : "Nenhum atendimento encontrado para os filtros informados."}
+                            </h3>
+                            <p style={{ color: '#64748b' }}>Altere os filtros de pesquisa para localizar outros atendimentos.</p>
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

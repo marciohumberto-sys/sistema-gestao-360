@@ -216,7 +216,7 @@ const LaboratorioPacientes = () => {
                                                 </span>
                                             </td>
                                             <td style={{ textAlign: 'center' }}>
-                                                <button className="lab-btn-icon-edit" data-tooltip="Editar paciente" onClick={(e) => { e.stopPropagation(); openEditModal(p); }}>
+                                                <button className="lab-btn-icon-edit" data-tooltip="Editar paciente" data-tooltip-dir="left" onClick={(e) => { e.stopPropagation(); openEditModal(p); }}>
                                                     <Edit size={16} />
                                                 </button>
                                             </td>

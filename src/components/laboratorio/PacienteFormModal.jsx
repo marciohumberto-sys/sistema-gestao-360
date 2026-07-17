@@ -119,6 +119,12 @@ const PacienteFormModal = ({ isOpen, mode = 'create', patientId = null, onClose,
         const { name, value, type, checked } = e.target;
         let v = type === 'checkbox' ? checked : value;
         
+        const upperCaseFields = ['full_name', 'mother_name', 'father_name', 'street', 'complement', 'district', 'city', 'state', 'notes'];
+
+        if (upperCaseFields.includes(name) && typeof v === 'string') {
+            v = v.toLocaleUpperCase('pt-BR');
+        }
+
         if (name === 'full_name' || name === 'mother_name' || name === 'father_name') {
             v = v.replace(/\s{2,}/g, ' '); 
         } else if (name === 'cpf') {
@@ -184,24 +190,27 @@ const PacienteFormModal = ({ isOpen, mode = 'create', patientId = null, onClose,
 
         setIsSaving(true);
         try {
+            const normalizeUppercase = (value) => 
+                typeof value === 'string' ? value.trim().toLocaleUpperCase('pt-BR') : value;
+
             const cleanData = {
                 ...formData,
-                full_name: formData.full_name.trim(),
-                mother_name: formData.mother_name.trim() || null,
-                father_name: formData.father_name.trim() || null,
+                full_name: normalizeUppercase(formData.full_name),
+                mother_name: normalizeUppercase(formData.mother_name) || null,
+                father_name: normalizeUppercase(formData.father_name) || null,
                 rg: formData.rg.trim().replace(/\s{2,}/g, ' ') || null,
                 cpf: onlyNumbers(formData.cpf) || null,
                 cns: onlyNumbers(formData.cns) || null,
                 phone: onlyNumbers(formData.phone) || null,
                 mobile: onlyNumbers(formData.mobile) || null,
                 zip_code: onlyNumbers(formData.zip_code) || null,
-                street: formData.street?.trim() || null,
+                street: normalizeUppercase(formData.street) || null,
                 number: formData.number?.trim() || null,
-                complement: formData.complement?.trim() || null,
-                district: formData.district?.trim() || null,
-                city: formData.city?.trim() || null,
-                state: formData.state || null,
-                notes: formData.notes?.trim() || null
+                complement: normalizeUppercase(formData.complement) || null,
+                district: normalizeUppercase(formData.district) || null,
+                city: normalizeUppercase(formData.city) || null,
+                state: normalizeUppercase(formData.state) || null,
+                notes: normalizeUppercase(formData.notes) || null
             };
 
             if (!forceSave) {
