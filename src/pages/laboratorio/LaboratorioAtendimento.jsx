@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
     Search, UserPlus, Save, User, 
     FileText, Plus, X, Beaker, 
@@ -21,6 +22,9 @@ const getLocalTimeInputValue = (date = new Date()) => {
 };
 
 const LaboratorioAtendimento = () => {
+    const location = useLocation();
+    const navigate = useNavigate();
+
     // Estados gerais
     const [isSaving, setIsSaving] = useState(false);
     const [feedback, setFeedback] = useState(null);
@@ -81,6 +85,15 @@ const LaboratorioAtendimento = () => {
     useEffect(() => {
         carregarExames();
     }, []);
+
+    useEffect(() => {
+        if (location.state && location.state.openNewAttendance && location.state.patient) {
+            const { patient } = location.state;
+            handleSelectPatient(patient);
+            
+            navigate(location.pathname, { replace: true, state: null });
+        }
+    }, [location.state, navigate, location.pathname]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {

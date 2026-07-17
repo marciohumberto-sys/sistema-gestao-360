@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
     Users, UserPlus, RefreshCw, Search,
     AlertTriangle, Edit, Loader2, CheckCircle, AlertCircle
@@ -44,6 +45,7 @@ const formatDate = (dateStr) => {
 };
 
 const LaboratorioPacientes = () => {
+    const navigate = useNavigate();
     // Lista
     const [patients, setPatients] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -245,14 +247,25 @@ const LaboratorioPacientes = () => {
                 mode={modalMode}
                 patientId={editingId}
                 onClose={() => setIsModalOpen(false)}
-                onSuccess={(msg) => {
+                onSuccess={(msg, createdPatient) => {
                     showToast(msg);
                     setIsModalOpen(false);
                     if (modalMode === 'create') {
                         setStatusFilter('Ativos');
                         setCurrentPage(1);
+                        loadPatients();
+                        if (createdPatient && createdPatient.id) {
+                            navigate('/laboratorio/atendimento', {
+                                state: {
+                                    patientId: createdPatient.id,
+                                    patient: createdPatient,
+                                    openNewAttendance: true
+                                }
+                            });
+                        }
+                    } else {
+                        loadPatients();
                     }
-                    loadPatients();
                 }}
                 onError={(msg) => showToast(msg, 'error')}
             />
