@@ -453,73 +453,67 @@ const LaboratorioAtendimento = () => {
 
     const totalSetoresUnicos = [...new Set(examesSolicitados.map(e => e.sector_name))].length;
 
-    const renderPatientList = (patients, title, description, emptyMessage, isSearch) => (
-        <div className="lab-card fade-in" style={{ overflow: 'hidden', padding: 0 }}>
-            <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <div style={{ background: '#f1f5f9', padding: '0.4rem', borderRadius: '8px', color: '#64748b' }}>
-                        {isSearch ? <Search size={20} /> : <UserSearch size={20} />}
-                    </div>
-                    <div>
-                        <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#0f172a', fontWeight: '600' }}>{title}</h3>
-                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', marginTop: '0.15rem' }}>{description}</p>
-                    </div>
+    const renderPatientList = (patients, title, emptyMessage, emptyDescription, isSearch) => (
+        <div style={{ marginTop: '0.5rem' }}>
+            {patients.length > 0 && (
+                <div style={{ marginBottom: '0.75rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', color: '#1e293b', margin: 0, fontWeight: '700' }}>
+                        {title} ({patients.length})
+                    </h3>
+                    <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: '#64748b', fontWeight: 400 }}>
+                        Selecione um paciente para iniciar um novo atendimento.
+                    </p>
                 </div>
-                {patients.length > 0 && (
-                    <div style={{ background: '#f1f5f9', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', color: '#64748b', fontWeight: '500' }}>
-                        {patients.length} {isSearch ? 'encontrados' : 'recentes'}
-                    </div>
-                )}
-            </div>
+            )}
 
             {patients.length === 0 ? (
-                <div style={{ padding: '3rem 1.5rem', textAlign: 'center', background: '#fafafa' }}>
-                    <p style={{ margin: 0, color: '#64748b', fontSize: '0.95rem' }}>{emptyMessage}</p>
+                <div className="lab-card" style={{ padding: '2.5rem 1.5rem', textAlign: 'center' }}>
+                    <p style={{ margin: '0 0 0.4rem 0', color: '#334155', fontSize: '1rem', fontWeight: '600' }}>
+                        {isSearch ? 'Nenhum paciente encontrado' : 'Nenhum paciente cadastrado'}
+                    </p>
+                    <p style={{ margin: '0 0 1rem 0', color: '#64748b', fontSize: '0.9rem' }}>{emptyDescription}</p>
                     {!isSearch && (
-                        <button className="lab-btn lab-btn-primary" style={{ marginTop: '1rem' }} onClick={() => setIsPatientModalOpen(true)}>
+                        <button className="lab-btn lab-btn-primary" onClick={() => setIsPatientModalOpen(true)}>
                             <UserPlus size={16} /> Cadastrar paciente
                         </button>
                     )}
                     {isSearch && (
-                        <button className="lab-btn lab-btn-secondary" style={{ marginTop: '1rem' }} onClick={() => setIsPatientModalOpen(true)}>
+                        <button className="lab-btn lab-btn-secondary" onClick={() => setIsPatientModalOpen(true)}>
                             <UserPlus size={16} /> Cadastrar novo paciente
                         </button>
                     )}
                 </div>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <div className="lab-patient-list-header">
-                        <div>PACIENTE</div>
-                        <div>DATA DE NASCIMENTO</div>
-                        <div style={{ textAlign: 'right' }}>AÇÃO</div>
-                    </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {patients.map((paciente) => (
-                        <div key={paciente.id} className="lab-patient-list-row">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', overflow: 'hidden' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#e0f2fe', color: '#0369a1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: '600', flexShrink: 0 }}>
-                                    {getInitials(paciente.name || paciente.full_name)}
-                                </div>
-                                <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                                    <div style={{ fontSize: '0.95rem', fontWeight: '600', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div key={paciente.id} className="lab-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', border: '1px solid #e2e8f0', borderLeft: '3px solid #3b82f6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', opacity: paciente.is_active === false ? 0.65 : 1 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                                    <strong style={{ fontSize: '1.05rem', color: '#0f172a' }}>
                                         {paciente.name || paciente.full_name || '---'}
-                                        {paciente.is_active === false && <span className="lab-badge lab-badge-gray" style={{ fontSize: '0.65rem', padding: '2px 6px', fontWeight: '500' }}>Inativo</span>}
-                                    </div>
-                                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {paciente.cns ? `CNS: ${paciente.cns}` : `CPF: ${formatCpf(paciente.cpf)}`}
-                                    </div>
+                                    </strong>
+                                    {paciente.is_active === false && (
+                                        <span className="lab-badge lab-badge-gray" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>Inativo</span>
+                                    )}
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', fontSize: '0.88rem', color: '#64748b' }}>
+                                    <span>Idade: <strong style={{ color: '#334155', fontWeight: 500 }}>{paciente.birth_date ? calculateAge(paciente.birth_date) : '---'}</strong></span>
+                                    <span>Sexo: <strong style={{ color: '#334155', fontWeight: 500 }}>{paciente.gender || paciente.sex || '---'}</strong></span>
+                                    <span>CPF: <strong style={{ color: '#334155', fontWeight: 500 }}>{formatCpf(paciente.cpf)}</strong></span>
+                                    <span>CNS: <strong style={{ color: '#334155', fontWeight: 500 }}>{paciente.cns || '---'}</strong></span>
+                                    {paciente.birth_date && (
+                                        <span>Nascimento: <strong style={{ color: '#334155', fontWeight: 500 }}>{new Date(paciente.birth_date).toLocaleDateString('pt-BR')}</strong></span>
+                                    )}
                                 </div>
                             </div>
-                            <div style={{ fontSize: '0.9rem', color: '#475569' }}>
-                                {paciente.birth_date ? new Date(paciente.birth_date).toLocaleDateString('pt-BR') : '---'}
-                            </div>
-                            <div style={{ textAlign: 'right' }}>
-                                <button 
+                            <div style={{ marginLeft: '1rem', flexShrink: 0 }}>
+                                <button
                                     className="lab-btn lab-btn-primary"
-                                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', borderRadius: '6px', opacity: paciente.is_active === false ? 0.5 : 1 }}
+                                    style={{ whiteSpace: 'nowrap', minWidth: '170px', justifyContent: 'center' }}
+                                    disabled={paciente.is_active === false}
                                     onClick={() => handleSelectPatient(paciente)}
                                 >
-                                    <span className="hide-on-mobile">Iniciar atendimento</span>
-                                    <span className="show-on-mobile">Atender</span>
+                                    <Activity size={16} /> Iniciar Atendimento
                                 </button>
                             </div>
                         </div>
@@ -557,34 +551,38 @@ const LaboratorioAtendimento = () => {
                 <div className="lab-atend-main" style={{ width: selectedPatient ? 'auto' : '100%', transition: 'all 0.3s ease' }}>
                     
                     {/* Busca de Paciente */}
-                    <div className="lab-card">
-                        <div className="lab-card-header">
-                            <h3 className="lab-card-title"><Search size={18} /> Localizar Paciente</h3>
-                        </div>
-                        <div className="lab-search-row">
-                            <div className="lab-search-input-group">
-                                <Search size={16} className="lab-search-icon" />
-                                <input 
-                                    ref={searchRef}
-                                    type="text" 
-                                    placeholder="Buscar por nome, CNS ou CPF..." 
-                                    value={searchTerm}
-                                    onChange={handleSearchTermChange}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            handleSearchPatient();
-                                        }
-                                    }}
-                                    disabled={isSaving}
-                                />
+                    <div className="lab-filters-card">
+                        <div className="lab-filters-grid">
+                            <div className="lab-filter-group">
+                                <label>Paciente</label>
+                                <div style={{ position: 'relative' }}>
+                                    <Search size={16} className="lab-search-icon" />
+                                    <input 
+                                        ref={searchRef}
+                                        type="text" 
+                                        placeholder="Buscar por nome, CNS ou CPF..." 
+                                        value={searchTerm}
+                                        onChange={handleSearchTermChange}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleSearchPatient();
+                                            }
+                                        }}
+                                        disabled={isSaving}
+                                    />
+                                </div>
                             </div>
-                            <button className="lab-btn lab-btn-primary" onClick={handleSearchPatient} disabled={isSearchingPatient || isSaving || searchTerm.length < 3}>
-                                {isSearchingPatient ? <Loader2 size={16} className="spin" /> : 'Buscar'}
-                            </button>
-                            <button className="lab-btn lab-btn-outline" disabled={isSaving} onClick={() => setIsPatientModalOpen(true)}>
-                                <UserPlus size={16} /> Novo paciente
-                            </button>
+                            <div className="lab-filter-actions">
+                                <button className="lab-btn lab-btn-primary" onClick={handleSearchPatient} disabled={isSearchingPatient || isSaving || searchTerm.length < 3}>
+                                    {isSearchingPatient ? <Loader2 size={16} className="spin" /> : 'Buscar'}
+                                </button>
+                            </div>
+                            <div className="lab-filter-actions">
+                                <button className="lab-btn lab-btn-outline" disabled={isSaving} onClick={() => setIsPatientModalOpen(true)}>
+                                    <UserPlus size={16} /> Novo paciente
+                                </button>
+                            </div>
                         </div>
 
                         {searchError && (
@@ -602,8 +600,8 @@ const LaboratorioAtendimento = () => {
                         ) : hasSearchedPatient && !searchError ? (
                             renderPatientList(
                                 pacientesResult,
-                                "Resultados da pesquisa",
-                                "Resultados encontrados para a busca informada.",
+                                "Pacientes encontrados",
+                                "Verifique o nome, CNS ou CPF informado e tente novamente.",
                                 "Verifique o nome, CNS ou CPF informado e tente novamente.",
                                 true
                             )
@@ -616,7 +614,7 @@ const LaboratorioAtendimento = () => {
                                 renderPatientList(
                                     recentPatients,
                                     "Últimos pacientes cadastrados",
-                                    "Selecione um paciente para iniciar um novo atendimento.",
+                                    "Cadastre um paciente para iniciar o primeiro atendimento.",
                                     "Cadastre um paciente para iniciar o primeiro atendimento.",
                                     false
                                 )

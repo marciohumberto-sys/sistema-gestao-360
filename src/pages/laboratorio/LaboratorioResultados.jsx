@@ -451,7 +451,7 @@ const LaboratorioResultados = () => {
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                             {searchResults.map(att => (
-                                <div key={att.id} className="lab-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem' }}>
+                                <div key={att.id} className="lab-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderLeft: '3px solid #7C3AED' }}>
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.4rem' }}>
                                             <strong style={{ fontSize: '1.15rem', color: '#0f172a' }}>{att.pacienteNome}</strong>

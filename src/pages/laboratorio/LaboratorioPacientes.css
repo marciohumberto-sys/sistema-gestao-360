@@ -12,7 +12,7 @@
 }
 
 .lab-pac-header {
-    margin-bottom: 1.25rem;
+    margin-bottom: 0.75rem;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
@@ -233,33 +233,81 @@
     margin-left: auto;
 }
 
-/* Filtros específicos da tela Pacientes */
+/* Filtros Pacientes padronizados com Resultados */
+.lab-pac-container .lab-filters-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+}
+
 .lab-pac-container .lab-filters-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 1rem;
-    align-items: flex-end;
+    grid-template-columns: 1fr 180px 145px;
+    gap: 16px;
+    align-items: end;
+    width: 100%;
 }
 
-.lab-pac-container .lab-filters-grid > * {
-    min-width: 0;
-}
-
-@media (min-width: 1366px) {
+@media (max-width: 900px) {
     .lab-pac-container .lab-filters-grid {
-        grid-template-columns: 1.5fr 0.8fr 1fr 1fr 1fr 130px;
+        grid-template-columns: 1fr 1fr;
     }
 }
 
-.lab-filter-actions {
+@media (max-width: 600px) {
+    .lab-pac-container .lab-filters-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.lab-pac-container .lab-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.lab-pac-container .lab-filter-group label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    display: block;
+}
+
+.lab-pac-container .lab-filter-group input,
+.lab-pac-container .lab-filter-group select {
+    padding: 0.5rem 1rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: #1e293b;
+    outline: none;
+    background-color: white;
+    transition: all 0.2s;
+    height: 42px;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.lab-pac-container .lab-filter-group input:focus,
+.lab-pac-container .lab-filter-group select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+}
+
+.lab-pac-container .lab-filter-actions {
     display: flex;
     align-items: flex-end;
     height: 100%;
 }
-.lab-filter-actions button {
+
+.lab-pac-container .lab-filter-actions button {
     height: 42px;
     width: 100%;
-    margin-top: auto;
 }
 
 /* Override global do page-wrapper apenas quando estiver na tela de Pacientes */
@@ -277,8 +325,25 @@
     box-sizing: border-box !important;
 }
 
-.lab-pac-container .lab-table th,
+.lab-pac-container .lab-table th {
+    background-color: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+    box-sizing: border-box !important;
+}
+
 .lab-pac-container .lab-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    color: #334155;
+    font-size: 0.9rem;
+    vertical-align: middle;
     box-sizing: border-box !important;
 }
 
@@ -340,9 +405,9 @@
 
 /* Reusing colors from system */
 .lab-badge-modern.lab-badge-success {
-    background: #dcfce7;
-    color: #166534;
-    border-color: #bbf7d0;
+    background: #d1fae5;
+    color: #047857;
+    border-color: #a7f3d0;
 }
 
 .lab-badge-modern.lab-badge-gray {

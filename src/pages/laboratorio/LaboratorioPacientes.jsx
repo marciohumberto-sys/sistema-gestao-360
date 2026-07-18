@@ -118,15 +118,6 @@ const LaboratorioPacientes = () => {
                 <div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem' }}>
                         <h1 className="lab-title" style={{ margin: 0 }}>Pacientes</h1>
-                        {!loading && (
-                            <span style={{ fontSize: '0.95rem', color: '#64748b', fontWeight: 400, display: 'flex', alignItems: 'center' }}>
-                                <span style={{ width: '4px', height: '4px', background: '#cbd5e1', borderRadius: '50%', margin: '0 0.75rem' }}></span>
-                                {totalCount === 0 ? 'Nenhum paciente encontrado' : 
-                                 totalCount === 1 ? '1 paciente encontrado' : 
-                                 totalPages > 1 ? `Mostrando ${(currentPage - 1) * ITEMS_PER_PAGE + 1}–${Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} de ${totalCount} pacientes` :
-                                 `${totalCount} pacientes encontrados`}
-                            </span>
-                        )}
                     </div>
                     <p className="lab-subtitle" style={{ marginTop: '0.25rem' }}>Cadastro e consulta de pacientes do laboratório</p>
                 </div>
@@ -134,39 +125,47 @@ const LaboratorioPacientes = () => {
                     <button className="lab-btn lab-btn-outline" onClick={loadPatients} disabled={loading}>
                         {loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Atualizar lista
                     </button>
-                    <button className="lab-btn lab-btn-success" onClick={openCreateModal}>
+                    <button className="lab-btn lab-btn-primary" onClick={openCreateModal}>
                         <UserPlus size={16} /> Novo paciente
                     </button>
                 </div>
             </header>
 
-            <div className="lab-card lab-filters-card" style={{ marginBottom: '1.25rem', overflow: 'visible', boxSizing: 'border-box' }}>
-                <div className="lab-filters-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 180px 145px', gap: '1rem', alignItems: 'flex-end', boxSizing: 'border-box' }}>
-                    <div className="lab-filter-item" style={{ margin: 0, minWidth: 0 }}>
+            <div className="lab-filters-card">
+                <div className="lab-filters-grid">
+                    <div className="lab-filter-group">
                         <label>Pesquisar paciente</label>
                         <div style={{ position: 'relative' }}>
                             <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                             <input type="text" placeholder="Buscar por nome, código, CPF, RG ou CNS..." value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
-                                style={{ paddingLeft: '38px', width: '100%', boxSizing: 'border-box' }}
+                                style={{ paddingLeft: '38px' }}
                             />
                         </div>
                     </div>
-                    <div className="lab-filter-item" style={{ margin: 0, minWidth: 0 }}>
+                    <div className="lab-filter-group">
                         <label>Status</label>
-                        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }} style={{ boxSizing: 'border-box', width: '100%' }}>
+                        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}>
                             <option value="Ativos">Ativos</option>
                             <option value="Inativos">Inativos</option>
                             <option value="Todos">Todos</option>
                         </select>
                     </div>
-                    <div className="lab-filter-actions" style={{ margin: 0, minWidth: 0 }}>
-                        <button className="lab-btn lab-btn-primary" onClick={handleSearchClick} disabled={loading} style={{ width: '100%', boxSizing: 'border-box' }}>
+                    <div className="lab-filter-actions">
+                        <button className="lab-btn lab-btn-primary" onClick={handleSearchClick} disabled={loading}>
                             {loading && appliedSearchTerm !== searchTerm ? <Loader2 size={16} className="spin" /> : <Search size={16} />} Buscar
                         </button>
                     </div>
                 </div>
             </div>
+
+            {!error && patients.length > 0 && (
+                <div style={{ marginTop: '1.5rem', marginBottom: '0.75rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', color: '#1e293b', margin: 0, fontWeight: '700' }}>
+                        Pacientes encontrados ({totalCount})
+                    </h3>
+                </div>
+            )}
 
             <div className="lab-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', minHeight: '400px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
                 {error ? (
