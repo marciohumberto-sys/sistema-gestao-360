@@ -906,5 +906,233 @@ export const generateExitByObservationReport = async (tenantId, dataInicio, data
     }
 };
 
+// ==========================================
+// RELATÓRIO 9: QUANTIDADE MENSAL (ANTIBIÓTICOS E PSICOTRÓPICOS)
+// ==========================================
+export const generateMonthlyQuantityReport = async (tenantId, dataInicio, dataFim, unidadeNome, tipoItemControlado = 'Todos') => {
+    try {
+        if (!tenantId) throw new Error("TenantID não identificado.");
+
+        let startISO = null;
+        let endISO = null;
+        if (dataInicio && dataFim) {
+            const [yearStart, monthStart, dayStart] = dataInicio.split('-').map(Number);
+            const [yearEnd, monthEnd, dayEnd] = dataFim.split('-').map(Number);
+            const start = new Date(yearStart, monthStart - 1, dayStart, 0, 0, 0, 0);
+            const end = new Date(yearEnd, monthEnd - 1, dayEnd, 23, 59, 59, 999);
+            startISO = start.toISOString();
+            endISO = end.toISOString();
+        } else if (dataInicio) {
+            const [yearStart, monthStart, dayStart] = dataInicio.split('-').map(Number);
+            const start = new Date(yearStart, monthStart - 1, dayStart, 0, 0, 0, 0);
+            startISO = start.toISOString();
+        } else if (dataFim) {
+            const [yearEnd, monthEnd, dayEnd] = dataFim.split('-').map(Number);
+            const end = new Date(yearEnd, monthEnd - 1, dayEnd, 23, 59, 59, 999);
+            endISO = end.toISOString();
+        }
+
+        // ===== LOGS OBRIGATÓRIOS E TEMPORÁRIOS =====
+        console.log('--- RELATÓRIO: Quantidade mensal antibióticos e psicotrópicos ---');
+        console.log('período selecionado:', (dataInicio || 'Início') + ' a ' + (dataFim || 'Fim'));
+        console.log('tipo selecionado:', tipoItemControlado);
+        console.log('unidade selecionada:', unidadeNome);
+        console.log('campo de data usado:', 'created_at (não existe campo data_operacional na stock_movements)');
+        // ============================================
+
+        // NOTA: Como o sistema não possui atualmente um campo booleano 'is_antibiotico' ou similar diretamente no item,
+        // estamos utilizando o 'category_id' e buscando o nome da categoria para identificar.
+        const [resCategorias, resItems, resUnits] = await Promise.all([
+            supabase.from('item_categories').select('id, name').eq('tenant_id', tenantId),
+            supabase.from('inventory_items').select('id, name, category_id').eq('tenant_id', tenantId),
+            supabase.from('units').select('id, name')
+        ]);
+
+        if (resCategorias.error) throw resCategorias.error;
+        if (resItems.error) throw resItems.error;
+
+        const categorias = resCategorias.data || [];
+        const items = resItems.data || [];
+        const units = resUnits.data || [];
+
+        const catAntibioticoIds = categorias.filter(c => c.name && c.name.toUpperCase().includes('ANTIBIÓTICO')).map(c => c.id);
+        const catPsicotropicoIds = categorias.filter(c => c.name && c.name.toUpperCase().includes('PSICOTRÓPICO')).map(c => c.id);
+
+        const validItems = items.filter(item => {
+            const isAnti = catAntibioticoIds.includes(item.category_id);
+            const isPsico = catPsicotropicoIds.includes(item.category_id);
+            if (!isAnti && !isPsico) return false;
+            
+            if (tipoItemControlado === 'Antibióticos' && !isAnti) return false;
+            if (tipoItemControlado === 'Psicotrópicos' && !isPsico) return false;
+            return true;
+        });
+        
+        const validItemIds = new Set(validItems.map(i => i.id));
+        const itemTipoMap = {}; // id => 'Antibióticos' ou 'Psicotrópicos'
+        validItems.forEach(i => {
+            itemTipoMap[i.id] = catAntibioticoIds.includes(i.category_id) ? 'Antibióticos' : 'Psicotrópicos';
+        });
+
+        const unitMap = {}; 
+        let upaId = null;
+        let umsjId = null;
+        units.forEach(u => {
+            unitMap[u.name.toUpperCase()] = u.id;
+            if (u.name.toUpperCase().includes('UPA')) upaId = u.id;
+            if (u.name.toUpperCase().includes('UMSJ')) umsjId = u.id;
+        });
+        const targetUnitId = (unidadeNome && unidadeNome !== 'Todas' && unidadeNome !== 'Todos') 
+            ? unitMap[unidadeNome.toUpperCase()] 
+            : null;
+
+        // Paginação para evitar limite de 1000 registros do Supabase
+        let allExits = [];
+        let fromIndex = 0;
+        const PAGE_SIZE = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+            let queryExits = supabase.from('stock_movements')
+                .select('quantity, inventory_item_id, unit_id, created_at')
+                .eq('tenant_id', tenantId)
+                .eq('movement_type', 'EXIT')
+                .range(fromIndex, fromIndex + PAGE_SIZE - 1);
+
+            if (startISO) queryExits = queryExits.gte('created_at', startISO);
+            if (endISO) queryExits = queryExits.lte('created_at', endISO);
+            if (targetUnitId) queryExits = queryExits.eq('unit_id', targetUnitId);
+
+            const { data: pageData, error: pageError } = await queryExits;
+            if (pageError) throw pageError;
+
+            if (!pageData || pageData.length === 0) {
+                hasMore = false;
+            } else {
+                allExits = [...allExits, ...pageData];
+                if (pageData.length < PAGE_SIZE) hasMore = false;
+                else fromIndex += PAGE_SIZE;
+            }
+        }
+
+        console.log('quantidade de registros brutos encontrados:', allExits.length);
+
+        const mesesStr = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        const resultadosMensais = {}; // key: "YYYY-MM_Tipo"
+
+        let totalAntibioticos = 0;
+        let totalPsicotropicos = 0;
+        let upaAntibioticos = 0;
+        let upaPsicotropicos = 0;
+        let umsjAntibioticos = 0;
+        let umsjPsicotropicos = 0;
+
+        allExits.forEach(m => {
+            if (!validItemIds.has(m.inventory_item_id)) return;
+            const q = Math.abs(m.quantity || 0);
+            
+            const tipo = itemTipoMap[m.inventory_item_id];
+            
+            // Lógica de agrupamento por Mês
+            const dateObj = new Date(m.created_at);
+            const monthStr = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+            const yearStr = dateObj.getFullYear();
+            const groupKey = `${yearStr}-${monthStr}_${tipo}`;
+            
+            if (!resultadosMensais[groupKey]) {
+                resultadosMensais[groupKey] = {
+                    year: yearStr,
+                    month: dateObj.getMonth(),
+                    mes: `${mesesStr[dateObj.getMonth()]}/${yearStr}`,
+                    tipo_item: tipo,
+                    upa: 0,
+                    umsj: 0,
+                    total_geral: 0
+                };
+            }
+
+            const isUpa = m.unit_id === upaId;
+            const isUmsj = m.unit_id === umsjId;
+
+            if (isUpa) {
+                resultadosMensais[groupKey].upa += q;
+                if (tipo === 'Antibióticos') upaAntibioticos += q;
+                else upaPsicotropicos += q;
+            } else if (isUmsj) {
+                resultadosMensais[groupKey].umsj += q;
+                if (tipo === 'Antibióticos') umsjAntibioticos += q;
+                else umsjPsicotropicos += q;
+            } else {
+                // Caso existam outras unidades, soma apenas no total_geral se for consolidado,
+                // mas para UPA e UMSJ garantimos mapeamento exato
+            }
+            
+            resultadosMensais[groupKey].total_geral += q;
+
+            if (tipo === 'Antibióticos') totalAntibioticos += q;
+            else totalPsicotropicos += q;
+        });
+
+        console.log('total antibióticos:', totalAntibioticos);
+        console.log('total psicotrópicos:', totalPsicotropicos);
+        console.log('total UPA (Ambos):', upaAntibioticos + upaPsicotropicos);
+        console.log('total UMSJ (Ambos):', umsjAntibioticos + umsjPsicotropicos);
+
+        if (Object.keys(resultadosMensais).length === 0) {
+            return { data: [], columns: [], error: null, emptyMessage: 'Nenhum consumo de Antibióticos ou Psicotrópicos registrado no período.' };
+        }
+
+        const dataArray = Object.values(resultadosMensais);
+
+        // Ordenar cronologicamente do mês mais antigo para o mais recente e depois por Tipo
+        dataArray.sort((a, b) => {
+            if (a.year !== b.year) return a.year - b.year;
+            if (a.month !== b.month) return a.month - b.month;
+            return a.tipo_item.localeCompare(b.tipo_item);
+        });
+
+        console.log('primeiras 10 linhas agrupadas:', dataArray.slice(0, 10).map(r => `${r.mes} | ${r.tipo_item} | UPA:${r.upa} | UMSJ:${r.umsj}`));
+
+        const columns = [
+            { key: 'mes', label: 'Mês' },
+            { key: 'tipo_item', label: 'Tipo' }
+        ];
+
+        if (unidadeNome === 'Todas' || unidadeNome === 'Todos' || unidadeNome === 'UPA') {
+            columns.push({ key: 'upa', label: 'UPA', align: 'right' });
+        }
+        if (unidadeNome === 'Todas' || unidadeNome === 'Todos' || unidadeNome === 'UMSJ') {
+            columns.push({ key: 'umsj', label: 'UMSJ', align: 'right' });
+        }
+        columns.push({ key: 'total_geral', label: 'Total Geral', align: 'right' });
+
+        // Ajusta dataArray para remover a coluna nao solicitada, para que a exportação e UI nao fiquem com dados errados caso selecionem so 1 unidade
+        const finalData = dataArray.map(r => {
+            const row = {
+                mes: r.mes,
+                tipo_item: r.tipo_item,
+                total_geral: r.total_geral
+            };
+            if (unidadeNome === 'Todas' || unidadeNome === 'Todos' || unidadeNome === 'UPA') row.upa = r.upa;
+            if (unidadeNome === 'Todas' || unidadeNome === 'Todos' || unidadeNome === 'UMSJ') row.umsj = r.umsj;
+            return row;
+        });
+
+        const totais = {
+            antibioticos: totalAntibioticos,
+            psicotropicos: totalPsicotropicos,
+            upaAntibioticos,
+            upaPsicotropicos,
+            umsjAntibioticos,
+            umsjPsicotropicos
+        };
+
+        return { data: finalData, columns, error: null, totais };
+    } catch (e) {
+        console.error('[Service] generateMonthlyQuantityReport catch:', e);
+        return { data: null, columns: null, error: e.message };
+    }
+};
+
 
 

@@ -14,7 +14,8 @@ const TITULOS = {
     'VALIDADES': 'Validades a Vencer',
     'CURVA_ABC': 'Curva ABC de Consumo',
     'TOP_CONSUMO': 'Top 30 Consumo',
-    'SAIDAS_OBSERVACAO': 'Saídas por Observação'
+    'SAIDAS_OBSERVACAO': 'Saídas por Observação',
+    'QUANTIDADE_MENSAL': 'Quantidade mensal antibióticos e psicotrópicos'
 };
 
 const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade }) => {
@@ -27,6 +28,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
     const [unidade, setUnidade] = useState('Todas');
     const [faixaVencimento, setFaixaVencimento] = useState('60d');
     const [tipoItem, setTipoItem] = useState('Todos');
+    const [tipoItemControlado, setTipoItemControlado] = useState('Todos');
     const [tipoMovimentacao, setTipoMovimentacao] = useState('Todos');
     const [dataInicio, setDataInicio] = useState('');
     const [dataFim, setDataFim] = useState('');
@@ -59,6 +61,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
             }
             setFaixaVencimento('60d');
             setTipoItem('Todos');
+            setTipoItemControlado('Todos');
             setTipoMovimentacao('Todos');
             setDataInicio('');
             setDataFim('');
@@ -135,6 +138,12 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                     }
                     result = await relatoriosService.generateExitByObservationReport(tenantId, dataInicio, dataFim, unidade);
                     break;
+                case 'QUANTIDADE_MENSAL':
+                    if (dataInicio && dataFim && new Date(dataFim) < new Date(dataInicio)) {
+                        throw new Error('A data final não pode ser anterior à data inicial.');
+                    }
+                    result = await relatoriosService.generateMonthlyQuantityReport(tenantId, dataInicio, dataFim, unidade, tipoItemControlado);
+                    break;
                 default:
                     throw new Error('Tipo de relatório desconhecido.');
             }
@@ -162,10 +171,11 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
     };
 
     const exigePeriodo = false; // Foi substituido por exigePeriodoPersonalizado para todos
-    const exigePeriodoPersonalizado = ['MOVIMENTACOES', 'TOP_CONSUMO', 'SAIDAS_OBSERVACAO', 'CONSUMO_SETOR', 'CURVA_ABC'].includes(reportType);
+    const exigePeriodoPersonalizado = ['MOVIMENTACOES', 'TOP_CONSUMO', 'SAIDAS_OBSERVACAO', 'CONSUMO_SETOR', 'CURVA_ABC', 'QUANTIDADE_MENSAL'].includes(reportType);
     const isPeriodoRequired = ['MOVIMENTACOES', 'TOP_CONSUMO', 'SAIDAS_OBSERVACAO'].includes(reportType);
     const exigeFaixaVencimento = reportType === 'VALIDADES';
     const exigeTipoItem = ['MOVIMENTACOES', 'TOP_CONSUMO', 'CONSUMO_SETOR', 'CURVA_ABC'].includes(reportType);
+    const exigeTipoItemControlado = reportType === 'QUANTIDADE_MENSAL';
     const exigeTipoMovimentacao = reportType === 'MOVIMENTACOES';
 
     return (
@@ -205,6 +215,9 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                     {exigeTipoItem && (
                                         <span><span style={{ margin: '0 8px', color: '#ccc' }}>|</span><strong>Tipo de Item:</strong> {tipoItem}</span>
                                     )}
+                                    {exigeTipoItemControlado && (
+                                        <span><span style={{ margin: '0 8px', color: '#ccc' }}>|</span><strong>Tipo:</strong> {tipoItemControlado}</span>
+                                    )}
                                     {exigeTipoMovimentacao && (
                                         <span><span style={{ margin: '0 8px', color: '#ccc' }}>|</span><strong>Movimentação:</strong> {tipoMovimentacao}</span>
                                     )}
@@ -226,6 +239,25 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                             <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Insumos e Materiais</div>
                                             <div style={{ fontSize: '9px', color: '#888', marginBottom: '8px' }}>Total movimentado</div>
                                             <div style={{ fontSize: '18px', fontWeight: 800, color: '#111' }}>{totaisAbc.insumosMateriais.toLocaleString('pt-BR')}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        )}
+
+                        {reportType === 'QUANTIDADE_MENSAL' && totaisAbc && (
+                            <tr>
+                                <td colSpan={columns ? columns.length : 1} className="print-no-border">
+                                    <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', padding: '0 5px' }}>
+                                        <div style={{ flex: 1, border: '1px solid #ddd', padding: '12px 15px', borderRadius: '6px', background: '#fafafa' }}>
+                                            <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Antibióticos</div>
+                                            <div style={{ fontSize: '9px', color: '#888', marginBottom: '8px' }}>Total movimentado</div>
+                                            <div style={{ fontSize: '18px', fontWeight: 800, color: '#111' }}>{totaisAbc.antibioticos.toLocaleString('pt-BR')}</div>
+                                        </div>
+                                        <div style={{ flex: 1, border: '1px solid #ddd', padding: '12px 15px', borderRadius: '6px', background: '#fafafa' }}>
+                                            <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Psicotrópicos</div>
+                                            <div style={{ fontSize: '9px', color: '#888', marginBottom: '8px' }}>Total movimentado</div>
+                                            <div style={{ fontSize: '18px', fontWeight: 800, color: '#111' }}>{totaisAbc.psicotropicos.toLocaleString('pt-BR')}</div>
                                         </div>
                                     </div>
                                 </td>
@@ -334,6 +366,18 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                         <option value="Medicamentos">Medicamentos</option>
                                         <option value="Materiais">Materiais</option>
                                         <option value="Insumos">Insumos</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Filtro: Tipo de Item Controlado (Antibióticos/Psicotrópicos) */}
+                            {exigeTipoItemControlado && (
+                                <div className="farmacia-form-group">
+                                    <label className="farmacia-form-label">Tipo de Item Controlado</label>
+                                    <select className="farmacia-form-input" value={tipoItemControlado} onChange={e => setTipoItemControlado(e.target.value)}>
+                                        <option value="Todos">Todos</option>
+                                        <option value="Antibióticos">Antibióticos</option>
+                                        <option value="Psicotrópicos">Psicotrópicos</option>
                                     </select>
                                 </div>
                             )}
@@ -459,6 +503,32 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                         </div>
                                     </div>
                                 )}
+                                {reportType === 'QUANTIDADE_MENSAL' && totaisAbc && (
+                                    <div className="farmacia-abc-summary" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', padding: '1.25rem 1.5rem', background: 'var(--bg-muted-light)', borderBottom: '1px solid var(--border)' }}>
+                                        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', border: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                            <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'var(--color-primary-light)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Activity size={24} />
+                                            </div>
+                                            <div>
+                                                <h4 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Antibióticos</h4>
+                                                <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Total movimentado</p>
+                                                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{totaisAbc.antibioticos.toLocaleString('pt-BR')}</div>
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>UPA: {totaisAbc.upaAntibioticos.toLocaleString('pt-BR')} | UMSJ: {totaisAbc.umsjAntibioticos.toLocaleString('pt-BR')}</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', border: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                            <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'rgba(234, 88, 12, 0.1)', color: '#ea580c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Package size={24} />
+                                            </div>
+                                            <div>
+                                                <h4 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Psicotrópicos</h4>
+                                                <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Total movimentado</p>
+                                                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{totaisAbc.psicotropicos.toLocaleString('pt-BR')}</div>
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>UPA: {totaisAbc.upaPsicotropicos.toLocaleString('pt-BR')} | UMSJ: {totaisAbc.umsjPsicotropicos.toLocaleString('pt-BR')}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                                 <table className="farmacia-table" style={{ borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderTopLeftRadius: 0, borderTopRightRadius: 0, width: '100%', tableLayout: 'fixed' }}>
                                     <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-muted-light)', zIndex: 1, boxShadow: '0 1px 0 var(--border)' }}>
                                         <tr>
@@ -499,8 +569,8 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                                         if (col.key === 'unidade_medida') customStyle.width = '100px';
                                                     } else {
                                                         // Estilos originais para outros relatórios
-                                                        if (col.key === 'medicamento') customStyle.fontWeight = 600;
-                                                        if (col.key === 'consumido' || col.key === 'quantidade' || col.key === 'saldo') {
+                                                        if (col.key === 'medicamento' || col.key === 'mes' || col.key === 'tipo_item') customStyle.fontWeight = 600;
+                                                        if (col.key === 'consumido' || col.key === 'quantidade' || col.key === 'saldo' || col.key === 'total_geral' || col.key === 'upa' || col.key === 'umsj') {
                                                             customStyle.fontWeight = 700;
                                                             if (val < 0) customStyle.color = '#dc2626';
                                                             else customStyle.color = 'var(--text-primary)';
@@ -517,7 +587,7 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                                     
                                                     return (
                                                         <td key={col.key} style={customStyle}>
-                                                            {typeof val === 'number' && (col.key==='saldo' || col.key === 'quantidade' || col.key === 'consumido') ? val.toLocaleString('pt-BR') : val}
+                                                            {typeof val === 'number' && (col.key==='saldo' || col.key === 'quantidade' || col.key === 'consumido' || col.key === 'total_geral' || col.key === 'upa' || col.key === 'umsj') ? val.toLocaleString('pt-BR') : val}
                                                         </td>
                                                     );
                                                 })}
@@ -579,11 +649,12 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                                 periodo: periodoLabel
                                             };
                                             
-                                            if (totaisAbc && reportType === 'CURVA_ABC') {
+                                            if (totaisAbc && (reportType === 'CURVA_ABC' || reportType === 'QUANTIDADE_MENSAL')) {
                                                 excelMetadata.totaisAbc = totaisAbc;
                                             }
 
                                             if (exigeTipoItem) excelMetadata.tipo_item = tipoItem;
+                                            if (exigeTipoItemControlado) excelMetadata.tipo_item_controlado = tipoItemControlado;
                                             if (exigeTipoMovimentacao) excelMetadata.tipo_movimentacao = tipoMovimentacao;
 
                                             exportToExcel({ 
