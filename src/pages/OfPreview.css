@@ -387,6 +387,11 @@ body.of-preview-body {
         margin: 0 !important;
         display: block !important;
         width: 100% !important;
+        visibility: visible !important;
+    }
+
+    .of-preview-container * {
+        visibility: visible !important;
     }
 
     .of-pdf-document {

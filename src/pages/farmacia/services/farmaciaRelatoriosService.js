@@ -955,8 +955,8 @@ export const generateMonthlyQuantityReport = async (tenantId, dataInicio, dataFi
         const items = resItems.data || [];
         const units = resUnits.data || [];
 
-        const catAntibioticoIds = categorias.filter(c => c.name && c.name.toUpperCase().includes('ANTIBIÓTICO')).map(c => c.id);
-        const catPsicotropicoIds = categorias.filter(c => c.name && c.name.toUpperCase().includes('PSICOTRÓPICO')).map(c => c.id);
+        const catAntibioticoIds = categorias.filter(c => c.name && ['ANTIMICROBIANOS', 'ANTIMICROBIANO', 'ANTIBIÓTICO', 'ANTIBIÓTICOS'].some(val => c.name.toUpperCase().includes(val))).map(c => c.id);
+        const catPsicotropicoIds = categorias.filter(c => c.name && ['PSICOTRÓPICOS', 'PSICOTRÓPICO', 'CONTROLADOS', 'CONTROLE ESPECIAL', 'MEDICAMENTO CONTROLADO'].some(val => c.name.toUpperCase().includes(val))).map(c => c.id);
 
         const validItems = items.filter(item => {
             const isAnti = catAntibioticoIds.includes(item.category_id);
@@ -970,8 +970,10 @@ export const generateMonthlyQuantityReport = async (tenantId, dataInicio, dataFi
         
         const validItemIds = new Set(validItems.map(i => i.id));
         const itemTipoMap = {}; // id => 'Antibióticos' ou 'Psicotrópicos'
+        const itemNomeMap = {}; // id => name
         validItems.forEach(i => {
             itemTipoMap[i.id] = catAntibioticoIds.includes(i.category_id) ? 'Antibióticos' : 'Psicotrópicos';
+            itemNomeMap[i.id] = i.name;
         });
 
         const unitMap = {}; 
@@ -994,10 +996,11 @@ export const generateMonthlyQuantityReport = async (tenantId, dataInicio, dataFi
 
         while (hasMore) {
             let queryExits = supabase.from('stock_movements')
-                .select('quantity, inventory_item_id, unit_id, created_at')
+                .select('quantity, inventory_item_id, unit_id, created_at, notes')
                 .eq('tenant_id', tenantId)
                 .eq('movement_type', 'EXIT')
                 .range(fromIndex, fromIndex + PAGE_SIZE - 1);
+
 
             if (startISO) queryExits = queryExits.gte('created_at', startISO);
             if (endISO) queryExits = queryExits.lte('created_at', endISO);
@@ -1027,12 +1030,28 @@ export const generateMonthlyQuantityReport = async (tenantId, dataInicio, dataFi
         let umsjAntibioticos = 0;
         let umsjPsicotropicos = 0;
 
+        let detalhesRows = [];
+
         allExits.forEach(m => {
             if (!validItemIds.has(m.inventory_item_id)) return;
             const q = Math.abs(m.quantity || 0);
             
             const tipo = itemTipoMap[m.inventory_item_id];
             
+            // Adicionar aos Detalhes Individuais
+            const unit = units.find(u => u.id === m.unit_id);
+            detalhesRows.push({
+                data_raw: m.created_at, // para ordenação
+                data: new Date(m.created_at).toLocaleDateString('pt-BR') + ' ' + new Date(m.created_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+                unidade: unit ? unit.name : '-',
+                tipo_item: tipo,
+                medicamento: itemNomeMap[m.inventory_item_id] || '-',
+                quantidade: q,
+                destino: m.destination_sector || m.destination || m.sector_name || 'Não informado',
+                responsavel: m.created_by || 'Não informado',
+                observacao: m.notes || 'Não informado'
+            });
+
             // Lógica de agrupamento por Mês
             const dateObj = new Date(m.created_at);
             const monthStr = (dateObj.getMonth() + 1).toString().padStart(2, '0');
@@ -1106,6 +1125,20 @@ export const generateMonthlyQuantityReport = async (tenantId, dataInicio, dataFi
         }
         columns.push({ key: 'total_geral', label: 'Total Geral', align: 'right' });
 
+        // Ordenar os detalhes (mais recentes primeiro)
+        detalhesRows.sort((a, b) => new Date(b.data_raw) - new Date(a.data_raw));
+
+        const detalhesColumns = [
+            { key: 'data', label: 'Data' },
+            { key: 'unidade', label: 'Unidade' },
+            { key: 'tipo_item', label: 'Tipo' },
+            { key: 'medicamento', label: 'Medicamento' },
+            { key: 'quantidade', label: 'Quantidade', align: 'right' },
+            { key: 'destino', label: 'Destino/Setor' },
+            { key: 'responsavel', label: 'Responsável' },
+            { key: 'observacao', label: 'Observação' }
+        ];
+
         // Ajusta dataArray para remover a coluna nao solicitada, para que a exportação e UI nao fiquem com dados errados caso selecionem so 1 unidade
         const finalData = dataArray.map(r => {
             const row = {
@@ -1127,7 +1160,7 @@ export const generateMonthlyQuantityReport = async (tenantId, dataInicio, dataFi
             umsjPsicotropicos
         };
 
-        return { data: finalData, columns, error: null, totais };
+        return { data: finalData, columns, error: null, totais, detalhes: detalhesRows, detalhesColumns };
     } catch (e) {
         console.error('[Service] generateMonthlyQuantityReport catch:', e);
         return { data: null, columns: null, error: e.message };

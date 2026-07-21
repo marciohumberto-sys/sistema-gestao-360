@@ -37,6 +37,8 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
     const [loading, setLoading] = useState(false);
     const [tableData, setTableData] = useState([]);
     const [columns, setColumns] = useState([]);
+    const [detalhesData, setDetalhesData] = useState([]);
+    const [detalhesColumns, setDetalhesColumns] = useState([]);
     const [totaisAbc, setTotaisAbc] = useState(null);
     const [errorMsg, setErrorMsg] = useState(null);
     const [emptyMsg, setEmptyMsg] = useState(null);
@@ -153,10 +155,14 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
             } else if (result.emptyMessage) {
                 setEmptyMsg(result.emptyMessage);
                 setColumns(result.columns || []);
+                setDetalhesData([]);
+                setDetalhesColumns([]);
                 setTotaisAbc(null);
             } else {
                 setTableData(result.data);
                 setColumns(result.columns);
+                setDetalhesData(result.detalhes || []);
+                setDetalhesColumns(result.detalhesColumns || []);
                 if (result.totais) {
                     setTotaisAbc(result.totais);
                 } else {
@@ -288,6 +294,41 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                             <tr><td colSpan={columns ? columns.length : 1} className="print-td" style={{ textAlign: 'center', padding: '20px' }}>Nenhum dado retornado para impressão</td></tr>
                         )}
                     </tbody>
+
+                        {/* Tabela de Detalhes (Relação Individualizada) para QUANTIDADE_MENSAL na impressão */}
+                        {reportType === 'QUANTIDADE_MENSAL' && detalhesData.length > 0 && (
+                            <tbody>
+                            <tr>
+                                <td colSpan={columns ? columns.length : 1} className="print-no-border" style={{ paddingTop: '30px' }}>
+                                    <div style={{ paddingBottom: '10px', borderBottom: '1px solid #ddd', marginBottom: '15px' }}>
+                                        <h3 style={{ margin: 0, fontSize: '13px', color: '#333' }}>Relação individualizada de saídas</h3>
+                                        <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#666' }}>Lista detalhada das movimentações consideradas no relatório.</p>
+                                    </div>
+                                    <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
+                                        <thead>
+                                            <tr style={{ background: '#f5f5f5' }}>
+                                                {detalhesColumns.map(col => (
+                                                    <th key={`print-det-th-${col.key}`} style={{ padding: '6px 4px', textAlign: col.align || 'left', borderBottom: '1px solid #ccc', color: '#444' }}>{col.label}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {detalhesData.map((row, idx) => (
+                                                <tr key={`print-det-row-${idx}`}>
+                                                    {detalhesColumns.map(col => (
+                                                        <td key={`print-det-td-${col.key}`} style={{ padding: '4px', borderBottom: '1px solid #eee', textAlign: col.align || 'left', color: '#333' }}>
+                                                            {row[col.key]}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </td>
+                            </tr>
+                            </tbody>
+                        )}
+
 
                     <tfoot className="print-main-tfoot">
                         <tr>
@@ -595,6 +636,54 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                         ))}
                                     </tbody>
                                 </table>
+
+                                {/* Nova Seção: Relação Individualizada (Abaixo da Tabela Mensal) */}
+                                {reportType === 'QUANTIDADE_MENSAL' && detalhesData.length > 0 && (
+                                    <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem', background: '#fff' }}>
+                                        <div style={{ padding: '0 1.5rem 1rem' }}>
+                                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>Relação individualizada de saídas</h3>
+                                            <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Lista detalhada das movimentações consideradas no relatório.</p>
+                                        </div>
+                                        <div style={{ width: '100%', overflowX: 'auto' }}>
+                                            <table className="farmacia-table" style={{ borderTop: '1px solid var(--border)', borderLeft: 'none', borderRight: 'none', borderRadius: 0, width: '100%', tableLayout: 'fixed' }}>
+                                                <thead style={{ background: 'var(--bg-muted-light)' }}>
+                                                    <tr>
+                                                        {detalhesColumns.map((col, index) => (
+                                                            <th key={col.key} style={{ 
+                                                                textAlign: col.align || 'left',
+                                                                width: col.key === 'data' ? '120px' : 
+                                                                       col.key === 'unidade' ? '80px' : 
+                                                                       col.key === 'tipo_item' ? '100px' : 
+                                                                       col.key === 'quantidade' ? '80px' : 
+                                                                       col.key === 'destino' ? '120px' : 
+                                                                       col.key === 'responsavel' ? '120px' : 
+                                                                       col.key === 'observacao' ? '180px' : 'auto'
+                                                            }}>
+                                                                {col.label}
+                                                            </th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {detalhesData.map((row, idx) => (
+                                                        <tr key={idx} className="farmacia-table-row-interactive">
+                                                            {detalhesColumns.map(col => (
+                                                                <td key={col.key} style={{ 
+                                                                    textAlign: col.align || 'left', 
+                                                                    fontSize: '0.8rem',
+                                                                    color: col.key === 'quantidade' ? 'var(--text-primary)' : 'var(--text-muted)',
+                                                                    fontWeight: col.key === 'quantidade' ? 700 : 500
+                                                                }}>
+                                                                    {row[col.key]}
+                                                                </td>
+                                                            ))}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -649,6 +738,8 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                                 periodo: periodoLabel
                                             };
                                             
+                                            const reportName = `${rName}${suffix}.xlsx`;
+
                                             if (totaisAbc && (reportType === 'CURVA_ABC' || reportType === 'QUANTIDADE_MENSAL')) {
                                                 excelMetadata.totaisAbc = totaisAbc;
                                             }
@@ -657,13 +748,29 @@ const FarmaciaRelatorioModal = ({ isOpen, onClose, reportType, defaultUnidade })
                                             if (exigeTipoItemControlado) excelMetadata.tipo_item_controlado = tipoItemControlado;
                                             if (exigeTipoMovimentacao) excelMetadata.tipo_movimentacao = tipoMovimentacao;
 
-                                            exportToExcel({ 
-                                                data: tableData, 
-                                                columns, 
-                                                fileName: `${rName}${suffix}.xlsx`,
-                                                metadata: excelMetadata,
-                                                sheetName: TITULOS[reportType] || 'Relatório'
-                                            });
+                                            // Para o Quantidade Mensal, exportar com duas abas
+                                            if (reportType === 'QUANTIDADE_MENSAL') {
+                                                exportToExcel({ 
+                                                    data: tableData, 
+                                                    columns, 
+                                                    fileName: reportName,
+                                                    metadata: excelMetadata,
+                                                    sheetName: "Resumo Mensal",
+                                                    secondarySheet: {
+                                                        name: "Relação de Saídas",
+                                                        data: detalhesData,
+                                                        columns: detalhesColumns
+                                                    }
+                                                });
+                                            } else {
+                                                exportToExcel({ 
+                                                    data: tableData, 
+                                                    columns, 
+                                                    fileName: reportName,
+                                                    metadata: excelMetadata,
+                                                    sheetName: TITULOS[reportType] || 'Relatório'
+                                                });
+                                            }
                                         }}
                                         title="Baixar resultados em formato Excel (.xlsx)"
                                     >

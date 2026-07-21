@@ -5,7 +5,7 @@ import { brandConfig } from '../config/brand';
  * Exporta uma lista de dados para arquivo Excel (.xlsx) com estilização PREMIUM usando ExcelJS.
  * Suporta imagens (logo), destaques de ranking, zebra e formatação profissional.
  */
-export const exportToExcel = async ({ data, columns, fileName, metadata = {}, sheetName = "Relatório Geral" }) => {
+export const exportToExcel = async ({ data, columns, fileName, metadata = {}, sheetName = "Relatório Geral", secondarySheet = null }) => {
     try {
         if (!data || !data.length || !columns || !columns.length) {
             console.warn("Nenhum dado ou definição de coluna para exportar.");
@@ -248,6 +248,55 @@ export const exportToExcel = async ({ data, columns, fileName, metadata = {}, sh
             
             worksheet.getColumn(idx + 1).width = width;
         });
+
+        // --- ABA SECUNDÁRIA (OPCIONAL) ---
+        if (secondarySheet && secondarySheet.data && secondarySheet.columns) {
+            const secSheet = workbook.addWorksheet(secondarySheet.name.substring(0, 31));
+            const secHeaderRow = secSheet.addRow(secondarySheet.columns.map(c => c.label));
+            secHeaderRow.height = 25;
+            secHeaderRow.eachCell((cell) => {
+                cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF444444' } };
+                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                cell.border = {
+                    top: { style: 'thin', color: { argb: 'FF000000' } },
+                    left: { style: 'thin', color: { argb: 'FF000000' } },
+                    bottom: { style: 'thin', color: { argb: 'FF000000' } },
+                    right: { style: 'thin', color: { argb: 'FF000000' } }
+                };
+            });
+            
+            secondarySheet.data.forEach((rowData, index) => {
+                const row = secSheet.addRow(secondarySheet.columns.map(col => rowData[col.key]));
+                const isZebra = index % 2 !== 0;
+                row.height = 20;
+                row.eachCell((cell, colIndex) => {
+                    const columnDef = secondarySheet.columns[colIndex - 1];
+                    cell.font = { name: 'Arial', size: 10 };
+                    cell.alignment = { vertical: 'middle', horizontal: columnDef.align || 'left' };
+                    cell.border = {
+                        bottom: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+                        left: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+                        right: { style: 'thin', color: { argb: 'FFD9D9D9' } }
+                    };
+                    if (isZebra) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+                });
+            });
+
+            const secLastCol = String.fromCharCode(64 + secondarySheet.columns.length);
+            secSheet.autoFilter = `A1:${secLastCol}${secondarySheet.data.length + 1}`;
+
+            secondarySheet.columns.forEach((col, idx) => {
+                let width = 15;
+                if (col.key === 'medicamento') width = 45;
+                if (col.key === 'data') width = 20;
+                if (col.key === 'destino' || col.key === 'responsavel') width = 30;
+                if (col.key === 'observacao') width = 50;
+                secSheet.getColumn(idx + 1).width = width;
+            });
+            
+            secSheet.views = [{ state: 'frozen', ySplit: 1 }];
+        }
 
         // --- 5. DOWNLOAD NO BROWSER ---
         const buffer = await workbook.xlsx.writeBuffer();
