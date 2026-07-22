@@ -580,7 +580,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                 return;
             }
 
-            // Enter (Avançar para o próximo campo)
+            // Enter (Avançar para o próximo campo apenas na sequência rápida)
             if (e.key === 'Enter' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
                 if (e.defaultPrevented) return;
                 if (examSuggestions.length > 0) return;
@@ -589,37 +589,48 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                 if (!activeEl) return;
                 
                 const tag = activeEl.tagName.toLowerCase();
-                
                 if (tag === 'button' || tag === 'textarea') return;
                 
-                if (tag === 'select' || (tag === 'input' && (activeEl.type === 'date' || activeEl.type === 'time'))) {
-                    // Mantém comportamento padrão do navegador
+                const elName = activeEl.name;
+                const isOrigin = originRef.current && (activeEl === originRef.current || originRef.current.contains(activeEl));
+                
+                // Verifica se está num dos campos da sequência principal
+                const isMainSequence = (elName === 'full_name' || elName === 'birth_date' || elName === 'sex' || isOrigin);
+                
+                if (!isMainSequence) {
+                    // Campos fora da sequência rápida (Data, Hora, Médico, Obs, ou grupos opcionais)
+                    // são ignorados pelo Enter (não avançam foco). O usuário usará Tab.
                     return;
                 }
-
-                e.preventDefault();
-
-                const modalContent = document.getElementById('operacional-modal-content');
-                if (!modalContent) return;
-
-                const selector = 'input:not([readonly]):not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([readonly]):not([disabled]), div[tabindex="0"]';
                 
-                const elements = Array.from(modalContent.querySelectorAll(selector)).filter(el => {
-                    if (el.style.display === 'none' || el.style.visibility === 'hidden') return false;
-                    if (el.offsetParent === null) return false;
-                    if (el.classList.contains('lab-modal-overlay')) return false;
-                    return true;
-                });
-
-                const currentIndex = elements.indexOf(activeEl);
-                if (currentIndex > -1 && currentIndex < elements.length - 1) {
-                    const nextEl = elements[currentIndex + 1];
-                    nextEl.focus();
-                    if (nextEl.tagName.toLowerCase() === 'input' && ['text', 'number', 'tel', 'email'].includes(nextEl.type)) {
-                        try { nextEl.select(); } catch (err) {}
-                    }
-                    nextEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                // Em selects nativos, precisamos permitir que a seleção (abrir/confirmar) do navegador ocorra
+                // antes de mover o foco. Por isso, não fazemos e.preventDefault() para selects.
+                if (tag !== 'select') {
+                    e.preventDefault();
                 }
+
+                // Usamos setTimeout para permitir que blur/change e comportamentos nativos (como fechar select) processem
+                setTimeout(() => {
+                    let nextEl = null;
+                    
+                    if (elName === 'full_name') {
+                        nextEl = document.getElementsByName('birth_date')[0];
+                    } else if (elName === 'birth_date') {
+                        nextEl = document.getElementsByName('sex')[0];
+                    } else if (elName === 'sex') {
+                        nextEl = originRef.current;
+                    } else if (isOrigin) {
+                        nextEl = quickExamInputRef.current;
+                    }
+
+                    if (nextEl) {
+                        nextEl.focus();
+                        if (nextEl.tagName.toLowerCase() === 'input' && ['text', 'number', 'tel', 'email'].includes(nextEl.type)) {
+                            try { nextEl.select(); } catch (err) {}
+                        }
+                        nextEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                }, 10);
                 return;
             }
 
