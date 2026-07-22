@@ -50,7 +50,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
     const [attendanceData, setAttendanceData] = useState({
         attendance_date: getLocalDateInputValue(),
         attendance_time: getLocalTimeInputValue(),
-        attendance_origin: '',
+        attendance_origin: 'CENTRAL',
         requesting_doctor: '',
         expected_delivery_date: '',
         fasting: '',
@@ -103,7 +103,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
             setAttendanceData({
                 attendance_date: getLocalDateInputValue(),
                 attendance_time: getLocalTimeInputValue(),
-                attendance_origin: '',
+                attendance_origin: 'CENTRAL',
                 requesting_doctor: '',
                 expected_delivery_date: '',
                 fasting: '',
@@ -186,7 +186,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
         return (
             hasPatientChanges() ||
             examesSolicitados.length > 0 ||
-            attendanceData.attendance_origin !== '' ||
+            attendanceData.attendance_origin !== 'CENTRAL' ||
             attendanceData.requesting_doctor !== '' ||
             attendanceData.expected_delivery_date !== '' ||
             attendanceData.fasting !== '' ||
@@ -522,17 +522,114 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
         }
     };
 
+    // --- ATALHOS DE TECLADO ---
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleGlobalKeyDown = (e) => {
+            // Ignorar atalhos durante o salvamento
+            if (isSaving || savingRef.current) return;
+
+            // Ctrl + Enter
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                if (confirmModal.open) {
+                    if (confirmModal.type === 'save' && confirmModal.onConfirm) {
+                        confirmModal.onConfirm();
+                    }
+                } else if (!isExamModalOpen) {
+                    prepararSalvamento();
+                }
+                return;
+            }
+
+            // Alt + E (Focar Inclusão Rápida)
+            if (e.altKey && e.key.toLowerCase() === 'e') {
+                e.preventDefault();
+                if (!confirmModal.open && !isExamModalOpen && quickExamInputRef.current) {
+                    quickExamInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => quickExamInputRef.current.focus(), 300);
+                }
+                return;
+            }
+
+            // Alt + O (Focar Origem)
+            if (e.altKey && e.key.toLowerCase() === 'o') {
+                e.preventDefault();
+                if (!confirmModal.open && !isExamModalOpen && originRef.current) {
+                    originRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => originRef.current.focus(), 300);
+                }
+                return;
+            }
+
+            // Alt + P (Focar Paciente)
+            if (e.altKey && e.key.toLowerCase() === 'p') {
+                e.preventDefault();
+                if (!confirmModal.open && !isExamModalOpen) {
+                    setIsPatientExpanded(true);
+                    const section = document.getElementById('patient-section-top');
+                    if (section) {
+                        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        setTimeout(() => {
+                            const nameInput = document.getElementsByName('full_name')[0];
+                            if (nameInput) nameInput.focus();
+                        }, 300);
+                    }
+                }
+                return;
+            }
+
+            // Esc
+            if (e.key === 'Escape') {
+                // Se pressionar Esc, evitar fechar o navegador nativamente se aplicável, 
+                // mas a prioridade de fechamento é:
+                // 1. Sugestões de exame
+                if (examSuggestions.length > 0) {
+                    e.preventDefault();
+                    setExamSuggestions([]);
+                    setHighlightedIndex(-1);
+                    return;
+                }
+                // 2. Busca avançada
+                if (isExamModalOpen) {
+                    e.preventDefault();
+                    handleCloseExamModal();
+                    return;
+                }
+                // 3. Modal de Confirmação (qualquer um)
+                if (confirmModal.open) {
+                    e.preventDefault();
+                    if (confirmModal.type === 'cancel') {
+                        // Confirmação de descarte: Esc equivale a "Continuar preenchendo"
+                        setConfirmModal({ open: false });
+                    } else {
+                        // Confirmação de salvamento, duplicidade, data futura
+                        setConfirmModal({ open: false });
+                    }
+                    return;
+                }
+                // 4. Modal Operacional principal
+                e.preventDefault();
+                handleCloseModal();
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [isOpen, isSaving, confirmModal, isExamModalOpen, examSuggestions.length, patientData, attendanceData, examesSolicitados, internalPatientId]);
+
     if (!isOpen) return null;
 
     return (
-        <div className="lab-modal-overlay" onClick={handleCloseModal} onKeyDown={(e) => e.key === 'Escape' && !isExamModalOpen && handleCloseModal()} tabIndex={-1} style={{ zIndex: 9000 }}>
+        <div className="lab-modal-overlay" onClick={handleCloseModal} tabIndex={-1} style={{ zIndex: 9000 }}>
             <div className="lab-pac-modal-content" id="operacional-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '1200px', width: '95vw', maxHeight: '95vh' }}>
                 <div className="lab-pac-modal-header">
                     <h2 className="lab-pac-modal-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Activity size={24} className="lab-text-primary" />
                         {mode === 'create' && !internalPatientId ? 'Novo Paciente e Atendimento' : 'Novo Atendimento'}
                     </h2>
-                    <button className="lab-modal-close" onClick={handleCloseModal} disabled={isSaving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                    <button className="lab-modal-close" data-tooltip="Esc" onClick={handleCloseModal} disabled={isSaving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
                         <X size={24} />
                     </button>
                 </div>
@@ -565,7 +662,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                         {internalPatientId && !hasPatientChanges() && <span className="lab-badge lab-badge-success">Cadastrado</span>}
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b' }}>
-                                        {!isPatientExpanded && <span style={{ fontSize: '0.85rem' }}>Clique para expandir</span>}
+                                        {!isPatientExpanded && <span style={{ fontSize: '0.85rem' }}>Alt + P para expandir</span>}
                                         {isPatientExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                                     </div>
                                 </div>
@@ -611,7 +708,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                                     <input ref={timeRef} type="time" value={attendanceData.attendance_time} onChange={e => setAttendanceData({...attendanceData, attendance_time: e.target.value})} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: '#0f172a' }} disabled={isSaving}/>
                                                 </div>
                                             </div>
-                                            <div className="lab-data-item">
+                                            <div className="lab-data-item" data-tooltip="Alt + O para focar Origem">
                                                 <label>ORIGEM <span style={{ color: '#ef4444' }}>*</span></label>
                                                 <div 
                                                     ref={originRef}
@@ -671,7 +768,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                                 <div>
                                                     <h4 style={{ margin: 0, fontSize: '1rem', color: '#334155' }}>Inclusão Rápida</h4>
-                                                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Digite o código ou nome e pressione Enter.</p>
+                                                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Digite o código ou nome e pressione Enter. <span style={{ opacity: 0.7 }}>(Alt + E)</span></p>
                                                 </div>
                                                 <button type="button" className="lab-btn lab-btn-secondary" onClick={handleOpenExamModal} disabled={isSaving} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}>
                                                     Busca avançada
@@ -770,11 +867,14 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                         </div>
                                     </div>
                                     <div className="lab-summary-actions" style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                        <button className="lab-btn lab-btn-success lab-btn-block" onClick={prepararSalvamento} disabled={isSaving} style={{ padding: '0.85rem' }}>
-                                            {isSaving ? <Loader2 size={18} className="spin" /> : <Save size={18} />} 
-                                            {isSaving ? 'Salvando...' : 'Salvar Tudo'}
+                                        <button className="lab-btn lab-btn-success lab-btn-block" onClick={prepararSalvamento} disabled={isSaving} style={{ padding: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.1rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                {isSaving ? <Loader2 size={18} className="spin" /> : <Save size={18} />} 
+                                                {isSaving ? 'Salvando...' : 'Salvar Tudo'}
+                                            </div>
+                                            {!isSaving && <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 400 }}>Ctrl + Enter</span>}
                                         </button>
-                                        <button className="lab-btn lab-btn-outline lab-btn-block" onClick={handleCloseModal} disabled={isSaving}>
+                                        <button className="lab-btn lab-btn-outline lab-btn-block" data-tooltip="Esc" onClick={handleCloseModal} disabled={isSaving}>
                                             <X size={18} /> Cancelar
                                         </button>
                                     </div>
@@ -878,7 +978,10 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                 disabled={isSaving}
                             >
                                 {isSaving ? <Loader2 size={16} className="spin" /> : null}
-                                {confirmModal.confirmText}
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <span>{confirmModal.confirmText}</span>
+                                    {!isSaving && confirmModal.type === 'save' && <span style={{ fontSize: '0.65rem', opacity: 0.8, fontWeight: 400, marginTop: '-2px' }}>Ctrl + Enter</span>}
+                                </div>
                             </button>
                         </div>
                     </div>

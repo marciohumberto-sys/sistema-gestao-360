@@ -1,19 +1,19 @@
 export const ATTENDANCE_ORIGINS = [
     { value: 'UPA', label: 'UPA' },
-    { value: 'UNIDADE_MISTA', label: 'Unidade Mista' },
+    { value: 'UNIDADE_MISTA', label: 'UNIDADE MISTA' },
     { value: 'SAD', label: 'SAD' },
-    { value: 'DOMICILIAR', label: 'Domiciliar' },
-    { value: 'URGENCIA', label: 'Urgência' },
-    { value: 'CENTRAL', label: 'Central' },
+    { value: 'DOMICILIAR', label: 'DOMICILIAR' },
+    { value: 'URGENCIA', label: 'URGÊNCIA' },
+    { value: 'CENTRAL', label: 'CENTRAL' },
 ];
 
 const ATTENDANCE_ORIGIN_LABELS = {
     UPA: 'UPA',
-    UNIDADE_MISTA: 'Unidade Mista',
+    UNIDADE_MISTA: 'UNIDADE MISTA',
     SAD: 'SAD',
-    DOMICILIAR: 'Domiciliar',
-    URGENCIA: 'Urgência',
-    CENTRAL: 'Central',
+    DOMICILIAR: 'DOMICILIAR',
+    URGENCIA: 'URGÊNCIA',
+    CENTRAL: 'CENTRAL',
 };
 
 export function formatAttendanceOrigin(value) {
