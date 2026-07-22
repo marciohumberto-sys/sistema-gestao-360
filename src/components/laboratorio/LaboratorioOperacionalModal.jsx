@@ -580,6 +580,49 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                 return;
             }
 
+            // Enter (Avançar para o próximo campo)
+            if (e.key === 'Enter' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+                if (e.defaultPrevented) return;
+                if (examSuggestions.length > 0) return;
+                
+                const activeEl = document.activeElement;
+                if (!activeEl) return;
+                
+                const tag = activeEl.tagName.toLowerCase();
+                
+                if (tag === 'button' || tag === 'textarea') return;
+                
+                if (tag === 'select' || (tag === 'input' && (activeEl.type === 'date' || activeEl.type === 'time'))) {
+                    // Mantém comportamento padrão do navegador
+                    return;
+                }
+
+                e.preventDefault();
+
+                const modalContent = document.getElementById('operacional-modal-content');
+                if (!modalContent) return;
+
+                const selector = 'input:not([readonly]):not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([readonly]):not([disabled]), div[tabindex="0"]';
+                
+                const elements = Array.from(modalContent.querySelectorAll(selector)).filter(el => {
+                    if (el.style.display === 'none' || el.style.visibility === 'hidden') return false;
+                    if (el.offsetParent === null) return false;
+                    if (el.classList.contains('lab-modal-overlay')) return false;
+                    return true;
+                });
+
+                const currentIndex = elements.indexOf(activeEl);
+                if (currentIndex > -1 && currentIndex < elements.length - 1) {
+                    const nextEl = elements[currentIndex + 1];
+                    nextEl.focus();
+                    if (nextEl.tagName.toLowerCase() === 'input' && ['text', 'number', 'tel', 'email'].includes(nextEl.type)) {
+                        try { nextEl.select(); } catch (err) {}
+                    }
+                    nextEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                return;
+            }
+
             // Esc
             if (e.key === 'Escape') {
                 // Se pressionar Esc, evitar fechar o navegador nativamente se aplicável, 
@@ -713,7 +756,15 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                                 <div 
                                                     ref={originRef}
                                                     tabIndex={0}
-                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsOriginDropdownOpen(!isOriginDropdownOpen); } }}
+                                                    onKeyDown={(e) => { 
+                                                        if (e.key === ' ' || e.key === 'ArrowDown') { 
+                                                            e.preventDefault(); 
+                                                            setIsOriginDropdownOpen(true); 
+                                                        } else if (e.key === 'Enter' && isOriginDropdownOpen) {
+                                                            e.preventDefault();
+                                                            setIsOriginDropdownOpen(false);
+                                                        }
+                                                    }}
                                                     className="lab-data-value" 
                                                     style={{ 
                                                         padding: '0.35rem 0.6rem', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
