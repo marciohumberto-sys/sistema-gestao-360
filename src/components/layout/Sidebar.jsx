@@ -147,7 +147,8 @@ const LABORATORIO_MENU_ITEMS = [
     {
         section: 'Atendimento',
         items: [
-            { path: '/laboratorio/pacientes', icon: Users, label: 'Pacientes' },
+            // Ocultado temporariamente para validação da nova tela integrada de Atendimento / Coleta
+            // { path: '/laboratorio/pacientes', icon: Users, label: 'Pacientes' },
             { path: '/laboratorio/coleta', icon: Stethoscope, label: 'Atendimento / Coleta' }
         ]
     },

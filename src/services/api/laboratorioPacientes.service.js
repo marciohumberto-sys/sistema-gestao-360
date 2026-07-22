@@ -4,37 +4,47 @@ const TENANT_ID = '6e9e8e54-c9ec-42cf-a2a2-6f5e0ae8d832';
 const SELECT_FIELDS = 'id, code, full_name, birth_date, sex, cpf, rg, cns, phone, mobile, is_active';
 const FULL_SELECT_FIELDS = 'id, code, full_name, birth_date, sex, cpf, rg, cns, phone, mobile, street, number, complement, district, city, state, zip_code, mother_name, father_name, notes, is_active';
 
-// Utilitário interno para gerar e verificar o código único
-const gerarCodigoUnico = async () => {
-    let maxTentativas = 5;
-    while (maxTentativas > 0) {
-        // Formato: PAC-XXXXXX (sem caracteres ambíguos)
-        const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-        let suffix = '';
-        for (let i = 0; i < 6; i++) {
-            suffix += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-
-        const novoCodigo = `PAC-${suffix}`;
-
-        // Verifica se existe no tenant
-        const { data } = await supabase
-            .from('lab_patients')
-            .select('id')
-            .eq('tenant_id', TENANT_ID)
-            .eq('code', novoCodigo)
-            .limit(1);
-
-        if (!data || data.length === 0) {
-            return novoCodigo; // Achou um único!
-        }
-
-        maxTentativas--;
-    }
-    throw new Error('Não foi possível gerar um código único para o paciente após várias tentativas.');
-};
 
 export const laboratorioPacientesService = {
+    estimarProximoCodigo: async () => {
+        try {
+            // Usa cast para inteiro na order e exclui PAC- ou nulos usando regex simples de números
+            // Como Supabase (PostgREST) não suporta regex complexo nativo na URL com facilidade, 
+            // podemos buscar os últimos baseados em ordem lexicográfica inversa para 'code' e ignorar PAC-.
+            // A melhor forma sem criar RPC é trazer alguns e filtrar.
+            const { data, error } = await supabase
+                .from('lab_patients')
+                .select('code')
+                .eq('tenant_id', TENANT_ID)
+                .not('code', 'is', null)
+                .not('code', 'like', 'PAC-%')
+                .order('code', { ascending: false })
+                .limit(10);
+                
+            if (error) {
+                console.warn('Erro ao estimar código:', error);
+                return '115000'; // Fallback base
+            }
+
+            if (data && data.length > 0) {
+                // Filtra apenas os que são totalmente numéricos e converte para número
+                const validos = data
+                    .map(d => parseInt(d.code, 10))
+                    .filter(n => !isNaN(n) && n >= 115000);
+                
+                if (validos.length > 0) {
+                    const max = Math.max(...validos);
+                    return String(max + 1);
+                }
+            }
+            
+            return '115000';
+        } catch (error) {
+            console.warn('Erro interno ao estimar código:', error);
+            return '115000';
+        }
+    },
+
     buscarPacientes: async ({ termo = '', status = 'Ativos', pagina = 1, porPagina = 15, ordenacao = 'Nome — A a Z' }) => {
         try {
             let query = supabase
@@ -222,13 +232,9 @@ export const laboratorioPacientesService = {
 
     criarPaciente: async (dados) => {
         try {
-            // Gerar código único e validar no banco
-            const newCode = await gerarCodigoUnico();
-
-            // Montar payload limpo de forma explícita
+            // Montar payload limpo de forma explícita (sem 'code', banco assumirá o DEFAULT sequence)
             const payload = {
                 tenant_id: TENANT_ID,
-                code: newCode,
                 full_name: dados.full_name?.trim(),
                 birth_date: dados.birth_date,
                 sex: dados.sex,
