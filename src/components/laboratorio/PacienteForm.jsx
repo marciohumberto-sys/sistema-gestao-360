@@ -130,7 +130,7 @@ const hasRealString = (val) => val && val.trim().length > 0;
 const hasCustomCity = (val) => val && val.trim().toUpperCase() !== 'BEZERROS' && val.trim().length > 0;
 const hasCustomState = (val) => val && val.trim().toUpperCase() !== 'PE' && val.trim().length > 0;
 
-const PacienteForm = ({ formData, formErrors, onChange, isSaving }) => {
+const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = false }) => {
     const [predictedCode, setPredictedCode] = React.useState('');
     const [expandedSections, setExpandedSections] = React.useState({
         identificacao: true,
@@ -209,8 +209,15 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving }) => {
         hasCustomCity(formData.city) || 
         hasCustomState(formData.state);
 
+    const readOnlyStyle = { 
+        backgroundColor: '#f8fafc', 
+        borderColor: 'transparent',
+        color: '#475569', 
+        pointerEvents: readOnly ? 'none' : 'auto' 
+    };
+
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }} className={readOnly ? 'paciente-form-readonly' : ''}>
             
             {/* IDENTIFICAÇÃO */}
             <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', background: '#fff' }}>
@@ -241,17 +248,17 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving }) => {
                         </div>
                         <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
                             <label className="lab-pac-form-label">Nome completo *</label>
-                            <input type="text" name="full_name" className="lab-pac-form-input" placeholder="Ex: Maria da Silva" value={formData.full_name} onChange={onChange} autoFocus disabled={isSaving} />
+                            <input type="text" name="full_name" className="lab-pac-form-input" placeholder="Ex: Maria da Silva" value={formData.full_name} onChange={onChange} autoFocus={!readOnly} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                             {formErrors?.full_name && <span className="lab-pac-form-error">{formErrors.full_name}</span>}
                         </div>
                         <div className="lab-pac-form-group">
                             <label className="lab-pac-form-label">Data de nascimento *</label>
-                            <input type="date" name="birth_date" className="lab-pac-form-input" value={formData.birth_date} onChange={onChange} max={new Date().toISOString().split('T')[0]} disabled={isSaving} />
+                            <input type="date" name="birth_date" className="lab-pac-form-input" value={formData.birth_date} onChange={onChange} max={new Date().toISOString().split('T')[0]} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                             {formErrors?.birth_date && <span className="lab-pac-form-error">{formErrors.birth_date}</span>}
                         </div>
                         <div className="lab-pac-form-group">
                             <label className="lab-pac-form-label">Sexo *</label>
-                            <select name="sex" className="lab-pac-form-select" value={formData.sex} onChange={onChange} disabled={isSaving}>
+                            <select name="sex" className="lab-pac-form-select" value={formData.sex} onChange={onChange} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}}>
                                 <option value="">Selecione...</option>
                                 <option value="FEMININO">Feminino</option>
                                 <option value="MASCULINO">Masculino</option>
@@ -269,16 +276,16 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving }) => {
                     <div className="lab-pac-form-grid" style={{ padding: '1rem', gap: '1rem' }}>
                         <div className="lab-pac-form-group">
                             <label className="lab-pac-form-label">CPF</label>
-                            <input type="text" name="cpf" className="lab-pac-form-input" placeholder="000.000.000-00" value={formData.cpf} onChange={onChange} disabled={isSaving} />
+                            <input type="text" name="cpf" className="lab-pac-form-input" placeholder="000.000.000-00" value={formData.cpf} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                             {formErrors?.cpf && <span className="lab-pac-form-error">{formErrors.cpf}</span>}
                         </div>
                         <div className="lab-pac-form-group">
                             <label className="lab-pac-form-label">RG</label>
-                            <input type="text" name="rg" className="lab-pac-form-input" placeholder="Apenas números ou letras" value={formData.rg} onChange={onChange} disabled={isSaving} />
+                            <input type="text" name="rg" className="lab-pac-form-input" placeholder="Apenas números ou letras" value={formData.rg} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                         </div>
                         <div className="lab-pac-form-group">
                             <label className="lab-pac-form-label">CNS</label>
-                            <input type="text" name="cns" className="lab-pac-form-input" placeholder="15 dígitos" value={formData.cns} onChange={onChange} maxLength="15" disabled={isSaving} />
+                            <input type="text" name="cns" className="lab-pac-form-input" placeholder="15 dígitos" value={formData.cns} onChange={onChange} maxLength="15" disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                             {formErrors?.cns && <span className="lab-pac-form-error">{formErrors.cns}</span>}
                         </div>
                     </div>
@@ -294,11 +301,11 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving }) => {
                         <div className="lab-pac-form-grid two-cols" style={{ gap: '1rem' }}>
                             <div className="lab-pac-form-group">
                                 <label className="lab-pac-form-label">Celular</label>
-                                <input type="text" name="mobile" className="lab-pac-form-input" placeholder="(00) 00000-0000" value={formData.mobile} onChange={onChange} disabled={isSaving} />
+                                <input type="text" name="mobile" className="lab-pac-form-input" placeholder="(00) 00000-0000" value={formData.mobile} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                             </div>
                             <div className="lab-pac-form-group">
                                 <label className="lab-pac-form-label">Telefone</label>
-                                <input type="text" name="phone" className="lab-pac-form-input" placeholder="(00) 0000-0000" value={formData.phone} onChange={onChange} disabled={isSaving} />
+                                <input type="text" name="phone" className="lab-pac-form-input" placeholder="(00) 0000-0000" value={formData.phone} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                             </div>
                         </div>
                         
@@ -307,31 +314,31 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving }) => {
                             <div className="lab-pac-form-grid" style={{ gap: '1rem' }}>
                                 <div className="lab-pac-form-group">
                                     <label className="lab-pac-form-label">CEP</label>
-                                    <input type="text" name="zip_code" className="lab-pac-form-input" placeholder="00000-000" value={formData.zip_code} onChange={onChange} disabled={isSaving} />
+                                    <input type="text" name="zip_code" className="lab-pac-form-input" placeholder="00000-000" value={formData.zip_code} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                                 </div>
                                 <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
                                     <label className="lab-pac-form-label">Logradouro</label>
-                                    <input type="text" name="street" className="lab-pac-form-input" placeholder="Ex: Rua das Flores" value={formData.street} onChange={onChange} disabled={isSaving} />
+                                    <input type="text" name="street" className="lab-pac-form-input" placeholder="Ex: Rua das Flores" value={formData.street} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                                 </div>
                                 <div className="lab-pac-form-group">
                                     <label className="lab-pac-form-label">Número</label>
-                                    <input type="text" name="number" className="lab-pac-form-input" placeholder="Ex: 123" value={formData.number} onChange={onChange} disabled={isSaving} />
+                                    <input type="text" name="number" className="lab-pac-form-input" placeholder="Ex: 123" value={formData.number} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                                 </div>
                                 <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
                                     <label className="lab-pac-form-label">Complemento</label>
-                                    <input type="text" name="complement" className="lab-pac-form-input" placeholder="Ex: Apto 101" value={formData.complement} onChange={onChange} disabled={isSaving} />
+                                    <input type="text" name="complement" className="lab-pac-form-input" placeholder="Ex: Apto 101" value={formData.complement} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                                 </div>
                                 <div className="lab-pac-form-group">
                                     <label className="lab-pac-form-label">Bairro</label>
-                                    <input type="text" name="district" className="lab-pac-form-input" placeholder="Ex: Centro" value={formData.district} onChange={onChange} disabled={isSaving} />
+                                    <input type="text" name="district" className="lab-pac-form-input" placeholder="Ex: Centro" value={formData.district} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                                 </div>
                                 <div className="lab-pac-form-group">
                                     <label className="lab-pac-form-label">Cidade</label>
-                                    <input type="text" name="city" className="lab-pac-form-input" value={formData.city} onChange={onChange} disabled={isSaving} />
+                                    <input type="text" name="city" className="lab-pac-form-input" value={formData.city} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                                 </div>
                                 <div className="lab-pac-form-group">
                                     <label className="lab-pac-form-label">Estado</label>
-                                    <select name="state" className="lab-pac-form-select" value={formData.state} onChange={onChange} disabled={isSaving}>
+                                    <select name="state" className="lab-pac-form-select" value={formData.state} onChange={onChange} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}}>
                                         <option value="">Selecione...</option>
                                         <option value="PE">Pernambuco (PE)</option>
                                         <option value="PB">Paraíba (PB)</option>
@@ -353,11 +360,11 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving }) => {
                     <div className="lab-pac-form-grid two-cols" style={{ padding: '1rem', gap: '1rem' }}>
                         <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
                             <label className="lab-pac-form-label" style={{ color: '#0ea5e9' }}>Nome da mãe</label>
-                            <input type="text" name="mother_name" className="lab-pac-form-input" placeholder="Ex: Maria José da Silva" value={formData.mother_name} onChange={onChange} disabled={isSaving} />
+                            <input type="text" name="mother_name" className="lab-pac-form-input" placeholder="Ex: Maria José da Silva" value={formData.mother_name} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                         </div>
                         <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
                             <label className="lab-pac-form-label">Nome do pai</label>
-                            <input type="text" name="father_name" className="lab-pac-form-input" placeholder="Ex: João da Silva" value={formData.father_name} onChange={onChange} disabled={isSaving} />
+                            <input type="text" name="father_name" className="lab-pac-form-input" placeholder="Ex: João da Silva" value={formData.father_name} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                         </div>
                     </div>
                 )}
@@ -370,11 +377,11 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving }) => {
                     <div className="lab-pac-form-grid one-col" style={{ padding: '1rem', gap: '1rem' }}>
                         <div className="lab-pac-form-group">
                             <label className="lab-pac-form-label">Observações</label>
-                            <textarea name="notes" className="lab-pac-form-textarea" placeholder="Observações adicionais..." value={formData.notes} onChange={onChange} maxLength="500" disabled={isSaving} style={{ minHeight: '60px' }}></textarea>
+                            <textarea name="notes" className="lab-pac-form-textarea" placeholder="Observações adicionais..." value={formData.notes} onChange={onChange} maxLength="500" disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? { ...readOnlyStyle, minHeight: '60px', resize: 'none' } : { minHeight: '60px' }}></textarea>
                         </div>
                         <div className="lab-pac-form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
-                            <input type="checkbox" id="is_active_chk" name="is_active" checked={formData.is_active} onChange={onChange} disabled={isSaving} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
-                            <label htmlFor="is_active_chk" style={{ cursor: 'pointer', fontWeight: 600, color: '#334155' }}>Paciente ativo</label>
+                            <input type="checkbox" id="is_active_chk" name="is_active" checked={formData.is_active} onChange={onChange} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={{ width: '18px', height: '18px', cursor: readOnly ? 'default' : 'pointer' }} />
+                            <label htmlFor="is_active_chk" style={{ cursor: readOnly ? 'default' : 'pointer', fontWeight: 600, color: '#334155' }}>Paciente ativo</label>
                         </div>
                     </div>
                 )}

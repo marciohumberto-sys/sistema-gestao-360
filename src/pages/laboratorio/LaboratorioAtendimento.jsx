@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, UserPlus, Activity, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Search, UserPlus, Activity, Loader2, AlertCircle, CheckCircle2, Edit2 } from 'lucide-react';
 import { laboratorioAtendimentoService } from '../../services/api/laboratorioAtendimento.service';
 import { laboratorioPacientesService } from '../../services/api/laboratorioPacientes.service';
 import LaboratorioOperacionalModal from '../../components/laboratorio/LaboratorioOperacionalModal';
+import PacienteFormModal from '../../components/laboratorio/PacienteFormModal';
 import './LaboratorioAtendimento.css';
 
 const calculateAge = (birthDateStr) => {
@@ -39,6 +40,10 @@ const LaboratorioAtendimento = () => {
     const [selectedPatientForModal, setSelectedPatientForModal] = useState(null);
 
     const [successMessage, setSuccessMessage] = useState(null);
+
+    // --- ESTADOS DO MODAL DE EDIÇÃO DE PACIENTE (LISTA) ---
+    const [isPacienteEditModalOpen, setIsPacienteEditModalOpen] = useState(false);
+    const [editingPatientId, setEditingPatientId] = useState(null);
 
     const searchRef = useRef(null);
     const typingTimeoutRef = useRef(null);
@@ -167,6 +172,26 @@ const LaboratorioAtendimento = () => {
         setTimeout(() => setSuccessMessage(null), 5000);
     };
 
+    const handleOpenEditModal = (e, patientId) => {
+        e.stopPropagation();
+        setEditingPatientId(patientId);
+        setIsPacienteEditModalOpen(true);
+    };
+
+    const handlePatientEditSuccess = (msg, updatedPatient) => {
+        setIsPacienteEditModalOpen(false);
+        setEditingPatientId(null);
+        setSuccessMessage(msg);
+        
+        // Atualizar lista sem recarregar ou perder busca
+        if (updatedPatient) {
+            setRecentPatients(prev => prev.map(p => p.id === updatedPatient.id ? updatedPatient : p));
+            setPacientesResult(prev => prev.map(p => p.id === updatedPatient.id ? updatedPatient : p));
+        }
+        
+        setTimeout(() => setSuccessMessage(null), 5000);
+    };
+
     const renderPatientList = (patients, title, subTitle, emptyDescription, isSearch) => (
         <div style={{ marginTop: '1rem' }}>
             {patients.length > 0 && (
@@ -213,14 +238,38 @@ const LaboratorioAtendimento = () => {
                                     <span>CPF: <strong style={{ color: '#334155', fontWeight: 500 }}>{formatCpf(paciente.cpf)}</strong></span>
                                 </div>
                             </div>
-                            <div style={{ marginLeft: '1rem', flexShrink: 0 }}>
+                            <div style={{ marginLeft: '1rem', flexShrink: 0, display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                <button
+                                    className="lab-btn"
+                                    style={{ 
+                                        justifyContent: 'center', 
+                                        backgroundColor: 'transparent', 
+                                        border: '1px solid #cbd5e1', 
+                                        color: '#64748b', 
+                                        display: 'flex', 
+                                        alignItems: 'center',
+                                        width: '36px',
+                                        height: '36px',
+                                        padding: '0',
+                                        borderRadius: '6px',
+                                        transition: 'all 0.2s',
+                                        boxShadow: 'none'
+                                    }}
+                                    data-tooltip="Editar cadastro"
+                                    aria-label="Editar cadastro"
+                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.color = '#334155'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
+                                    onClick={(e) => handleOpenEditModal(e, paciente.id)}
+                                >
+                                    <Edit2 size={16} />
+                                </button>
                                 <button
                                     className="lab-btn lab-btn-primary"
-                                    style={{ whiteSpace: 'nowrap', minWidth: '170px', justifyContent: 'center' }}
+                                    style={{ whiteSpace: 'nowrap', minWidth: '110px', justifyContent: 'center', height: '36px', padding: '0 1rem' }}
                                     disabled={paciente.is_active === false}
                                     onClick={() => handleSelectPatientForModal(paciente)}
                                 >
-                                    <Activity size={16} /> Atender Paciente
+                                    <Activity size={16} /> Atender
                                 </button>
                             </div>
                         </div>
@@ -318,6 +367,24 @@ const LaboratorioAtendimento = () => {
                     initialPatient={selectedPatientForModal}
                     onClose={handleCloseOperacionalModal}
                     onSuccess={handleModalSuccess}
+                    onPatientUpdated={(updatedPatient) => {
+                        setRecentPatients(prev => prev.map(p => p.id === updatedPatient.id ? updatedPatient : p));
+                        setPacientesResult(prev => prev.map(p => p.id === updatedPatient.id ? updatedPatient : p));
+                    }}
+                />
+            )}
+
+            {/* Modal de Edição de Paciente (Independente) */}
+            {isPacienteEditModalOpen && (
+                <PacienteFormModal
+                    isOpen={isPacienteEditModalOpen}
+                    mode="edit"
+                    patientId={editingPatientId}
+                    onClose={() => {
+                        setIsPacienteEditModalOpen(false);
+                        setEditingPatientId(null);
+                    }}
+                    onSuccess={handlePatientEditSuccess}
                 />
             )}
             

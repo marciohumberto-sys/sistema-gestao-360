@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-    Loader2, X, Beaker, FileText, Activity, Save, AlertTriangle, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, User
+    Loader2, X, Beaker, FileText, Activity, Save, AlertTriangle, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, User, Edit2
 } from 'lucide-react';
 import { laboratorioPacientesService } from '../../services/api/laboratorioPacientes.service';
 import { laboratorioAtendimentoService } from '../../services/api/laboratorioAtendimento.service';
@@ -37,7 +37,7 @@ const formatCpf = (cpf) => {
     return num.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 };
 
-const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, onSuccess }) => {
+const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, onSuccess, onPatientUpdated }) => {
     // --- ESTADOS DO PACIENTE ---
     const mode = initialPatient ? 'edit' : 'create';
     const [patientData, setPatientData] = useState(initialFormData);
@@ -45,6 +45,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
     const [patientFormErrors, setPatientFormErrors] = useState({});
     const [isPatientExpanded, setIsPatientExpanded] = useState(!initialPatient);
     const [internalPatientId, setInternalPatientId] = useState(initialPatient?.id || null);
+    const [isEditingPatientCadastro, setIsEditingPatientCadastro] = useState(false);
     
     // --- ESTADOS DO ATENDIMENTO ---
     const [attendanceData, setAttendanceData] = useState({
@@ -96,6 +97,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
             setFeedback(null);
             setPatientFormErrors({});
             setIsPatientExpanded(!initialPatient);
+            setIsEditingPatientCadastro(false);
             setInternalPatientId(initialPatient?.id || null);
             setExamesSolicitados([]);
             isSuccessRef.current = false;
@@ -522,6 +524,60 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
         }
     };
 
+    const handleSalvarCadastroPaciente = async () => {
+        if (!validatePacienteForm(patientData, setPatientFormErrors)) {
+            setFeedback({ type: 'error', text: 'Verifique os campos obrigatórios do paciente.' });
+            return;
+        }
+
+        setIsSaving(true);
+        savingRef.current = true;
+        try {
+            const cleanData = normalizePacienteDataForSave(patientData);
+            const dupCheck = await laboratorioPacientesService.verificarDuplicidadePaciente(cleanData, internalPatientId);
+            
+            if (dupCheck.duplicadoForte) {
+                setFeedback({ type: 'error', text: dupCheck.motivo });
+                return;
+            }
+
+            const resultPatient = await laboratorioPacientesService.atualizarPaciente(internalPatientId, cleanData);
+            
+            setFeedback({ type: 'success', text: 'Cadastro do paciente atualizado com sucesso.' });
+            setIsEditingPatientCadastro(false);
+            setPatientData(resultPatient);
+            setOriginalPatientData(resultPatient);
+            if (onPatientUpdated) onPatientUpdated(resultPatient);
+            
+        } catch (error) {
+            setFeedback({ type: 'error', text: 'Erro ao atualizar o cadastro do paciente.' });
+        } finally {
+            setIsSaving(false);
+            savingRef.current = false;
+        }
+    };
+
+    const handleCancelarEdicaoPaciente = () => {
+        const hasChanges = JSON.stringify(patientData) !== JSON.stringify(originalPatientData);
+        if (hasChanges) {
+            setConfirmModal({
+                open: true,
+                type: 'cancel-patient',
+                title: 'Descartar alterações',
+                message: 'Você tem edições não salvas no cadastro do paciente. Deseja cancelar a edição e descartar essas alterações?',
+                confirmText: 'Descartar alterações',
+                onConfirm: () => {
+                    setConfirmModal({ open: false });
+                    setPatientData(originalPatientData);
+                    setPatientFormErrors({});
+                    setIsEditingPatientCadastro(false);
+                }
+            });
+        } else {
+            setIsEditingPatientCadastro(false);
+        }
+    };
+
     // --- ATALHOS DE TECLADO ---
     useEffect(() => {
         if (!isOpen) return;
@@ -534,11 +590,15 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
             if (e.ctrlKey && e.key === 'Enter') {
                 e.preventDefault();
                 if (confirmModal.open) {
-                    if (confirmModal.type === 'save' && confirmModal.onConfirm) {
+                    if ((confirmModal.type === 'save' || confirmModal.type === 'cancel-patient') && confirmModal.onConfirm) {
                         confirmModal.onConfirm();
                     }
                 } else if (!isExamModalOpen) {
-                    prepararSalvamento();
+                    if (isEditingPatientCadastro) {
+                        handleSalvarCadastroPaciente();
+                    } else {
+                        prepararSalvamento();
+                    }
                 }
                 return;
             }
@@ -546,7 +606,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
             // Alt + E (Focar Inclusão Rápida)
             if (e.altKey && e.key.toLowerCase() === 'e') {
                 e.preventDefault();
-                if (!confirmModal.open && !isExamModalOpen && quickExamInputRef.current) {
+                if (!isEditingPatientCadastro && !confirmModal.open && !isExamModalOpen && quickExamInputRef.current) {
                     quickExamInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     setTimeout(() => quickExamInputRef.current.focus(), 300);
                 }
@@ -556,7 +616,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
             // Alt + O (Focar Origem)
             if (e.altKey && e.key.toLowerCase() === 'o') {
                 e.preventDefault();
-                if (!confirmModal.open && !isExamModalOpen && originRef.current) {
+                if (!isEditingPatientCadastro && !confirmModal.open && !isExamModalOpen && originRef.current) {
                     originRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     setTimeout(() => originRef.current.focus(), 300);
                 }
@@ -572,6 +632,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                     if (section) {
                         section.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         setTimeout(() => {
+                            if (!isEditingPatientCadastro && mode === 'edit') return;
                             const nameInput = document.getElementsByName('full_name')[0];
                             if (nameInput) nameInput.focus();
                         }, 300);
@@ -654,7 +715,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                 // 3. Modal de Confirmação (qualquer um)
                 if (confirmModal.open) {
                     e.preventDefault();
-                    if (confirmModal.type === 'cancel') {
+                    if (confirmModal.type === 'cancel' || confirmModal.type === 'cancel-patient') {
                         // Confirmação de descarte: Esc equivale a "Continuar preenchendo"
                         setConfirmModal({ open: false });
                     } else {
@@ -663,7 +724,13 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                     }
                     return;
                 }
-                // 4. Modal Operacional principal
+                // 4. Edição de paciente em andamento
+                if (isEditingPatientCadastro) {
+                    e.preventDefault();
+                    handleCancelarEdicaoPaciente();
+                    return;
+                }
+                // 5. Modal Operacional principal
                 e.preventDefault();
                 handleCloseModal();
             }
@@ -671,7 +738,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
 
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [isOpen, isSaving, confirmModal, isExamModalOpen, examSuggestions.length, patientData, attendanceData, examesSolicitados, internalPatientId]);
+    }, [isOpen, isSaving, confirmModal, isExamModalOpen, examSuggestions.length, patientData, attendanceData, examesSolicitados, internalPatientId, isEditingPatientCadastro, originalPatientData]);
 
     if (!isOpen) return null;
 
@@ -716,6 +783,21 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                         {internalPatientId && !hasPatientChanges() && <span className="lab-badge lab-badge-success">Cadastrado</span>}
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b' }}>
+                                        {mode === 'edit' && !isEditingPatientCadastro && (
+                                            <button 
+                                                className="lab-btn"
+                                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem', background: 'transparent', color: '#3b82f6', border: '1px solid #bfdbfe', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '0.3rem', marginRight: '0.5rem' }}
+                                                data-tooltip="Editar cadastro"
+                                                aria-label="Editar cadastro"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsEditingPatientCadastro(true);
+                                                    if (!isPatientExpanded) setIsPatientExpanded(true);
+                                                }}
+                                            >
+                                                <Edit2 size={14} /> Editar
+                                            </button>
+                                        )}
                                         {!isPatientExpanded && <span style={{ fontSize: '0.85rem' }}>Alt + P para expandir</span>}
                                         {isPatientExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                                     </div>
@@ -737,7 +819,29 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                             formErrors={patientFormErrors} 
                                             onChange={handlePatientChangeWrapper} 
                                             isSaving={isSaving}
+                                            readOnly={mode === 'edit' && !isEditingPatientCadastro}
                                         />
+                                        
+                                        {isEditingPatientCadastro && (
+                                            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
+                                                <button 
+                                                    className="lab-btn"
+                                                    style={{ background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1' }}
+                                                    onClick={handleCancelarEdicaoPaciente}
+                                                    disabled={isSaving}
+                                                >
+                                                    <X size={16} /> Cancelar edição (Esc)
+                                                </button>
+                                                <button 
+                                                    className="lab-btn lab-btn-primary"
+                                                    onClick={handleSalvarCadastroPaciente}
+                                                    disabled={isSaving}
+                                                >
+                                                    {isSaving && savingRef.current ? <Loader2 size={16} className="spin" /> : <Save size={16} />} 
+                                                    Salvar cadastro (Ctrl+Enter)
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -929,7 +1033,20 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                         </div>
                                     </div>
                                     <div className="lab-summary-actions" style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                        <button className="lab-btn lab-btn-success lab-btn-block" onClick={prepararSalvamento} disabled={isSaving} style={{ padding: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.1rem' }}>
+                                        <button 
+                                            className="lab-btn lab-btn-success lab-btn-block" 
+                                            onClick={prepararSalvamento} 
+                                            disabled={isSaving || isEditingPatientCadastro} 
+                                            style={{ 
+                                                padding: '0.85rem', 
+                                                display: 'flex', 
+                                                flexDirection: 'column', 
+                                                alignItems: 'center', 
+                                                gap: '0.1rem',
+                                                opacity: isEditingPatientCadastro ? 0.5 : 1
+                                            }}
+                                            title={isEditingPatientCadastro ? "Salve ou cancele a edição do paciente primeiro" : ""}
+                                        >
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                 {isSaving ? <Loader2 size={18} className="spin" /> : <Save size={18} />} 
                                                 {isSaving ? 'Salvando...' : 'Salvar Tudo'}
@@ -1011,8 +1128,8 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(15, 23, 42, 0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
                     <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '500px', padding: '1.5rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', animation: 'fadeIn 0.2s ease-out' }}>
                         
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', color: confirmModal.type === 'cancel' ? '#ef4444' : confirmModal.type === 'future_date' || confirmModal.type === 'duplicate' ? '#f59e0b' : '#3b82f6' }}>
-                            {confirmModal.type === 'cancel' ? <AlertTriangle size={28} /> : confirmModal.type === 'future_date' || confirmModal.type === 'duplicate' ? <AlertCircle size={28} /> : <FileText size={28} />}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', color: confirmModal.type === 'cancel' || confirmModal.type === 'cancel-patient' ? '#ef4444' : confirmModal.type === 'future_date' || confirmModal.type === 'duplicate' ? '#f59e0b' : '#3b82f6' }}>
+                            {confirmModal.type === 'cancel' || confirmModal.type === 'cancel-patient' ? <AlertTriangle size={28} /> : confirmModal.type === 'future_date' || confirmModal.type === 'duplicate' ? <AlertCircle size={28} /> : <FileText size={28} />}
                             <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a' }}>{confirmModal.title}</h3>
                         </div>
                         
@@ -1034,8 +1151,8 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                 {confirmModal.cancelText}
                             </button>
                             <button 
-                                className={`lab-btn ${confirmModal.type === 'cancel' ? 'lab-btn-danger' : confirmModal.type === 'duplicate' ? 'lab-btn-warning' : 'lab-btn-success'}`}
-                                style={confirmModal.type === 'cancel' ? { background: '#ef4444', borderColor: '#ef4444', color: '#fff' } : confirmModal.type === 'duplicate' ? { background: '#f59e0b', borderColor: '#f59e0b', color: '#fff' } : {}}
+                                className={`lab-btn ${confirmModal.type === 'cancel' || confirmModal.type === 'cancel-patient' ? 'lab-btn-danger' : confirmModal.type === 'duplicate' ? 'lab-btn-warning' : 'lab-btn-success'}`}
+                                style={confirmModal.type === 'cancel' || confirmModal.type === 'cancel-patient' ? { background: '#ef4444', borderColor: '#ef4444', color: '#fff' } : confirmModal.type === 'duplicate' ? { background: '#f59e0b', borderColor: '#f59e0b', color: '#fff' } : {}}
                                 onClick={confirmModal.onConfirm}
                                 disabled={isSaving}
                             >
