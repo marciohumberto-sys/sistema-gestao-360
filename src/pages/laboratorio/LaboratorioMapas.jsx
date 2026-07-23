@@ -61,9 +61,7 @@ const LaboratorioMapas = () => {
             if (currentFilters.data) {
                 attQuery = attQuery.eq('attendance_date', currentFilters.data);
             }
-            if (currentFilters.protocolo.trim()) {
-                attQuery = attQuery.ilike('protocol_number', `%${currentFilters.protocolo.trim()}%`);
-            }
+            // Filtro de código do paciente movido para a consulta de pacientes
 
             const { data: attendances, error: attError } = await attQuery;
             if (attError) throw attError;
@@ -74,11 +72,14 @@ const LaboratorioMapas = () => {
             }
 
             const patientIds = [...new Set(attendances.map(a => a.patient_id))];
-            let patQuery = supabase.from('lab_patients').select('id, full_name, birth_date, sex, cns, cpf').in('id', patientIds);
+            let patQuery = supabase.from('lab_patients').select('id, full_name, birth_date, sex, cns, cpf, code').in('id', patientIds);
             
             if (currentFilters.paciente.trim()) {
                 const termo = currentFilters.paciente.trim();
                 patQuery = patQuery.or(`full_name.ilike.%${termo}%,cns.ilike.%${termo}%`);
+            }
+            if (currentFilters.protocolo.trim()) {
+                patQuery = patQuery.ilike('code', `%${currentFilters.protocolo.trim()}%`);
             }
 
             const { data: patients, error: patError } = await patQuery;
@@ -120,6 +121,7 @@ const LaboratorioMapas = () => {
                     agrupados[key] = {
                         id: key,
                         protocolo: att.protocol_number,
+                        codigoPaciente: paciente.code || 'N/A',
                         paciente: paciente.full_name || 'Paciente não encontrado',
                         pacienteObj: paciente,
                         atendimentoObj: att,
@@ -231,7 +233,7 @@ const LaboratorioMapas = () => {
         const local = mapObj.atendimentoObj?.delivery_location || 'Não informado';
         const medico = mapObj.atendimentoObj?.requesting_doctor || 'Não informado';
         const setor = mapObj.setor;
-        const protocolo = mapObj.protocolo;
+        const codigoPaciente = mapObj.codigoPaciente;
         const dataHoraImpressao = `${formatDate(todayDate)} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 
         let examsHtml = '';
@@ -251,7 +253,7 @@ const LaboratorioMapas = () => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa de Trabalho - ${escapeHtml(protocolo)} - ${escapeHtml(setor)}</title>
+    <title>Mapa de Trabalho - ${escapeHtml(codigoPaciente)} - ${escapeHtml(setor)}</title>
     <style>
         @page { 
             size: A4 portrait; 
@@ -453,8 +455,8 @@ const LaboratorioMapas = () => {
 
     <div class="lab-paper-info-grid">
         <div class="lab-paper-info-item">
-            <label class="font-bold">Protocolo:</label>
-            <span>${escapeHtml(protocolo)}</span>
+            <label class="font-bold">Código do paciente:</label>
+            <span>${escapeHtml(codigoPaciente)}</span>
         </div>
         <div class="lab-paper-info-item">
             <label class="font-bold">Data e hora:</label>
@@ -638,8 +640,8 @@ const LaboratorioMapas = () => {
                         </select>
                     </div>
                     <div className="lab-filter-item">
-                        <label>Protocolo</label>
-                        <input type="text" placeholder="Ex: 113443" value={filters.protocolo} onChange={(e) => setFilters({...filters, protocolo: e.target.value})} onKeyDown={handleKeyDown} />
+                        <label>Código do Paciente</label>
+                        <input type="text" placeholder="Ex: 115004" value={filters.protocolo} onChange={(e) => setFilters({...filters, protocolo: e.target.value})} onKeyDown={handleKeyDown} />
                     </div>
                     <div className="lab-filter-item">
                         <label>Paciente</label>
@@ -684,7 +686,7 @@ const LaboratorioMapas = () => {
                         <table className="lab-table">
                             <thead>
                                 <tr>
-                                    <th>Protocolo</th>
+                                    <th>Código do Paciente</th>
                                     <th className="col-paciente">Paciente</th>
                                     <th>Setor</th>
                                     <th className="text-center">Exames</th>
@@ -709,7 +711,7 @@ const LaboratorioMapas = () => {
                                 ) : (
                                     mapas.map((mapa) => (
                                         <tr key={mapa.id} className={selectedMapId === mapa.id ? 'selected-row' : ''} onClick={() => setSelectedMapId(mapa.id)} style={{ cursor: 'pointer' }}>
-                                            <td className="font-semibold">{mapa.protocolo}</td>
+                                            <td className="font-semibold">{mapa.codigoPaciente}</td>
                                             <td>{mapa.paciente}</td>
                                             <td><span className="lab-sector-tag">{mapa.setor}</span></td>
                                             <td className="text-center font-semibold">{mapa.qtdExames}</td>
@@ -780,8 +782,8 @@ const LaboratorioMapas = () => {
 
                             <div className="lab-paper-info-grid">
                                 <div className="lab-paper-info-item">
-                                    <label className="font-bold">Protocolo:</label>
-                                    <span>{mapSelected.protocolo}</span>
+                                    <label className="font-bold">Código do paciente:</label>
+                                    <span>{mapSelected.codigoPaciente}</span>
                                 </div>
                                 <div className="lab-paper-info-item">
                                     <label className="font-bold">Data e hora:</label>
