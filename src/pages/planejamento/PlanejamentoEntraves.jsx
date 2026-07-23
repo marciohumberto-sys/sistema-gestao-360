@@ -58,6 +58,20 @@ const PlanejamentoEntraves = () => {
     const [editingEntrave, setEditingEntrave] = useState(null);
     const [viewingEntrave, setViewingEntrave] = useState(null);
 
+    // ---- ESTADO DO COMBOBOX DE AÇÃO ----
+    const [actionSearch, setActionSearch] = useState('');
+    const [isActionDropdownOpen, setIsActionDropdownOpen] = useState(false);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!e.target.closest('.action-searchable-container')) {
+                setIsActionDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const emptyForm = {
         acaoId: '',
         acaoNome: '',
@@ -105,6 +119,12 @@ const PlanejamentoEntraves = () => {
             fetchAcoesParaEntraves(tenantId).then(setAcoes).catch(console.error);
         }
     }, [tenantId, loadEntraves]);
+
+    const filteredAcoesParaDropdown = useMemo(() => {
+        if (!actionSearch) return acoes;
+        const lower = actionSearch.toLowerCase();
+        return acoes.filter(a => (a.title || '').toLowerCase().includes(lower));
+    }, [acoes, actionSearch]);
 
     // ---- LISTAS ÚNICAS PARA FILTROS ----
     const acoesUnicas = useMemo(() => [...new Set(entraves.map(a => a.acaoNome))].sort(), [entraves]);
@@ -187,6 +207,10 @@ const PlanejamentoEntraves = () => {
     const handleSave = async (e) => {
         e.preventDefault();
         if (!tenantId) return;
+        if (!formData.acaoId) {
+            setSaveError('Selecione uma ação estratégica válida na lista.');
+            return;
+        }
         setSaveLoading(true);
         setSaveError(null);
         try {
@@ -236,6 +260,7 @@ const PlanejamentoEntraves = () => {
     const openEdit = (entrave) => {
         setEditingEntrave(entrave);
         setSaveError(null);
+        setActionSearch(entrave.acaoNome || '');
         setFormData({
             acaoId: entrave.acaoId || '',
             acaoNome: entrave.acaoNome || '',
@@ -270,6 +295,7 @@ const PlanejamentoEntraves = () => {
                 <button className="farmacia-btn-primary" onClick={() => {
                     setEditingEntrave(null);
                     setFormData(emptyForm);
+                    setActionSearch('');
                     setIsFormModalOpen(true);
                 }} disabled={loading}>
                     <Plus size={18} /> Novo Entrave
@@ -486,7 +512,12 @@ const PlanejamentoEntraves = () => {
                                     Registre entraves para acompanhar problemas que possam impactar a execução das ações estratégicas.
                                 </p>
                             </div>
-                            <button className="farmacia-btn-secondary" onClick={() => setIsFormModalOpen(true)} style={{ marginTop: '0.5rem' }}>
+                            <button className="farmacia-btn-secondary" onClick={() => {
+                                setEditingEntrave(null);
+                                setFormData(emptyForm);
+                                setActionSearch('');
+                                setIsFormModalOpen(true);
+                            }} style={{ marginTop: '0.5rem' }}>
                                 <Plus size={16} /> Registrar primeiro entrave
                             </button>
                         </div>
@@ -745,17 +776,104 @@ const PlanejamentoEntraves = () => {
                                     </div>
                                 )}
 
-                                <div className="farmacia-form-group">
+                                <div className="farmacia-form-group action-searchable-container" style={{ position: 'relative' }}>
                                     <label className="farmacia-form-label">Ação Estratégica Vinculada *</label>
-                                    <select className="farmacia-form-select" required value={formData.acaoId} onChange={e => {
-                                        const selected = acoes.find(a => a.id === e.target.value);
-                                        setFormData({...formData, acaoId: e.target.value, acaoNome: selected?.title || ''});
-                                    }}>
-                                        <option value="">Selecione a ação...</option>
-                                        {acoes.map(a => (
-                                            <option key={a.id} value={a.id}>{a.title}</option>
-                                        ))}
-                                    </select>
+                                    <div style={{ position: 'relative' }}>
+                                        <input 
+                                            type="text" 
+                                            className="farmacia-form-input" 
+                                            placeholder="Pesquisar ação estratégica..." 
+                                            value={actionSearch}
+                                            onChange={e => {
+                                                setActionSearch(e.target.value);
+                                                setIsActionDropdownOpen(true);
+                                                if (!e.target.value) {
+                                                    setFormData({...formData, acaoId: '', acaoNome: ''});
+                                                }
+                                            }}
+                                            onFocus={() => setIsActionDropdownOpen(true)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    if (isActionDropdownOpen && filteredAcoesParaDropdown.length === 1) {
+                                                        const a = filteredAcoesParaDropdown[0];
+                                                        setFormData({...formData, acaoId: a.id, acaoNome: a.title});
+                                                        setActionSearch(a.title);
+                                                        setIsActionDropdownOpen(false);
+                                                    }
+                                                } else if (e.key === 'Escape') {
+                                                    setIsActionDropdownOpen(false);
+                                                }
+                                            }}
+                                            required={!formData.acaoId}
+                                        />
+                                        {formData.acaoId ? (
+                                            <X 
+                                                size={16} 
+                                                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', cursor: 'pointer' }} 
+                                                onClick={() => {
+                                                    setActionSearch('');
+                                                    setFormData({...formData, acaoId: '', acaoNome: ''});
+                                                    setIsActionDropdownOpen(true);
+                                                }}
+                                            />
+                                        ) : (
+                                            <ChevronDown size={16} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
+                                        )}
+                                    </div>
+                                    
+                                    {isActionDropdownOpen && (
+                                        <div style={{ 
+                                            position: 'absolute', 
+                                            top: '100%', 
+                                            left: 0, 
+                                            right: 0, 
+                                            background: 'white', 
+                                            border: '1px solid #e2e8f0', 
+                                            borderRadius: '6px', 
+                                            marginTop: '4px', 
+                                            boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', 
+                                            zIndex: 50, 
+                                            maxHeight: '260px', 
+                                            overflowY: 'auto' 
+                                        }}>
+                                            {filteredAcoesParaDropdown.length > 0 ? (
+                                                filteredAcoesParaDropdown.map(a => (
+                                                    <div 
+                                                        key={a.id} 
+                                                        style={{ padding: '6px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '2px' }}
+                                                        onMouseDown={(e) => {
+                                                            e.preventDefault();
+                                                            setFormData({...formData, acaoId: a.id, acaoNome: a.title});
+                                                            setActionSearch(a.title);
+                                                            setIsActionDropdownOpen(false);
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                                                        onMouseLeave={e => e.currentTarget.style.background = 'white'}
+                                                    >
+                                                        <span style={{ 
+                                                            fontSize: '0.85rem', 
+                                                            color: '#1e293b', 
+                                                            fontWeight: 500, 
+                                                            lineHeight: '1.2',
+                                                            display: '-webkit-box',
+                                                            WebkitLineClamp: 2,
+                                                            WebkitBoxOrient: 'vertical',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis'
+                                                        }}>
+                                                            {a.title}
+                                                        </span>
+                                                        {a.responsible_name && (
+                                                            <span style={{ fontSize: '0.7rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Responsável: {a.responsible_name}</span>
+                                                        )}
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div style={{ padding: '12px', fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic', textAlign: 'center' }}>Nenhuma ação encontrada</div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="farmacia-form-group">

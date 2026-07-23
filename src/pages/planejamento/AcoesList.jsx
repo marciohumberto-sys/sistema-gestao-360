@@ -428,6 +428,8 @@ const AcoesList = () => {
         current_stage_observation: '',
         objectiveId: '',
         relatedObjectives: [],
+        budget_amount: null,
+        resource_source: '',
         latitude: null,
         longitude: null
     };
@@ -546,6 +548,8 @@ const AcoesList = () => {
                 custom_stages: acao.custom_stages || null,
                 current_stage_index: acao.current_stage_index ?? null,
                 current_stage_observation: acao.current_stage_observation || '',
+                budget_amount: acao.budget_amount ?? null,
+                resource_source: acao.resource_source || '',
                 latitude: acao.latitude ?? null,
                 longitude: acao.longitude ?? null
             });
@@ -2262,7 +2266,7 @@ const AcoesList = () => {
                                             </div>
                                         )}
                                         <div className="farmacia-form-group col-span-2">
-                                            <label className="farmacia-form-label">Secretarias Participantes</label>
+                                            <label className="farmacia-form-label">Secretarias e Órgãos Participantes</label>
                                             <div style={{ background: '#f8fafc', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '6px', padding: '12px 14px' }}>
                                                 {(() => {
                                                     const filtered = secretariats
@@ -2308,6 +2312,34 @@ const AcoesList = () => {
                                                     );
                                                 })()}
                                             </div>
+                                        </div>
+
+                                        <div className="farmacia-form-group">
+                                            <label className="farmacia-form-label">Orçamento</label>
+                                            <input 
+                                                type="text" 
+                                                className="farmacia-form-input" 
+                                                placeholder="R$ 0,00" 
+                                                value={formData.budget_amount !== null && formData.budget_amount !== undefined ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(formData.budget_amount) : ''} 
+                                                onChange={(e) => {
+                                                    let val = e.target.value.replace(/\D/g, '');
+                                                    if (!val) {
+                                                        setFormData({ ...formData, budget_amount: null });
+                                                    } else {
+                                                        setFormData({ ...formData, budget_amount: parseInt(val, 10) / 100 });
+                                                    }
+                                                }} 
+                                            />
+                                        </div>
+                                        <div className="farmacia-form-group">
+                                            <label className="farmacia-form-label">Fonte de Recurso</label>
+                                            <input 
+                                                type="text" 
+                                                className="farmacia-form-input" 
+                                                placeholder="Ex: Recurso próprio, convênio..." 
+                                                value={formData.resource_source} 
+                                                onChange={e => setFormData({ ...formData, resource_source: e.target.value })} 
+                                            />
                                         </div>
                                         <div className="farmacia-form-group col-span-2">
                                             <label className="farmacia-form-label">Descrição</label>
@@ -2681,12 +2713,12 @@ const AcoesList = () => {
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.875rem' }}>
                                         <div className="farmacia-form-group">
-                                            <label className="farmacia-form-label">Data Início</label>
-                                            <input type="date" className="farmacia-form-input" value={formData.data_inicio} onChange={e => setFormData({ ...formData, data_inicio: e.target.value })} />
+                                            <label className="farmacia-form-label">Data Início {!editingAcao && <span style={{color: '#ef4444'}}>*</span>}</label>
+                                            <input type="date" className="farmacia-form-input" value={formData.data_inicio} onChange={e => setFormData({ ...formData, data_inicio: e.target.value })} required={!editingAcao} />
                                         </div>
                                         <div className="farmacia-form-group">
-                                            <label className="farmacia-form-label">Data Término</label>
-                                            <input type="date" className="farmacia-form-input" value={formData.prazo} onChange={e => setFormData({ ...formData, prazo: e.target.value })} />
+                                            <label className="farmacia-form-label">Data Término {!editingAcao && <span style={{color: '#ef4444'}}>*</span>}</label>
+                                            <input type="date" className="farmacia-form-input" value={formData.prazo} onChange={e => setFormData({ ...formData, prazo: e.target.value })} required={!editingAcao} />
                                         </div>
                                     </div>
                                 </div>
@@ -3251,7 +3283,7 @@ const AcoesList = () => {
                                     {viewingAcao.participantes_adicionais && viewingAcao.participantes_adicionais.length > 0 && (
                                         <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '0.25rem' }}>
                                             <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                Secretarias Participantes
+                                                Secretarias e Órgãos Participantes
                                             </span>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                                 {viewingAcao.participantes_adicionais.map((secId, idx) => {
@@ -3263,6 +3295,25 @@ const AcoesList = () => {
                                                     );
                                                 })}
                                             </div>
+                                        </div>
+                                    )}
+
+                                    {/* Campos Orçamentários */}
+                                    {(viewingAcao.budget_amount !== null && viewingAcao.budget_amount !== undefined) && (
+                                        <div style={{ gridColumn: 'span 1', display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Orçamento</span>
+                                            <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(viewingAcao.budget_amount)}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {viewingAcao.resource_source && (
+                                        <div style={{ gridColumn: 'span 1', display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                                            <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Fonte de Recurso</span>
+                                            <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {viewingAcao.resource_source}
+                                            </span>
                                         </div>
                                     )}
 
@@ -3689,7 +3740,7 @@ const AcoesList = () => {
                         letterSpacing: '0.05em',
                         borderBottom: '1px solid #334155',
                         paddingBottom: '6px'
-                    }}>Secretarias Participantes</strong>
+                    }}>Secretarias e Órgãos Participantes</strong>
                     {secretariatsTooltip.items.map((p, i) => <div key={i} style={{ marginBottom: '4px' }}>{p}</div>)}
                 </div>
             )}

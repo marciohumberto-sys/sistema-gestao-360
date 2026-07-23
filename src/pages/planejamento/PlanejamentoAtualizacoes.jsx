@@ -25,10 +25,11 @@ import '../farmacia/FarmaciaModal.css';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchAtualizacoes, createAtualizacao, updateAtualizacao, deleteAtualizacao, fetchAcoes, updateAcao } from '../../services/api/planejamentoAcoes.service';
+import { fetchPlanejamentoUsers } from '../../services/planejamentoUsers.service';
 import { getActionTypeStages, getActionTypeConfig } from '../../modules/planejamento/constants/planningActionTypes';
 
 // Sub-componente para animação individual do card
-const UpdateCard = ({ item, acaoContext, index, getTipoConfig, getStatusLabel, formatDate, onEdit, onDelete, onView, isLast, isConcluidaAnteriormente, getActionTypeConfig, getDisplayProgress }) => {
+const UpdateCard = ({ item, acaoContext, index, getTipoConfig, getStatusLabel, formatDate, onEdit, onDelete, onView, isLast, isConcluidaAnteriormente, getActionTypeConfig, getDisplayProgress, authorName }) => {
     const [isVisible, setIsVisible] = useState(false);
     const cardRef = React.useRef(null);
 
@@ -181,11 +182,11 @@ const UpdateCard = ({ item, acaoContext, index, getTipoConfig, getStatusLabel, f
                     <div style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: '0.85rem', marginTop: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text)' }}>{item.responsavel.charAt(0).toUpperCase()}</span>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text)' }}>{authorName ? authorName.charAt(0).toUpperCase() : '?'}</span>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                                 <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-muted)' }}>
-                                    Atualizado por <strong style={{ color: '#1e293b', fontWeight: 700 }}>{item.responsavel}</strong>
+                                    Atualizado por <strong style={{ color: '#1e293b', fontWeight: 700 }}>{authorName}</strong>
                                 </span>
                                 <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                     {formatDate(item.data)}
@@ -540,7 +541,7 @@ const ActionContextCard = ({ acao, getStatusLabel }) => {
 
 // Componente principal
 const PlanejamentoAtualizacoes = () => {
-    const { tenantLink } = useAuth();
+    const { tenantLink, userProfile, user } = useAuth();
     const tenantId = tenantLink?.tenant_id;
     const location = useLocation();
     const navigate = useNavigate();
@@ -550,6 +551,7 @@ const PlanejamentoAtualizacoes = () => {
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState(null);
     const [acoes, setAcoes] = useState([]); // para popular o select do modal
+    const [planejamentoUsers, setPlanejamentoUsers] = useState([]); // para popular os nomes dos autores
     
     // Filtros
     const [busca, setBusca] = useState('');
@@ -608,6 +610,7 @@ const PlanejamentoAtualizacoes = () => {
         if (tenantId) {
             loadAtualizacoes();
             fetchAcoes(tenantId).then(setAcoes).catch(console.error);
+            fetchPlanejamentoUsers(tenantId).then(setPlanejamentoUsers).catch(console.error);
         }
     }, [tenantId, loadAtualizacoes]);
 
@@ -1302,24 +1305,46 @@ const PlanejamentoAtualizacoes = () => {
                         </div>
                     ) : (
                         <div className="updates-feed" style={{ position: 'relative', marginTop: '32px !important' }}>
-                            {atualizacoesFiltradas.map((item, index) => (
-                                <UpdateCard 
-                                    key={item.id} 
-                                    item={item} 
-                                    acaoContext={acoes.find(a => a.nome === item.acao)}
-                                    index={index}
-                                    getTipoConfig={getTipoConfig}
-                                    getStatusLabel={getStatusLabel}
-                                    formatDate={formatDate}
-                                    onEdit={handleEdit}
-                                    onDelete={handleDelete}
-                                    onView={handleViewUpdate}
-                                    isLast={index === atualizacoesFiltradas.length - 1}
-                                    isConcluidaAnteriormente={item.statusAnterior === 'Concluída' && item.statusNovo !== 'Concluída'}
-                                    getActionTypeConfig={getActionTypeConfig}
-                                    getDisplayProgress={getDisplayProgress}
-                                />
-                            ))}
+                            {atualizacoesFiltradas.map((item, index) => {
+                                const authorUser = planejamentoUsers.find(u => u.id === item.updated_by);
+                                let authorName = item.author_name;
+
+                                if (!authorName && authorUser) {
+                                    authorName = authorUser.name || authorUser.email;
+                                }
+
+                                if (!authorName && item.updated_by === user?.id) {
+                                    authorName = userProfile?.name || user?.user_metadata?.full_name || user?.email;
+                                }
+
+                                if (authorName && authorName.includes('@')) {
+                                    authorName = authorName.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+                                }
+
+                                if (!authorName) {
+                                    authorName = item.responsavel && item.responsavel !== 'Não informado' ? item.responsavel : 'Não informado';
+                                }
+
+                                return (
+                                    <UpdateCard 
+                                        key={item.id} 
+                                        item={item} 
+                                        acaoContext={acoes.find(a => a.nome === item.acao)}
+                                        index={index}
+                                        getTipoConfig={getTipoConfig}
+                                        getStatusLabel={getStatusLabel}
+                                        formatDate={formatDate}
+                                        onEdit={handleEdit}
+                                        onDelete={handleDelete}
+                                        onView={handleViewUpdate}
+                                        isLast={index === atualizacoesFiltradas.length - 1}
+                                        isConcluidaAnteriormente={item.statusAnterior === 'Concluída' && item.statusNovo !== 'Concluída'}
+                                        getActionTypeConfig={getActionTypeConfig}
+                                        getDisplayProgress={getDisplayProgress}
+                                        authorName={authorName}
+                                    />
+                                );
+                            })}
                         </div>
                     )}
                 </div>
