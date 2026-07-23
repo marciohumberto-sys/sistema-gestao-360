@@ -1,6 +1,6 @@
 /* LaboratorioMapas.css */
 
-.lab-mapas-container {
+.laboratorio-mapas {
     padding: 1.5rem 2rem;
     max-width: 100%;
     width: 100%;
@@ -11,54 +11,141 @@
     font-family: var(--font-family, system-ui, sans-serif);
 }
 
-.lab-mapas-header {
+.laboratorio-mapas .lab-mapas-header {
     margin-bottom: 1.25rem;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
 }
 
-/* Filtros */
-.lab-filters-card {
-    margin-bottom: 1.25rem;
+.laboratorio-mapas .lab-title {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.5rem;
+    color: #0f172a;
+    font-weight: 700;
 }
 
-.lab-filters-grid {
+.laboratorio-mapas .lab-subtitle {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+/* Modal e Toasts genéricos usados aqui */
+.laboratorio-mapas .lab-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.laboratorio-mapas .lab-modal {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.laboratorio-mapas .lab-modal-title {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+    color: #0f172a;
+}
+
+.laboratorio-mapas .lab-modal-body {
+    margin: 0 0 1.5rem 0;
+    color: #475569;
+    font-size: 0.9rem;
+}
+
+.laboratorio-mapas .lab-modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.laboratorio-mapas .lab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.laboratorio-mapas .lab-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.laboratorio-mapas .lab-btn-primary { background: #3b82f6; color: white; }
+.laboratorio-mapas .lab-btn-primary:hover:not(:disabled) { background: #2563eb; }
+.laboratorio-mapas .lab-btn-success { background: #10b981; color: white; }
+.laboratorio-mapas .lab-btn-success:hover:not(:disabled) { background: #059669; }
+.laboratorio-mapas .lab-btn-danger { background: #ef4444; color: white; }
+.laboratorio-mapas .lab-btn-danger:hover:not(:disabled) { background: #dc2626; }
+.laboratorio-mapas .lab-btn-outline { background: white; border: 1px solid #cbd5e1; color: #334155; }
+.laboratorio-mapas .lab-btn-outline:hover:not(:disabled) { background: #f8fafc; }
+
+/* Filtros */
+.laboratorio-mapas .lab-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid #f1f5f9;
+}
+
+.laboratorio-mapas .lab-filters-card {
+    margin-bottom: 1.25rem;
+    padding: 1.25rem;
+}
+
+.laboratorio-mapas .lab-filters-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 1rem;
     align-items: flex-end;
 }
 
-.lab-filters-grid > * {
+.laboratorio-mapas .lab-filters-grid > * {
     min-width: 0;
 }
 
 @media (min-width: 1200px) {
-    .lab-filters-grid {
-        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.5fr) 130px;
+    .laboratorio-mapas .lab-filters-grid {
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.5fr) 180px;
     }
 }
 
-.lab-filter-actions {
+.laboratorio-mapas .lab-filters-actions {
     display: flex;
     align-items: flex-end;
     height: 100%;
 }
 
-.lab-filter-actions button {
-    height: 36px;
+.laboratorio-mapas .lab-filters-actions button {
+    height: 38px;
     width: 100%;
     margin-top: auto;
+    justify-content: center;
 }
 
-.lab-filter-item {
+.laboratorio-mapas .lab-filter-item {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
 }
 
-.lab-filter-item label {
+.laboratorio-mapas .lab-filter-item label {
     font-size: 0.75rem;
     font-weight: 600;
     color: #64748b;
@@ -66,9 +153,9 @@
     letter-spacing: 0.02em;
 }
 
-.lab-filter-item input,
-.lab-filter-item select {
-    padding: 0.5rem 0.75rem;
+.laboratorio-mapas .lab-filter-item input,
+.laboratorio-mapas .lab-filter-item select {
+    padding: 0 0.75rem;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
     font-size: 0.9rem;
@@ -76,49 +163,30 @@
     outline: none;
     background-color: white;
     transition: border-color 0.2s;
-    height: 36px;
+    height: 38px;
     box-sizing: border-box;
 }
 
-.lab-filter-item input:focus,
-.lab-filter-item select:focus {
+.laboratorio-mapas .lab-filter-item input:focus,
+.laboratorio-mapas .lab-filter-item select:focus {
     border-color: #3b82f6;
 }
 
-.lab-input-with-icon {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-
-.lab-input-with-icon svg {
-    position: absolute;
-    left: 14px;
-    color: #94a3b8;
-    pointer-events: none;
-}
-
-.lab-filter-item .lab-input-with-icon input,
-.lab-input-with-icon input {
-    padding-left: 42px;
-    width: 100%;
-}
-
 /* Resumo (Mini Cards) */
-.lab-summary-row {
+.laboratorio-mapas .lab-summary-row {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 1rem;
     margin-bottom: 1.5rem;
 }
 
 @media (max-width: 1024px) {
-    .lab-summary-row {
-        grid-template-columns: repeat(3, 1fr);
+    .laboratorio-mapas .lab-summary-row {
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 
-.lab-summary-mini-card {
+.laboratorio-mapas .lab-summary-mini-card {
     background: white;
     border-radius: 12px;
     padding: 1rem;
@@ -126,10 +194,10 @@
     align-items: center;
     gap: 1rem;
     border: 1px solid #f1f5f9;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
-.lab-summary-mini-icon {
+.laboratorio-mapas .lab-summary-mini-icon {
     width: 42px;
     height: 42px;
     border-radius: 10px;
@@ -138,62 +206,167 @@
     justify-content: center;
 }
 
-.lab-summary-mini-info {
+.laboratorio-mapas .lab-summary-mini-info {
     display: flex;
     flex-direction: column;
 }
 
-.lab-summary-mini-value {
+.laboratorio-mapas .lab-summary-mini-value {
     font-size: 1.35rem;
     font-weight: 800;
     color: #0f172a;
     line-height: 1.1;
 }
 
-.lab-summary-mini-label {
+.laboratorio-mapas .lab-summary-mini-label {
     font-size: 0.75rem;
     font-weight: 600;
     color: #64748b;
 }
 
 /* Layout Principal */
-.lab-mapas-layout {
+.laboratorio-mapas .lab-mapas-layout {
     display: grid;
-    grid-template-columns: minmax(0, 56%) minmax(0, 44%);
+    grid-template-columns: minmax(0, 35%) minmax(0, 65%);
     gap: 1.5rem;
     align-items: start;
 }
 
-@media (max-width: 1300px) {
-    .lab-mapas-layout {
+@media (max-width: 1024px) {
+    .laboratorio-mapas .lab-mapas-layout {
         grid-template-columns: 1fr;
     }
 }
 
 /* Tabela e Lista */
-.lab-mapas-list-card {
-    height: 100%;
+.laboratorio-mapas .lab-mapas-list-card {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 280px);
+    min-height: 500px;
 }
 
-.lab-table th.col-paciente {
-    width: 35%;
+.laboratorio-mapas .lab-card-header {
+    padding: 1.25rem 1.25rem 0.5rem 1.25rem;
 }
 
-.selected-row td {
-    background-color: #f0f7ff !important;
+.laboratorio-mapas .lab-card-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
-.selected-row td:first-child {
-    box-shadow: inset 4px 0 0 #3b82f6;
+.laboratorio-mapas .lab-list-filters {
+    padding: 0.5rem 1.25rem 1rem 1.25rem;
+    border-bottom: 1px solid #f1f5f9;
 }
 
-.lab-action-group {
+.laboratorio-mapas .lab-list-filters select {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: #334155;
+    outline: none;
+    background-color: white;
+    height: 36px;
+}
+
+.laboratorio-mapas .lab-list-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+.laboratorio-mapas .empty-state {
+    padding: 2rem;
+    text-align: center;
+    color: #64748b;
+    font-size: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.laboratorio-mapas .lab-list-item {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.laboratorio-mapas .lab-list-item:hover {
+    background-color: #f8fafc;
+}
+
+.laboratorio-mapas .lab-list-item.selected {
+    background-color: #eff6ff;
+    border-left: 3px solid #3b82f6;
+    padding-left: calc(1.25rem - 3px);
+}
+
+.laboratorio-mapas .lab-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.laboratorio-mapas .lab-item-sector {
+    color: #0f172a;
+}
+
+.laboratorio-mapas .lab-item-date {
+    color: #64748b;
+    font-weight: 500;
+}
+
+.laboratorio-mapas .lab-item-body {
+    font-size: 0.8rem;
+    color: #475569;
+    line-height: 1.5;
+}
+
+.laboratorio-mapas .lab-item-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.25rem;
+}
+
+.laboratorio-mapas .lab-item-actions {
     display: flex;
     gap: 0.25rem;
-    justify-content: flex-end;
 }
 
-.lab-status-tag {
+.laboratorio-mapas .lab-icon-btn {
+    background: transparent;
+    border: none;
+    padding: 0.4rem;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.laboratorio-mapas .lab-icon-btn:hover {
+    background-color: #e2e8f0;
+}
+
+.laboratorio-mapas .lab-status-tag {
     padding: 0.2rem 0.6rem;
     border-radius: 12px;
     font-size: 0.75rem;
@@ -202,26 +375,24 @@
     white-space: nowrap;
 }
 
-.status-success { background: #d1fae5; color: #047857; }
-.status-warning { background: #fef3c7; color: #b45309; }
-.status-default { background: #f1f5f9; color: #475569; }
-.status-info { background: #e0f2fe; color: #0369a1; }
+.laboratorio-mapas .status-pending { background: #fef9c3; color: #d97706; border: 1px solid #fde047; }
+.laboratorio-mapas .status-printed { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.laboratorio-mapas .status-canceled { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
 
-.lab-text-primary { color: #3b82f6; }
-.lab-text-gray { color: #94a3b8; }
-.lab-text-gray:hover { color: #475569; }
+.laboratorio-mapas .lab-text-primary { color: #3b82f6; }
+.laboratorio-mapas .lab-text-gray { color: #64748b; }
+.laboratorio-mapas .lab-text-success { color: #10b981; }
 
 /* Prévia de Impressão */
-.lab-print-preview-container {
-    position: sticky;
-    top: 1.5rem;
-    align-self: start;
+.laboratorio-mapas .lab-print-preview-container {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    height: calc(100vh - 280px);
+    min-height: 500px;
 }
 
-.lab-print-actions {
+.laboratorio-mapas .lab-print-actions {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -229,66 +400,64 @@
     padding: 0.75rem 1rem;
     border-radius: 12px;
     border: 1px solid #f1f5f9;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
-.lab-preview-title {
+.laboratorio-mapas .lab-preview-title {
     font-size: 0.95rem;
     font-weight: 700;
     color: #1e293b;
 }
 
-.lab-preview-btn-group {
+.laboratorio-mapas .lab-preview-btn-group {
     display: flex;
     gap: 0.5rem;
 }
 
-.lab-btn-sm {
-    padding: 0.4rem 0.75rem;
+.laboratorio-mapas .lab-btn-sm {
+    padding: 0.35rem 0.75rem;
     font-size: 0.8rem;
 }
 
+.laboratorio-mapas .lab-preview-content {
+    background-color: #e2e8f0;
+    border-radius: 12px;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1.5rem;
+    border: 1px solid #cbd5e1;
+}
+
 /* O "Papel" mockado */
-.lab-paper-mock {
+.laboratorio-mapas .lab-paper-mock {
     background: white;
-    border-radius: 4px;
-    background-color: white;
-    width: 100%;
+    max-width: 100%;
     margin: 0 auto;
-    padding: 1.25rem;
+    padding: 2rem;
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    border: 1px solid #e2e8f0;
     min-height: 297mm;
     color: #333;
     font-family: Arial, Helvetica, sans-serif;
-    position: relative;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
 }
 
-.lab-paper-header {
+.laboratorio-mapas .lab-paper-header {
     border-bottom: 1px solid #e2e8f0;
     padding-bottom: 1rem;
     margin-bottom: 1.5rem;
 }
 
-.header-top {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto 72px;
+.laboratorio-mapas .header-top {
+    display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 12px;
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
     margin-bottom: 0.5rem;
 }
 
-.header-text-block {
-    min-width: 0;
-    text-align: left;
-}
-
-.header-text-block h3 {
+.laboratorio-mapas .header-text-block h3 {
     margin: 0 0 0.15rem 0;
     font-size: 1rem;
     font-weight: 700;
@@ -296,54 +465,25 @@
     text-transform: uppercase;
 }
 
-.header-text-block h4 {
+.laboratorio-mapas .header-text-block h4 {
     margin: 0;
     font-size: 0.85rem;
     color: #64748b;
     font-weight: normal;
 }
 
-.header-divider {
-    width: 1px;
-    background-color: #cbd5e1;
-    align-self: stretch;
-}
-
-.header-logos-stacked {
-    width: 100%;
+.laboratorio-mapas .header-logos {
     display: flex;
-    flex-direction: column;
+    gap: 10px;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
 }
 
-.header-logos-stacked img {
-    height: auto;
-    width: auto;
-    max-width: 100%;
+.laboratorio-mapas .header-logos img {
+    height: 25px;
     object-fit: contain;
-    opacity: 0.9;
 }
 
-.header-logos-stacked img:first-child {
-    max-width: 68px;
-    max-height: 28px;
-}
-
-.header-logos-stacked img:last-child {
-    max-width: 36px;
-    max-height: 30px;
-}
-
-.header-horizontal-line {
-    height: 1px;
-    background-color: #e2e8f0;
-    width: 100%;
-    margin-bottom: 1rem;
-}
-
-.header-bottom {
+.laboratorio-mapas .header-bottom {
     text-align: center;
     margin-top: 1rem;
     display: flex;
@@ -352,7 +492,7 @@
     gap: 0.4rem;
 }
 
-.header-bottom h2 {
+.laboratorio-mapas .header-bottom h2 {
     margin: 0;
     font-size: 1.25rem;
     font-weight: 700;
@@ -360,7 +500,7 @@
     letter-spacing: 0.5px;
 }
 
-.lab-paper-sector-badge {
+.laboratorio-mapas .lab-paper-sector-badge {
     font-size: 0.85rem;
     font-weight: 600;
     display: inline-block;
@@ -368,74 +508,81 @@
     padding: 0.2rem 1rem;
     border-radius: 4px;
     border: 1px solid #e2e8f0;
-    background: transparent;
 }
 
-.lab-paper-info-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem 2rem;
-    margin-bottom: 2rem;
-    padding: 0.75rem 0;
-    border-top: 1px solid #f1f5f9;
-    border-bottom: 1px solid #f1f5f9;
-    font-size: 0.9rem;
+.laboratorio-mapas .lab-patient-block {
+    margin-bottom: 1.5rem;
+    page-break-inside: avoid;
 }
 
-.lab-paper-info-item {
-    display: flex;
-    gap: 0.5rem;
-    align-items: baseline;
-    color: #334155;
-}
-
-.lab-paper-info-item.full-row {
-    grid-column: 1 / -1;
-}
-
-.font-bold {
+.laboratorio-mapas .lab-patient-header {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-left: 3px solid #64748b;
+    padding: 0.5rem 0.75rem;
     font-weight: 600;
-    color: #475569;
-    min-width: 80px;
+    font-size: 0.85rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+    word-break: break-word;
 }
 
-.lab-paper-table {
+.laboratorio-mapas .lab-patient-exams {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
 }
 
-.lab-paper-table th {
+.laboratorio-mapas .lab-patient-exams th {
     text-align: left;
     border-bottom: 1px solid #cbd5e1;
-    padding: 0.5rem 0.25rem;
-    font-size: 0.85rem;
+    padding: 0.4rem 0.25rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: #64748b;
-    text-transform: uppercase;
 }
 
-.lab-paper-table td {
-    padding: 0.75rem 0.25rem;
-    font-size: 0.9rem;
+.laboratorio-mapas .lab-patient-exams td {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.85rem;
     color: #1e293b;
-    vertical-align: bottom;
-    height: 3rem;
-    border-bottom: 1px solid #f8fafc;
+    vertical-align: top;
+    border-bottom: 1px dotted #e2e8f0;
 }
 
-.col-cod { width: 12%; }
-.col-exame { width: 43%; }
-.col-resultado { width: 45%; }
+.laboratorio-mapas .col-ex-cod { width: 15%; }
+.laboratorio-mapas .col-ex-name { width: 35%; font-weight: 600; word-break: break-word; }
+.laboratorio-mapas .col-ex-param { width: 30%; }
+.laboratorio-mapas .col-ex-hist { width: 20%; color: #64748b; text-align: right; font-size: 0.75rem; }
 
-.linha-escrita {
-    border-bottom: 1px solid #e2e8f0;
-    width: 100%;
-    height: 100%;
-    min-height: 15px;
+.laboratorio-mapas .param-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    align-items: baseline;
+    gap: 8px;
 }
 
-.lab-paper-footer {
+.laboratorio-mapas .param-name {
+    word-break: break-word;
+}
+
+.laboratorio-mapas .param-line {
+    border-bottom: 1px solid #cbd5e1;
+    flex-grow: 1;
+    min-height: 10px;
+}
+
+.laboratorio-mapas .hist-item {
+    display: block;
+    margin-bottom: 2px;
+}
+
+.laboratorio-mapas .lab-paper-footer {
     margin-top: 3rem;
     border-top: 1px solid #e2e8f0;
     padding-top: 0.75rem;
@@ -445,11 +592,24 @@
     color: #94a3b8;
 }
 
-/* Override global do page-wrapper apenas quando estiver na tela de Mapas */
-.page-wrapper:has(.lab-mapas-container) {
-    max-width: 100% !important;
-    width: 100% !important;
-    padding: 0 !important;
+/* Portal do Setor */
+.lab-mapas-sector-option {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #1e293b;
+    border-bottom: 1px solid #f1f5f9;
 }
 
+.lab-mapas-sector-option:last-child {
+    border-bottom: none;
+}
 
+.lab-mapas-sector-option:hover {
+    background-color: #f8fafc;
+}
+
+.lab-mapas-sector-option-active {
+    background-color: #eff6ff !important;
+    color: #1d4ed8 !important;
+}
