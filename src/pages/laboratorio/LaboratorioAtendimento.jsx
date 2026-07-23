@@ -228,6 +228,17 @@ const LaboratorioAtendimento = () => {
                                     <strong style={{ fontSize: '1.1rem', color: '#0f172a' }}>
                                         {paciente.name || paciente.full_name || '---'}
                                     </strong>
+                                    <span style={{ 
+                                        backgroundColor: '#f1f5f9', 
+                                        color: '#334155', 
+                                        padding: '2px 8px', 
+                                        borderRadius: '4px', 
+                                        fontSize: '0.75rem', 
+                                        fontWeight: 500, 
+                                        border: '1px solid #e2e8f0' 
+                                    }}>
+                                        {paciente.code ? `Cód. ${paciente.code}` : 'Código não informado'}
+                                    </span>
                                     {paciente.is_active === false && (
                                         <span className="lab-badge lab-badge-gray" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>Inativo</span>
                                     )}

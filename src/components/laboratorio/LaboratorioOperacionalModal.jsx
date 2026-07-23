@@ -806,6 +806,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                 {!isPatientExpanded && patientData.full_name && (
                                     <div style={{ padding: '1rem 1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1.5rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
                                         <div><strong style={{ color: '#0f172a' }}>{patientData.full_name}</strong></div>
+                                        <div><span style={{ color: '#64748b' }}>Código: </span><strong style={{ color: '#334155' }}>{patientData.code || 'Não informado'}</strong></div>
                                         <div><span style={{ color: '#64748b' }}>Idade: </span><strong style={{ color: '#334155' }}>{calculateAge(patientData.birth_date)}</strong></div>
                                         <div><span style={{ color: '#64748b' }}>Sexo: </span><strong style={{ color: '#334155' }}>{patientData.sex || '---'}</strong></div>
                                         <div><span style={{ color: '#64748b' }}>CPF: </span><strong style={{ color: '#334155' }}>{formatCpf(patientData.cpf)}</strong></div>
