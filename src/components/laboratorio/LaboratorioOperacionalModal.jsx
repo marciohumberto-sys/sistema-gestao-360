@@ -90,6 +90,21 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
     const prevExamsLengthRef = useRef(0);
     const savingRef = useRef(false);
     const isSuccessRef = useRef(false);
+    const autoFocusRunRef = useRef(false);
+
+    useEffect(() => {
+        if (isOpen && initialPatient && !loading && !autoFocusRunRef.current && mode === 'edit') {
+            autoFocusRunRef.current = true;
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    if (quickExamInputRef.current) {
+                        quickExamInputRef.current.scrollIntoView({ block: 'center', behavior: 'auto' });
+                        quickExamInputRef.current.focus();
+                    }
+                }, 50);
+            });
+        }
+    }, [isOpen, initialPatient, loading, mode]);
 
     useEffect(() => {
         if (isOpen) {
@@ -101,6 +116,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
             setInternalPatientId(initialPatient?.id || null);
             setExamesSolicitados([]);
             isSuccessRef.current = false;
+            autoFocusRunRef.current = false;
             
             setAttendanceData({
                 attendance_date: getLocalDateInputValue(),
@@ -744,8 +760,8 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
 
     return (
         <div className="lab-modal-overlay" onClick={handleCloseModal} tabIndex={-1} style={{ zIndex: 9000 }}>
-            <div className="lab-pac-modal-content" id="operacional-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '1200px', width: '95vw', maxHeight: '95vh' }}>
-                <div className="lab-pac-modal-header">
+            <div className="lab-pac-modal-content" id="operacional-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '1200px', width: '95vw', maxHeight: '95vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div className="lab-pac-modal-header" style={{ flexShrink: 0 }}>
                     <h2 className="lab-pac-modal-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Activity size={24} className="lab-text-primary" />
                         {mode === 'create' && !internalPatientId ? 'Novo Paciente e Atendimento' : 'Novo Atendimento'}
@@ -755,22 +771,23 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                     </button>
                 </div>
                 
-                <div className="lab-pac-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', background: '#f1f5f9', padding: '1.5rem' }}>
+                <div className="lab-pac-modal-body" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#f1f5f9' }}>
                     {loading ? (
-                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', flex: 1 }}>
                             <Loader2 size={32} className="spin" style={{ color: '#3b82f6' }} />
                         </div>
                     ) : (
                         <>
-                            {feedback && (
-                                <div style={{ padding: '1.25rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.75rem', background: feedback.type === 'success' ? '#ecfdf5' : '#fef2f2', border: `1px solid ${feedback.type === 'success' ? '#10b981' : '#ef4444'}`, color: feedback.type === 'success' ? '#047857' : '#b91c1c', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
-                                    {feedback.type === 'success' ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
-                                    <span style={{ fontWeight: 600, fontSize: '1.05rem', whiteSpace: 'pre-line' }}>{feedback.text}</span>
-                                </div>
-                            )}
+                            <div style={{ flexShrink: 0, padding: '1.5rem 1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -4px rgba(0,0,0,0.05)', position: 'relative', zIndex: 10 }}>
+                                {feedback && (
+                                    <div style={{ padding: '1.25rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.75rem', background: feedback.type === 'success' ? '#ecfdf5' : '#fef2f2', border: `1px solid ${feedback.type === 'success' ? '#10b981' : '#ef4444'}`, color: feedback.type === 'success' ? '#047857' : '#b91c1c', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+                                        {feedback.type === 'success' ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
+                                        <span style={{ fontWeight: 600, fontSize: '1.05rem', whiteSpace: 'pre-line' }}>{feedback.text}</span>
+                                    </div>
+                                )}
 
-                            {/* SEÇÃO DO PACIENTE */}
-                            <div className="lab-card" id="patient-section-top">
+                                {/* SEÇÃO DO PACIENTE */}
+                                <div className="lab-card" id="patient-section-top" style={{ maxHeight: isPatientExpanded ? '50vh' : 'none', overflowY: isPatientExpanded ? 'auto' : 'visible' }}>
                                 <div 
                                     className="lab-card-header" 
                                     style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none' }}
@@ -845,10 +862,12 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                         )}
                                     </div>
                                 )}
+                                </div>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1.5rem', alignItems: 'start' }}>
-                                {/* COLUNA PRINCIPAL - EXAMES */}
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1.5rem', alignItems: 'start' }}>
+                                    {/* COLUNA PRINCIPAL - EXAMES */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                     <div className="lab-card fade-in" style={{ position: 'relative', zIndex: 10 }}>
                                         <div className="lab-card-header">
@@ -1059,6 +1078,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                         </button>
                                     </div>
                                 </div>
+                            </div>
                             </div>
                         </>
                     )}

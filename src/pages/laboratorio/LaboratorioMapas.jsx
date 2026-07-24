@@ -139,16 +139,7 @@ const LaboratorioMapas = () => {
         }
     };
 
-    const handleNovaConsulta = () => {
-        setFilters({ 
-            data: todayDate, 
-            setor: '', 
-            codigoInicial: '', 
-            codigoFinal: '' 
-        });
-        setSectorSearchText('');
-        setSelectedLoteId(null);
-    };
+
 
     const handleGerarLote = async () => {
         if (!currentTenantId) return;
@@ -156,26 +147,41 @@ const LaboratorioMapas = () => {
         // Validações locais
         if (!filters.data) return showToast('Informe a data.', 'warning');
         if (!filters.setor) return showToast('Selecione um setor.', 'warning');
-        if (!filters.codigoInicial) return showToast('Informe o código inicial.', 'warning');
-        if (!filters.codigoFinal) return showToast('Informe o código final.', 'warning');
         
-        if (!/^\d+$/.test(filters.codigoInicial) || !/^\d+$/.test(filters.codigoFinal)) {
-            return showToast('Os códigos devem conter somente números.', 'warning');
+        const hasStart = !!filters.codigoInicial;
+        const hasEnd = !!filters.codigoFinal;
+
+        if ((hasStart && !hasEnd) || (!hasStart && hasEnd)) {
+            return showToast('Preencha os dois códigos ou deixe ambos em branco para gerar todos os pacientes.', 'warning');
         }
-        
-        if (BigInt(filters.codigoInicial) > BigInt(filters.codigoFinal)) {
-            return showToast('O código inicial não pode ser maior que o código final.', 'warning');
+
+        if (hasStart && hasEnd) {
+            if (!/^\d+$/.test(filters.codigoInicial) || !/^\d+$/.test(filters.codigoFinal)) {
+                return showToast('Os códigos devem conter somente números.', 'warning');
+            }
+            if (BigInt(filters.codigoInicial) > BigInt(filters.codigoFinal)) {
+                return showToast('O código inicial não pode ser maior que o código final.', 'warning');
+            }
         }
 
         setLoadingGen(true);
         try {
-            const response = await laboratorioMapasService.gerarLoteColetivo({
-                tenantId: currentTenantId,
-                referenceDate: filters.data,
-                sectorId: filters.setor,
-                startCode: filters.codigoInicial,
-                endCode: filters.codigoFinal
-            });
+            let response;
+            if (hasStart && hasEnd) {
+                response = await laboratorioMapasService.gerarLoteColetivo({
+                    tenantId: currentTenantId,
+                    referenceDate: filters.data,
+                    sectorId: filters.setor,
+                    startCode: filters.codigoInicial,
+                    endCode: filters.codigoFinal
+                });
+            } else {
+                response = await laboratorioMapasService.gerarLoteColetivoTodos({
+                    tenantId: currentTenantId,
+                    referenceDate: filters.data,
+                    sectorId: filters.setor
+                });
+            }
 
             // Lidar com o retorno mapeado da RPC
             const { state, batch, pending_batch_ids, printed_batch_ids } = response || {};
@@ -544,7 +550,7 @@ const LaboratorioMapas = () => {
                     <p className="lab-subtitle">Geração coletiva de mapas de trabalho por setor e faixa de códigos</p>
                 </div>
                 <div className="lab-header-actions">
-                    <button className="lab-btn lab-btn-outline" onClick={handleNovaConsulta}><Filter size={16} /> Nova Consulta</button>
+                    {/* Botão Nova Consulta removido conforme solicitação */}
                 </div>
             </header>
 
@@ -637,16 +643,16 @@ const LaboratorioMapas = () => {
                     </div>
                     <div className="lab-filter-item">
                         <label>Código Inicial</label>
-                        <input type="number" placeholder="Ex: 115000" value={filters.codigoInicial} onChange={(e) => setFilters({...filters, codigoInicial: e.target.value})} ref={codigoInicialRef} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (codigoFinalRef.current) codigoFinalRef.current.focus(); } }} />
+                        <input type="number" placeholder="Opcional" value={filters.codigoInicial} onChange={(e) => setFilters({...filters, codigoInicial: e.target.value})} ref={codigoInicialRef} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (codigoFinalRef.current) codigoFinalRef.current.focus(); } }} />
                     </div>
                     <div className="lab-filter-item">
                         <label>Código Final</label>
-                        <input type="number" placeholder="Ex: 115010" value={filters.codigoFinal} onChange={(e) => setFilters({...filters, codigoFinal: e.target.value})} ref={codigoFinalRef} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (gerarBtnRef.current) gerarBtnRef.current.focus(); handleGerarLote(); } }} />
+                        <input type="number" placeholder="Opcional" value={filters.codigoFinal} onChange={(e) => setFilters({...filters, codigoFinal: e.target.value})} ref={codigoFinalRef} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (gerarBtnRef.current) gerarBtnRef.current.focus(); handleGerarLote(); } }} />
                     </div>
                     <div className="lab-filters-actions">
                         <button className="lab-btn lab-btn-primary" onClick={handleGerarLote} disabled={loadingGen} ref={gerarBtnRef}>
                             {loadingGen ? <Loader2 size={16} className="animate-spin" /> : <Map size={16} />} 
-                            Gerar mapa coletivo
+                            Gerar mapa
                         </button>
                     </div>
                 </div>
@@ -760,7 +766,10 @@ const LaboratorioMapas = () => {
                     
                     <div className="lab-preview-content">
                         {!selectedLote ? (
-                            <div className="empty-state">Selecione um lote para visualizar o mapa coletivo.</div>
+                            <div className="empty-state" style={{ marginTop: '4rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                                <span>Selecione um lote para visualizar o mapa coletivo.</span>
+                                <FileText size={32} style={{ color: '#cbd5e1', strokeWidth: 1.5 }} />
+                            </div>
                         ) : !previewSnap || !previewSnap.patients ? (
                             <div className="empty-state">Lote sem snapshot válido.</div>
                         ) : (

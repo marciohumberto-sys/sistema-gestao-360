@@ -122,7 +122,7 @@
 
 @media (min-width: 1200px) {
     .laboratorio-mapas .lab-filters-grid {
-        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.5fr) 180px;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.5fr) 210px;
     }
 }
 
@@ -137,6 +137,8 @@
     width: 100%;
     margin-top: auto;
     justify-content: center;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .laboratorio-mapas .lab-filter-item {

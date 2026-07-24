@@ -42,6 +42,25 @@ class LaboratorioMapasService {
         }
     }
 
+    // Chama a RPC de geração do lote coletivo (todos os pacientes)
+    async gerarLoteColetivoTodos({ tenantId, referenceDate, sectorId }) {
+        try {
+            if (!tenantId) throw new Error("Tenant não identificado.");
+
+            const { data, error } = await supabase.rpc('rpc_lab_generate_all_map_batch', {
+                p_tenant_id: tenantId,
+                p_reference_date: referenceDate,
+                p_sector_id: sectorId
+            });
+
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('[LaboratorioMapasService] Erro ao gerar lote de todos:', error);
+            throw error;
+        }
+    }
+
     // Chama a RPC para marcar como impresso
     async marcarLoteComoImpresso({ tenantId, batchId }) {
         try {
