@@ -45,7 +45,7 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
         scopeData.forEach(s => {
             const secName = s.secretariats?.name;
             if (secName) {
-                userSecretariatMap[s.user_id] = secName;
+                userSecretariatMap[s.user_id] = { name: secName, id: s.secretariat_id };
             }
         });
     }
@@ -83,7 +83,8 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
                 email: row.email || '',
                 profile: role,
                 status: (row.is_active === true || row.status === 'ATIVO') ? 'ATIVO' : 'INATIVO',
-                secretariat_name: row.secretariat_name || userSecretariatMap[userId] || 'Planejamento e Inovação',
+                secretariat_name: row.secretariat_name || (userSecretariatMap[userId] ? userSecretariatMap[userId].name : 'Planejamento e Inovação'),
+                secretariat_id: userSecretariatMap[userId] ? userSecretariatMap[userId].id : null,
                 modulo: 'Planejamento Estratégico'
             });
         }
@@ -102,7 +103,7 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
  * Cria um usuário via Edge Function (manage-user) para o módulo PLANEJAMENTO_ESTRATEGICO.
  */
 export const createPlanejamentoUser = async (tenantId, userData) => {
-    const tempPassword = 'Admin@123';
+    const tempPassword = 'Plan@123';
 
     const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-user`,
@@ -115,12 +116,16 @@ export const createPlanejamentoUser = async (tenantId, userData) => {
             body: JSON.stringify({
                 email: userData.email,
                 password: tempPassword,
+                tempPassword: tempPassword,
                 name: userData.name,
+                full_name: userData.name,
                 role: userData.profile,
                 is_active: userData.status === 'ATIVO',
                 tenant_id: tenantId,
                 module_key: 'PLANEJAMENTO_ESTRATEGICO',
-                secretariat_name: 'Planejamento e Inovação'
+                secretariat_name: userData.secretariat_name || 'Planejamento e Inovação',
+                secretariat_id: userData.secretariat_id || null,
+                is_primary_secretariat: true
             })
         }
     );
@@ -149,11 +154,14 @@ export const updatePlanejamentoUser = async (userTenantId, userData) => {
         user_id: tenantLink.user_id,
         email: userData.email,
         name: userData.name,
+        full_name: userData.name,
         role: userData.profile,
         is_active: userData.status === 'ATIVO',
         tenant_id: tenantLink.tenant_id,
         module_key: 'PLANEJAMENTO_ESTRATEGICO',
-        secretariat_name: userData.secretariat_name || 'Planejamento e Inovação'
+        secretariat_name: userData.secretariat_name || 'Planejamento e Inovação',
+        secretariat_id: userData.secretariat_id || null,
+        is_primary_secretariat: true
     };
 
     // 2. Chamar Edge Function

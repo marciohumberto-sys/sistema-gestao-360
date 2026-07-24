@@ -23,6 +23,7 @@ import {
     togglePlanejamentoUserStatus,
     deletePlanejamentoUser
 } from '../../services/planejamentoUsers.service';
+import { fetchSecretariats } from '../../services/api/planejamentoAcoes.service';
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
 import './PlanejamentoDashboard.css';
@@ -50,6 +51,7 @@ const PlanejamentoUsuarios = () => {
 
     // Data State
     const [usuarios, setUsuarios] = useState([]);
+    const [secretariatsOptions, setSecretariatsOptions] = useState([]);
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -66,18 +68,24 @@ const PlanejamentoUsuarios = () => {
         login: '',
         profile: 'OPERADOR',
         status: 'ATIVO',
-        secretariat_name: ''
+        secretariat_name: '',
+        secretariat_id: ''
     });
 
     const carregarDados = async () => {
         setIsLoading(true);
         try {
             const tenantId = await getCurrentTenantId();
-            const data = await fetchPlanejamentoUsers(tenantId);
+            const [data, secs] = await Promise.all([
+                fetchPlanejamentoUsers(tenantId),
+                fetchSecretariats(tenantId)
+            ]);
             setUsuarios(data || []);
+            setSecretariatsOptions(secs || []);
         } catch (err) {
-            console.error("Erro ao carregar usuários do planejamento:", err);
+            console.error("Erro ao carregar dados do planejamento:", err);
             setUsuarios([]);
+            setSecretariatsOptions([]);
         } finally {
             setIsLoading(false);
         }
@@ -123,7 +131,8 @@ const PlanejamentoUsuarios = () => {
                 login: extractLogin(user.email),
                 profile: user.profile,
                 status: user.status,
-                secretariat_name: user.secretariat_name
+                secretariat_name: user.secretariat_name || '',
+                secretariat_id: user.secretariat_id || ''
             });
         } else {
             setEditingUser(null);
@@ -132,7 +141,8 @@ const PlanejamentoUsuarios = () => {
                 login: '',
                 profile: 'OPERADOR',
                 status: 'ATIVO',
-                secretariat_name: 'Planejamento e Inovação'
+                secretariat_name: '',
+                secretariat_id: ''
             });
         }
         setIsModalOpen(true);
@@ -145,12 +155,28 @@ const PlanejamentoUsuarios = () => {
 
     const handleSave = async (e) => {
         e.preventDefault();
+        if (!formData.name || !formData.name.trim()) {
+            alert("Preencha o nome completo.");
+            return;
+        }
+        if (!formData.login || !formData.login.trim()) {
+            alert("Preencha o usuário.");
+            return;
+        }
+        if (!formData.secretariat_id) {
+            alert("Selecione uma secretaria.");
+            return;
+        }
+
         if (isSaving) return;
         setIsSaving(true);
 
         try {
-            const loginParsed = formData.login.trim().toLowerCase();
-            const emailParsed = `${loginParsed}@sistema.local`;
+            let loginParsed = formData.login.trim().toLowerCase();
+            let emailParsed = loginParsed;
+            if (!emailParsed.includes('@sistema.local')) {
+                emailParsed = `${loginParsed}@sistema.local`;
+            }
             
             const payload = { 
                 ...formData, 
@@ -164,7 +190,7 @@ const PlanejamentoUsuarios = () => {
             } else {
                 const tenantId = await getCurrentTenantId();
                 await createPlanejamentoUser(tenantId, payload);
-                setToast('Usuário criado com sucesso. Senha inicial: Admin@123');
+                setToast('Usuário criado com sucesso. Senha inicial: Plan@123');
             }
             
             await carregarDados();
@@ -508,14 +534,22 @@ const PlanejamentoUsuarios = () => {
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                             <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Secretaria</label>
-                                            <input
-                                                type="text"
-                                                value={formData.secretariat_name}
-                                                onChange={e => setFormData({ ...formData, secretariat_name: e.target.value })}
-                                                className="farmacia-input"
-                                                placeholder="Ex: Planejamento"
-                                                style={{ height: '42px', padding: '0 14px', border: '1px solid var(--border)', borderRadius: '8px', background: '#fff', outline: 'none', width: '100%', boxSizing: 'border-box' }}
-                                            />
+                                            <select
+                                                className="farmacia-filter-select"
+                                                style={{ width: '100%', height: '42px', padding: '0 14px', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none', backgroundColor: '#fff' }}
+                                                value={formData.secretariat_id}
+                                                onChange={e => {
+                                                    const secId = e.target.value;
+                                                    const secName = e.target.options[e.target.selectedIndex].text;
+                                                    setFormData({ ...formData, secretariat_id: secId, secretariat_name: secId ? secName : '' });
+                                                }}
+                                                required
+                                            >
+                                                <option value="">Selecione uma secretaria...</option>
+                                                {secretariatsOptions.map(sec => (
+                                                    <option key={sec.id} value={sec.id}>{sec.name}</option>
+                                                ))}
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
