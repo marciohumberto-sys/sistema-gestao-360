@@ -39,6 +39,7 @@ const LaboratorioMapas = () => {
 
     const [lotes, setLotes] = useState([]);
     const [selectedLoteId, setSelectedLoteId] = useState(null);
+    const [pendingAutoPrintBatchId, setPendingAutoPrintBatchId] = useState(null);
     
     const [loadingList, setLoadingList] = useState(false);
     const [loadingGen, setLoadingGen] = useState(false);
@@ -196,6 +197,7 @@ const LaboratorioMapas = () => {
                         return [batch, ...novaLista];
                     });
                     setSelectedLoteId(batch.id);
+                    setPendingAutoPrintBatchId(batch.id);
                 }
                 await carregarLotes(batch?.id);
             } else if (state === 'EXISTING_PENDING_BATCHES') {
@@ -405,6 +407,25 @@ const LaboratorioMapas = () => {
         printWindow.onload = () => finalizePrint();
         setTimeout(() => finalizePrint(), 600);
     };
+
+    useEffect(() => {
+        if (pendingAutoPrintBatchId && selectedLoteId === pendingAutoPrintBatchId) {
+            const batchToPrint = lotes.find(l => l.id === pendingAutoPrintBatchId);
+            if (batchToPrint && previewRef.current) {
+                setPendingAutoPrintBatchId(null);
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        try {
+                            handleImprimirDocumento(batchToPrint);
+                        } catch (err) {
+                            console.error("[Mapas] Auto print failed:", err);
+                            showToast("O lote foi gerado, mas não foi possível abrir a impressão automaticamente. Use o botão Imprimir.", "warning");
+                        }
+                    }, 50);
+                });
+            }
+        }
+    }, [pendingAutoPrintBatchId, selectedLoteId, lotes]);
 
     const handleConfirmarImpressao = async () => {
         if (!confirmModal.loteId) return;
