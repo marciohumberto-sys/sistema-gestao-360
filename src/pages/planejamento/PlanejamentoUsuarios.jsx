@@ -429,9 +429,16 @@ const PlanejamentoUsuarios = () => {
                                             </span>
                                         </td>
                                         <td>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                                                <Briefcase size={13} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
-                                                {user.secretariat_name}
+                                            <span style={{ display: 'inline-flex', flexDirection: 'column', gap: '2px' }}>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                                    <Briefcase size={13} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
+                                                    {user.secretariat_name}
+                                                </span>
+                                                {user.display_secretariat_name && user.display_secretariat_name !== user.secretariat_name && (
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary-color)', marginLeft: '18px' }}>
+                                                        {user.display_secretariat_name.replace(user.secretariat_name, '').trim()}
+                                                    </span>
+                                                )}
                                             </span>
                                         </td>
                                         <td>

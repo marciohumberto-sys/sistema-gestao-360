@@ -32,7 +32,7 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
     // 2. Buscar user_ids e secretarias com escopo no módulo PLANEJAMENTO_ESTRATEGICO
     const { data: scopeData } = await supabase
         .from('user_access_scopes')
-        .select('user_id, secretariat_id, secretariats(name)')
+        .select('user_id, secretariat_id, is_primary_secretariat, secretariats(name)')
         .eq('tenant_id', tenantId)
         .eq('module_id', moduleData.id)
         .eq('is_active', true);
@@ -45,7 +45,14 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
         scopeData.forEach(s => {
             const secName = s.secretariats?.name;
             if (secName) {
-                userSecretariatMap[s.user_id] = { name: secName, id: s.secretariat_id };
+                if (!userSecretariatMap[s.user_id]) {
+                    userSecretariatMap[s.user_id] = { scopes: [] };
+                }
+                userSecretariatMap[s.user_id].scopes.push({
+                    name: secName,
+                    id: s.secretariat_id,
+                    is_primary: s.is_primary_secretariat
+                });
             }
         });
     }
@@ -74,6 +81,28 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
         const role = row.role || row.profile || 'OPERADOR';
         if (role === 'SUPERADMIN') return;
 
+        let finalSecName = 'Planejamento e Inovação';
+        let finalSecId = null;
+        let displaySecName = finalSecName;
+
+        if (row.secretariat_name) {
+            finalSecName = row.secretariat_name;
+            displaySecName = finalSecName;
+        } else if (userSecretariatMap[userId]) {
+            const scopes = userSecretariatMap[userId].scopes;
+            const primaryScope = scopes.find(s => s.is_primary === true) || scopes[0];
+            
+            finalSecId = primaryScope?.id || null;
+            if (primaryScope?.name) {
+                finalSecName = primaryScope.name;
+                displaySecName = finalSecName;
+                const otherCount = scopes.length - 1;
+                if (otherCount > 0) {
+                    displaySecName += ` + ${otherCount} secretaria${otherCount > 1 ? 's' : ''}`;
+                }
+            }
+        }
+
         // 6. DEDUPLICAR: Garantir apenas uma linha por user_id (evita duplicidade por múltiplos vínculos)
         if (!uniqueUsers.has(userId)) {
             uniqueUsers.set(userId, {
@@ -83,8 +112,9 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
                 email: row.email || '',
                 profile: role,
                 status: (row.is_active === true || row.status === 'ATIVO') ? 'ATIVO' : 'INATIVO',
-                secretariat_name: row.secretariat_name || (userSecretariatMap[userId] ? userSecretariatMap[userId].name : 'Planejamento e Inovação'),
-                secretariat_id: userSecretariatMap[userId] ? userSecretariatMap[userId].id : null,
+                secretariat_name: finalSecName,
+                secretariat_id: finalSecId,
+                display_secretariat_name: displaySecName,
                 modulo: 'Planejamento Estratégico'
             });
         }
