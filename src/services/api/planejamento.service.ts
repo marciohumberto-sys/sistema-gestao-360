@@ -52,11 +52,19 @@ class PlanejamentoService {
         }
 
         if (filters?.secretariaId && filters.secretariaId !== 'todas') {
-            filteredActions = filteredActions.filter((a: any) => {
-                const isMain = a.secretariat_id === filters.secretariaId;
-                const isParticipant = actionSecretariats.some((as: any) => as.action_id === a.id && as.secretariat_id === filters.secretariaId);
-                return isMain || isParticipant;
-            });
+            if (filters.secretariaId === 'todas_minhas' && Array.isArray(filters.allowedSecretariatIds)) {
+                filteredActions = filteredActions.filter((a: any) => {
+                    const isMain = filters.allowedSecretariatIds.includes(a.secretariat_id);
+                    const isParticipant = actionSecretariats.some((as: any) => as.action_id === a.id && filters.allowedSecretariatIds.includes(as.secretariat_id));
+                    return isMain || isParticipant;
+                });
+            } else {
+                filteredActions = filteredActions.filter((a: any) => {
+                    const isMain = a.secretariat_id === filters.secretariaId;
+                    const isParticipant = actionSecretariats.some((as: any) => as.action_id === a.id && as.secretariat_id === filters.secretariaId);
+                    return isMain || isParticipant;
+                });
+            }
         }
 
         if (filters?.periodo && filters.periodo !== 'todos') {

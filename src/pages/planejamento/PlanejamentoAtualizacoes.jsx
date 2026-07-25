@@ -559,7 +559,7 @@ const PlanejamentoAtualizacoes = () => {
     // Filtros
     const [busca, setBusca] = useState('');
     const [acaoFiltro, setAcaoFiltro] = useState('Todas');
-    const [secretariaFiltro, setSecretariaFiltro] = useState(contextoPlanejamento.hasRestrictedAccess ? (contextoPlanejamento.primarySecretariatId || 'nenhuma') : 'Todas');
+    const [secretariaFiltro, setSecretariaFiltro] = useState(contextoPlanejamento.hasMultipleRestrictedSecretariats ? 'todas_minhas' : (contextoPlanejamento.hasRestrictedAccess ? (contextoPlanejamento.primarySecretariatName || 'nenhuma') : 'Todas'));
     const [tipoFiltro, setTipoFiltro] = useState('Todos');
     const [periodoFiltro, setPeriodoFiltro] = useState('Todos');
 
@@ -601,7 +601,7 @@ const PlanejamentoAtualizacoes = () => {
         try {
             const data = await fetchAtualizacoes(tenantId);
             const filteredData = contextoPlanejamento.hasRestrictedAccess 
-                ? data.filter(a => a.secretariaId === contextoPlanejamento.primarySecretariatId || (a.participantesIds || []).includes(contextoPlanejamento.primarySecretariatId))
+                ? data.filter(a => (contextoPlanejamento.allowedSecretariatIds || []).includes(a.secretariaId) || (a.participantesIds || []).some(id => (contextoPlanejamento.allowedSecretariatIds || []).includes(id)))
                 : data;
             setAtualizacoes(filteredData);
         } catch (err) {
@@ -617,7 +617,7 @@ const PlanejamentoAtualizacoes = () => {
             loadAtualizacoes();
             fetchAcoes(tenantId).then(data => {
                 const filtered = contextoPlanejamento.hasRestrictedAccess
-                    ? data.filter(a => a.secretariaId === contextoPlanejamento.primarySecretariatId || (a.participantesIds || []).includes(contextoPlanejamento.primarySecretariatId))
+                    ? data.filter(a => (contextoPlanejamento.allowedSecretariatIds || []).includes(a.secretariaId) || (a.participantesIds || []).some(id => (contextoPlanejamento.allowedSecretariatIds || []).includes(id)))
                     : data;
                 setAcoes(filtered);
             }).catch(console.error);
@@ -703,7 +703,16 @@ const PlanejamentoAtualizacoes = () => {
                            (item.descricao || '').toLowerCase().includes(busca.toLowerCase()) ||
                            (item.responsavel || '').toLowerCase().includes(busca.toLowerCase());
             const mAcao = acaoFiltro === 'Todas' || item.acao === acaoFiltro;
-            const mSec = secretariaFiltro === 'Todas' || item.secretaria === secretariaFiltro;
+            let mSec = false;
+            if (secretariaFiltro === 'Todas') {
+                mSec = true;
+            } else if (secretariaFiltro === 'todas_minhas') {
+                mSec = (contextoPlanejamento.allowedSecretariatNames || []).includes(item.secretaria) ||
+                       (contextoPlanejamento.allowedSecretariatIds || []).includes(item.secretariaId) ||
+                       (item.participantesIds || []).some(id => (contextoPlanejamento.allowedSecretariatIds || []).includes(id));
+            } else {
+                mSec = item.secretaria === secretariaFiltro;
+            }
             const mTipo = tipoFiltro === 'Todos' || item.tipo === tipoFiltro;
             
             let mPeriodo = true;
@@ -1259,15 +1268,16 @@ const PlanejamentoAtualizacoes = () => {
                             <div className="farmacia-select-wrapper" style={{ flex: '1 1 150px', position: 'relative' }}>
                                 <select 
                                     className="farmacia-filter-select" 
-                                    style={{ width: '100%', paddingRight: '36px', appearance: 'none', WebkitAppearance: 'none', cursor: contextoPlanejamento.hasRestrictedAccess ? 'not-allowed' : 'pointer', opacity: contextoPlanejamento.hasRestrictedAccess ? 0.7 : 1 }} 
+                                    style={{ width: '100%', paddingRight: '36px', appearance: 'none', WebkitAppearance: 'none', cursor: (contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats) ? 'not-allowed' : 'pointer', opacity: (contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats) ? 0.7 : 1 }} 
                                     value={secretariaFiltro} 
                                     onChange={(e) => setSecretariaFiltro(e.target.value)}
-                                    disabled={contextoPlanejamento.hasRestrictedAccess}
+                                    disabled={contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats}
                                 >
                                     {!contextoPlanejamento.hasRestrictedAccess && <option value="Todas">Secretaria: Todas</option>}
-                                    {contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.primarySecretariatId && <option value="nenhuma">Sem Secretaria</option>}
+                                    {contextoPlanejamento.hasMultipleRestrictedSecretariats && <option value="todas_minhas">Todas as minhas secretarias</option>}
+                                    {contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats && !contextoPlanejamento.primarySecretariatName && <option value="nenhuma">Sem Secretaria</option>}
                                     {secretariasUnicas.map(s => {
-                                        if (contextoPlanejamento.hasRestrictedAccess && contextoPlanejamento.primarySecretariatName !== s) return null;
+                                        if (contextoPlanejamento.hasRestrictedAccess && !(contextoPlanejamento.allowedSecretariatNames || []).includes(s)) return null;
                                         return <option key={s} value={s}>{s}</option>;
                                     })}
                                 </select>

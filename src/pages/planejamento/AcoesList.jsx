@@ -210,7 +210,7 @@ const AcoesList = () => {
 
     const [busca, setBusca] = useState('');
     const [statusFiltro, setStatusFiltro] = useState('Todos');
-    const [secretariaFiltro, setSecretariaFiltro] = useState(contextoPlanejamento.hasRestrictedAccess ? (contextoPlanejamento.primarySecretariatId || 'nenhuma') : 'Todas');
+    const [secretariaFiltro, setSecretariaFiltro] = useState(contextoPlanejamento.hasMultipleRestrictedSecretariats ? 'todas_minhas' : (contextoPlanejamento.hasRestrictedAccess ? (contextoPlanejamento.primarySecretariatId || 'nenhuma') : 'Todas'));
     const [tipoFiltro, setTipoFiltro] = useState('Todos');
     const [eixoFiltro, setEixoFiltro] = useState('Todos');
     const [secretariatsTooltip, setSecretariatsTooltip] = useState(null);
@@ -405,7 +405,7 @@ const AcoesList = () => {
     const emptyForm = {
         nome: '',
         local: '',
-        secretariatId: contextoPlanejamento.hasRestrictedAccess ? (contextoPlanejamento.primarySecretariatId || '') : '',
+        secretariatId: contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats ? (contextoPlanejamento.primarySecretariatId || '') : '',
         secretaria: '',
         axisId: '',
         eixo: '',
@@ -878,7 +878,7 @@ const AcoesList = () => {
         
         let finalData = { ...formData };
 
-        if (contextoPlanejamento.hasRestrictedAccess && contextoPlanejamento.primarySecretariatId) {
+        if (contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats && contextoPlanejamento.primarySecretariatId) {
             finalData.secretariatId = contextoPlanejamento.primarySecretariatId;
         }
         if (finalData.action_type === 'ACAO_PONTUAL') {
@@ -958,7 +958,15 @@ const AcoesList = () => {
         let filtered = acoes.filter(a => {
             const mBusca = (a.nome || '').toLowerCase().includes(busca.toLowerCase()) || (a.local || '').toLowerCase().includes(busca.toLowerCase());
             const mStatus = statusFiltro === 'Todos' || a.status === statusFiltro;
-            const mSec = secretariaFiltro === 'Todas' || a.secretaria === secretariaFiltro || a.secretariaId === secretariaFiltro || (a.participantesIds || []).includes(secretariaFiltro);
+            let mSec = false;
+            if (secretariaFiltro === 'Todas') {
+                mSec = true;
+            } else if (secretariaFiltro === 'todas_minhas') {
+                mSec = (contextoPlanejamento.allowedSecretariatIds || []).includes(a.secretariaId) || 
+                       (a.participantesIds || []).some(id => (contextoPlanejamento.allowedSecretariatIds || []).includes(id));
+            } else {
+                mSec = a.secretaria === secretariaFiltro || a.secretariaId === secretariaFiltro || (a.participantesIds || []).includes(secretariaFiltro);
+            }
             const mTipo = tipoFiltro === 'Todos' || (a.action_type || 'PROJETO') === tipoFiltro || (tipoFiltro === 'ACAO_PONTUAL' && a.action_type === 'ACAO');
             const mEixo = eixoFiltro === 'Todos' || a.axis_id === eixoFiltro || a.eixoId === eixoFiltro || a.axisId === eixoFiltro || a.eixo_id === eixoFiltro;
             return mBusca && mStatus && mSec && mTipo && mEixo;
@@ -1243,21 +1251,23 @@ const AcoesList = () => {
                                 className="farmacia-filter-select" 
                                 value={secretariaFiltro}
                                 onChange={(e) => setSecretariaFiltro(e.target.value)}
-                                disabled={contextoPlanejamento.hasRestrictedAccess}
+                                disabled={contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats}
                                 style={{
                                     width: '100%',
                                     appearance: 'none',
                                     paddingLeft: '12px',
                                     paddingRight: '28px',
-                                    cursor: contextoPlanejamento.hasRestrictedAccess ? 'not-allowed' : 'pointer',
-                                    opacity: contextoPlanejamento.hasRestrictedAccess ? 0.7 : 1
+                                    cursor: (contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats) ? 'not-allowed' : 'pointer',
+                                    opacity: (contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats) ? 0.7 : 1
                                 }}
                             >
                                 {!contextoPlanejamento.hasRestrictedAccess && <option value="Todas">Secretaria: Todas</option>}
-                                {contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.primarySecretariatId && <option value="nenhuma">Sem Secretaria</option>}
-                                {filteredSecretariats.map(s => (
-                                    <option key={s.id} value={s.name}>{s.name}</option>
-                                ))}
+                                {contextoPlanejamento.hasMultipleRestrictedSecretariats && <option value="todas_minhas">Todas as minhas secretarias</option>}
+                                {contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats && !contextoPlanejamento.primarySecretariatId && <option value="nenhuma">Sem Secretaria</option>}
+                                {filteredSecretariats.map(s => {
+                                    if (contextoPlanejamento.hasRestrictedAccess && !(contextoPlanejamento.allowedSecretariatIds || []).includes(s.id)) return null;
+                                    return <option key={s.id} value={s.id}>{s.name}</option>;
+                                })}
                             </select>
                             <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                         </div>
@@ -2106,12 +2116,12 @@ const AcoesList = () => {
                                                         secretaria: sec ? (sec.name || sec.sigla) : '' 
                                                     }));
                                                 }}
-                                                disabled={contextoPlanejamento.hasRestrictedAccess}
-                                                style={{ opacity: contextoPlanejamento.hasRestrictedAccess ? 0.7 : 1, cursor: contextoPlanejamento.hasRestrictedAccess ? 'not-allowed' : 'pointer' }}
+                                                disabled={contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats}
+                                                style={{ opacity: (contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats) ? 0.7 : 1, cursor: (contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats) ? 'not-allowed' : 'pointer' }}
                                             >
-                                                {!contextoPlanejamento.hasRestrictedAccess && <option value="">Selecione...</option>}
+                                                {(!contextoPlanejamento.hasRestrictedAccess || contextoPlanejamento.hasMultipleRestrictedSecretariats) && <option value="">Selecione...</option>}
                                                 {secretariats.map(s => {
-                                                    if (contextoPlanejamento.hasRestrictedAccess && s.id !== contextoPlanejamento.primarySecretariatId) return null;
+                                                    if (contextoPlanejamento.hasRestrictedAccess && !(contextoPlanejamento.allowedSecretariatIds || []).includes(s.id)) return null;
                                                     return <option key={s.id} value={s.id}>{s.name || s.sigla}</option>
                                                 })}
                                             </select>

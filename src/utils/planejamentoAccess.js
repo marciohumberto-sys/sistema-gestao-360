@@ -7,7 +7,10 @@ export const getPlanejamentoContext = (userRole, scopes) => {
         hasFullAccess: userRole === 'SUPERADMIN', 
         hasRestrictedAccess: userRole !== 'SUPERADMIN', 
         primarySecretariatId: null, 
-        primarySecretariatName: null 
+        primarySecretariatName: null,
+        allowedSecretariatIds: [],
+        allowedSecretariatNames: [],
+        hasMultipleRestrictedSecretariats: false
     };
 
     if (!scopes || !Array.isArray(scopes)) {
@@ -35,10 +38,23 @@ export const getPlanejamentoContext = (userRole, scopes) => {
 
     const hasRestrictedAccess = !hasFullAccess;
 
+    const planningActiveScopes = scopes.filter(scope => 
+        scope.module_key === 'PLANEJAMENTO_ESTRATEGICO' && 
+        scope.is_active === true && 
+        scope.secretariat_id
+    );
+
+    const allowedSecretariatIds = planningActiveScopes.map(s => s.secretariat_id);
+    const allowedSecretariatNames = planningActiveScopes.map(s => s.secretariat_name);
+    const hasMultipleRestrictedSecretariats = hasRestrictedAccess && allowedSecretariatIds.length > 1;
+
     return {
         hasFullAccess,
         hasRestrictedAccess,
         primarySecretariatId,
-        primarySecretariatName
+        primarySecretariatName,
+        allowedSecretariatIds,
+        allowedSecretariatNames,
+        hasMultipleRestrictedSecretariats
     };
 };

@@ -24,7 +24,10 @@ const PlanejamentoDashboard = () => {
     const [filters, setFilters] = useState({
         periodo: 'todos',
         eixoId: 'todos',
-        secretariaId: contextPlanejamento.hasRestrictedAccess ? (contextPlanejamento.primarySecretariatId || 'nenhuma') : 'todas'
+        secretariaId: contextPlanejamento.hasMultipleRestrictedSecretariats 
+            ? 'todas_minhas' 
+            : (contextPlanejamento.hasRestrictedAccess ? (contextPlanejamento.primarySecretariatId || 'nenhuma') : 'todas'),
+        allowedSecretariatIds: contextPlanejamento.allowedSecretariatIds
     });
 
     useEffect(() => {
@@ -126,17 +129,23 @@ const PlanejamentoDashboard = () => {
                         </div>
                         <select 
                             className="filter-button-mock" 
-                            style={{ appearance: 'none', paddingLeft: '32px', paddingRight: '28px', cursor: contextPlanejamento.hasRestrictedAccess ? 'not-allowed' : 'pointer', outline: 'none', maxWidth: '200px', opacity: contextPlanejamento.hasRestrictedAccess ? 0.7 : 1 }}
+                            style={{ 
+                                appearance: 'none', paddingLeft: '32px', paddingRight: '28px', 
+                                cursor: (contextPlanejamento.hasRestrictedAccess && !contextPlanejamento.hasMultipleRestrictedSecretariats) ? 'not-allowed' : 'pointer', 
+                                outline: 'none', maxWidth: '200px', 
+                                opacity: (contextPlanejamento.hasRestrictedAccess && !contextPlanejamento.hasMultipleRestrictedSecretariats) ? 0.7 : 1 
+                            }}
                             value={filters.secretariaId}
                             onChange={(e) => setFilters(f => ({ ...f, secretariaId: e.target.value }))}
-                            disabled={contextPlanejamento.hasRestrictedAccess}
+                            disabled={contextPlanejamento.hasRestrictedAccess && !contextPlanejamento.hasMultipleRestrictedSecretariats}
                         >
                             {!contextPlanejamento.hasRestrictedAccess && <option value="todas">Todas as Secretarias</option>}
-                            {contextPlanejamento.hasRestrictedAccess && !contextPlanejamento.primarySecretariatId && <option value="nenhuma">Sem Secretaria</option>}
+                            {contextPlanejamento.hasMultipleRestrictedSecretariats && <option value="todas_minhas">Todas as minhas secretarias</option>}
+                            {contextPlanejamento.hasRestrictedAccess && !contextPlanejamento.hasMultipleRestrictedSecretariats && !contextPlanejamento.primarySecretariatId && <option value="nenhuma">Sem Secretaria</option>}
                             {[...(rawData?.secretariats || [])]
                                 .sort((a, b) => (a.name || a.sigla || '').localeCompare(b.name || b.sigla || '', 'pt-BR', { sensitivity: 'base' }))
                                 .map(s => {
-                                    if (contextPlanejamento.hasRestrictedAccess && s.id !== contextPlanejamento.primarySecretariatId) return null;
+                                    if (contextPlanejamento.hasRestrictedAccess && !(contextPlanejamento.allowedSecretariatIds || []).includes(s.id)) return null;
                                     return <option key={s.id} value={s.id}>{s.name || s.sigla}</option>
                             })}
                         </select>
