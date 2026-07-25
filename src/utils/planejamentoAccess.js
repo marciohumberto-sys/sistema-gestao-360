@@ -38,15 +38,24 @@ export const getPlanejamentoContext = (userRole, scopes) => {
 
     const hasRestrictedAccess = !hasFullAccess;
 
-    const planningActiveScopes = scopes.filter(scope => 
+    let planningActiveScopes = scopes.filter(scope => 
         scope.module_key === 'PLANEJAMENTO_ESTRATEGICO' && 
         scope.is_active === true && 
         scope.secretariat_id
     );
 
+    // INVERSÃO DA REGRA: 
+    // Se não for full access e o perfil for diferente de GESTOR (ex: OPERADOR, VISUALIZADOR), 
+    // limitamos as secretarias permitidas apenas à principal.
+    if (hasRestrictedAccess && userRole !== 'GESTOR') {
+        planningActiveScopes = planningActiveScopes.filter(scope => scope.is_primary_secretariat === true);
+    }
+
     const allowedSecretariatIds = planningActiveScopes.map(s => s.secretariat_id);
     const allowedSecretariatNames = planningActiveScopes.map(s => s.secretariat_name);
-    const hasMultipleRestrictedSecretariats = hasRestrictedAccess && allowedSecretariatIds.length > 1;
+    
+    // Múltiplas secretarias apenas para GESTOR restrito
+    const hasMultipleRestrictedSecretariats = hasRestrictedAccess && userRole === 'GESTOR' && allowedSecretariatIds.length > 1;
 
     return {
         hasFullAccess,
