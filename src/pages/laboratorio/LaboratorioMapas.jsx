@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
     FileText, Printer, Search, RefreshCw, Eye,
-    Filter, Calendar, Map, CheckCircle2, AlertCircle,
+    Filter, Calendar, Map as MapIcon, CheckCircle2, AlertCircle,
     User, Activity, LayoutDashboard, Loader2, XCircle
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -46,7 +46,7 @@ const LaboratorioMapas = () => {
     const [loadingAction, setLoadingAction] = useState(false);
 
     const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
-    const [confirmModal, setConfirmModal] = useState({ visible: false, type: '', loteId: null, message: '' });
+    const [confirmModal, setConfirmModal] = useState({ visible: false, type: '', loteId: null, message: '', batchIds: [] });
 
     const previewRef = useRef(null);
     const dataRef = useRef(null);
@@ -139,7 +139,118 @@ const LaboratorioMapas = () => {
             setLoadingList(false);
         }
     };
+    const buildConsolidatedBatch = (allBatchIds, dateRef, sectorId, startCodeStr, endCodeStr, lotesData) => {
+        const startCode = startCodeStr ? BigInt(startCodeStr) : null;
+        const endCode = endCodeStr ? BigInt(endCodeStr) : null;
+        
+        let consolidatedPatients = new globalThis.Map();
+        let participatingPendingIds = new Set();
+        let participatingPrintedIds = new Set();
+        let commonSectorName = 'Setor';
 
+        for (const bId of allBatchIds) {
+            const bData = lotesData.find(l => l.id === bId);
+            if (!bData) continue;
+            
+            const snapInfo = typeof bData.document_snapshot === 'string' ? JSON.parse(bData.document_snapshot) : (bData.document_snapshot || {});
+            
+            if (snapInfo?.metadata?.reference_date !== dateRef) continue;
+            if (snapInfo?.metadata?.sector?.id !== sectorId) continue;
+            commonSectorName = snapInfo?.metadata?.sector?.name || commonSectorName;
+            
+            const pats = snapInfo.patients || [];
+            let batchContributed = false;
+
+            for (const pat of pats) {
+                const pCode = pat.code ? BigInt(pat.code) : null;
+                if (startCode !== null && pCode !== null && pCode < startCode) continue;
+                if (endCode !== null && pCode !== null && pCode > endCode) continue;
+
+                batchContributed = true;
+                
+                const pKey = pat.patient_id || `${currentTenantId}_${pat.code}`;
+                if (!consolidatedPatients.has(pKey)) {
+                    consolidatedPatients.set(pKey, { ...pat, exams: new globalThis.Map() });
+                }
+                
+                const consPat = consolidatedPatients.get(pKey);
+                for (const ex of (pat.exams || [])) {
+                    const normalize = (str) => (str || '').toString().trim().toUpperCase();
+                    const exKey = ex.exam_id || `${normalize(ex.code)}::${normalize(ex.name)}`;
+                    
+                    const examToStore = { ...ex, _batch_generated_at: bData.generated_at };
+                    
+                    if (!consPat.exams.has(exKey)) {
+                        consPat.exams.set(exKey, examToStore);
+                    } else {
+                        const existing = consPat.exams.get(exKey);
+                        const existingParams = (existing.parameters || []).length;
+                        const newParams = (ex.parameters || []).length;
+                        
+                        const existingHist = (existing.parameters || []).reduce((acc, p) => acc + (p.history || []).length, 0);
+                        const newHist = (ex.parameters || []).reduce((acc, p) => acc + (p.history || []).length, 0);
+                        
+                        let shouldReplace = false;
+                        if (newParams > existingParams) {
+                            shouldReplace = true;
+                        } else if (newParams === existingParams) {
+                            if (newHist > existingHist) {
+                                shouldReplace = true;
+                            } else if (newHist === existingHist) {
+                                const existingDate = new Date(existing._batch_generated_at || 0).getTime();
+                                const newDate = new Date(bData.generated_at || 0).getTime();
+                                if (newDate > existingDate) {
+                                    shouldReplace = true;
+                                }
+                            }
+                        }
+                        
+                        if (shouldReplace) {
+                            consPat.exams.set(exKey, examToStore);
+                        }
+                    }
+                }
+            }
+
+            if (batchContributed) {
+                if (bData.status === 'PENDING') participatingPendingIds.add(bId);
+                else if (bData.status === 'PRINTED') participatingPrintedIds.add(bId);
+            }
+        }
+        
+        let finalPatients = [];
+        for (const [pKey, pat] of consolidatedPatients.entries()) {
+            const examsArray = Array.from(pat.exams.values());
+            if (examsArray.length > 0) {
+                finalPatients.push({ ...pat, exams: examsArray });
+            }
+        }
+        
+        if (finalPatients.length === 0) return null;
+
+        finalPatients.sort((a, b) => {
+            const codeA = a.code ? BigInt(a.code) : 0n;
+            const codeB = b.code ? BigInt(b.code) : 0n;
+            return codeA < codeB ? -1 : codeA > codeB ? 1 : 0;
+        });
+
+        return {
+            id: 'VIRTUAL',
+            isVirtual: true,
+            status: participatingPendingIds.size === 0 ? 'PRINTED' : 'PENDING',
+            participatingPendingIds: Array.from(participatingPendingIds),
+            participatingPrintedIds: Array.from(participatingPrintedIds),
+            document_snapshot: {
+                metadata: {
+                    reference_date: dateRef,
+                    sector: { id: sectorId, name: commonSectorName },
+                    batch_id: 'CONSOLIDADO',
+                    code_range: { start: startCodeStr, end: endCodeStr }
+                },
+                patients: finalPatients
+            }
+        };
+    };
 
 
     const handleGerarLote = async () => {
@@ -200,21 +311,24 @@ const LaboratorioMapas = () => {
                     setPendingAutoPrintBatchId(batch.id);
                 }
                 await carregarLotes(batch?.id);
-            } else if (state === 'EXISTING_PENDING_BATCHES') {
-                showToast('Os exames desta consulta já pertencem a um lote pendente.', 'warning');
-                await carregarLotes();
-                if (pending_batch_ids && pending_batch_ids.length === 1) {
-                    setSelectedLoteId(pending_batch_ids[0]);
+            } else if (['EXISTING_PENDING_BATCHES', 'EXISTING_PRINTED_BATCHES', 'EXISTING_PENDING_AND_PRINTED_BATCHES'].includes(state)) {
+                const pIds = pending_batch_ids || [];
+                const prIds = printed_batch_ids || [];
+                const allIds = [...pIds, ...prIds];
+                
+                // Carregar para garantir que os lotes existam na lista atual
+                const dataLotes = await laboratorioMapasService.listarLotes(currentTenantId);
+                setLotes(dataLotes || []);
+
+                const vLote = buildConsolidatedBatch(allIds, filters.data, filters.setor, filters.codigoInicial, filters.codigoFinal, dataLotes || []);
+                
+                if (vLote) {
+                    showToast('Mapa existente localizado e preparado para impressão.', 'success');
+                    // Chama impressão direta enviando o lote virtual (só memória)
+                    handleImprimirDocumento(vLote);
+                } else {
+                    showToast('Não foi possível montar a impressão dos lotes encontrados com o recorte solicitado. (Possível divergência de filtros).', 'warning');
                 }
-            } else if (state === 'EXISTING_PRINTED_BATCHES') {
-                showToast('Os exames desta consulta já foram impressos.', 'warning');
-                await carregarLotes();
-                if (printed_batch_ids && printed_batch_ids.length === 1) {
-                    setSelectedLoteId(printed_batch_ids[0]);
-                }
-            } else if (state === 'EXISTING_PENDING_AND_PRINTED_BATCHES') {
-                showToast('Parte dos exames está em lotes pendentes e parte já foi impressa.', 'warning');
-                await carregarLotes();
             } else {
                 throw new Error("Não foi possível gerar o lote coletivo.");
             }
@@ -393,8 +507,17 @@ const LaboratorioMapas = () => {
 
         printWindow.onafterprint = () => {
             printWindow.close();
-            // Apenas solicitar marcação se era pendente
-            if (!isReimpressao) {
+            if (lote.isVirtual) {
+                if (lote.participatingPendingIds && lote.participatingPendingIds.length > 0) {
+                    setConfirmModal({
+                        visible: true,
+                        type: 'PRINT_VIRTUAL',
+                        batchIds: lote.participatingPendingIds,
+                        loteId: null,
+                        message: 'Deseja marcar os lotes pendentes utilizados nesta impressão como impressos?'
+                    });
+                }
+            } else if (!isReimpressao) {
                 setConfirmModal({
                     visible: true,
                     type: 'PRINT',
@@ -428,16 +551,23 @@ const LaboratorioMapas = () => {
     }, [pendingAutoPrintBatchId, selectedLoteId, lotes]);
 
     const handleConfirmarImpressao = async () => {
-        if (!confirmModal.loteId) return;
+        if (!confirmModal.loteId && (!confirmModal.batchIds || confirmModal.batchIds.length === 0)) return;
         setLoadingAction(true);
         try {
-            await laboratorioMapasService.marcarLoteComoImpresso({
-                tenantId: currentTenantId,
-                batchId: confirmModal.loteId
-            });
-            showToast('Lote marcado como impresso.', 'success');
+            if (confirmModal.type === 'PRINT_VIRTUAL') {
+                for (const bId of confirmModal.batchIds) {
+                    await laboratorioMapasService.marcarLoteComoImpresso({ tenantId: currentTenantId, batchId: bId });
+                }
+                showToast('Lotes marcados como impressos.', 'success');
+            } else {
+                await laboratorioMapasService.marcarLoteComoImpresso({
+                    tenantId: currentTenantId,
+                    batchId: confirmModal.loteId
+                });
+                showToast('Lote marcado como impresso.', 'success');
+            }
             await carregarLotes();
-            setConfirmModal({ visible: false, type: '', loteId: null, message: '' });
+            setConfirmModal({ visible: false, type: '', loteId: null, message: '', batchIds: [] });
         } catch (error) {
             showToast(error?.message || 'Erro ao marcar lote.', 'error');
         } finally {
@@ -540,15 +670,64 @@ const LaboratorioMapas = () => {
                 </div>
             )}
 
-            {/* Modal de Confirmação */}
+            {/* Modal de Confirmação e Escolha */}
             {confirmModal.visible && (
                 <div className="lab-modal-overlay">
-                    <div className="lab-modal">
-                        <h3 className="lab-modal-title">Confirmação</h3>
-                        <p className="lab-modal-body">{confirmModal.message}</p>
-                        <div className="lab-modal-actions">
-                            <button className="lab-btn lab-btn-outline" onClick={() => setConfirmModal({ visible: false, type: '', loteId: null, message: '' })} disabled={loadingAction}>
-                                {confirmModal.type === 'PRINT' ? 'Manter como pendente' : 'Manter lote'}
+                    <div className="lab-modal" style={confirmModal.type === 'CHOICE' ? { minWidth: '600px', maxWidth: '800px' } : {}}>
+                        <h3 className="lab-modal-title">
+                            {confirmModal.type === 'CHOICE' ? 'Lotes encontrados' : 'Confirmação'}
+                        </h3>
+                        <p className="lab-modal-body">
+                            {confirmModal.type === 'CHOICE' 
+                                ? 'Os exames desta consulta estão distribuídos em mais de um lote. Selecione o lote que deseja imprimir.' 
+                                : confirmModal.message}
+                        </p>
+                        
+                        {confirmModal.type === 'CHOICE' && confirmModal.batchIds && confirmModal.batchIds.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px', maxHeight: '400px', overflowY: 'auto' }}>
+                                {confirmModal.batchIds.map(bId => {
+                                    const bData = lotes.find(l => l.id === bId);
+                                    if (!bData) return null;
+                                    
+                                    const snapInfo = typeof bData.document_snapshot === 'string' ? JSON.parse(bData.document_snapshot) : (bData.document_snapshot || {});
+                                    const secName = snapInfo?.metadata?.sector?.name || 'Setor';
+                                    const patCount = snapInfo?.patients?.length || 0;
+                                    const exCount = snapInfo?.patients?.reduce((acc, p) => acc + (p.exams?.length || 0), 0) || 0;
+                                    const codeStart = snapInfo?.metadata?.code_range?.start || bData.start_patient_code;
+                                    const codeEnd = snapInfo?.metadata?.code_range?.end || bData.end_patient_code;
+                                    const statusObj = getStatusInfo(bData.status);
+
+                                    return (
+                                        <div key={bId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#f8fafc' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.85rem' }}>
+                                                <div style={{ fontWeight: 600, color: '#1e293b' }}>{secName} <span style={{color: '#94a3b8', margin: '0 4px', fontWeight: 'normal'}}>•</span> {formatDate(bData.reference_date)}</div>
+                                                <div style={{ color: '#475569' }}>Cód.: {codeStart} a {codeEnd} <span style={{color: '#94a3b8', margin: '0 4px'}}>•</span> {patCount} pacientes <span style={{color: '#94a3b8', margin: '0 4px'}}>•</span> {exCount} exames</div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span className={`lab-status-tag ${statusObj.cls}`} style={{ padding: '2px 6px', fontSize: '0.7rem' }}>{statusObj.text}</span>
+                                                    <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Gerado em: {formatDateTime(bData.generated_at)}</span>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <button 
+                                                    className={`lab-btn lab-btn-sm ${bData.status === 'PENDING' ? 'lab-btn-primary' : 'lab-btn-success'}`}
+                                                    onClick={() => {
+                                                        setSelectedLoteId(bData.id);
+                                                        setPendingAutoPrintBatchId(bData.id);
+                                                        setConfirmModal({ visible: false, type: '', loteId: null, message: '', batchIds: [] });
+                                                    }}
+                                                >
+                                                    <Printer size={14} /> {bData.status === 'PENDING' ? 'Imprimir' : 'Reimprimir'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        <div className="lab-modal-actions" style={confirmModal.type === 'CHOICE' ? { marginTop: '20px' } : {}}>
+                            <button className="lab-btn lab-btn-outline" onClick={() => setConfirmModal({ visible: false, type: '', loteId: null, message: '', batchIds: [] })} disabled={loadingAction}>
+                                {confirmModal.type === 'CHOICE' ? 'Cancelar' : confirmModal.type === 'PRINT' ? 'Manter como pendente' : 'Manter lote'}
                             </button>
                             {confirmModal.type === 'PRINT' && (
                                 <button className="lab-btn lab-btn-success" onClick={handleConfirmarImpressao} disabled={loadingAction}>
@@ -672,7 +851,7 @@ const LaboratorioMapas = () => {
                     </div>
                     <div className="lab-filters-actions">
                         <button className="lab-btn lab-btn-primary" onClick={handleGerarLote} disabled={loadingGen} ref={gerarBtnRef}>
-                            {loadingGen ? <Loader2 size={16} className="animate-spin" /> : <Map size={16} />} 
+                            {loadingGen ? <Loader2 size={16} className="animate-spin" /> : <MapIcon size={16} />} 
                             Gerar mapa
                         </button>
                     </div>
@@ -714,7 +893,7 @@ const LaboratorioMapas = () => {
                 {/* Lista de Lotes Históricos */}
                 <div className="lab-card lab-mapas-list-card">
                     <div className="lab-card-header">
-                        <h3 className="lab-card-title"><Map size={18} /> Lotes Gerados</h3>
+                        <h3 className="lab-card-title"><MapIcon size={18} /> Lotes Gerados</h3>
                     </div>
                     <div className="lab-list-filters">
                         <select value={listFilterState} onChange={(e) => setListFilterState(e.target.value)}>
