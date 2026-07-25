@@ -52,6 +52,7 @@ const LaboratorioResultados = () => {
     const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'success' | 'error'
     const [feedbackMsg, setFeedbackMsg] = useState(null);
     const inputRefs = useRef([]);
+    const lastFocusedExamRef = useRef(null);
 
     const location = useLocation();
     
@@ -143,6 +144,8 @@ const LaboratorioResultados = () => {
                 }
                 selecionarExame(toSelect);
             }
+            
+            return data;
         } catch (error) {
             console.error("Erro ao buscar exames", error);
         } finally {
@@ -168,9 +171,9 @@ const LaboratorioResultados = () => {
         return JSON.stringify(formValues) !== JSON.stringify(initialFormValues);
     };
 
-    const handleSelectExamWithCheck = (result) => {
+    const handleSelectExamWithCheck = (result, skipUnsavedCheck = false) => {
         if (!result) return;
-        if (checkUnsavedChanges()) {
+        if (!skipUnsavedCheck && checkUnsavedChanges()) {
             setPendingNavigation(result);
             setShowUnsavedModal(true);
         } else {
@@ -192,6 +195,26 @@ const LaboratorioResultados = () => {
     };
 
     useEffect(() => {
+        if (!selectedExamId || loading || saving) return;
+        
+        if (lastFocusedExamRef.current === selectedExamId) return;
+
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                const el = document.getElementById(`exam-item-${selectedExamId}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+                const firstInput = inputRefs.current[0];
+                if (firstInput && !firstInput.disabled && !firstInput.readOnly) {
+                    firstInput.focus();
+                    if (firstInput.select) firstInput.select();
+                    lastFocusedExamRef.current = selectedExamId;
+                }
+            }, 100);
+        });
+    }, [selectedExamId, loading, saving]);
+
+    useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape' && showUnsavedModal) {
                 cancelNavigation();
@@ -211,9 +234,9 @@ const LaboratorioResultados = () => {
         handleSelectExamWithCheck(attendanceExams[currentExamIndex - 1]);
     };
 
-    const goToNextExam = () => {
+    const goToNextExam = (options = {}) => {
         if (currentExamIndex < 0 || currentExamIndex >= attendanceExams.length - 1) return;
-        handleSelectExamWithCheck(attendanceExams[currentExamIndex + 1]);
+        handleSelectExamWithCheck(attendanceExams[currentExamIndex + 1], options?.skipUnsavedCheck);
     };
 
     const handleValueChange = (paramId, field, value) => {
@@ -248,10 +271,24 @@ const LaboratorioResultados = () => {
 
             await laboratorioResultadosService.salvarResultados(selectedExamId, valuesToSave);
             
-            await carregarDados(selectedAttendance ? selectedAttendance.protocol_number : searchFilters.protocol, selectedExamId);
-            setSaveStatus('success');
-            setFeedbackMsg({ type: 'success', text: 'Resultado salvo com sucesso.' });
+            const updatedData = await carregarDados(selectedAttendance ? selectedAttendance.protocol_number : searchFilters.protocol, selectedExamId);
             
+            // Sincronizar estado após sucesso
+            setInitialFormValues({ ...formValues });
+            
+            setSaveStatus('success');
+
+            const results = updatedData && updatedData.length > 0 && updatedData[0].resultados ? updatedData[0].resultados : [];
+            const isAllCompleted = results.length > 0 && results.every(r => !['PENDENTE'].includes(String(r.status || '').toUpperCase()));
+
+            if (isAllCompleted) {
+                 setFeedbackMsg({ type: 'success', text: 'Todos os exames deste atendimento foram digitados.' });
+            } else {
+                 setFeedbackMsg({ type: 'success', text: 'Resultado salvo com sucesso.' });
+                 
+                 goToNextExam({ skipUnsavedCheck: true });
+            }
+
             setTimeout(() => {
                 setFeedbackMsg(null);
                 setSaveStatus('idle');
@@ -277,6 +314,7 @@ const LaboratorioResultados = () => {
         
     const handleResultKeyDown = async (event, index) => {
         if (event.key !== 'Enter') return;
+        if (saving) return;
         event.preventDefault();
         
         const nextInput = inputRefs.current[index + 1];
@@ -542,6 +580,7 @@ const LaboratorioResultados = () => {
                             {resultados.map((res) => (
                                 <div 
                                     key={res.id} 
+                                    id={`exam-item-${res.id}`}
                                     className={`lab-exam-item ${selectedExamId === res.id ? 'active' : ''}`}
                                     onClick={() => handleSelectExamWithCheck(res)}
                                 >
