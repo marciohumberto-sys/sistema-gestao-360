@@ -24,6 +24,9 @@ import {
     deletePlanejamentoUser
 } from '../../services/planejamentoUsers.service';
 import { fetchSecretariats } from '../../services/api/planejamentoAcoes.service';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
 import './PlanejamentoDashboard.css';
@@ -59,6 +62,16 @@ const PlanejamentoUsuarios = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [userToDelete, setUserToDelete] = useState(null);
+
+    const { tenantLink, scopes } = useAuth();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const planejamentoContext = getPlanejamentoContext(tenantLink?.role, scopes);
+        if (planejamentoContext.hasRestrictedAccess) {
+            navigate('/planejamento/dashboard', { replace: true });
+        }
+    }, [tenantLink, scopes, navigate]);
     const [deletingId, setDeletingId] = useState(null);
     const [toast, setToast] = useState(false);
 
@@ -546,7 +559,9 @@ const PlanejamentoUsuarios = () => {
                                                 required
                                             >
                                                 <option value="">Selecione uma secretaria...</option>
-                                                {secretariatsOptions.map(sec => (
+                                                {[...secretariatsOptions]
+                                                    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }))
+                                                    .map(sec => (
                                                     <option key={sec.id} value={sec.id}>{sec.name}</option>
                                                 ))}
                                             </select>

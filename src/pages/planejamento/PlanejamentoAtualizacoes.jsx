@@ -20,6 +20,7 @@ import {
     ArrowRight,
     History
 } from 'lucide-react';
+import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
 import { useAuth } from '../../context/AuthContext';
@@ -541,10 +542,12 @@ const ActionContextCard = ({ acao, getStatusLabel }) => {
 
 // Componente principal
 const PlanejamentoAtualizacoes = () => {
-    const { tenantLink, userProfile, user } = useAuth();
+    const { tenantLink, userProfile, user, scopes } = useAuth();
     const tenantId = tenantLink?.tenant_id;
     const location = useLocation();
     const navigate = useNavigate();
+
+    const contextoPlanejamento = React.useMemo(() => getPlanejamentoContext(tenantLink?.role, scopes), [tenantLink, scopes]);
 
     // ---- ESTADO ----
     const [atualizacoes, setAtualizacoes] = useState([]);
@@ -556,7 +559,7 @@ const PlanejamentoAtualizacoes = () => {
     // Filtros
     const [busca, setBusca] = useState('');
     const [acaoFiltro, setAcaoFiltro] = useState('Todas');
-    const [secretariaFiltro, setSecretariaFiltro] = useState('Todas');
+    const [secretariaFiltro, setSecretariaFiltro] = useState(contextoPlanejamento.hasRestrictedAccess ? (contextoPlanejamento.primarySecretariatId || 'nenhuma') : 'Todas');
     const [tipoFiltro, setTipoFiltro] = useState('Todos');
     const [periodoFiltro, setPeriodoFiltro] = useState('Todos');
 
@@ -597,7 +600,10 @@ const PlanejamentoAtualizacoes = () => {
         setLoadError(null);
         try {
             const data = await fetchAtualizacoes(tenantId);
-            setAtualizacoes(data);
+            const filteredData = contextoPlanejamento.hasRestrictedAccess 
+                ? data.filter(a => a.secretariaId === contextoPlanejamento.primarySecretariatId || (a.participantesIds || []).includes(contextoPlanejamento.primarySecretariatId))
+                : data;
+            setAtualizacoes(filteredData);
         } catch (err) {
             console.error('[PlanejamentoAtualizacoes] Erro ao carregar:', err);
             setLoadError('Não foi possível carregar as atualizações. Tente novamente.');
@@ -609,10 +615,15 @@ const PlanejamentoAtualizacoes = () => {
     useEffect(() => {
         if (tenantId) {
             loadAtualizacoes();
-            fetchAcoes(tenantId).then(setAcoes).catch(console.error);
+            fetchAcoes(tenantId).then(data => {
+                const filtered = contextoPlanejamento.hasRestrictedAccess
+                    ? data.filter(a => a.secretariaId === contextoPlanejamento.primarySecretariatId || (a.participantesIds || []).includes(contextoPlanejamento.primarySecretariatId))
+                    : data;
+                setAcoes(filtered);
+            }).catch(console.error);
             fetchPlanejamentoUsers(tenantId).then(setPlanejamentoUsers).catch(console.error);
         }
-    }, [tenantId, loadAtualizacoes]);
+    }, [tenantId, loadAtualizacoes, contextoPlanejamento]);
 
     const stateProcessed = React.useRef(false);
 
@@ -1246,9 +1257,19 @@ const PlanejamentoAtualizacoes = () => {
                             </div>
 
                             <div className="farmacia-select-wrapper" style={{ flex: '1 1 150px', position: 'relative' }}>
-                                <select className="farmacia-filter-select" style={{ width: '100%', paddingRight: '36px', appearance: 'none', WebkitAppearance: 'none' }} value={secretariaFiltro} onChange={(e) => setSecretariaFiltro(e.target.value)}>
-                                    <option value="Todas">Secretaria: Todas</option>
-                                    {secretariasUnicas.map(s => <option key={s} value={s}>{s}</option>)}
+                                <select 
+                                    className="farmacia-filter-select" 
+                                    style={{ width: '100%', paddingRight: '36px', appearance: 'none', WebkitAppearance: 'none', cursor: contextoPlanejamento.hasRestrictedAccess ? 'not-allowed' : 'pointer', opacity: contextoPlanejamento.hasRestrictedAccess ? 0.7 : 1 }} 
+                                    value={secretariaFiltro} 
+                                    onChange={(e) => setSecretariaFiltro(e.target.value)}
+                                    disabled={contextoPlanejamento.hasRestrictedAccess}
+                                >
+                                    {!contextoPlanejamento.hasRestrictedAccess && <option value="Todas">Secretaria: Todas</option>}
+                                    {contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.primarySecretariatId && <option value="nenhuma">Sem Secretaria</option>}
+                                    {secretariasUnicas.map(s => {
+                                        if (contextoPlanejamento.hasRestrictedAccess && contextoPlanejamento.primarySecretariatName !== s) return null;
+                                        return <option key={s} value={s}>{s}</option>;
+                                    })}
                                 </select>
                                 <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                             </div>

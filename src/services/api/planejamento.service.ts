@@ -14,7 +14,7 @@ class PlanejamentoService {
             { data: secretariats, error: errSecs },
             { data: actionSecretariats, error: errActSecs }
         ] = await Promise.all([
-            supabase.from('planning_actions').select('*').eq('tenant_id', tenantId).eq('module_id', MODULE_ID),
+            supabase.from('planning_actions').select('*, planning_axes(id, name)').eq('tenant_id', tenantId).eq('module_id', MODULE_ID),
             supabase.from('planning_action_updates').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
             supabase.from('planning_action_issues').select('*').eq('tenant_id', tenantId),
             supabase.from('planning_axes').select('*').eq('tenant_id', tenantId).order('display_order', { ascending: true }),
@@ -200,18 +200,33 @@ class PlanejamentoService {
             .sort((a, b) => a.timestamp - b.timestamp);
 
         // ── 5. Distribuição por Eixo ─────────────────────────────────────────
-        const distribuicaoEixos = safeAxes
-            .map(axis => ({
-                name: axis.name || 'Sem nome',
-                value: safeActions.filter(a => a.axis_id === axis.id).length,
-            }))
-            .filter(e => e.value > 0);
-
-        // Ações sem eixo definido
-        const semEixo = safeActions.filter(a => !a.axis_id).length;
-        if (semEixo > 0) {
-            distribuicaoEixos.push({ name: 'Sem eixo', value: semEixo });
+        const distribuicaoPorEixoMap = new Map();
+        
+        const axesMap = new Map<string, string>();
+        if (safeAxes && Array.isArray(safeAxes)) {
+            safeAxes.forEach((ax: any) => {
+                if (ax.id) axesMap.set(ax.id, ax.name || 'Sem eixo');
+            });
         }
+
+        safeActions.forEach((action: any) => {
+            const eixoNome =
+                action.planning_axes?.name ||
+                action.axis?.name ||
+                action.axis_name ||
+                action.eixo ||
+                action.eixoNome ||
+                (action.axis_id ? (axesMap.get(action.axis_id) || "Sem eixo") : "Sem eixo");
+
+            distribuicaoPorEixoMap.set(
+                eixoNome,
+                (distribuicaoPorEixoMap.get(eixoNome) || 0) + 1
+            );
+        });
+
+        const distribuicaoEixos = Array.from(distribuicaoPorEixoMap.entries())
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
 
         // ── 6. Problemas Críticos ────────────────────────────────────────────
         const problemasCriticos = openIssues

@@ -338,15 +338,15 @@ export const fetchAcoes = async (tenantId) => {
         console.warn('[planejamentoAcoes] Falha ao buscar objetivos:', objErr);
     }
 
-    // 5. Buscar secretarias participantes (is_primary = false)
+    // 5. Buscar secretarias participantes (incluindo principais para garantir match no backend caso venha da tabela de vínculo)
     let participantsMap = new Map();
+    let participantsIdsMap = new Map();
     try {
         const actionIds = actions.map(a => a.id);
         if (actionIds.length > 0) {
             const { data: links } = await supabase
                 .from('planning_action_secretariats')
                 .select('action_id, secretariat_id')
-                .eq('is_primary', false)
                 .in('action_id', actionIds);
                 
             if (links) {
@@ -354,6 +354,9 @@ export const fetchAcoes = async (tenantId) => {
                     const secName = secretariatsMap.get(l.secretariat_id) || 'Desconhecida';
                     if (!participantsMap.has(l.action_id)) participantsMap.set(l.action_id, []);
                     participantsMap.get(l.action_id).push(secName);
+
+                    if (!participantsIdsMap.has(l.action_id)) participantsIdsMap.set(l.action_id, []);
+                    participantsIdsMap.get(l.action_id).push(l.secretariat_id);
                 });
             }
         }
@@ -395,6 +398,7 @@ export const fetchAcoes = async (tenantId) => {
         secretariaId: a.secretariat_id,
         secretariaFull: secretariatsMap.get(a.secretariat_id) || '',
         participantes: participantsMap.get(a.id) || [],
+        participantesIds: participantsIdsMap.get(a.id) || [],
         eixo: axesMap.get(a.axis_id) || '',
         eixoId: a.axis_id,
         objective_id: a.objective_id,
@@ -658,7 +662,25 @@ export const fetchAtualizacoes = async (tenantId) => {
                 const { data: secs } = await supabase.from('secretariats').select('id, name').in('id', secIds);
                 (secs || []).forEach(s => secMap.set(s.id, s.name));
             }
-            (actions || []).forEach(a => actionsMap.set(a.id, { ...a, secretariaNome: secMap.get(a.secretariat_id) || 'Não informada' }));
+            
+            let participantsIdsMap = new Map();
+            const { data: links } = await supabase
+                .from('planning_action_secretariats')
+                .select('action_id, secretariat_id')
+                .in('action_id', actionIds);
+            
+            if (links) {
+                links.forEach(l => {
+                    if (!participantsIdsMap.has(l.action_id)) participantsIdsMap.set(l.action_id, []);
+                    participantsIdsMap.get(l.action_id).push(l.secretariat_id);
+                });
+            }
+
+            (actions || []).forEach(a => actionsMap.set(a.id, { 
+                ...a, 
+                secretariaNome: secMap.get(a.secretariat_id) || 'Não informada',
+                participantesIds: participantsIdsMap.get(a.id) || []
+            }));
         }
 
         // 1. Agrupar atualizações por ação para processamento cronológico local
@@ -711,6 +733,8 @@ export const fetchAtualizacoes = async (tenantId) => {
                 acao: acao.title || 'Ação não encontrada',
                 acaoId: u.action_id,
                 secretaria: acao.secretariaNome || 'Não informada',
+                secretariaId: acao.secretariat_id || null,
+                participantesIds: acao.participantesIds || [],
                 tipo: u.update_type || derivarTipo(u),
                 data: u.created_at,
                 update_date: u.update_date || u.created_at,

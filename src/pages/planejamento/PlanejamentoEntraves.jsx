@@ -31,10 +31,13 @@ import {
     resolveEntrave,
     fetchAcoesParaEntraves,
 } from '../../services/api/planejamentoEntraves.service';
+import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
 
 const PlanejamentoEntraves = () => {
-    const { tenantLink } = useAuth();
+    const { tenantLink, scopes } = useAuth();
     const tenantId = tenantLink?.tenant_id;
+
+    const contextoPlanejamento = React.useMemo(() => getPlanejamentoContext(tenantLink?.role, scopes), [tenantLink, scopes]);
 
     // ---- ESTADO ----
     const [entraves, setEntraves] = useState([]);
@@ -45,7 +48,7 @@ const PlanejamentoEntraves = () => {
     // Filtros
     const [busca, setBusca] = useState('');
     const [acaoFiltro, setAcaoFiltro] = useState('Todas');
-    const [secretariaFiltro, setSecretariaFiltro] = useState('Todas');
+    const [secretariaFiltro, setSecretariaFiltro] = useState(contextoPlanejamento.hasRestrictedAccess ? (contextoPlanejamento.primarySecretariatName || 'nenhuma') : 'Todas');
     const [gravidadeFiltro, setGravidadeFiltro] = useState('Todas');
     const [statusFiltro, setStatusFiltro] = useState('Todos');
     const [responsavelFiltro, setResponsavelFiltro] = useState('Todos');
@@ -104,21 +107,29 @@ const PlanejamentoEntraves = () => {
         setLoadError(null);
         try {
             const data = await fetchEntraves(tenantId);
-            setEntraves(data);
+            const filteredData = contextoPlanejamento.hasRestrictedAccess
+                ? data.filter(e => e.secretariaId === contextoPlanejamento.primarySecretariatId || (e.participantesIds || []).includes(contextoPlanejamento.primarySecretariatId))
+                : data;
+            setEntraves(filteredData);
         } catch (err) {
             console.error('[PlanejamentoEntraves] Erro ao carregar:', err);
             setLoadError('Não foi possível carregar os entraves. Tente novamente.');
         } finally {
             setLoading(false);
         }
-    }, [tenantId]);
+    }, [tenantId, contextoPlanejamento]);
 
     useEffect(() => {
         if (tenantId) {
             loadEntraves();
-            fetchAcoesParaEntraves(tenantId).then(setAcoes).catch(console.error);
+            fetchAcoesParaEntraves(tenantId).then(data => {
+                const filtered = contextoPlanejamento.hasRestrictedAccess
+                    ? data.filter(a => a.secretariaId === contextoPlanejamento.primarySecretariatId || (a.participantesIds || []).includes(contextoPlanejamento.primarySecretariatId))
+                    : data;
+                setAcoes(filtered);
+            }).catch(console.error);
         }
-    }, [tenantId, loadEntraves]);
+    }, [tenantId, loadEntraves, contextoPlanejamento]);
 
     const filteredAcoesParaDropdown = useMemo(() => {
         if (!actionSearch) return acoes;
@@ -470,9 +481,19 @@ const PlanejamentoEntraves = () => {
                             </div>
 
                             <div className="farmacia-select-wrapper" style={{ flex: '1 1 150px' }}>
-                                <select className="farmacia-filter-select" style={{ width: '100%', appearance: 'auto', WebkitAppearance: 'auto', MozAppearance: 'auto' }} value={secretariaFiltro} onChange={(e) => setSecretariaFiltro(e.target.value)}>
-                                    <option value="Todas">Sec: Todas</option>
-                                    {secretariasUnicas.map(s => <option key={s} value={s}>{s}</option>)}
+                                <select 
+                                    className="farmacia-filter-select" 
+                                    style={{ width: '100%', paddingRight: '36px', appearance: 'none', WebkitAppearance: 'none', cursor: contextoPlanejamento.hasRestrictedAccess ? 'not-allowed' : 'pointer', opacity: contextoPlanejamento.hasRestrictedAccess ? 0.7 : 1 }} 
+                                    value={secretariaFiltro} 
+                                    onChange={(e) => setSecretariaFiltro(e.target.value)}
+                                    disabled={contextoPlanejamento.hasRestrictedAccess}
+                                >
+                                    {!contextoPlanejamento.hasRestrictedAccess && <option value="Todas">Secretaria: Todas</option>}
+                                    {contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.primarySecretariatId && <option value="nenhuma">Sem Secretaria</option>}
+                                    {secretariasUnicas.map(s => {
+                                        if (contextoPlanejamento.hasRestrictedAccess && contextoPlanejamento.primarySecretariatName !== s) return null;
+                                        return <option key={s} value={s}>{s}</option>;
+                                    })}
                                 </select>
                             </div>
 

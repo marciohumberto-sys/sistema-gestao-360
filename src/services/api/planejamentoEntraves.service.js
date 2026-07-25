@@ -92,9 +92,23 @@ export const fetchEntraves = async (tenantId) => {
                 (secs || []).forEach(s => secMap.set(s.id, s.name));
             }
 
+            let participantsIdsMap = new Map();
+            const { data: links } = await supabase
+                .from('planning_action_secretariats')
+                .select('action_id, secretariat_id')
+                .in('action_id', actionIds);
+            
+            if (links) {
+                links.forEach(l => {
+                    if (!participantsIdsMap.has(l.action_id)) participantsIdsMap.set(l.action_id, []);
+                    participantsIdsMap.get(l.action_id).push(l.secretariat_id);
+                });
+            }
+
             (actions || []).forEach(a => actionsMap.set(a.id, {
                 ...a,
-                secretariaNome: secMap.get(a.secretariat_id) || 'Não informada'
+                secretariaNome: secMap.get(a.secretariat_id) || 'Não informada',
+                participantesIds: participantsIdsMap.get(a.id) || []
             }));
         }
 
@@ -107,6 +121,8 @@ export const fetchEntraves = async (tenantId) => {
                 acaoId: i.action_id,
                 acaoNome: acao.title || 'Ação não encontrada',
                 secretaria: acao.secretariaNome || 'Não informada',
+                secretariaId: acao.secretariat_id || null,
+                participantesIds: acao.participantesIds || [],
                 descricao: i.description || '',
                 gravidade: SEVERITY_TO_LABEL[i.severity] || i.severity || 'Baixa',
                 gravidade_db: i.severity,
@@ -141,7 +157,28 @@ export const fetchAcoesParaEntraves = async (tenantId) => {
             .order('title', { ascending: true });
 
         if (error) throw error;
-        return data || [];
+        
+        let participantsIdsMap = new Map();
+        if (data && data.length > 0) {
+            const actionIds = data.map(a => a.id);
+            const { data: links } = await supabase
+                .from('planning_action_secretariats')
+                .select('action_id, secretariat_id')
+                .in('action_id', actionIds);
+            
+            if (links) {
+                links.forEach(l => {
+                    if (!participantsIdsMap.has(l.action_id)) participantsIdsMap.set(l.action_id, []);
+                    participantsIdsMap.get(l.action_id).push(l.secretariat_id);
+                });
+            }
+        }
+
+        return (data || []).map(a => ({
+            ...a,
+            secretariaId: a.secretariat_id,
+            participantesIds: participantsIdsMap.get(a.id) || []
+        }));
     } catch (err) {
         console.error('[planejamentoEntraves] Erro ao buscar ações:', err);
         return [];

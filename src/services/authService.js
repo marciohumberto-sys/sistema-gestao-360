@@ -41,11 +41,21 @@ export const getUserTenantAndScopes = async (userId) => {
             .from('user_access_scopes')
             .select(`
                 id,
+                tenant_id,
+                user_id,
                 module_id,
                 secretariat_id,
                 unit_id,
+                is_active,
+                is_primary_secretariat,
                 system_modules (
-                    key
+                    id,
+                    key,
+                    name
+                ),
+                secretariats (
+                    id,
+                    name
                 )
             `)
             .eq('user_id', userId)
@@ -60,11 +70,16 @@ export const getUserTenantAndScopes = async (userId) => {
         if (scopesData) {
             scopes = scopesData.map(s => ({
                 id: s.id,
+                tenant_id: s.tenant_id,
+                user_id: s.user_id,
                 module_id: s.module_id,
                 secretariat_id: s.secretariat_id,
                 unit_id: s.unit_id,
+                is_active: s.is_active,
+                is_primary_secretariat: s.is_primary_secretariat,
                 module_key: s.system_modules?.key,
-                module_name: s.system_modules?.key
+                module_name: s.system_modules?.name || s.system_modules?.key,
+                secretariat_name: s.secretariats?.name
             }));
             
             // Derivar os módulos acessíveis

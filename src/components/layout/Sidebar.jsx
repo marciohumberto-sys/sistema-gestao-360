@@ -36,6 +36,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { canAccessFarmacia } from '../../utils/farmaciaAcl';
 import { canAccessLaboratorio } from '../../utils/laboratorioAcl';
+import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
 import './Sidebar.css';
 
 const MENU_ITEMS = [
@@ -184,17 +185,33 @@ const LABORATORIO_MENU_ITEMS = [
 const Sidebar = ({ isPinned, togglePin }) => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { tenantLink, isSuperAdmin, accessibleModules = [] } = useAuth();
+    const { tenantLink, isSuperAdmin, accessibleModules = [], scopes } = useAuth();
     
     const isFarmacia = location.pathname.startsWith('/farmacia');
     const isPlanejamento = location.pathname.startsWith('/planejamento');
     const isLaboratorio = location.pathname.startsWith('/laboratorio');
     
-    let activeMenu = MENU_ITEMS;
-    if (isFarmacia) activeMenu = FARMACIA_MENU_ITEMS;
-    else if (isPlanejamento) activeMenu = PLANEJAMENTO_MENU_ITEMS;
-    else if (isLaboratorio) activeMenu = LABORATORIO_MENU_ITEMS;
-    
+    // Obter contexto do Planejamento para restrições locais de menu
+    const planejamentoContext = getPlanejamentoContext(tenantLink?.role, scopes);
+
+    const getVisibleMenu = () => {
+        if (location.pathname.startsWith('/compras')) return MENU_ITEMS;
+        if (isFarmacia) return FARMACIA_MENU_ITEMS;
+        if (isLaboratorio) return LABORATORIO_MENU_ITEMS;
+        
+        if (isPlanejamento) {
+            if (planejamentoContext.hasRestrictedAccess) {
+                return PLANEJAMENTO_MENU_ITEMS.filter(group => 
+                    group.section !== 'Plano Estratégico' && group.section !== 'Administração'
+                );
+            }
+            return PLANEJAMENTO_MENU_ITEMS;
+        }
+
+        return MENU_ITEMS;
+    };
+
+    const activeMenu = getVisibleMenu();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
 
     const filteredMenu = activeMenu.map(group => ({

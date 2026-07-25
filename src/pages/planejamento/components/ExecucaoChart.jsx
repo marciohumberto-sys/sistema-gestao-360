@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts';
 
 const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -86,6 +86,14 @@ const CustomTooltip = ({ active, payload, label }) => {
                             </div>
                         );
                     })}
+                    
+                    <div style={{ height: '1px', background: '#e2e8f0', marginTop: '4px', marginBottom: '4px' }}></div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '24px' }}>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#334155' }}>Total</span>
+                        <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                            {payload.reduce((sum, entry) => sum + entry.value, 0)}
+                        </span>
+                    </div>
                 </div>
             </div>
         );
@@ -97,7 +105,10 @@ const ExecucaoChart = ({ data: execucao }) => {
     if (!execucao || execucao.length === 0) {
         return (
             <div className="dashboard-card animate-fade-in-up delay-100" style={{ 
-                height: '100%', 
+                height: '400px', 
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
                 background: '#ffffff', 
                 border: '1px solid rgba(0,0,0,0.06)', 
                 boxShadow: '0 8px 24px -4px rgba(0,0,0,0.06)' 
@@ -110,17 +121,28 @@ const ExecucaoChart = ({ data: execucao }) => {
         );
     }
 
+    const dataWithTotal = execucao.map(item => ({
+        ...item,
+        Total: item.NaoIniciadas + item.EmAndamento + item.Concluidas
+    }));
+
+    const maxValue = Math.max(0, ...dataWithTotal.map(d => d.Total));
+    const yMax = Math.ceil((maxValue + 2) / 5) * 5;
+
     return (
         <div className="dashboard-card animate-fade-in-up delay-100" style={{ 
-            height: '100%', 
+            height: '400px', 
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
             background: '#ffffff', 
             border: '1px solid rgba(0,0,0,0.06)', 
             boxShadow: '0 8px 24px -4px rgba(0,0,0,0.06)' 
         }}>
-            <h2 className="card-title">Evolução da Execução</h2>
-            <div style={{ width: '100%', height: 300 }}>
+            <h2 className="card-title" style={{ marginBottom: '16px', marginTop: 0 }}>Evolução da Execução</h2>
+            <div style={{ flex: 1, width: '100%', minHeight: '260px' }}>
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={execucao} margin={{ top: 0, right: 10, left: -20, bottom: 0 }} barCategoryGap="25%">
+                    <BarChart data={dataWithTotal} margin={{ top: 25, right: 0, left: -20, bottom: -10 }} barCategoryGap="15%">
                         <defs>
                             <linearGradient id="gradNaoIniciadas" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="0%" stopColor="#94a3b8" stopOpacity={1}/>
@@ -137,17 +159,19 @@ const ExecucaoChart = ({ data: execucao }) => {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#475569', fontWeight: 500 }} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#475569', fontWeight: 500 }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#475569', fontWeight: 500 }} domain={[0, yMax]} />
                         <Tooltip 
                             content={<CustomTooltip />} 
                             cursor={{ fill: 'rgba(248, 250, 252, 0.5)' }} 
                             isAnimationActive={true}
                             animationDuration={200}
                         />
-                        <Legend wrapperStyle={{ fontSize: '0.85rem', paddingTop: '10px' }} />
-                        <Bar dataKey="NaoIniciadas" name="Não Iniciadas" stackId="a" fill="url(#gradNaoIniciadas)" isAnimationActive={true} animationBegin={0} animationDuration={1500} animationEasing="ease-out" radius={[0, 0, 4, 4]} activeBar={{ filter: 'brightness(1.05)' }} />
-                        <Bar dataKey="EmAndamento" name="Em Andamento" stackId="a" fill="url(#gradEmAndamento)" isAnimationActive={true} animationBegin={200} animationDuration={1500} animationEasing="ease-out" activeBar={{ filter: 'brightness(1.05)' }} />
-                        <Bar dataKey="Concluidas" name="Concluídas" stackId="a" fill="url(#gradConcluidas)" isAnimationActive={true} animationBegin={400} animationDuration={1500} animationEasing="ease-out" radius={[4, 4, 0, 0]} activeBar={{ filter: 'brightness(1.05)' }} />
+                        <Legend wrapperStyle={{ fontSize: '13px', paddingTop: '16px' }} verticalAlign="bottom" height={24} />
+                        <Bar dataKey="NaoIniciadas" name="Não Iniciadas" stackId="a" fill="url(#gradNaoIniciadas)" isAnimationActive={true} animationBegin={0} animationDuration={1500} animationEasing="ease-out" radius={[0, 0, 4, 4]} minPointSize={4} activeBar={{ filter: 'brightness(1.05)' }} />
+                        <Bar dataKey="EmAndamento" name="Em Andamento" stackId="a" fill="url(#gradEmAndamento)" isAnimationActive={true} animationBegin={200} animationDuration={1500} animationEasing="ease-out" minPointSize={4} activeBar={{ filter: 'brightness(1.05)' }} />
+                        <Bar dataKey="Concluidas" name="Concluídas" stackId="a" fill="url(#gradConcluidas)" isAnimationActive={true} animationBegin={400} animationDuration={1500} animationEasing="ease-out" radius={[4, 4, 0, 0]} minPointSize={4} activeBar={{ filter: 'brightness(1.05)' }}>
+                            <LabelList dataKey="Total" position="top" offset={10} style={{ fill: '#334155', fontSize: 12, fontWeight: 700 }} />
+                        </Bar>
                     </BarChart>
                 </ResponsiveContainer>
             </div>

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Filter, MapPin, Landmark, Target, Activity, CheckCircle, AlertTriangle, ChevronRight, X, Compass, Users, HeartPulse, GraduationCap, TrendingUp, Building2, ShieldCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
 import { useAuth } from '../../context/AuthContext';
 import { planejamentoService } from '../../services/api/planejamento.service';
 import './PlanejamentoEstrategico.css';
@@ -12,12 +14,20 @@ const strategicTimelineMockData = [
 ];
 
 const PlanejamentoEstrategico = () => {
-    const { tenantLink } = useAuth();
+    const { tenantLink, scopes } = useAuth();
+    const navigate = useNavigate();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeEixo, setActiveEixo] = useState(null);
     const [expandedObjectiveId, setExpandedObjectiveId] = useState(null);
     const [showEmptyObjectives, setShowEmptyObjectives] = useState(false);
+
+    useEffect(() => {
+        const planejamentoContext = getPlanejamentoContext(tenantLink?.role, scopes);
+        if (planejamentoContext.hasRestrictedAccess) {
+            navigate('/planejamento/dashboard', { replace: true });
+        }
+    }, [tenantLink, scopes, navigate]);
 
     const formatPercent = (value) => {
         if (value === null || value === undefined || isNaN(value)) return "0";

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, Filter, MapPin } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { planejamentoService } from '../../services/api/planejamento.service';
+import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
 import './PlanejamentoDashboard.css';
 
 import DashboardKpis from './components/DashboardKpis';
@@ -14,14 +15,16 @@ import AcoesEmRisco from './components/AcoesEmRisco';
 import AcoesMapa from './components/AcoesMapa';
 
 const PlanejamentoDashboard = () => {
-    const { tenantLink } = useAuth();
+    const { tenantLink, scopes } = useAuth();
     const [rawData, setRawData] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    const contextPlanejamento = getPlanejamentoContext(tenantLink?.role, scopes);
 
     const [filters, setFilters] = useState({
         periodo: 'todos',
         eixoId: 'todos',
-        secretariaId: 'todas'
+        secretariaId: contextPlanejamento.hasRestrictedAccess ? (contextPlanejamento.primarySecretariatId || 'nenhuma') : 'todas'
     });
 
     useEffect(() => {
@@ -43,7 +46,12 @@ const PlanejamentoDashboard = () => {
 
     const dashboardData = useMemo(() => {
         if (!rawData) return null;
-        return planejamentoService.computeDashboardData(rawData, filters);
+        const computed = planejamentoService.computeDashboardData(rawData, filters);
+        
+        console.table(computed?.distribuicaoEixos || []);
+        console.log("Soma distribuição por eixo:", (computed?.distribuicaoEixos || []).reduce((acc, item) => acc + Number(item.value || 0), 0));
+
+        return computed;
     }, [rawData, filters]);
 
     if (loading) {
@@ -118,14 +126,19 @@ const PlanejamentoDashboard = () => {
                         </div>
                         <select 
                             className="filter-button-mock" 
-                            style={{ appearance: 'none', paddingLeft: '32px', paddingRight: '28px', cursor: 'pointer', outline: 'none', maxWidth: '200px' }}
+                            style={{ appearance: 'none', paddingLeft: '32px', paddingRight: '28px', cursor: contextPlanejamento.hasRestrictedAccess ? 'not-allowed' : 'pointer', outline: 'none', maxWidth: '200px', opacity: contextPlanejamento.hasRestrictedAccess ? 0.7 : 1 }}
                             value={filters.secretariaId}
                             onChange={(e) => setFilters(f => ({ ...f, secretariaId: e.target.value }))}
+                            disabled={contextPlanejamento.hasRestrictedAccess}
                         >
-                            <option value="todas">Todas as Secretarias</option>
-                            {rawData?.secretariats?.map(s => (
-                                <option key={s.id} value={s.id}>{s.name || s.sigla}</option>
-                            ))}
+                            {!contextPlanejamento.hasRestrictedAccess && <option value="todas">Todas as Secretarias</option>}
+                            {contextPlanejamento.hasRestrictedAccess && !contextPlanejamento.primarySecretariatId && <option value="nenhuma">Sem Secretaria</option>}
+                            {[...(rawData?.secretariats || [])]
+                                .sort((a, b) => (a.name || a.sigla || '').localeCompare(b.name || b.sigla || '', 'pt-BR', { sensitivity: 'base' }))
+                                .map(s => {
+                                    if (contextPlanejamento.hasRestrictedAccess && s.id !== contextPlanejamento.primarySecretariatId) return null;
+                                    return <option key={s.id} value={s.id}>{s.name || s.sigla}</option>
+                            })}
                         </select>
                         <div style={{ position: 'absolute', right: '10px', pointerEvents: 'none', color: '#64748b', fontSize: '0.6rem' }}>▼</div>
                     </div>

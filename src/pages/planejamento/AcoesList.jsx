@@ -30,6 +30,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, deleteAcao, fetchObjectivesByAxis, fetchAllObjectives, fetchActionObjectives, createAtualizacao, fetchActionSecretariats, recordActionHistory, fetchActionDeletions, fetchUpdatesByAction } from '../../services/api/planejamentoAcoes.service';
+import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
 
 import { PLANNING_ACTION_TYPES_ARRAY, getActionTypeConfig, getActionTypeStages } from '../../modules/planejamento/constants/planningActionTypes';
 
@@ -204,10 +205,12 @@ const AcoesList = () => {
     const tenantId = tenantLink?.tenant_id;
     const location = useLocation();
     const navigate = useNavigate();
+    
+    const contextoPlanejamento = useMemo(() => getPlanejamentoContext(tenantLink?.role, scopes), [tenantLink, scopes]);
 
     const [busca, setBusca] = useState('');
     const [statusFiltro, setStatusFiltro] = useState('Todos');
-    const [secretariaFiltro, setSecretariaFiltro] = useState('Todas');
+    const [secretariaFiltro, setSecretariaFiltro] = useState(contextoPlanejamento.hasRestrictedAccess ? (contextoPlanejamento.primarySecretariatId || 'nenhuma') : 'Todas');
     const [tipoFiltro, setTipoFiltro] = useState('Todos');
     const [eixoFiltro, setEixoFiltro] = useState('Todos');
     const [secretariatsTooltip, setSecretariatsTooltip] = useState(null);
@@ -402,7 +405,7 @@ const AcoesList = () => {
     const emptyForm = {
         nome: '',
         local: '',
-        secretariatId: '',
+        secretariatId: contextoPlanejamento.hasRestrictedAccess ? (contextoPlanejamento.primarySecretariatId || '') : '',
         secretaria: '',
         axisId: '',
         eixo: '',
@@ -874,6 +877,10 @@ const AcoesList = () => {
         if (!tenantId) return;
         
         let finalData = { ...formData };
+
+        if (contextoPlanejamento.hasRestrictedAccess && contextoPlanejamento.primarySecretariatId) {
+            finalData.secretariatId = contextoPlanejamento.primarySecretariatId;
+        }
         if (finalData.action_type === 'ACAO_PONTUAL') {
             if (!finalData.custom_stages || finalData.custom_stages.length < 2) {
                 setSaveError('Selecione a quantidade de etapas e configure-as.');
@@ -951,7 +958,7 @@ const AcoesList = () => {
         let filtered = acoes.filter(a => {
             const mBusca = (a.nome || '').toLowerCase().includes(busca.toLowerCase()) || (a.local || '').toLowerCase().includes(busca.toLowerCase());
             const mStatus = statusFiltro === 'Todos' || a.status === statusFiltro;
-            const mSec = secretariaFiltro === 'Todas' || a.secretaria === secretariaFiltro || a.secretariaId === secretariaFiltro;
+            const mSec = secretariaFiltro === 'Todas' || a.secretaria === secretariaFiltro || a.secretariaId === secretariaFiltro || (a.participantesIds || []).includes(secretariaFiltro);
             const mTipo = tipoFiltro === 'Todos' || (a.action_type || 'PROJETO') === tipoFiltro || (tipoFiltro === 'ACAO_PONTUAL' && a.action_type === 'ACAO');
             const mEixo = eixoFiltro === 'Todos' || a.axis_id === eixoFiltro || a.eixoId === eixoFiltro || a.axisId === eixoFiltro || a.eixo_id === eixoFiltro;
             return mBusca && mStatus && mSec && mTipo && mEixo;
@@ -1234,11 +1241,20 @@ const AcoesList = () => {
                         <div className="farmacia-select-wrapper secretaria-wrapper" style={{ minWidth: '180px', position: 'relative' }}>
                             <select 
                                 className="farmacia-filter-select" 
-                                style={{ width: '100%' }}
                                 value={secretariaFiltro}
                                 onChange={(e) => setSecretariaFiltro(e.target.value)}
+                                disabled={contextoPlanejamento.hasRestrictedAccess}
+                                style={{
+                                    width: '100%',
+                                    appearance: 'none',
+                                    paddingLeft: '12px',
+                                    paddingRight: '28px',
+                                    cursor: contextoPlanejamento.hasRestrictedAccess ? 'not-allowed' : 'pointer',
+                                    opacity: contextoPlanejamento.hasRestrictedAccess ? 0.7 : 1
+                                }}
                             >
-                                <option value="Todas">Secretaria: Todas</option>
+                                {!contextoPlanejamento.hasRestrictedAccess && <option value="Todas">Secretaria: Todas</option>}
+                                {contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.primarySecretariatId && <option value="nenhuma">Sem Secretaria</option>}
                                 {filteredSecretariats.map(s => (
                                     <option key={s.id} value={s.name}>{s.name}</option>
                                 ))}
@@ -2081,21 +2097,23 @@ const AcoesList = () => {
                                             <select
                                                 className="farmacia-form-select"
                                                 value={formData.secretariatId}
-                                                onChange={e => {
+                                                onChange={(e) => {
                                                     const secId = e.target.value;
                                                     const sec = secretariats.find(s => s.id === secId);
-                                                    setFormData(prev => ({ 
-                                                        ...prev, 
+                                                    setFormData(f => ({ 
+                                                        ...f, 
                                                         secretariatId: secId, 
-                                                        secretaria: sec?.name || '',
-                                                        participantes: (prev.participantes || []).filter(id => id !== secId)
+                                                        secretaria: sec ? (sec.name || sec.sigla) : '' 
                                                     }));
                                                 }}
+                                                disabled={contextoPlanejamento.hasRestrictedAccess}
+                                                style={{ opacity: contextoPlanejamento.hasRestrictedAccess ? 0.7 : 1, cursor: contextoPlanejamento.hasRestrictedAccess ? 'not-allowed' : 'pointer' }}
                                             >
-                                                <option value="">Selecione a secretaria...</option>
-                                                {secretariats.map(s => (
-                                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                                ))}
+                                                {!contextoPlanejamento.hasRestrictedAccess && <option value="">Selecione...</option>}
+                                                {secretariats.map(s => {
+                                                    if (contextoPlanejamento.hasRestrictedAccess && s.id !== contextoPlanejamento.primarySecretariatId) return null;
+                                                    return <option key={s.id} value={s.id}>{s.name || s.sigla}</option>
+                                                })}
                                             </select>
                                         </div>
                                         {formData.objectiveId && (() => {
