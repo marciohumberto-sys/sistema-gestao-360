@@ -25,7 +25,7 @@ const FarmaciaEstoque = () => {
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const hasAccess = canAccessFarmacia(role, '/farmacia/estoque');
 
-    const { unidadeAtiva, setOpenModal } = useFarmacia();
+    const { unidadeAtiva, setOpenModal, dataRefreshKey } = useFarmacia();
     const [animated, setAnimated] = useState(false);
     
     // Modal Edit State
@@ -45,39 +45,71 @@ const FarmaciaEstoque = () => {
     const [rawData, setRawData] = useState({ items: [], movements: [], batches: [], units: [] });
     const [isLoading, setIsLoading] = useState(true);
 
-    // Fetch Supabase Data
+    // Fetch Supabase Data — recarrega sempre que dataRefreshKey muda (modal salvo)
     useEffect(() => {
+        const PAGE_SIZE = 5000;
+
+        const fetchAllMovements = async () => {
+            let allMovs = [];
+            let from = 0;
+            let done = false;
+            while (!done) {
+                const { data: page, error } = await supabase
+                    .from('stock_movements')
+                    .select('id, inventory_item_id, movement_type, quantity, batch_id, unit_id, created_at, created_by')
+                    .range(from, from + PAGE_SIZE - 1);
+                if (error) { console.error('[Estoque] Erro na paginação de movimentos:', error); break; }
+                if (!page || page.length === 0) { done = true; break; }
+                allMovs = allMovs.concat(page);
+                if (page.length < PAGE_SIZE) done = true;
+                else from += PAGE_SIZE;
+            }
+            return allMovs;
+        };
+
         const fetchRealData = async () => {
             setIsLoading(true);
             try {
                 const [
                     { data: items },
-                    { data: movements },
                     { data: batches },
                     { data: units }
                 ] = await Promise.all([
                     supabase.from('inventory_items').select('id, name, code, item_form, minimum_stock, is_active, item_type, category_id, unit_of_measure, controls_batch, controls_expiration, notes'),
-                    supabase.from('stock_movements').select('id, inventory_item_id, movement_type, quantity, batch_id, unit_id, created_at, created_by').order('created_at', { ascending: false }),
                     supabase.from('item_batches').select('id, inventory_item_id, expiration_date, batch_number'),
                     supabase.from('units').select('id, name')
                 ]);
-                
-                // Guard clause for safe mapping
+
+                const movements = await fetchAllMovements();
+
+                // === LOG TEMPORÁRIO DE DIAGNÓSTICO ===
+                console.group('[Estoque] Diagnóstico de carregamento');
+                console.log('Total de movimentos carregados:', movements.length);
+                console.log('Total de itens carregados:', (items || []).length);
+                console.log('Primeiros 5 movimentos:', movements.slice(0, 5));
+                const priItem = items?.[0];
+                if (priItem) {
+                    const saldo = movements.filter(m => m.inventory_item_id === priItem.id).reduce((s, m) => s + (Number(m.quantity) || 0), 0);
+                    console.log(`Saldo calculado para "${priItem.name}" (${priItem.id}):`, saldo);
+                }
+                console.groupEnd();
+                // === FIM LOG TEMPORÁRIO ===
+
                 setRawData({
                     items: items?.filter(i => i.is_active) || [],
-                    movements: movements || [],
+                    movements,
                     batches: batches || [],
                     units: units || []
                 });
             } catch (err) {
-                console.error('Erro ao processar dados reais', err);
+                console.error('[Estoque] Erro ao processar dados reais', err);
             } finally {
                 setIsLoading(false);
                 setTimeout(() => setAnimated(true), 100);
             }
         };
         fetchRealData();
-    }, []);
+    }, [dataRefreshKey]);
 
     // Calcula os saldos isolados com base na UNIDADE selecionada (ou Todos)
     const baseEstoque = useMemo(() => {
