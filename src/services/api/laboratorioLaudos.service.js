@@ -78,7 +78,7 @@ export const laboratorioLaudosService = {
                 const chunk = examIds.slice(i, i + 100);
                 const { data: exData, error: exError } = await supabase
                     .from('lab_exams')
-                    .select('id, code, name, material, method, analyzer_name, requires_conference')
+                    .select('id, code, name, material, method, analyzer_name, requires_conference, print_order, prints_on_report')
                     .in('id', chunk);
                 if (exError) throw exError;
                 if (exData) exams = exams.concat(exData);
@@ -164,6 +164,9 @@ export const laboratorioLaudosService = {
                     exameMaterial: ex.material,
                     exameMetodo: ex.method,
                     exameAnalisador: ex.analyzer_name,
+                    // campos de ordenação e seleção de impressão
+                    examePrintOrder: ex.print_order ?? 999,
+                    printsOnReport: ex.prints_on_report !== false,
                     dataAtendimento: laboratorioLaudosService.formatDateOnly(att.attendance_date),
                     dataAtendimentoRaw: att.attendance_date,
                     collection_date: attExam?.collection_date || null,

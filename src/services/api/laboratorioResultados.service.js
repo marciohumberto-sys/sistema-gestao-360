@@ -97,10 +97,12 @@ class LaboratorioResultadosService {
                     }
                 }
 
-                // Filtro de status se houver
-                if (status && status !== 'TODOS' && status !== '') {
-                    if (statusGeral !== status) return null;
-                }
+                // A TELA DE RESULTADOS DEVE EXIBIR SOMENTE EXAMES EM DIGITAÇÃO (PENDENTE)
+                if (pendentes === 0) return null;
+
+                // Como a tela de Resultados agora é exclusiva para PENDENTE, 
+                // fixamos o statusGeral para exibição correta na interface.
+                statusGeral = 'Em digitação';
 
                 return {
                     ...att,
@@ -203,7 +205,10 @@ class LaboratorioResultadosService {
 
         const combinedData = attendances.map(att => {
             const paciente = pacientesMap[att.patient_id] || {};
-            const attendanceResults = results.filter(r => r.attendance_id === att.id).map(r => {
+            // A tela de Resultados só deve carregar exames PENDENTES
+            const attendanceResults = results
+                .filter(r => r.attendance_id === att.id && String(r.status || 'PENDENTE').toUpperCase() === 'PENDENTE')
+                .map(r => {
                 const exame = examesMap[r.exam_id] || {};
                 
                 // Juntar os valores preenchidos com a estrutura do parâmetro base

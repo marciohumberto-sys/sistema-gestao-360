@@ -62,7 +62,7 @@ const LaboratorioResultados = () => {
     const [searchFilters, setSearchFilters] = useState({
         date: location.state?.attendanceDate || '',
         patient: '',
-        status: 'TODOS',
+        status: 'Em digitação',
         sector: '',
         attendance_origin: ''
     });
@@ -368,17 +368,20 @@ const LaboratorioResultados = () => {
             setSaveStatus('success');
 
             const results = updatedData && updatedData.length > 0 && updatedData[0].resultados ? updatedData[0].resultados : [];
-            const isAllCompleted = results.length > 0 && results.every(r => !['PENDENTE'].includes(String(r.status || '').toUpperCase()));
+            const isAllCompleted = results.length === 0;
 
-            if (wasDigitado) {
-                 setFeedbackMsg({ type: 'success', text: 'Alterações salvas com sucesso.' });
-                 shouldScrollToTopRef.current = true;
-                 goToNextExam({ skipUnsavedCheck: true });
-            } else if (isAllCompleted) {
+            if (isAllCompleted) {
                  setFeedbackMsg({ type: 'success', text: 'Todos os exames deste atendimento foram digitados.' });
+                 setSearchResults(prev => (prev || []).filter(att => att.id !== selectedAttendance?.id));
+                 setSelectedAttendance(null);
+                 setSelectedExamId(null);
+                 setAttendances([]);
             } else {
-                 setFeedbackMsg({ type: 'success', text: 'Resultado salvo com sucesso.' });
-                 
+                 if (wasDigitado) {
+                     setFeedbackMsg({ type: 'success', text: 'Alterações salvas com sucesso.' });
+                 } else {
+                     setFeedbackMsg({ type: 'success', text: 'Resultado salvo com sucesso.' });
+                 }
                  shouldScrollToTopRef.current = true;
                  goToNextExam({ skipUnsavedCheck: true });
             }
@@ -547,13 +550,8 @@ const LaboratorioResultados = () => {
                     </div>
                     <div className="lab-filter-group">
                         <label>Status</label>
-                        <select className="lab-select" value={searchFilters.status} onChange={(e) => setSearchFilters({...searchFilters, status: e.target.value})}>
-                            <option value="TODOS">Todos</option>
+                        <select className="lab-select" value={searchFilters.status} disabled onChange={(e) => setSearchFilters({...searchFilters, status: e.target.value})}>
                             <option value="Em digitação">Em digitação</option>
-                            <option value="Aguardando conferência">Aguardando conferência</option>
-                            <option value="Aguardando liberação">Aguardando liberação</option>
-                            <option value="Laudo liberado">Laudo liberado</option>
-                            <option value="Cancelado">Cancelado</option>
                         </select>
                     </div>
                     <div className="lab-filter-group">
@@ -579,8 +577,8 @@ const LaboratorioResultados = () => {
             {!selectedAttendance && searchResults === null && !loading && (
                 <div className="lab-empty-state" style={{ textAlign: 'center', padding: '4rem', background: '#fff', borderRadius: '12px', marginTop: '1.5rem', border: '1px solid #e2e8f0' }}>
                     <Search size={48} color="#cbd5e1" style={{ margin: '0 auto 1rem auto', display: 'block' }} />
-                    <h3 style={{ fontSize: '1.2rem', color: '#334155', marginBottom: '0.5rem', fontWeight: '700' }}>Nenhum atendimento selecionado</h3>
-                    <p style={{ color: '#64748b' }}>Busque um atendimento para iniciar a digitação dos resultados.</p>
+                    <h3 style={{ fontSize: '1.2rem', color: '#334155', marginBottom: '0.5rem', fontWeight: '700' }}>Nenhum exame em digitação.</h3>
+                    <p style={{ color: '#64748b' }}>Os exames aparecerão aqui após a abertura de um novo atendimento.</p>
                 </div>
             )}
 
@@ -596,16 +594,12 @@ const LaboratorioResultados = () => {
                 <div className="lab-search-results" style={{ marginTop: '1.5rem' }}>
                     <h3 style={{ fontSize: '1.1rem', color: '#1e293b', marginBottom: '1rem', fontWeight: '700' }}>Atendimentos Encontrados ({searchResults.length})</h3>
                     {searchResults.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '4rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <div className="lab-empty-state" style={{ textAlign: 'center', padding: '4rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                             <Search size={48} color="#cbd5e1" style={{ margin: '0 auto 1rem auto', display: 'block' }} />
                             <h3 style={{ fontSize: '1.2rem', color: '#334155', marginBottom: '0.5rem', fontWeight: '700' }}>
-                                {(!searchFilters.date && searchFilters.status === 'PENDENTE')
-                                    ? "Nenhum atendimento com resultados pendentes."
-                                    : (searchFilters.date === getLocalDateInputValue()
-                                        ? "Nenhum atendimento encontrado para hoje."
-                                        : "Nenhum atendimento encontrado para os filtros informados.")}
+                                Nenhum exame em digitação.
                             </h3>
-                            <p style={{ color: '#64748b' }}>Altere os filtros de pesquisa para localizar outros atendimentos.</p>
+                            <p style={{ color: '#64748b' }}>Os exames aparecerão aqui após a abertura de um novo atendimento.</p>
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

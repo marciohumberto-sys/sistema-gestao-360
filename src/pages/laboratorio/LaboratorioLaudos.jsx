@@ -693,6 +693,334 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
         </div>
     );
 };
+
+const isAbnormal = (val_num, min, max) => {
+    if (val_num === null || val_num === undefined || val_num === '') return false;
+    const num = parseFloat(val_num);
+    if (isNaN(num)) return false;
+    if (min !== null && num < parseFloat(min)) return 'below';
+    if (max !== null && num > parseFloat(max)) return 'above';
+    return 'normal';
+};
+
+const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl }) => {
+    // Format Collection Date
+    let collectionFormatted = '';
+    const cDate = selectedExam?.collection_date ?? selectedExam?.attendance_exam?.collection_date;
+    const cTime = selectedExam?.collection_time ?? selectedExam?.attendance_exam?.collection_time;
+    if (cDate) {
+        collectionFormatted = cDate.split('-').reverse().join('/');
+    }
+
+    // General Observation Filtering
+    let generalObs = (selectedExam?.observacaoGeral || '').trim();
+    if (generalObs.startsWith('[Devolvido para correção]')) {
+        generalObs = '';
+    }
+
+    // Pre-processamento para TC, TS e GSRH
+    let finalExamDetails = [...(examDetails || [])].map(p => ({ ...p }));
+    const examCode = (selectedExam?.exameCodigo || '').toUpperCase();
+    const isGsrh = examCode === 'GSRH';
+
+    const normalizeCode = (code) => {
+        if (!code) return '';
+        return code.toString().trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    };
+
+    if (examCode === 'TC' || examCode === 'TS') {
+        const minParam = finalExamDetails.find(p => {
+            const code = normalizeCode(p.parameter_code || p.code || p.parameter_name);
+            return code === 'MINUTOS' || code.includes('MINUTO');
+        });
+        const secParam = finalExamDetails.find(p => {
+            const code = normalizeCode(p.parameter_code || p.code || p.parameter_name);
+            return code === 'SEGUNDOS' || code.includes('SEGUNDO');
+        });
+        
+        if (minParam || secParam) {
+            const getRealValue = (param) => {
+                if (!param) return 0;
+                const val = param.value_numeric ?? param.value_text ?? param.value ?? param.resultado ?? '';
+                if (val === '' || val === null || val === undefined) return 0;
+                const parsed = Number(val);
+                return isNaN(parsed) ? 0 : parsed;
+            };
+
+            const minVal = getRealValue(minParam);
+            const secVal = getRealValue(secParam);
+            
+            let combinedStr = '';
+            if (minVal > 0) {
+                combinedStr += `${minVal} minuto${minVal !== 1 ? 's' : ''}`;
+            }
+            if (secVal > 0) {
+                if (minVal > 0) combinedStr += ' e ';
+                combinedStr += `${secVal} segundo${secVal !== 1 ? 's' : ''}`;
+            }
+            if (minVal === 0 && (secVal === 0 || !secParam)) {
+                combinedStr = '0 minutos';
+            }
+            if (minVal === 0 && secVal > 0) {
+                combinedStr = `${secVal} segundo${secVal !== 1 ? 's' : ''}`;
+            }
+            
+            const targetParam = minParam || secParam;
+            targetParam.value_text = combinedStr;
+            targetParam.value_numeric = null; 
+            targetParam.result_type = 'TEXTO';
+            targetParam.unit = '';
+            targetParam.parameter_name = 'Resultado';
+            
+            if (minParam && secParam) {
+                finalExamDetails = finalExamDetails.filter(p => p.id !== secParam.id);
+            }
+        }
+    }
+
+    if (isGsrh) {
+        finalExamDetails = finalExamDetails.filter(p => {
+            const pName = (p.parameter_name || p.parameter_code || '').toUpperCase();
+            if (pName.includes('VARIANTE') || pName.includes('D FRACO')) {
+                const raw = p.value_text ?? p.value_numeric ?? '';
+                if (String(raw).trim() === '') return false;
+            }
+            return true;
+        });
+    }
+
+    const showUnitColumn = !isGsrh && finalExamDetails.some(param => {
+        const pType = (param.result_type || selectedExam?.result_type || '').toUpperCase();
+        const hasUnit = (param.unit || '').trim() !== '';
+        const isNumeric = param.value_numeric !== null && param.value_numeric !== undefined;
+        return hasUnit || pType === 'NUMERICO' || (!pType && isNumeric);
+    });
+
+    const showRefColumn = !isGsrh;
+
+    let gridLayout = '1fr 100px 100px 1fr';
+    if (isGsrh) {
+        gridLayout = '1fr 1fr';
+    } else if (!showUnitColumn) {
+        gridLayout = '32% 30% 38%';
+    }
+
+    return (
+        <div className="hemo-compact-container">
+            <div className="hemo-report-main">
+                {/* Cabeçalho Hemo */}
+                <div className="hemo-header">
+                    <div className="hemo-header-logo">
+                        <img src="/logo-laboratorio.png" alt="Logo" onError={(e) => { e.target.style.display = 'none'; }} />
+                    </div>
+                    <div className="hemo-header-center">
+                        <h2>
+                            LABORATÓRIO MUNICIPAL<br/>
+                            LINDBERG CÂNDIDO DE SOUZA
+                        </h2>
+                        <p>Sistema Gestão Pública Inteligente</p>
+                    </div>
+                    <div className="hemo-header-right">
+                        <img src="/logo-bezerros.png" alt="Prefeitura" onError={(e) => { e.target.style.display = 'none'; }} />
+                    </div>
+                </div>
+
+                {/* Paciente Hemo */}
+                <div className="hemo-patient-box">
+                    <div className="hemo-patient-col">
+                        <div><span className="hemo-lbl">Paciente:</span> {selectedExam?.pacienteNome}</div>
+                        <div><span className="hemo-lbl">Médico:</span> {selectedExam?.medico || 'NÃO INFORMADO'}</div>
+                        <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam?.pacienteCode || selectedExam?.patientCode || '---'}</div>
+                        <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam?.pacienteDataNascimento}</div>
+                        <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.dataAtendimentoRaw) : ''}</div>
+                    </div>
+                    <div className="hemo-patient-col right">
+                        <div><span className="hemo-lbl">Idade:</span> {selectedExam?.pacienteIdade}</div>
+                        <div><span className="hemo-lbl">Sexo:</span> {selectedExam?.pacienteSexo || 'NÃO INFORMADO'}</div>
+                        <div><span className="hemo-lbl">RG:</span> {selectedExam?.pacienteRg || '---'}</div>
+                        <div><span className="hemo-lbl">CNS:</span> {selectedExam?.pacienteCns || '---'}</div>
+                        <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.released_at || selectedExam?.checked_at) : ''}</div>
+                        <div><span className="hemo-lbl">Origem:</span> {formatAttendanceOrigin && selectedExam?.attendance_origin ? formatAttendanceOrigin(selectedExam?.attendance_origin) : ''}</div>
+                    </div>
+                </div>
+
+                {/* Título Exame */}
+                <div className="hemo-exam-title-bar">
+                    <h3>{selectedExam?.exameCodigo} - {selectedExam?.exameNome}</h3>
+                    <div className="hemo-collection-info">
+                        <span className="hemo-collection-label">Data da Coleta:</span>
+                        {cDate ? (
+                            <>
+                                <span className="hemo-collection-date">{collectionFormatted}</span>
+                                {cTime && <span className="hemo-collection-separator">às</span>}
+                                {cTime && <span className="hemo-collection-time">{cTime.slice(0, 5)}h</span>}
+                            </>
+                        ) : (
+                            <span className="hemo-collection-date">---</span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Corpo do Exame Simples */}
+                <div className="hemo-section">
+                    <div style={{ display: 'flex', gap: '2rem', fontSize: '11px', color: '#64748b', marginBottom: '8px', padding: '0 4px' }}>
+                        {selectedExam?.exameMaterial && <div><strong>Material:</strong> <span style={{ color: '#0f172a' }}>{selectedExam.exameMaterial}</span></div>}
+                        {selectedExam?.exameMetodo && <div><strong>Método:</strong> <span style={{ color: '#0f172a' }}>{selectedExam.exameMetodo}</span></div>}
+                        {selectedExam?.exameAnalisador && <div><strong>Analisador:</strong> <span style={{ color: '#0f172a' }}>{selectedExam.exameAnalisador}</span></div>}
+                    </div>
+
+                    <div className={`hemo-eritro-grid header ${!showUnitColumn && !isGsrh ? 'simple-report-results-grid--qualitative' : ''}`} style={{ gridTemplateColumns: gridLayout }}>
+                        <div className="hemo-col-name">Parâmetro</div>
+                        <div className="hemo-col-result">Resultado</div>
+                        {showUnitColumn && <div className="hemo-col-unit">Unidade</div>}
+                        {showRefColumn && (
+                            <div className="hemo-col-ref-group">
+                                <div className="hemo-ref-title">Valores de Referência</div>
+                            </div>
+                        )}
+                    </div>
+
+                    {loadingDetails ? (
+                        <div className="flex justify-center py-4 text-gray-500">
+                            <span className="ml-2">Carregando parâmetros...</span>
+                        </div>
+                    ) : finalExamDetails?.length === 0 ? (
+                        <div className="text-center py-4 text-gray-500" style={{ fontSize: '11px' }}>Nenhum parâmetro encontrado para este exame.</div>
+                    ) : (
+                        finalExamDetails
+                        .filter(param => {
+                            const isObservationParam = (param.parameter_name || param.parameter_code || '').toUpperCase() === 'OBSERVACAO' || (param.parameter_name || param.parameter_code || '').toUpperCase() === 'OBSERVAÇÃO';
+                            if (isObservationParam) {
+                                const rawObservationValue = param.value_text ?? param.observation ?? param.value ?? param.value_numeric ?? '';
+                                const isRealObservation = String(rawObservationValue).trim().length > 0;
+                                return isRealObservation;
+                            }
+                            return true;
+                        })
+                        .map((param, index) => {
+                            const isNumericValid = param.value_numeric !== null && param.value_numeric !== undefined;
+                            const textValue = (param.value_text || '').trim();
+                            const isTextValid = textValue !== '';
+                            
+                            const pType = (param.result_type || selectedExam?.result_type || '').toUpperCase();
+                            const isQualitative = pType === 'QUALITATIVO' || (!pType && !isNumericValid && isTextValid);
+                            
+                            let displayValue = '';
+                            if (isQualitative) {
+                                displayValue = textValue;
+                            } else {
+                                displayValue = isNumericValid ? param.value_numeric.toString().replace('.', ',') : textValue;
+                            }
+
+                            const abnormalStatus = isQualitative ? 'normal' : isAbnormal(param.value_numeric, param.min_value, param.max_value);
+                            const isObservationParam = (param.parameter_name || param.parameter_code || '').toUpperCase() === 'OBSERVACAO' || (param.parameter_name || param.parameter_code || '').toUpperCase() === 'OBSERVAÇÃO';
+
+                            if (isObservationParam) {
+                                return (
+                                    <div key={param.id} className="hemo-series-block" style={{ borderTop: 'none', marginTop: '2px' }}>
+                                        <div className="hemo-series-item">
+                                            <div className="hemo-series-title">Observação:</div>
+                                            <div className="hemo-series-text" style={{ whiteSpace: 'pre-wrap' }}>{displayValue}</div>
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <React.Fragment key={param.id}>
+                                    <div className={`hemo-eritro-grid row ${!showUnitColumn && !isGsrh ? 'simple-report-results-grid--qualitative' : ''}`} style={{ gridTemplateColumns: gridLayout }}>
+                                        <div className="hemo-col-name">{param.parameter_name || param.parameter_code}</div>
+                                        <div className={`hemo-col-result ${abnormalStatus !== 'normal' && abnormalStatus !== false ? 'hemo-abnormal' : ''}`}>
+                                            {displayValue}
+                                            {abnormalStatus === 'below' && <span style={{ marginLeft: '4px', color: '#ef4444' }}>↓</span>}
+                                            {abnormalStatus === 'above' && <span style={{ marginLeft: '4px', color: '#ef4444' }}>↑</span>}
+                                        </div>
+                                        {showUnitColumn && <div className="hemo-col-unit">{!isQualitative && param.unit ? param.unit : ''}</div>}
+                                        {showRefColumn && (
+                                            <div className="hemo-col-ref-single" style={{ gridColumn: showUnitColumn ? '4' : '3', whiteSpace: 'pre-line', justifyContent: 'flex-start', textAlign: 'left' }}>
+                                                {param.reference_text || (!isQualitative && (param.min_value !== null || param.max_value !== null) ? `${param.min_value || 0} a ${param.max_value || '∞'}` : (examCode === 'TC' || examCode === 'TS' ? '' : 'Não cadastrada'))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {(param.observation || '').trim() && (
+                                        <div className="hemo-series-block" style={{ borderTop: 'none', padding: '2px 4px', background: '#f8fafc', marginTop: '2px' }}>
+                                            <div className="hemo-series-item">
+                                                <div className="hemo-series-title" style={{ color: '#64748b' }}>Nota:</div>
+                                                <div className="hemo-series-text" style={{ color: '#64748b' }}>{(param.observation || '').trim()}</div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </React.Fragment>
+                            );
+                        })
+                    )}
+                </div>
+
+                {/* Observação Geral */}
+                {generalObs && (
+                    <div className="hemo-series-block" style={{ marginTop: '10px' }}>
+                        <div className="hemo-series-item">
+                            <div className="hemo-series-title">OBSERVAÇÕES GERAIS:</div>
+                            <div className="hemo-series-text" style={{ whiteSpace: 'pre-line' }}>{generalObs}</div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Rodapé e Assinatura Hemo */}
+            <div className="hemo-report-bottom">
+                <div className="hemo-signature-area">
+                    {selectedExam?.responsible_name ? (
+                        <>
+                            {signatureSignedUrl && (
+                                <img
+                                    src={signatureSignedUrl}
+                                    alt={`Assinatura de ${selectedExam.responsible_name}`}
+                                    className="lab-report-signature-image"
+                                />
+                            )}
+                            <div className="hemo-signature-name" style={{ marginTop: signatureSignedUrl ? '2px' : '20px' }}>
+                                {selectedExam.responsible_name.toUpperCase()}
+                                {selectedExam.responsible_crbm && (
+                                    <><br /><span style={{ fontWeight: 400, fontSize: '0.78em' }}>Biomédico(a) — CRBM {selectedExam.responsible_crbm}</span></>
+                                )}
+                            </div>
+                            {selectedExam.checked_at && (
+                                <div className="hemo-signature-date">
+                                    {(() => {
+                                        const d = new Date(selectedExam.checked_at);
+                                        const dd = String(d.getDate()).padStart(2,'0');
+                                        const mm = String(d.getMonth()+1).padStart(2,'0');
+                                        const yyyy = d.getFullYear();
+                                        const HH = String(d.getHours()).padStart(2,'0');
+                                        const min = String(d.getMinutes()).padStart(2,'0');
+                                        return `Conferido e assinado eletronicamente em ${dd}/${mm}/${yyyy} às ${HH}:${min}h`;
+                                    })()}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <div className="hemo-signature-line"></div>
+                            <div className="hemo-signature-name">Biomédico(a) Responsável</div>
+                            {selectedExam?.released_at && (
+                                <div className="hemo-signature-date">
+                                    Liberado eletronicamente em {new Date(selectedExam.released_at).toLocaleString('pt-BR')}
+                                </div>
+                            )}
+                            <div style={{ fontSize: '0.7em', color: '#94a3b8', marginTop: '2px' }}>Dados profissionais indisponíveis para este laudo anterior.</div>
+                        </>
+                    )}
+                </div>
+                
+                <div className="hemo-footer-address">
+                    Rua Imperador Dom Pedro II, 76 - Santo Antônio - Bezerros - PE - CEP: 55.660-000
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const LaboratorioLaudos = () => {
     const [searchFilters, setSearchFilters] = useState({
         date: '',
@@ -719,6 +1047,10 @@ const LaboratorioLaudos = () => {
     const [generatingPdf, setGeneratingPdf] = useState(false);
     const [signatureSignedUrl, setSignatureSignedUrl] = useState(null);
     const [loadingSignature, setLoadingSignature] = useState(false);
+    // Conjunto dos result_ids selecionados para impressão
+    const [selectedExamIds, setSelectedExamIds] = useState(new Set());
+    // Controle do drawer de seleção de exames
+    const [drawerOpen, setDrawerOpen] = useState(false);
     const laudoRef = useRef(null);
 
     useEffect(() => {
@@ -795,6 +1127,17 @@ const LaboratorioLaudos = () => {
         });
         
         const protocolsArray = Object.values(groups);
+
+        // Ordenar exames dentro de cada protocolo: print_order ASC → código ASC → id ASC
+        protocolsArray.forEach(group => {
+            group.exams.sort((a, b) => {
+                const orderDiff = (a.examePrintOrder ?? 999) - (b.examePrintOrder ?? 999);
+                if (orderDiff !== 0) return orderDiff;
+                const codeDiff = (a.exameCodigo || '').localeCompare(b.exameCodigo || '');
+                if (codeDiff !== 0) return codeDiff;
+                return (a.id || '').localeCompare(b.id || '');
+            });
+        });
         
         protocolsArray.sort((a, b) => {
             // 1. Data do atendimento — mais antiga para mais nova
@@ -826,6 +1169,21 @@ const LaboratorioLaudos = () => {
         
         return protocolsArray;
     }, [filteredResults]);
+
+    // Reinicializar seleção sempre que o atendimento selecionado mudar
+    useEffect(() => {
+        if (!selectedProtocol) {
+            setSelectedExamIds(new Set());
+            return;
+        }
+        // Pré-selecionar exames imprimíveis (printsOnReport = true)
+        const printable = new Set(
+            selectedProtocol.exams
+                .filter(ex => ex.printsOnReport !== false)
+                .map(ex => ex.id)
+        );
+        setSelectedExamIds(printable);
+    }, [selectedProtocol?.protocolo]); // depende apenas do protocolo, não de selectedProtocol inteiro
 
     useEffect(() => {
         if (groupedProtocols.length > 0 && selectedProtocol === null) {
@@ -950,14 +1308,38 @@ const LaboratorioLaudos = () => {
         }
     };
 
-    const isAbnormal = (val_num, min, max) => {
-        if (val_num === null || val_num === undefined || val_num === '') return false;
-        const num = parseFloat(val_num);
-        if (isNaN(num)) return false;
-        
-        if (min !== null && num < parseFloat(min)) return 'below';
-        if (max !== null && num > parseFloat(max)) return 'above';
-        return 'normal';
+
+    // Array derivado ordenado para o compositor de impressão (etapa futura)
+    const selectedExamsForReport = useMemo(() => {
+        if (!selectedProtocol) return [];
+        return selectedProtocol.exams.filter(
+            ex => ex.printsOnReport !== false && selectedExamIds.has(ex.id)
+        );
+        // já estão ordenados pela ordenação aplicada no groupedProtocols
+    }, [selectedProtocol, selectedExamIds]);
+
+    // Handlers de seleção
+    const handleToggleExamSelection = (id) => {
+        setSelectedExamIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const handleSelectAllPrintable = () => {
+        if (!selectedProtocol) return;
+        const printable = new Set(
+            selectedProtocol.exams
+                .filter(ex => ex.printsOnReport !== false)
+                .map(ex => ex.id)
+        );
+        setSelectedExamIds(printable);
+    };
+
+    const handleClearSelection = () => {
+        setSelectedExamIds(new Set());
     };
 
     const formatDateTime = (dateStr) => {
@@ -1283,66 +1665,148 @@ const LaboratorioLaudos = () => {
                                 position: 'relative'
                             }}>
                                 
-                                {/* Ações de Tela */}
-                                <div className="laudo-view-actions no-print">
-                                    {statusReal === 'LIBERADO' && (
-                                        <>
-                                            <button 
-                                                type="button"
-                                                className="laudo-view-action-button modern-tooltip"
-                                                onClick={() => window.print()}
-                                                aria-label="Imprimir"
-                                            >
-                                                <Printer size={18} strokeWidth={2} />
-                                            </button>
-                                            <button 
-                                                type="button"
-                                                className="laudo-view-action-button modern-tooltip"
-                                                onClick={handleDownloadPdf}
-                                                disabled={generatingPdf}
-                                                aria-label="Baixar PDF"
-                                            >
-                                                {generatingPdf ? <Loader2 size={18} strokeWidth={2} className="spin" /> : <Download size={18} strokeWidth={2} />}
-                                            </button>
-                                        </>
-                                    )}
-                                    
-                                    {statusReal === 'CONFERIDO' && (
-                                        <button 
-                                            className="lab-btn-primary" 
-                                            onClick={handleLiberar} 
-                                            disabled={saving}
-                                            style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 12px', fontSize: '0.8rem', borderRadius: '6px', display: 'flex', alignItems: 'center', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
-                                        >
-                                            {saving ? <Loader2 size={14} className="spin" style={{ marginRight: '4px' }}/> : <CheckCircle2 size={14} style={{ marginRight: '4px' }} />}
-                                            {saving ? 'Liberando...' : 'Liberar Laudo'}
-                                        </button>
-                                    )}
-                                </div>
+                                {/* Ações de Tela legadas (mantidas para retrocompatibilidade de impressão — ocultas pela barra) */}
                                 
-                                {/* ABAS DOS EXAMES (NO PRINT) */}
-                                <div className="no-print" style={{ padding: '10px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', flexWrap: 'wrap', gap: '8px', background: '#fff' }}>
-                                    {selectedProtocol?.exams.map(ex => (
-                                        <button 
-                                            key={ex.id}
-                                            onClick={() => handleSelectExam(ex)}
-                                            style={{
-                                                height: '36px',
-                                                padding: '0 14px',
-                                                borderRadius: '6px',
-                                                fontSize: '14px',
-                                                fontWeight: '600',
-                                                border: selectedExam?.id === ex.id ? '1px solid #2563eb' : '1px solid #cbd5e1',
-                                                backgroundColor: selectedExam?.id === ex.id ? '#eff6ff' : '#fff',
-                                                color: selectedExam?.id === ex.id ? '#1d4ed8' : '#475569',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s'
-                                            }}
+                                {/* BARRA DE AÇÕES SUPERIOR — no-print */}
+                                <div className="no-print laudos-action-bar">
+                                    {/* Esquerda: contador + chips */}
+                                    <div className="laudos-action-bar-left">
+                                        <span className="laudos-action-counter">
+                                            {selectedExamIds.size} de {selectedProtocol?.exams.length ?? 0} exame{(selectedProtocol?.exams.length ?? 0) !== 1 ? 's' : ''} selecionado{selectedExamIds.size !== 1 ? 's' : ''}
+                                        </span>
+                                        {/* Chips dos exames selecionados — máximo 4 visíveis */}
+                                        <div className="laudos-action-chips">
+                                            {(() => {
+                                                const selected = (selectedProtocol?.exams || []).filter(ex => selectedExamIds.has(ex.id));
+                                                const maxChips = 4;
+                                                const visible = selected.slice(0, maxChips);
+                                                const overflow = selected.length - maxChips;
+                                                return (
+                                                    <>
+                                                        {visible.map(ex => (
+                                                            <span key={ex.id} className="laudos-chip" onClick={() => handleSelectExam(ex)} title={ex.exameNome}>
+                                                                {ex.exameCodigo}
+                                                            </span>
+                                                        ))}
+                                                        {overflow > 0 && (
+                                                            <span className="laudos-chip laudos-chip-overflow">+{overflow}</span>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+
+                                    {/* Direita: botões de ação */}
+                                    <div className="laudos-action-bar-right">
+                                        <button
+                                            type="button"
+                                            className="laudos-action-btn laudos-action-btn-secondary"
+                                            onClick={() => setDrawerOpen(true)}
                                         >
-                                            {ex.exameCodigo}
+                                            <SlidersHorizontal size={14} />
+                                            Selecionar exames
                                         </button>
-                                    ))}
+
+                                        {statusReal === 'LIBERADO' && (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    className="laudos-action-btn laudos-action-btn-icon"
+                                                    onClick={() => window.print()}
+                                                    aria-label="Imprimir"
+                                                    title="Imprimir"
+                                                >
+                                                    <Printer size={15} strokeWidth={2} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="laudos-action-btn laudos-action-btn-icon"
+                                                    onClick={handleDownloadPdf}
+                                                    disabled={generatingPdf}
+                                                    aria-label="Baixar PDF"
+                                                    title="Baixar PDF"
+                                                >
+                                                    {generatingPdf ? <Loader2 size={15} strokeWidth={2} className="spin" /> : <Download size={15} strokeWidth={2} />}
+                                                </button>
+                                            </>
+                                        )}
+
+                                        {statusReal === 'CONFERIDO' && (
+                                            <button
+                                                type="button"
+                                                className="laudos-action-btn laudos-action-btn-primary"
+                                                onClick={handleLiberar}
+                                                disabled={saving}
+                                            >
+                                                {saving ? <Loader2 size={14} className="spin" /> : <CheckCircle2 size={14} />}
+                                                {saving ? 'Liberando...' : 'Liberar Laudo'}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
+
+                                {/* DRAWER DE SELEÇÃO — no-print */}
+                                {drawerOpen && (
+                                    <div className="no-print laudos-drawer-overlay" onClick={() => setDrawerOpen(false)}>
+                                        <div className="laudos-drawer" onClick={e => e.stopPropagation()}>
+                                            {/* Header do drawer — 3 linhas */}
+                                            <div className="laudos-drawer-header">
+                                                {/* Linha 1: título + fechar */}
+                                                <div className="laudos-drawer-header-row laudos-drawer-header-row1">
+                                                    <span className="laudos-drawer-title">Exames do atendimento</span>
+                                                    <button type="button" className="laudos-drawer-close" onClick={() => setDrawerOpen(false)} aria-label="Fechar">×</button>
+                                                </div>
+                                                {/* Linha 2: contador */}
+                                                <div className="laudos-drawer-header-row">
+                                                    <span className="laudos-drawer-subtitle">
+                                                        {selectedExamIds.size} de {selectedProtocol?.exams.length ?? 0} selecionado{selectedExamIds.size !== 1 ? 's' : ''}
+                                                    </span>
+                                                </div>
+                                                {/* Linha 3: ações */}
+                                                <div className="laudos-drawer-header-row laudos-drawer-header-actions">
+                                                    <button type="button" className="laudos-sel-btn" onClick={handleSelectAllPrintable}>Selecionar todos</button>
+                                                    <button type="button" className="laudos-sel-btn laudos-sel-btn-clear" onClick={handleClearSelection}>Limpar</button>
+                                                </div>
+                                            </div>
+
+                                            {/* Lista de exames */}
+                                            <div className="laudos-drawer-list">
+                                                {selectedProtocol?.exams.map(ex => {
+                                                    const isActive = selectedExam?.id === ex.id;
+                                                    const isChecked = selectedExamIds.has(ex.id);
+                                                    const notPrints = ex.printsOnReport === false;
+                                                    const orderLabel = ex.examePrintOrder < 999
+                                                        ? String(ex.examePrintOrder).padStart(2, '0')
+                                                        : '——';
+                                                    return (
+                                                        <div
+                                                            key={ex.id}
+                                                            className={`laudos-exam-item${isActive ? ' laudos-exam-item-active' : ''}${notPrints ? ' laudos-exam-item-noprint' : ''}`}
+                                                            onClick={() => { handleSelectExam(ex); setDrawerOpen(false); }}
+                                                            title={ex.exameNome}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                className="laudos-exam-checkbox"
+                                                                checked={isChecked}
+                                                                disabled={notPrints}
+                                                                onClick={e => e.stopPropagation()}
+                                                                onChange={() => !notPrints && handleToggleExamSelection(ex.id)}
+                                                            />
+                                                            <span className="laudos-exam-order">{orderLabel}</span>
+                                                            <span className="laudos-exam-code">{ex.exameCodigo}</span>
+                                                            <span className="laudos-exam-name">{ex.exameNome}</span>
+                                                            {notPrints && (
+                                                                <span className="laudos-exam-noprint-badge">Não imprime</span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Header do Laudo ou HEMO */}
                                 {String(selectedExam.exameCodigo || '').trim().toUpperCase() === 'HEMO' ? (
@@ -1354,222 +1818,25 @@ const LaboratorioLaudos = () => {
                                         signatureSignedUrl={signatureSignedUrl}
                                     />
                                 ) : (
-                                    <>
-                                        <div className="print-header laudo-screen-header" style={{ padding: '1.5rem 2rem 1rem 2rem', display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) minmax(360px, 2.2fr) minmax(150px, 1fr)', alignItems: 'center', gap: '1rem', pageBreakInside: 'avoid', breakInside: 'avoid', borderBottom: '1px solid #cbd5e1', marginBottom: '1.25rem' }}>
-                                    
-                                    {/* Esquerda: Logo do Laboratório */}
-                                    <div className="print-logo-container laudo-screen-header-left" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
-                                        <img 
-                                            src="/logo-laboratorio.png" 
-                                            alt="Laboratório Municipal" 
-                                            className="laudo-screen-logo-lab"
-                                            style={{ width: 'auto', objectFit: 'contain', maxHeight: '80px' }} 
-                                            onError={(event) => {
-                                                event.currentTarget.onerror = null;
-                                                event.currentTarget.src = '/logo-laboratorio.jpg';
-                                            }}
-                                        />
-                                    </div>
-
-                                    {/* Centro: Título e Status */}
-                                    <div className="print-title-box laudo-screen-header-center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-                                        <h2 className="print-title-pref" style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>LABORATÓRIO MUNICIPAL</h2>
-                                        <p className="print-title-sub" style={{ color: '#64748b', fontSize: '0.9rem', margin: '0.2rem 0 0 0', fontWeight: 500 }}>Sistema Gestão Pública Inteligente</p>
-                                        
-                                        {/* Status único centralizado */}
-                                        <div style={{ marginTop: '0.5rem' }}>
-                                            <div className={`lab-status-tag ${statusReal === 'LIBERADO' ? 'status-success' : 'status-warning'}`} style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem', fontWeight: 700, letterSpacing: '0.5px', margin: 0 }}>
-                                                {statusReal}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Direita: Identidade da Prefeitura */}
-                                    <div className="laudo-screen-header-right" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <img 
-                                            src="/logo-bezerros.png" 
-                                            alt="Prefeitura de Bezerros"
-                                            className="laudo-screen-logo-prefeitura"
-                                            style={{ width: 'auto', objectFit: 'contain', maxHeight: '44px' }} 
-                                            onError={(e) => { e.target.style.display = 'none'; }}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Corpo do Laudo */}
-                                <div className="print-body" style={{ padding: '0 2rem 1.5rem 2rem' }}>
-                                    
-                                    {/* Paciente e Atendimento - Bloco Único Compacto */}
-                                    <div className="print-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', borderBottom: '1px solid #cbd5e1', padding: '0.75rem 0.5rem', marginBottom: '1.5rem', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                            <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>Paciente:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{selectedExam.pacienteNome}</span></div>
-                                            <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>Médico:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{selectedExam.medico || 'Não informado'}</span></div>
-                                            <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>Origem:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{formatAttendanceOrigin(selectedExam.attendance_origin)}</span></div>
-                                            <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>Data Nasc.:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{selectedExam.pacienteDataNascimento} ({selectedExam.pacienteIdade}) - {selectedExam.pacienteSexo}</span></div>
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                            <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>CNS:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{selectedExam.pacienteCns || '---'}</span></div>
-                                            <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>CPF:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{formatCpf(selectedExam.pacienteCpf)}</span></div>
-                                            <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>RG:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{selectedExam.pacienteRg || '---'}</span></div>
-                                            <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>Emissão:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{selectedExam.dataAtendimento}</span></div>
-                                        </div>
-                                    </div>
-
-                                    {/* Faixa do Exame */}
-                                    <div className="print-section" style={{ marginBottom: '0.75rem', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                        <div style={{ background: '#f8fafc', padding: '0.4rem 1rem', borderLeft: '4px solid #3b82f6', marginBottom: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                                            <h3 className="print-title-main" style={{ fontSize: '1rem', fontWeight: 800, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                                {selectedExam.exameCodigo} - {selectedExam.exameNome}
-                                            </h3>
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '2rem', fontSize: '0.75rem', color: '#64748b', paddingLeft: '1rem' }}>
-                                            <div><strong>Material:</strong> <span style={{ color: '#0f172a' }}>{selectedExam.exameMaterial || 'Não inf.'}</span></div>
-                                            <div><strong>Método:</strong> <span style={{ color: '#0f172a' }}>{selectedExam.exameMetodo || 'Não inf.'}</span></div>
-                                            <div><strong>Analisador:</strong> <span style={{ color: '#0f172a' }}>{selectedExam.exameAnalisador || 'Não inf.'}</span></div>
-                                        </div>
-                                    </div>
-
-                                    {/* Resultados */}
-                                    <div style={{ marginBottom: '1.5rem' }}>
-                                        {loadingDetails ? (
-                                            <div className="flex justify-center py-8 text-gray-500">
-                                                <Loader2 size={24} className="spin" />
-                                                <span className="ml-2">Carregando parâmetros...</span>
-                                            </div>
-                                        ) : examDetails.length === 0 ? (
-                                            <div className="text-center py-8 text-gray-500">Nenhum parâmetro encontrado para este exame.</div>
-                                        ) : (
-                                            <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', borderTop: '2px solid #94a3b8', borderBottom: '2px solid #94a3b8' }}>
-                                                <thead style={{ display: 'table-header-group' }}>
-                                                    <tr className="print-table-header" style={{ borderBottom: '1px solid #cbd5e1', color: '#334155', fontWeight: 800, fontSize: '0.8rem', textTransform: 'uppercase', textAlign: 'left' }}>
-                                                        <th style={{ padding: '0.6rem 1rem', width: '40%' }}>Parâmetro</th>
-                                                        <th style={{ padding: '0.6rem 1rem', width: '20%' }}>Resultado</th>
-                                                        <th style={{ padding: '0.6rem 1rem', width: '40%' }}>Valor de Referência</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {examDetails.map((param, index) => {
-                                                        const displayValue = param.value_numeric !== null ? param.value_numeric : (param.value_text || 'Não informado');
-                                                        const abnormalStatus = isAbnormal(param.value_numeric, param.min_value, param.max_value);
-                                                        
-                                                        const strValue = displayValue.toString();
-                                                        const isLongText = (strValue.length > 15 && isNaN(parseFloat(strValue))) || 
-                                                            strValue.includes('por campo') || 
-                                                            strValue.includes('Ausentes') || 
-                                                            strValue.includes('Raras') || 
-                                                            strValue.includes('Alguns') ||
-                                                            (param.unit && param.unit.includes('por campo'));
-                                                        
-                                                        return (
-                                                            <React.Fragment key={param.id}>
-                                                                <tr className="print-table-row" style={{ borderBottom: index < examDetails.length - 1 && !param.observation ? '1px solid #f1f5f9' : 'none', background: index % 2 === 0 ? '#fff' : '#fdfdfd', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                                                    <td style={{ padding: '0.4rem 1rem', color: '#1e293b', fontWeight: 600, fontSize: '0.9rem', verticalAlign: 'middle' }}>
-                                                                        {param.parameter_name || param.parameter_code}
-                                                                    </td>
-                                                                    <td style={{ padding: '0.4rem 1rem', verticalAlign: 'middle' }}>
-                                                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', flexWrap: 'wrap', lineHeight: '1.2' }}>
-                                                                            <span className={`font-bold print-table-result ${isLongText ? 'result-value-long' : ''} ${abnormalStatus !== 'normal' && abnormalStatus !== false ? 'text-danger' : ''}`} style={!isLongText ? { fontSize: '1.05rem', color: abnormalStatus !== 'normal' && abnormalStatus !== false ? '#ef4444' : '#0f172a', wordBreak: 'break-word' } : { color: abnormalStatus !== 'normal' && abnormalStatus !== false ? '#ef4444' : '#0f172a' }}>
-                                                                                {displayValue}
-                                                                            </span>
-                                                                            {param.unit && <span className={isLongText ? 'result-unit-inline' : ''} style={!isLongText ? { color: '#64748b', fontSize: '0.75rem', fontWeight: '500', whiteSpace: 'nowrap' } : { whiteSpace: 'nowrap' }}>{param.unit}</span>}
-                                                                            {abnormalStatus === 'below' && <AlertTriangle size={14} className="text-danger no-print" style={{ marginLeft: '2px' }} title="Abaixo da referência"/>}
-                                                                            {abnormalStatus === 'above' && <AlertTriangle size={14} className="text-danger no-print" style={{ marginLeft: '2px' }} title="Acima da referência"/>}
-                                                                        </div>
-                                                                    </td>
-                                                                    <td style={{ padding: '0.4rem 1rem', color: '#475569', fontSize: '0.8rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.3', verticalAlign: 'middle' }}>
-                                                                        {param.reference_text || (param.min_value !== null || param.max_value !== null ? `${param.min_value || 0} a ${param.max_value || '∞'}` : 'Não cadastrada')}
-                                                                    </td>
-                                                                </tr>
-                                                                {/* Observação Específica do Parâmetro */}
-                                                                {param.observation && (
-                                                                    <tr style={{ borderBottom: index < examDetails.length - 1 ? '1px solid #f1f5f9' : 'none', background: index % 2 === 0 ? '#fff' : '#fdfdfd', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                                                        <td colSpan="3" style={{ padding: '0 1rem 0.5rem 1rem' }}>
-                                                                            <div style={{ fontSize: '0.85rem', color: '#64748b', background: '#f8fafc', padding: '0.5rem', borderRadius: '4px', borderLeft: '3px solid #cbd5e1' }}>
-                                                                                <strong>Nota:</strong> {param.observation}
-                                                                            </div>
-                                                                        </td>
-                                                                    </tr>
-                                                                )}
-                                                            </React.Fragment>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        )}
-                                    </div>
-
-                                    {/* Observação Geral */}
-                                    {selectedExam.observacaoGeral && (
-                                        <div style={{ marginBottom: '1.5rem' }}>
-                                            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.25rem', marginBottom: '0.75rem' }}>Observações Gerais</h3>
-                                            <div style={{ fontSize: '0.9rem', color: '#1e293b', whiteSpace: 'pre-wrap', background: '#f8fafc', padding: '1rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                                {selectedExam.observacaoGeral}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                </div>
-
-                                {/* Rodapé do Laudo */}
-                                <div className="print-footer" style={{ padding: '1rem 2rem 0.5rem 2rem', borderTop: '2px solid #1e293b', display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                    
-                                    <div className="print-footer-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
-                                        {/* Assinatura com snapshot do biomédico */}
-                                        <div className="print-signature" style={{ textAlign: 'center', minWidth: '220px' }}>
-                                            {selectedExam.responsible_name ? (
-                                                <>
-                                                    {signatureSignedUrl && (
-                                                        <img
-                                                            src={signatureSignedUrl}
-                                                            alt={`Assinatura de ${selectedExam.responsible_name}`}
-                                                            className="lab-report-signature-image"
-                                                        />
-                                                    )}
-                                                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', marginTop: signatureSignedUrl ? '2px' : '28px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                                                        {selectedExam.responsible_name}
-                                                    </div>
-                                                    {selectedExam.responsible_crbm && (
-                                                        <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '2px' }}>
-                                                            Biomédico(a) — CRBM {selectedExam.responsible_crbm}
-                                                        </div>
-                                                    )}
-                                                    {selectedExam.checked_at && (
-                                                        <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px' }}>
-                                                            Conferido e assinado eletronicamente em{' '}
-                                                            {(() => {
-                                                                const d = new Date(selectedExam.checked_at);
-                                                                const dd = String(d.getDate()).padStart(2,'0');
-                                                                const mm = String(d.getMonth()+1).padStart(2,'0');
-                                                                const yyyy = d.getFullYear();
-                                                                const HH = String(d.getHours()).padStart(2,'0');
-                                                                const min = String(d.getMinutes()).padStart(2,'0');
-                                                                return `${dd}/${mm}/${yyyy} às ${HH}:${min}h`;
-                                                            })()}
-                                                        </div>
-                                                    )}
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <div style={{ borderBottom: '1px solid #1e293b', marginBottom: '0.2rem', height: '30px' }}></div>
-                                                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>Biomédico(a) Responsável</div>
-                                                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>Dados profissionais indisponíveis para este laudo anterior.</div>
-                                                </>
-                                            )}
-                                        </div>
-
-                                        {/* Datas técnicas */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', fontSize: '0.75rem', color: '#64748b', textAlign: 'right' }}>
-                                            {selectedExam.typed_at && <div><strong style={{ fontWeight: 600 }}>Digitado em:</strong> {formatDateTime(selectedExam.typed_at)}</div>}
-                                            {selectedExam.checked_at && <div><strong style={{ fontWeight: 600 }}>Conferido em:</strong> {formatDateTime(selectedExam.checked_at)}</div>}
-                                            {statusReal === 'LIBERADO' && selectedExam.released_at && <div><strong style={{ fontWeight: 600 }}>Liberado em:</strong> {formatDateTime(selectedExam.released_at)}</div>}
-                                        </div>
-                                    </div>
-
-                                    <div style={{ textAlign: 'center', fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic', paddingTop: '0.5rem' }}>
-                                        Documento gerado pelo Sistema Gestão Pública Inteligente
-                                    </div>
-                                </div>
-                                </>
+                                    <LaudoExameSimples 
+                                        selectedExam={selectedExam}
+                                        examDetails={examDetails}
+                                        loadingDetails={loadingDetails}
+                                        formatDateTimeH={(dateStr) => {
+                                            if (!dateStr) return '';
+                                            const d = new Date(dateStr);
+                                            if (isNaN(d.getTime())) return '';
+                                            const dd = String(d.getDate()).padStart(2, '0');
+                                            const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                            const yyyy = d.getFullYear();
+                                            const HH = String(d.getHours()).padStart(2, '0');
+                                            const min = String(d.getMinutes()).padStart(2, '0');
+                                            return `${dd}/${mm}/${yyyy} às ${HH}:${min}h`;
+                                        }}
+                                        patientCode={selectedProtocol?.pacienteCode}
+                                        formatAttendanceOrigin={formatAttendanceOrigin}
+                                        signatureSignedUrl={signatureSignedUrl}
+                                    />
                                 )}
                             </div>
                         </>
