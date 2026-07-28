@@ -58,7 +58,7 @@ export const validatePacienteForm = (formData, setFormErrors) => {
     if (plainCpf && plainCpf.length !== 11) errs.cpf = 'Informe um CPF válido.';
     
     const plainCns = onlyNumbers(formData.cns);
-    if (plainCns && plainCns.length !== 15) errs.cns = 'Informe um CNS válido.';
+    if (plainCns && plainCns.length !== 15) errs.cns = 'Informe um CNS válido com 15 dígitos.';
 
     if (setFormErrors) setFormErrors(errs);
     
@@ -107,7 +107,7 @@ export const normalizePacienteDataForSave = (formData) => {
         full_name: normalizeUppercase(formData.full_name),
         mother_name: normalizeUppercase(formData.mother_name) || null,
         father_name: normalizeUppercase(formData.father_name) || null,
-        rg: formData.rg ? formData.rg.trim().replace(/\s{2,}/g, ' ') || null : null,
+        rg: (typeof formData.rg === 'string') ? formData.rg.trim().replace(/\s{2,}/g, ' ') || null : (formData.rg ? String(formData.rg) : null),
         cpf: onlyNumbers(formData.cpf) || null,
         cns: onlyNumbers(formData.cns) || null,
         phone: onlyNumbers(formData.phone) || null,

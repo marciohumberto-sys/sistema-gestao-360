@@ -404,3 +404,85 @@ export const deleteLaboratorioUser = async (user) => {
 
     return true;
 };
+
+// =========================================================
+// FUNÇÕES PARA DADOS PROFISSIONAIS (CRBM E ASSINATURA)
+// =========================================================
+
+export const getLaboratorioProfessionalData = async (tenantId, userId) => {
+    const { data, error } = await supabase
+        .from('user_tenants')
+        .select('crbm, signature_path')
+        .eq('tenant_id', tenantId)
+        .eq('user_id', userId)
+        .single();
+        
+    if (error && error.code !== 'PGRST116') {
+        throw error;
+    }
+    
+    return data || { crbm: null, signature_path: null };
+};
+
+export const getLaboratorioSignatureSignedUrl = async (signaturePath) => {
+    if (!signaturePath) return null;
+    
+    const { data, error } = await supabase.storage
+        .from('laboratorio-assinaturas')
+        .createSignedUrl(signaturePath, 300); // 5 minutos
+        
+    if (error) {
+        throw new Error(`Erro ao gerar prévia da assinatura: ${error.message}`);
+    }
+    
+    return data?.signedUrl;
+};
+
+export const uploadLaboratorioSignature = async (tenantId, userId, file) => {
+    if (!file) return null;
+    
+    // Extrai extensão do arquivo original
+    const ext = file.name.split('.').pop().toLowerCase();
+    
+    // Formato: tenant_id/user_id/assinatura-timestamp.extensao
+    const filePath = `${tenantId}/${userId}/assinatura-${Date.now()}.${ext}`;
+    
+    const { data, error } = await supabase.storage
+        .from('laboratorio-assinaturas')
+        .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type
+        });
+        
+    if (error) {
+        throw new Error(`Erro no upload da assinatura: ${error.message}`);
+    }
+    
+    return data.path;
+};
+
+export const updateLaboratorioProfessionalData = async (tenantId, userId, crbm, signaturePath) => {
+    const updateData = { updated_at: new Date().toISOString() };
+    
+    if (crbm !== undefined) {
+        updateData.crbm = crbm;
+    }
+    
+    if (signaturePath !== undefined) {
+        updateData.signature_path = signaturePath;
+    }
+
+    const { error } = await supabase
+        .from('user_tenants')
+        .update(updateData)
+        .eq('tenant_id', tenantId)
+        .eq('user_id', userId);
+
+    if (error) {
+        throw new Error(`Erro ao atualizar dados profissionais: ${error.message}`);
+    }
+    
+    return true;
+};
+

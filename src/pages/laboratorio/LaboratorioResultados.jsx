@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import './LaboratorioResultados.css';
 import { laboratorioResultadosService } from '../../services/api/laboratorioResultados.service';
-import { ATTENDANCE_ORIGINS, formatAttendanceOrigin } from '../../utils/laboratorioHelpers';
+import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue } from '../../utils/laboratorioHelpers';
 
 const getLocalDateInputValue = (date = new Date()) => {
     const year = date.getFullYear();
@@ -51,15 +51,16 @@ const LaboratorioResultados = () => {
     const [saving, setSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'success' | 'error'
     const [feedbackMsg, setFeedbackMsg] = useState(null);
+    const [missingFields, setMissingFields] = useState([]);
     const inputRefs = useRef([]);
     const lastFocusedExamRef = useRef(null);
+    const shouldScrollToTopRef = useRef(false);
+    const examTopRef = useRef(null);
 
     const location = useLocation();
     
-    // New workflow states
     const [searchFilters, setSearchFilters] = useState({
-        date: location.state?.attendanceDate || getLocalDateInputValue(),
-        protocol: location.state?.protocolNumber || '',
+        date: location.state?.attendanceDate || '',
         patient: '',
         status: 'TODOS',
         sector: '',
@@ -91,11 +92,9 @@ const LaboratorioResultados = () => {
             // Impede que overrideDate receba o objeto de evento do onClick do React
             const isEvent = overrideDate && typeof overrideDate === 'object' && 'nativeEvent' in overrideDate;
             const finalDate = (overrideDate !== undefined && !isEvent) ? overrideDate : searchFilters.date;
-            const finalProtocol = (overrideProtocol !== undefined && typeof overrideProtocol === 'string') ? overrideProtocol : searchFilters.protocol;
 
             const filtros = {
                 dataInicial: finalDate,
-                protocolo: finalProtocol,
                 paciente: searchFilters.patient,
                 status: searchFilters.status,
                 attendance_origin: searchFilters.attendance_origin
@@ -104,7 +103,6 @@ const LaboratorioResultados = () => {
             console.debug('[LAB][RESULTADOS] Filtros enviados', {
               dataInicial: filtros.dataInicial,
               dataInicialTipo: typeof filtros.dataInicial,
-              protocolo: filtros.protocolo,
               paciente: filtros.paciente,
               status: filtros.status,
             });
@@ -159,7 +157,14 @@ const LaboratorioResultados = () => {
         const initialForm = {};
         if (result && result.structuredValues) {
             result.structuredValues.forEach(v => {
-                initialForm[v.parameter_id] = { ...v };
+                let vNum = v.value_numeric;
+                const code = String(v.parameter_code || v.code || '').toUpperCase();
+                if (v.result_type === 'NUMERICO' && vNum !== null && vNum !== undefined) {
+                    if (HEMO_INTEGER_COUNT_CODES.has(code)) {
+                        vNum = String(vNum).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                    }
+                }
+                initialForm[v.parameter_id] = { ...v, value_numeric: vNum };
             });
         }
         setFormValues(initialForm);
@@ -181,8 +186,19 @@ const LaboratorioResultados = () => {
         }
     };
 
+    const handleBackToSearch = () => {
+        if (checkUnsavedChanges()) {
+            setPendingNavigation('back_to_search');
+            setShowUnsavedModal(true);
+        } else {
+            handleSearch();
+        }
+    };
+
     const confirmNavigation = () => {
-        if (pendingNavigation) {
+        if (pendingNavigation === 'back_to_search') {
+            handleSearch();
+        } else if (pendingNavigation) {
             selecionarExame(pendingNavigation);
         }
         setShowUnsavedModal(false);
@@ -203,6 +219,11 @@ const LaboratorioResultados = () => {
             setTimeout(() => {
                 const el = document.getElementById(`exam-item-${selectedExamId}`);
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+                if (shouldScrollToTopRef.current && examTopRef.current) {
+                    examTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    shouldScrollToTopRef.current = false;
+                }
 
                 const firstInput = inputRefs.current[0];
                 if (firstInput && !firstInput.disabled && !firstInput.readOnly) {
@@ -251,23 +272,91 @@ const LaboratorioResultados = () => {
 
     const salvarExameAtual = async () => {
         try {
+            const wasDigitado = String(selectedResult?.status || '').trim().toUpperCase() === 'DIGITADO';
+            
             setSaving(true);
             setSaveStatus('saving');
             setFeedbackMsg(null);
             
-            const valuesToSave = Object.values(formValues);
+            let hasInvalidNumeric = false;
+            let hasInvalidInteger = false;
+            const valuesToSave = Object.values(formValues).map(v => {
+                if (v.result_type === 'NUMERICO' && v.value_numeric !== null && v.value_numeric !== undefined && v.value_numeric !== '') {
+                    const str = String(v.value_numeric);
+                    const code = String(v.parameter_code || v.code || '').toUpperCase();
+                    
+                    let normalized = null;
+                    if (HEMO_INTEGER_COUNT_CODES.has(code)) {
+                        normalized = normalizeIntegerCountInput(str);
+                        if (normalized === null) {
+                            hasInvalidInteger = true;
+                        }
+                    } else {
+                        normalized = normalizeLabNumericInput(str);
+                        if (normalized === null) {
+                            hasInvalidNumeric = true;
+                        }
+                    }
+                    
+                    // Mantém o valor original se for inválido, para que o erro seja reportado
+                    return { ...v, value_numeric: normalized !== null ? normalized : v.value_numeric };
+                }
+                return v;
+            });
             
-            // Validate mandatory
-            const isEmpty = valuesToSave.some(v => (v.value_numeric === null || v.value_numeric === '') && (!v.value_text || String(v.value_text).trim() === ''));
-            if (isEmpty) {
-                setFeedbackMsg({ type: 'error', text: 'Preencha todos os resultados obrigatórios antes de salvar.' });
+            if (hasInvalidInteger) {
+                setFeedbackMsg({ type: 'error', text: 'Informe uma quantidade inteira válida.' });
+                setTimeout(() => setFeedbackMsg(null), 4000);
+                setSaveStatus('error');
+                return false;
+            }
+            if (hasInvalidNumeric) {
+                setFeedbackMsg({ type: 'error', text: 'Informe um resultado numérico válido.' });
                 setTimeout(() => setFeedbackMsg(null), 4000);
                 setSaveStatus('error');
                 return false;
             }
 
-            console.log('[DEBUG] result_id selecionado:', selectedExamId);
-            console.log('[DEBUG] parâmetros enviados:', valuesToSave);
+            // Validate mandatory
+            const OPCIONAIS_HEMO = ['OBS_ERITROGRAMA', 'SERIE_ERITROCITARIA', 'SERIE_LEUCOCITARIA', 'SERIE_PLAQUETARIA', 'OBS_GERAL'];
+            
+            const missingRequiredParameters = valuesToSave.filter(v => {
+                const code = v.parameter_code || v.code || '';
+                
+                if (OPCIONAIS_HEMO.includes(code)) return false;
+                
+                if (v.result_type === 'TEXTO' && (v.name || '').toUpperCase().includes('OBSERVA')) return false;
+
+                if (v.result_type === 'NUMERICO') {
+                    return isLabValueEmpty(v.value_numeric);
+                } else {
+                    return isLabValueEmpty(v.value_text);
+                }
+            });
+
+            if (missingRequiredParameters.length > 0) {
+                const missingIds = missingRequiredParameters.map(p => p.parameter_id || p.id);
+                setMissingFields(missingIds);
+                
+                const count = missingRequiredParameters.length;
+                setFeedbackMsg({ type: 'error', text: `Preencha os ${count} resultados obrigatórios antes de salvar o Hemograma.` });
+                
+                setTimeout(() => setFeedbackMsg(null), 5000);
+                setSaveStatus('idle'); // Restores the button
+                setSaving(false);
+                
+                // Foco e rolagem para o primeiro campo vazio
+                const firstMissingId = missingIds[0];
+                const index = selectedResult.structuredValues?.findIndex(p => p.id === firstMissingId);
+                if (index !== undefined && index >= 0 && inputRefs.current[index]) {
+                    inputRefs.current[index].focus();
+                    inputRefs.current[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                
+                return false;
+            }
+
+            setMissingFields([]);
 
             await laboratorioResultadosService.salvarResultados(selectedExamId, valuesToSave);
             
@@ -281,11 +370,16 @@ const LaboratorioResultados = () => {
             const results = updatedData && updatedData.length > 0 && updatedData[0].resultados ? updatedData[0].resultados : [];
             const isAllCompleted = results.length > 0 && results.every(r => !['PENDENTE'].includes(String(r.status || '').toUpperCase()));
 
-            if (isAllCompleted) {
+            if (wasDigitado) {
+                 setFeedbackMsg({ type: 'success', text: 'Alterações salvas com sucesso.' });
+                 shouldScrollToTopRef.current = true;
+                 goToNextExam({ skipUnsavedCheck: true });
+            } else if (isAllCompleted) {
                  setFeedbackMsg({ type: 'success', text: 'Todos os exames deste atendimento foram digitados.' });
             } else {
                  setFeedbackMsg({ type: 'success', text: 'Resultado salvo com sucesso.' });
                  
+                 shouldScrollToTopRef.current = true;
                  goToNextExam({ skipUnsavedCheck: true });
             }
 
@@ -295,7 +389,7 @@ const LaboratorioResultados = () => {
             }, 3000);
             return true;
         } catch (err) {
-            console.error('[DEBUG] erro ao salvar:', err);
+            console.error('[LaboratorioResultados] Erro ao salvar:', err);
             setSaveStatus('error');
             setFeedbackMsg({ type: 'error', text: 'Erro ao salvar resultado. Tente novamente.' });
             
@@ -319,8 +413,14 @@ const LaboratorioResultados = () => {
         
         const nextInput = inputRefs.current[index + 1];
         if (nextInput) {
-            nextInput.focus();
+            nextInput.focus({ preventScroll: true });
             if (nextInput.select) nextInput.select();
+            
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    nextInput.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                }, 10);
+            });
             return;
         }
         
@@ -331,7 +431,9 @@ const LaboratorioResultados = () => {
         if (saveStatus === 'saving') return 'Salvando...';
         if (saveStatus === 'success') return 'Salvo com sucesso';
         if (saveStatus === 'error') return 'Erro ao salvar';
-        return defaultText;
+        
+        const currentStatus = String(selectedResult?.status || '').trim().toUpperCase();
+        return currentStatus === 'DIGITADO' ? 'Salvar alterações' : defaultText;
     };
 
     const getSaveButtonIcon = () => {
@@ -345,37 +447,54 @@ const LaboratorioResultados = () => {
     const selectedResult = resultados.find(r => r.id === selectedExamId) || {};
     const statusSelectedResult = String(selectedResult.status || '').toUpperCase();
     
-    const isPendente = statusSelectedResult === 'PENDENTE';
-    const isDigitado = statusSelectedResult === 'DIGITADO';
-    const isConferido = statusSelectedResult === 'CONFERIDO';
-    const isLiberado = statusSelectedResult === 'LIBERADO';
+    const normalizedStatus = String(selectedResult.status || '').trim().toUpperCase();
+    const isPendente = normalizedStatus === 'PENDENTE';
+    const isDigitado = normalizedStatus === 'DIGITADO';
     
-    const isReadOnly = isDigitado || isConferido || isLiberado;
+    const canEditResult = isPendente || isDigitado;
+    const isReadOnly = !canEditResult;
+
+    const getReadOnlyMessage = (status) => {
+        if (status === 'CONFERIDO' || status === 'AGUARDANDO_LIBERACAO' || status === 'AGUARDANDO LIBERACAO') {
+            return 'Este exame já foi conferido e está aguardando a liberação do laudo.';
+        }
+        if (status === 'LIBERADO' || status === 'LAUDO LIBERADO') {
+            return 'Este exame já foi conferido e o laudo foi liberado.';
+        }
+        if (status === 'CANCELADO') {
+            return 'Este exame foi cancelado.';
+        }
+        return 'Este exame não pode mais ser alterado.';
+    };
 
     // Ação de Enviar para conferência só fica bloqueada se TODOS estiverem liberados/conferidos ou cancelados
     const resultadosAtivosParaConferencia = resultados.filter(item => String(item.status).toUpperCase() !== 'CANCELADO');
     const isEnvioConferenciaDisabled = resultadosAtivosParaConferencia.length === 0 || 
         resultadosAtivosParaConferencia.every(item => ['CONFERIDO', 'LIBERADO'].includes(String(item.status).toUpperCase()));
 
+    const ATTENDANCE_STATUS_VISUALS = {
+        'Sem exames': { cssClass: 'status-warning', border: '#94a3b8', text: '#475569' },
+        'Laudo liberado': { cssClass: EXAM_STATUS_CONFIG['LIBERADO'].className, border: '#10b981', text: '#047857' },
+        'Liberado': { cssClass: EXAM_STATUS_CONFIG['LIBERADO'].className, border: '#10b981', text: '#047857' },
+        'Em digitação': { cssClass: EXAM_STATUS_CONFIG['PENDENTE'].className, border: '#f59e0b', text: '#b45309' },
+        'Aguardando conferência': { cssClass: EXAM_STATUS_CONFIG['CONFERIDO'].className, border: '#3b82f6', text: '#1e40af' },
+        'Aguardando liberação': { cssClass: 'status-aguardando-lib', border: '#8b5cf6', text: '#5b21b6' },
+        'Cancelado': { cssClass: EXAM_STATUS_CONFIG['CANCELADO'].className, border: '#ef4444', text: '#b91c1c' }
+    };
+
     const getStatusGeralAtendimento = (exames) => {
-        if (!exames || exames.length === 0) return { label: 'Sem exames', cssClass: 'status-warning' };
+        if (!exames || exames.length === 0) return { label: 'Sem exames', cssClass: ATTENDANCE_STATUS_VISUALS['Sem exames'].cssClass };
         
         const allLiberado = exames.every(e => String(e.status).toUpperCase() === 'LIBERADO');
-        if (allLiberado) return { label: 'Liberado', cssClass: EXAM_STATUS_CONFIG['LIBERADO'].className };
+        if (allLiberado) return { label: 'Laudo liberado', cssClass: ATTENDANCE_STATUS_VISUALS['Laudo liberado'].cssClass };
         
         const hasPendente = exames.some(e => String(e.status).toUpperCase() === 'PENDENTE');
-        if (hasPendente) return { label: 'Em digitação', cssClass: EXAM_STATUS_CONFIG['PENDENTE'].className };
+        if (hasPendente) return { label: 'Em digitação', cssClass: ATTENDANCE_STATUS_VISUALS['Em digitação'].cssClass };
         
         const hasDigitadoWaitingConf = exames.some(e => String(e.status).toUpperCase() === 'DIGITADO' && e.requires_conference === true);
-        if (hasDigitadoWaitingConf) return { label: 'Aguardando conferência', cssClass: EXAM_STATUS_CONFIG['DIGITADO'].className };
+        if (hasDigitadoWaitingConf) return { label: 'Aguardando conferência', cssClass: ATTENDANCE_STATUS_VISUALS['Aguardando conferência'].cssClass };
         
-        // If it got here:
-        // - Not all are LIBERADO
-        // - No exam is PENDENTE
-        // - No exam is DIGITADO and requires conference
-        // It means the remaining exams are either CONFERIDO, LIBERADO, or DIGITADO (without requiring conference).
-        // Therefore, they are all ready for release.
-        return { label: 'Aguardando liberação', cssClass: EXAM_STATUS_CONFIG['CONFERIDO'].className };
+        return { label: 'Aguardando liberação', cssClass: ATTENDANCE_STATUS_VISUALS['Aguardando liberação'].cssClass };
     };
 
     const renderExamsSummary = (att) => {
@@ -384,6 +503,7 @@ const LaboratorioResultados = () => {
         if (att.examesConferidos > 0) parts.push(<span key="conf" style={{ color: '#2563eb', fontWeight: 500 }}>{att.examesConferidos} conferidos</span>);
         if (att.examesDigitados > 0) parts.push(<span key="dig" style={{ color: '#0284c7', fontWeight: 500 }}>{att.examesDigitados} digitados</span>);
         if (att.examesPendentes > 0) parts.push(<span key="pend" style={{ color: '#d97706', fontWeight: 500 }}>{att.examesPendentes} pendentes</span>);
+        if (att.examesCancelados > 0) parts.push(<span key="canc" style={{ color: '#ef4444', fontWeight: 500 }}>{att.examesCancelados} cancelado(s)</span>);
 
         return (
             <span>
@@ -416,14 +536,10 @@ const LaboratorioResultados = () => {
 
             {/* Filtros */}
             <div className={`lab-filters-card ${selectedAttendance ? 'compact' : ''}`}>
-                <div className="lab-filters-grid">
+                <div className="lab-filters-grid" style={{ gridTemplateColumns: '145px minmax(300px, 1fr) 180px 170px 130px' }}>
                     <div className="lab-filter-group">
                         <label>Data Inicial</label>
                         <input type="date" className="lab-input" value={searchFilters.date} onChange={(e) => setSearchFilters({...searchFilters, date: e.target.value})} onKeyDown={handleFilterKeyDown} />
-                    </div>
-                    <div className="lab-filter-group">
-                        <label>Protocolo</label>
-                        <input type="text" className="lab-input" placeholder="Ex: TESTE-LAB-001" value={searchFilters.protocol} onChange={(e) => setSearchFilters({...searchFilters, protocol: e.target.value})} onKeyDown={handleFilterKeyDown} />
                     </div>
                     <div className="lab-filter-group">
                         <label>Paciente</label>
@@ -433,8 +549,11 @@ const LaboratorioResultados = () => {
                         <label>Status</label>
                         <select className="lab-select" value={searchFilters.status} onChange={(e) => setSearchFilters({...searchFilters, status: e.target.value})}>
                             <option value="TODOS">Todos</option>
-                            <option value="PENDENTE">Pendentes</option>
-                            <option value="DIGITADO">Digitados</option>
+                            <option value="Em digitação">Em digitação</option>
+                            <option value="Aguardando conferência">Aguardando conferência</option>
+                            <option value="Aguardando liberação">Aguardando liberação</option>
+                            <option value="Laudo liberado">Laudo liberado</option>
+                            <option value="Cancelado">Cancelado</option>
                         </select>
                     </div>
                     <div className="lab-filter-group">
@@ -480,37 +599,41 @@ const LaboratorioResultados = () => {
                         <div style={{ textAlign: 'center', padding: '4rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                             <Search size={48} color="#cbd5e1" style={{ margin: '0 auto 1rem auto', display: 'block' }} />
                             <h3 style={{ fontSize: '1.2rem', color: '#334155', marginBottom: '0.5rem', fontWeight: '700' }}>
-                                {searchFilters.date === getLocalDateInputValue()
-                                    ? "Nenhum atendimento encontrado para hoje."
-                                    : "Nenhum atendimento encontrado para os filtros informados."}
+                                {(!searchFilters.date && searchFilters.status === 'PENDENTE')
+                                    ? "Nenhum atendimento com resultados pendentes."
+                                    : (searchFilters.date === getLocalDateInputValue()
+                                        ? "Nenhum atendimento encontrado para hoje."
+                                        : "Nenhum atendimento encontrado para os filtros informados.")}
                             </h3>
                             <p style={{ color: '#64748b' }}>Altere os filtros de pesquisa para localizar outros atendimentos.</p>
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            {searchResults.map(att => (
-                                <div key={att.id} className="lab-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderLeft: '3px solid #7C3AED' }}>
-                                    <div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.4rem' }}>
-                                            <strong style={{ fontSize: '1.15rem', color: '#0f172a' }}>{att.pacienteNome}</strong>
-                                            <span style={{ fontSize: '0.8rem', color: '#475569', background: '#f1f5f9', padding: '0.2rem 0.6rem', borderRadius: '20px', fontWeight: '600', border: '1px solid #e2e8f0' }}>Prot: {att.protocol_number}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', fontSize: '0.9rem', color: '#64748b' }}>
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><User size={14} /> Idade: <strong style={{ color: '#334155', fontWeight: 500 }}>{att.pacienteIdade}</strong></span>
-                                            <span>Sexo: <strong style={{ color: '#334155', fontWeight: 500 }}>{att.pacienteSexo}</strong></span>
-                                            <span>CNS: <strong style={{ color: '#334155', fontWeight: 500 }}>{att.pacienteCns || '---'}</strong></span>
-                                            <span>CPF: <strong style={{ color: '#334155', fontWeight: 500 }}>{formatCpf(att.pacienteCpf)}</strong></span>
-                                            {renderExamsSummary(att)}
-                                            <span style={{ marginLeft: 'auto', borderLeft: '1px solid #e2e8f0', paddingLeft: '1.5rem' }}>Status: <strong style={{ color: att.statusGeral === 'Laudo liberado' ? '#059669' : '#d97706' }}>{att.statusGeral}</strong></span>
-                                        </div>
-                                    </div>
-                                    <div style={{ marginLeft: '1rem' }}>
+                            {searchResults.map(att => {
+                                const visuals = ATTENDANCE_STATUS_VISUALS[att.statusGeral] || ATTENDANCE_STATUS_VISUALS['Sem exames'];
+                                return (
+                                <div key={att.id} className="lab-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', padding: '1rem 1.25rem', borderLeft: `3px solid ${visuals.border}` }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: att.attendance_date ? 'minmax(0, 1fr) auto auto auto' : 'minmax(0, 1fr) auto auto', gap: '1rem', alignItems: 'center' }}>
+                                        <strong title={att.pacienteNome} style={{ fontSize: '1.15rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{att.pacienteNome}</strong>
+                                        <span style={{ fontSize: '0.8rem', color: '#475569', background: '#f1f5f9', padding: '0.2rem 0.6rem', borderRadius: '20px', fontWeight: '600', border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Prot: {att.protocol_number}</span>
+                                        {att.attendance_date && (
+                                            <span style={{ fontSize: '0.8rem', color: '#475569', background: '#f1f5f9', padding: '0.2rem 0.6rem', borderRadius: '20px', fontWeight: '600', border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Data: {att.attendance_date.split('-').reverse().join('/')}</span>
+                                        )}
                                         <button className="lab-btn lab-btn-primary" onClick={() => handleSelectAttendance(att)} style={{ whiteSpace: 'nowrap' }}>
                                             <Activity size={16} /> Abrir Atendimento
                                         </button>
                                     </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', fontSize: '0.9rem', color: '#64748b' }}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><User size={14} /> Idade: <strong style={{ color: '#334155', fontWeight: 500 }}>{att.pacienteIdade}</strong></span>
+                                        <span>Sexo: <strong style={{ color: '#334155', fontWeight: 500 }}>{att.pacienteSexo}</strong></span>
+                                        <span>CNS: <strong style={{ color: '#334155', fontWeight: 500 }}>{att.pacienteCns || '---'}</strong></span>
+                                        <span>CPF: <strong style={{ color: '#334155', fontWeight: 500 }}>{formatCpf(att.pacienteCpf)}</strong></span>
+                                        {renderExamsSummary(att)}
+                                        <span style={{ marginLeft: 'auto', borderLeft: '1px solid #e2e8f0', paddingLeft: '1.5rem' }}>Status: <strong style={{ color: visuals.text }}>{att.statusGeral}</strong></span>
+                                    </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -521,10 +644,10 @@ const LaboratorioResultados = () => {
                 <div style={{ marginTop: '0.25rem' }}>
                     
                     {/* Resumo do Paciente com Ações Integradas */}
-                    <div className="lab-card lab-patient-summary" style={{ marginBottom: '1rem', padding: '0.75rem 1.25rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+                    <div ref={examTopRef} className="lab-card lab-patient-summary" style={{ marginBottom: '1rem', padding: '0.75rem 1.25rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
                             <button 
-                                onClick={() => { setSelectedAttendance(null); setSelectedExamId(null); setAttendances([]); }} 
+                                onClick={handleBackToSearch} 
                                 style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', padding: '0' }}
                             >
                                 <ChevronLeft size={16} /> Voltar para busca
@@ -622,37 +745,56 @@ const LaboratorioResultados = () => {
                                 {isReadOnly && (
                                     <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e40af', fontSize: '0.9rem', fontWeight: 500 }}>
                                         <Info size={18} />
-                                        <span>Este exame já foi conferido e não pode mais ser alterado.</span>
+                                        <span>{getReadOnlyMessage(normalizedStatus)}</span>
+                                    </div>
+                                )}
+                                
+                                {!isReadOnly && isDigitado && (
+                                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#475569', fontSize: '0.9rem', fontWeight: 500 }}>
+                                        <Info size={18} />
+                                        <span>Este exame já foi digitado e está aguardando conferência. Os resultados ainda podem ser corrigidos.</span>
                                     </div>
                                 )}
 
                                 {(selectedResult.structuredValues || []).map((param, index) => {
                                     const formState = formValues[param.id] || {};
                                     const isNumeric = param.result_type === 'NUMERICO';
+                                    const isMissing = missingFields.includes(param.id);
                                     
                                     return (
                                         <div key={param.id} className="lab-typing-parameter-block" style={{ marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid #f1f5f9' }}>
                                             <div className="lab-typing-result-row" style={{ alignItems: 'flex-start', gap: '0.75rem', flexWrap: 'wrap' }}>
                                                 <div className="lab-typing-input-group" style={{ minWidth: '300px', flex: 1 }}>
-                                                    <label>{param.name || 'Parâmetro'}</label>
+                                                    <label style={{ color: isMissing ? '#ef4444' : undefined }}>{param.name || 'Parâmetro'}</label>
                                                     <div className="lab-input-wrapper" style={{ display: 'flex', alignItems: 'stretch' }}>
                                                         <input 
-                                                            type={isNumeric ? "number" : "text"} 
+                                                            type="text"
+                                                            inputMode={isNumeric ? (HEMO_INTEGER_COUNT_CODES.has(String(param.parameter_code || param.code || '').toUpperCase()) ? "numeric" : "decimal") : undefined}
                                                             className={`lab-input-field ${isNumeric ? 'lab-result-number-input' : ''}`} 
                                                             style={{ 
                                                                 flex: 1, 
                                                                 padding: '0.5rem 0.75rem', 
-                                                                border: '1px solid #cbd5e1', 
+                                                                border: isMissing ? '2px solid #ef4444' : '1px solid #cbd5e1', 
                                                                 borderRadius: '8px',
                                                                 fontSize: '1.1rem',
-                                                                outline: 'none'
+                                                                outline: 'none',
+                                                                backgroundColor: isMissing ? '#fef2f2' : undefined
                                                             }}
                                                             placeholder="Digite o resultado..." 
                                                             value={isNumeric ? (formState.value_numeric ?? '') : (formState.value_text || '')}
-                                                            onChange={(e) => handleValueChange(param.id, isNumeric ? 'value_numeric' : 'value_text', e.target.value)}
+                                                            onChange={(e) => {
+                                                                let val = e.target.value;
+                                                                const code = String(param.parameter_code || param.code || '').toUpperCase();
+                                                                if (isNumeric && HEMO_INTEGER_COUNT_CODES.has(code)) {
+                                                                    if (/^[\d.]+$/.test(val)) {
+                                                                        const digits = val.replace(/\./g, '');
+                                                                        val = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                                                                    }
+                                                                }
+                                                                handleValueChange(param.id, isNumeric ? 'value_numeric' : 'value_text', val);
+                                                            }}
                                                             disabled={isReadOnly || saving}
                                                             onKeyDown={(e) => handleResultKeyDown(e, index)}
-                                                            onWheel={isNumeric ? (e) => e.currentTarget.blur() : undefined}
                                                             ref={(el) => inputRefs.current[index] = el}
                                                         />
                                                     </div>

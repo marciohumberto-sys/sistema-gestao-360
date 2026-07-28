@@ -31,7 +31,7 @@ export const laboratorioConferenciaService = {
             if (!attendances || attendances.length === 0) return [];
             
             // Pacientes
-            const { data: patients, error: patError } = await supabase.from('lab_patients').select('id, full_name, birth_date, sex, cns, cpf');
+            const { data: patients, error: patError } = await supabase.from('lab_patients').select('id, code, full_name, birth_date, sex, cns, cpf');
             if (patError) throw patError;
             
             let filteredAttendances = attendances;
@@ -40,6 +40,12 @@ export const laboratorioConferenciaService = {
                 const matchedPatients = patients.filter(p => p.full_name && p.full_name.toLowerCase().includes(searchName));
                 const matchedPatientIds = matchedPatients.map(p => p.id);
                 filteredAttendances = attendances.filter(a => matchedPatientIds.includes(a.patient_id));
+            }
+            if (filters.patientCode) {
+                const searchCode = String(filters.patientCode).trim();
+                const matchedPatients = patients.filter(p => p.code && String(p.code) === searchCode);
+                const matchedPatientIds = matchedPatients.map(p => p.id);
+                filteredAttendances = filteredAttendances.filter(a => matchedPatientIds.includes(a.patient_id));
             }
             if (filteredAttendances.length === 0) return [];
 
@@ -82,11 +88,6 @@ export const laboratorioConferenciaService = {
             // Exige conferência
             exams = exams.filter(e => e.requires_conference === true);
 
-            if (filters.exam) {
-                const searchExam = filters.exam.toLowerCase();
-                exams = exams.filter(e => (e.code && e.code.toLowerCase().includes(searchExam)) || (e.name && e.name.toLowerCase().includes(searchExam)));
-            }
-
             const validExamIds = exams.map(e => e.id);
             results = results.filter(r => validExamIds.includes(r.exam_id));
 
@@ -119,6 +120,7 @@ export const laboratorioConferenciaService = {
                 return {
                     id: r.id, 
                     protocolo: att.protocol_number,
+                    pacienteCode: pat.code,
                     pacienteNome: pat.full_name,
                     pacienteIdade: idade,
                     pacienteSexo: pat.sex === 'F' ? 'Feminino' : pat.sex === 'M' ? 'Masculino' : pat.sex,
@@ -176,17 +178,70 @@ export const laboratorioConferenciaService = {
     confirmarConferencia: async (resultId) => {
         try {
             const { data: sessionData } = await supabase.auth.getSession();
-            const userId = sessionData?.session?.user?.id || null;
+            const session = sessionData?.session;
 
-            const updateData = { 
+            if (!session || !session.user) {
+                throw new Error('Sessão expirada. Faça login novamente.');
+            }
+
+            const userId = session.user.id;
+
+            // Nome completo real do usuário autenticado (gravado via manage-user em user_metadata.name)
+            const meta = session.user.user_metadata || {};
+            const professionalName = (meta.full_name || meta.name || '').trim();
+
+            if (!professionalName) {
+                throw new Error('Não foi possível confirmar o exame. O nome completo do biomédico não foi localizado.');
+            }
+
+            // Buscar tenant_id do lab_result para garantir o vínculo correto
+            const { data: resultRow, error: resultErr } = await supabase
+                .from('lab_results')
+                .select('id, tenant_id')
+                .eq('id', resultId)
+                .single();
+
+            if (resultErr || !resultRow) {
+                throw new Error('Resultado não encontrado.');
+            }
+
+            const tenantId = resultRow.tenant_id;
+
+            // Buscar vínculo profissional no mesmo tenant do resultado
+            const { data: link, error: linkErr } = await supabase
+                .from('user_tenants')
+                .select('role, crbm, signature_path')
+                .eq('user_id', userId)
+                .eq('tenant_id', tenantId)
+                .eq('is_active', true)
+                .maybeSingle();
+
+            if (linkErr || !link) {
+                throw new Error('Somente um biomédico cadastrado pode confirmar resultados laboratoriais.');
+            }
+
+            if (link.role !== 'BIOMEDICO') {
+                throw new Error('Somente um biomédico cadastrado pode confirmar resultados laboratoriais.');
+            }
+
+            if (!link.crbm || link.crbm.trim() === '') {
+                throw new Error('Não foi possível confirmar o exame. O CRBM do biomédico não está cadastrado.');
+            }
+
+            if (!link.signature_path) {
+                throw new Error('Não foi possível confirmar o exame. A assinatura do biomédico não está cadastrada.');
+            }
+
+            // Update único e atômico — status + snapshot profissional
+            const updateData = {
                 status: 'CONFERIDO',
+                checked_by: userId,
                 checked_at: new Date().toISOString(),
+                responsible_name: professionalName,
+                responsible_crbm: link.crbm.trim(),
+                responsible_signature_path: link.signature_path,
                 updated_at: new Date().toISOString()
             };
-
-            if (userId) {
-                updateData.checked_by = userId;
-            }
 
             const { data, error } = await supabase
                 .from('lab_results')
@@ -234,6 +289,26 @@ export const laboratorioConferenciaService = {
             return data;
         } catch (error) {
             console.error('Erro ao devolver exame:', error);
+            throw error;
+        }
+    },
+    
+    cancelarExame: async (resultId) => {
+        try {
+            const { data, error } = await supabase
+                .from('lab_results')
+                .update({ 
+                    status: 'CANCELADO',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', resultId)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Erro ao cancelar exame:', error);
             throw error;
         }
     }

@@ -12,7 +12,7 @@ export const laboratorioLaudosService = {
 
     buscarLaudos: async (filters = {}) => {
         try {
-            let attendancesQuery = supabase.from('lab_attendances').select('id, protocol_number, patient_id, attendance_date, requesting_doctor, delivery_location, agreement, attendance_origin');
+            let attendancesQuery = supabase.from('lab_attendances').select('id, protocol_number, patient_id, attendance_date, requesting_doctor, delivery_location, agreement, attendance_origin, lab_attendance_exams(exam_id, collection_date, collection_time)');
             
             if (filters.protocol) {
                 attendancesQuery = attendancesQuery.ilike('protocol_number', `%${filters.protocol}%`);
@@ -29,7 +29,7 @@ export const laboratorioLaudosService = {
             if (attError) throw attError;
             if (!attendances || attendances.length === 0) return [];
             
-            const { data: patients, error: patError } = await supabase.from('lab_patients').select('id, full_name, birth_date, sex, cns, cpf, rg');
+            const { data: patients, error: patError } = await supabase.from('lab_patients').select('id, code, full_name, birth_date, sex, cns, cpf, rg');
             if (patError) throw patError;
             
             let filteredAttendances = attendances;
@@ -37,7 +37,13 @@ export const laboratorioLaudosService = {
                 const searchName = filters.patient.toLowerCase();
                 const matchedPatients = patients.filter(p => p.full_name && p.full_name.toLowerCase().includes(searchName));
                 const matchedPatientIds = matchedPatients.map(p => p.id);
-                filteredAttendances = attendances.filter(a => matchedPatientIds.includes(a.patient_id));
+                filteredAttendances = filteredAttendances.filter(a => matchedPatientIds.includes(a.patient_id));
+            }
+            if (filters.patientCode) {
+                const searchCode = filters.patientCode.toLowerCase().trim();
+                const matchedPatients = patients.filter(p => p.code && p.code.toLowerCase().includes(searchCode));
+                const matchedPatientIds = matchedPatients.map(p => p.id);
+                filteredAttendances = filteredAttendances.filter(a => matchedPatientIds.includes(a.patient_id));
             }
             if (filteredAttendances.length === 0) return [];
 
@@ -50,7 +56,7 @@ export const laboratorioLaudosService = {
                 const chunk = attIds.slice(i, i + 100);
                 let query = supabase
                     .from('lab_results')
-                    .select('id, attendance_id, exam_id, status, created_at, general_observation, typed_at, checked_at, released_at')
+                    .select('id, attendance_id, exam_id, status, created_at, general_observation, typed_at, checked_at, released_at, responsible_name, responsible_crbm, responsible_signature_path')
                     .in('attendance_id', chunk);
 
                 if (statusFilter === 'LIBERADO') {
@@ -128,6 +134,8 @@ export const laboratorioLaudosService = {
 
                 if (!att || !pat || !ex) return null;
 
+                const attExam = att.lab_attendance_exams?.find(ae => ae.exam_id === r.exam_id);
+
                 let idade = '';
                 if (pat.birth_date) {
                     const diff_ms = Date.now() - new Date(pat.birth_date).getTime();
@@ -138,6 +146,7 @@ export const laboratorioLaudosService = {
                 return {
                     id: r.id, 
                     protocolo: att.protocol_number,
+                    pacienteCodigo: pat.code,
                     pacienteNome: pat.full_name,
                     pacienteIdade: idade,
                     pacienteDataNascimento: laboratorioLaudosService.formatDateOnly(pat.birth_date),
@@ -156,11 +165,18 @@ export const laboratorioLaudosService = {
                     exameMetodo: ex.method,
                     exameAnalisador: ex.analyzer_name,
                     dataAtendimento: laboratorioLaudosService.formatDateOnly(att.attendance_date),
+                    dataAtendimentoRaw: att.attendance_date,
+                    collection_date: attExam?.collection_date || null,
+                    collection_time: attExam?.collection_time || null,
                     status: r.status,
                     observacaoGeral: r.general_observation,
                     typed_at: r.typed_at,
                     checked_at: r.checked_at,
                     released_at: r.released_at,
+                    // snapshot do biomédico responsável pela Conferência
+                    responsible_name: r.responsible_name || null,
+                    responsible_crbm: r.responsible_crbm || null,
+                    responsible_signature_path: r.responsible_signature_path || null,
                     parametros: 0
                 };
             }).filter(Boolean);
@@ -237,6 +253,30 @@ export const laboratorioLaudosService = {
         } catch (error) {
             console.error('Erro ao liberar laudo:', error);
             throw error;
+        }
+    },
+
+    /**
+     * Gera uma Signed URL temporária (900s) para a assinatura do biomédico
+     * no bucket privado 'laboratorio-assinaturas'.
+     * Retorna null em caso de erro para não derrubar a renderização do laudo.
+     */
+    getLaboratorioSignatureSignedUrl: async (signaturePath) => {
+        if (!signaturePath) return null;
+        try {
+            const { data, error } = await supabase.storage
+                .from('laboratorio-assinaturas')
+                .createSignedUrl(signaturePath, 900);
+
+            if (error) {
+                console.error('[Laudos] Erro ao gerar signed URL da assinatura:', error);
+                return null;
+            }
+
+            return data?.signedUrl || null;
+        } catch (err) {
+            console.error('[Laudos] Erro inesperado ao gerar signed URL:', err);
+            return null;
         }
     }
 };

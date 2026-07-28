@@ -1,4 +1,4 @@
-.lab-users-container {
+﻿.lab-users-container {
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -226,9 +226,97 @@
     color: #ef4444;
 }
 
-/* Override global do page-wrapper apenas quando estiver na tela de Usu�rios */
+/* Override global do page-wrapper apenas quando estiver na tela de Usuários */
 .page-wrapper:has(.lab-users-container) {
     max-width: 100% !important;
     width: 100% !important;
     padding: 0 !important;
+}
+
+.signature-preview {
+    margin-top: 12px;
+    padding: 10px 14px;
+    min-height: 90px;
+    max-height: 120px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 6px;
+    background: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.signature-preview-label {
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.signature-preview img {
+    display: block;
+    max-width: 200px;
+    max-height: 65px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+
+.signature-file-input {
+    display: none;
+}
+
+.signature-upload-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.signature-upload-button {
+    height: 40px;
+    padding: 0 16px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    color: #475569;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.signature-upload-button:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+.signature-file-name {
+    font-size: 0.85rem;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.signature-remove-button {
+    background: transparent;
+    border: none;
+    color: #ef4444;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px;
+    margin-left: auto;
+}
+
+.signature-remove-button:hover {
+    text-decoration: underline;
 }

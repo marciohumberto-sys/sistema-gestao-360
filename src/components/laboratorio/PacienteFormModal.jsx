@@ -81,8 +81,18 @@ const PacienteFormModal = ({ isOpen, mode = 'create', patientId = null, onClose,
     const handleChange = (e) => handlePacienteChange(e, setFormData, formErrors, setFormErrors);
 
     const handleSave = async (forceSave = false) => {
+        const triggerError = (msg) => {
+            if (onError) onError(msg);
+            else alert(msg);
+        };
+
+        if (mode === 'edit' && !patientId) {
+            triggerError('Não foi possível identificar o paciente para edição.');
+            return;
+        }
+
         if (!validatePacienteForm(formData, setFormErrors)) {
-            if (onError) onError('Verifique os campos obrigatórios');
+            triggerError('Verifique os campos obrigatórios');
             return;
         }
 
@@ -105,19 +115,16 @@ const PacienteFormModal = ({ isOpen, mode = 'create', patientId = null, onClose,
             const cleanData = normalizePacienteDataForSave(formData);
 
             if (!forceSave) {
-                const dupCheck = await laboratorioPacientesService.verificarDuplicidadePaciente(cleanData, mode === 'edit' ? patientId : null);
+                const origCleanData = mode === 'edit' ? normalizePacienteDataForSave(originalData) : null;
+                const dupCheck = await laboratorioPacientesService.verificarDuplicidadePaciente(cleanData, mode === 'edit' ? patientId : null, origCleanData);
                 
-                if (dupCheck.duplicadoForte) {
-                    if (onError) onError(dupCheck.motivo);
-                    setIsSaving(false);
-                    return;
-                }
                 if (dupCheck.alerta) {
                     setConfirmModal({
                         open: true,
                         title: 'Possível duplicidade',
                         message: dupCheck.motivo,
                         confirmText: 'Salvar mesmo assim',
+                        cancelText: 'Revisar dados',
                         onConfirm: () => {
                             setConfirmModal({ open: false });
                             handleSave(true);
@@ -137,7 +144,8 @@ const PacienteFormModal = ({ isOpen, mode = 'create', patientId = null, onClose,
                 if (onSuccess) onSuccess('Paciente atualizado com sucesso.', resultPatient);
             }
         } catch (err) {
-            if (onError) onError('Não foi possível salvar o paciente. Tente novamente.');
+            console.error('[PACIENTE][ATUALIZAÇÃO]', err);
+            triggerError('Não foi possível salvar as alterações do paciente.');
         } finally {
             setIsSaving(false);
         }
@@ -181,10 +189,10 @@ const PacienteFormModal = ({ isOpen, mode = 'create', patientId = null, onClose,
                     <div className="lab-modal-content" style={{ width: '400px', padding: '1.5rem', textAlign: 'center', background: '#fff', borderRadius: '12px' }} onClick={e => e.stopPropagation()}>
                         <AlertTriangle size={48} style={{ color: '#eab308', margin: '0 auto 1rem' }} />
                         <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.5rem', color: '#1e293b' }}>{confirmModal.title}</h3>
-                        <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>{confirmModal.message}</p>
+                        <p style={{ color: '#64748b', marginBottom: '1.5rem', whiteSpace: 'pre-wrap' }}>{confirmModal.message}</p>
                         <div style={{ display: 'flex', gap: '1rem' }}>
-                            <button className="lab-btn lab-btn-outline" style={{ flex: 1 }} onClick={() => setConfirmModal({ open: false })}>{confirmModal.cancelText}</button>
-                            <button className="lab-btn lab-btn-primary" style={{ flex: 1, background: '#ef4444', borderColor: '#ef4444' }} onClick={confirmModal.onConfirm}>{confirmModal.confirmText}</button>
+                            <button className="lab-btn lab-btn-outline" style={{ flex: 1, color: '#334155', borderColor: '#cbd5e1' }} onClick={() => setConfirmModal({ open: false })}>{confirmModal.cancelText || 'Cancelar'}</button>
+                            <button className="lab-btn lab-btn-primary" style={{ flex: 1, background: '#ef4444', borderColor: '#ef4444', color: '#ffffff' }} onClick={confirmModal.onConfirm}>{confirmModal.confirmText || 'Confirmar'}</button>
                         </div>
                     </div>
                 </div>

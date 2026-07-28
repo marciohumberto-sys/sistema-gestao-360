@@ -1,9 +1,12 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Users, ShieldCheck, UserCheck, UserX, Plus, Edit2, XCircle, ShieldAlert, Check, ChevronDown, AlertTriangle, Activity } from 'lucide-react';
+import React, { useState, useMemo, useRef } from 'react';
+import { Search, Users, ShieldCheck, UserCheck, UserX, Plus, Edit2, XCircle, ShieldAlert, Check, ChevronDown, AlertTriangle, Activity, Upload, Trash2 } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessLaboratorio, canManageLaboratorioUsers } from '../../utils/laboratorioAcl';
-import { getCurrentTenantId, fetchLaboratorioUsers, createLaboratorioUser, updateLaboratorioUser, toggleLaboratorioUserStatus, deleteLaboratorioUser } from '../../services/laboratorioUsers.service';
+import { 
+    getCurrentTenantId, fetchLaboratorioUsers, createLaboratorioUser, updateLaboratorioUser, toggleLaboratorioUserStatus, deleteLaboratorioUser,
+    getLaboratorioProfessionalData, getLaboratorioSignatureSignedUrl, uploadLaboratorioSignature, updateLaboratorioProfessionalData
+} from '../../services/laboratorioUsers.service';
 import './LaboratorioUsuarios.css';
 
 const LaboratorioUsuarios = () => {
@@ -36,16 +39,22 @@ const LaboratorioUsuarios = () => {
         alert(`${title}: ${message}`);
     };
 
+    const signatureInputRef = useRef(null);
+
     // Form State
     const [formData, setFormData] = useState({
         name: '',
         login: '',
         profile: 'VISUALIZADOR',
         units: [],
-        status: 'ATIVO'
+        status: 'ATIVO',
+        crbm: '',
+        signatureFile: null,
+        signaturePreview: null,
+        signaturePath: null
     });
 
-    const openModal = (user = null) => {
+    const openModal = async (user = null) => {
         if (user) {
             setEditingUser(user);
             let extractedLogin = '';
@@ -56,7 +65,30 @@ const LaboratorioUsuarios = () => {
                     extractedLogin = user.email.split('@')[0];
                 }
             }
-            setFormData({ ...user, login: extractedLogin });
+
+            let profData = { crbm: '', signaturePath: null, signaturePreview: null };
+            if (user.profile === 'BIOMEDICO') {
+                try {
+                    const tenantId = await getCurrentTenantId();
+                    const prof = await getLaboratorioProfessionalData(tenantId, user.id);
+                    profData.crbm = prof.crbm || '';
+                    profData.signaturePath = prof.signature_path || null;
+                    if (prof.signature_path) {
+                        profData.signaturePreview = await getLaboratorioSignatureSignedUrl(prof.signature_path);
+                    }
+                } catch (e) {
+                    console.error('Erro ao carregar dados profissionais', e);
+                }
+            }
+
+            setFormData({ 
+                ...user, 
+                login: extractedLogin,
+                crbm: profData.crbm,
+                signatureFile: null,
+                signaturePath: profData.signaturePath,
+                signaturePreview: profData.signaturePreview
+            });
         } else {
             setEditingUser(null);
             setFormData({
@@ -64,10 +96,70 @@ const LaboratorioUsuarios = () => {
                 login: '',
                 profile: 'RECEPCAO',
                 units: ['Sede'],
-                status: 'ATIVO'
+                status: 'ATIVO',
+                crbm: '',
+                signatureFile: null,
+                signaturePath: null,
+                signaturePreview: null
             });
         }
         setIsModalOpen(true);
+    };
+
+    React.useEffect(() => {
+        return () => {
+            if (formData.signatureFile && formData.signaturePreview) {
+                URL.revokeObjectURL(formData.signaturePreview);
+            }
+        };
+    }, [formData.signatureFile, formData.signaturePreview]);
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+            if (formData.signatureFile && formData.signaturePreview && !formData.signaturePath) {
+                URL.revokeObjectURL(formData.signaturePreview);
+            }
+            setFormData(prev => ({ 
+                ...prev, 
+                signatureFile: null,
+                signaturePreview: prev.signaturePath ? prev.signaturePreview : null 
+            }));
+            return;
+        }
+
+        if (!['image/png', 'image/jpeg'].includes(file.type)) {
+            showAlert('Validação', 'A assinatura deve estar no formato PNG ou JPG.', 'warning');
+            e.target.value = '';
+            return;
+        }
+
+        if (file.size > 2 * 1024 * 1024) {
+            showAlert('Validação', 'A assinatura deve possuir no máximo 2 MB.', 'warning');
+            e.target.value = '';
+            return;
+        }
+
+        if (formData.signatureFile && formData.signaturePreview && !formData.signaturePath) {
+            URL.revokeObjectURL(formData.signaturePreview);
+        }
+
+        const previewUrl = URL.createObjectURL(file);
+        setFormData(prev => ({ ...prev, signatureFile: file, signaturePreview: previewUrl }));
+    };
+
+    const handleRemoveFile = () => {
+        if (formData.signatureFile && formData.signaturePreview && !formData.signaturePath) {
+            URL.revokeObjectURL(formData.signaturePreview);
+        }
+        setFormData(prev => ({ 
+            ...prev, 
+            signatureFile: null,
+            signaturePreview: prev.signaturePath ? prev.signaturePreview : null 
+        }));
+        if (signatureInputRef.current) {
+            signatureInputRef.current.value = '';
+        }
     };
 
     const closeModal = () => setIsModalOpen(false);
@@ -148,6 +240,21 @@ const LaboratorioUsuarios = () => {
             return;
         }
 
+        if (formData.profile === 'BIOMEDICO') {
+            if (!formData.crbm || formData.crbm.trim() === '') {
+                showAlert('Validação', 'Informe o CRBM do biomédico.', 'warning');
+                return;
+            }
+            if (!editingUser && !formData.signatureFile) {
+                showAlert('Validação', 'Selecione a assinatura que será utilizada nos laudos.', 'warning');
+                return;
+            }
+            if (!formData.signaturePath && !formData.signatureFile) {
+                showAlert('Validação', 'Selecione a assinatura que será utilizada nos laudos.', 'warning');
+                return;
+            }
+        }
+
         if (isSaving) return;
         setIsSaving(true);
 
@@ -156,15 +263,47 @@ const LaboratorioUsuarios = () => {
         
         const payload = { ...formData, email: emailParsed };
         delete payload.login;
+        delete payload.crbm;
+        delete payload.signatureFile;
+        delete payload.signaturePreview;
+        delete payload.signaturePath;
 
         try {
             const tenantId = await getCurrentTenantId();
+            let finalUserId = null;
             
             if (editingUser) {
                 const targetId = editingUser.user_tenant_id || editingUser.id;
                 await updateLaboratorioUser(targetId, payload);
+                finalUserId = editingUser.id;
             } else {
-                await createLaboratorioUser(tenantId, payload);
+                const result = await createLaboratorioUser(tenantId, payload);
+                finalUserId = result.user_id;
+            }
+            
+            if (formData.profile === 'BIOMEDICO') {
+                try {
+                    let newSignaturePath = formData.signaturePath;
+                    if (formData.signatureFile) {
+                        newSignaturePath = await uploadLaboratorioSignature(tenantId, finalUserId, formData.signatureFile);
+                    }
+                    await updateLaboratorioProfessionalData(
+                        tenantId, 
+                        finalUserId, 
+                        formData.crbm.trim(), 
+                        newSignaturePath !== formData.signaturePath ? newSignaturePath : undefined
+                    );
+                } catch (profError) {
+                    console.error('Erro ao atualizar dados profissionais:', profError);
+                    if (!editingUser) {
+                        showAlert('Aviso', 'O usuário foi criado, mas não foi possível concluir o cadastro do CRBM e da assinatura. Edite o usuário para finalizar os dados profissionais.', 'warning');
+                    } else {
+                        showAlert('Aviso', 'O usuário foi atualizado, mas houve um erro ao salvar o CRBM ou a assinatura. Verifique os dados.', 'warning');
+                    }
+                    await carregarUsuarios();
+                    setIsSaving(false);
+                    return;
+                }
             }
             
             await carregarUsuarios();
@@ -374,75 +513,130 @@ const LaboratorioUsuarios = () => {
             {/* Modal Novo/Editar */}
             {isModalOpen && (
                 <div className="lab-modal-overlay">
-                    <div className="lab-modal-content" style={{ width: '560px' }}>
+                    <div className="lab-modal-content laboratorio-user-modal" style={{ width: 'min(700px, calc(100vw - 32px))', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
                         <div style={{ padding: '1.25rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h2 className="lab-modal-title">{editingUser ? 'Editar Usuário' : 'Novo Usuário do Laboratório'}</h2>
                             <button className="lab-modal-close" onClick={closeModal}><XCircle size={20} /></button>
                         </div>
 
-                        <form onSubmit={handleSave} style={{ padding: '1.25rem' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0, overflow: 'hidden' }}>
+                            <div className="laboratorio-user-modal-body" style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', padding: '24px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>Nome Completo *</label>
+                                        <input 
+                                            type="text" required value={formData.name} 
+                                            onChange={e => setFormData({...formData, name: e.target.value})}
+                                            className="lab-search-input" placeholder="Ex: Ana Maria"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>Usuário *</label>
+                                        <input 
+                                            type="text" required value={formData.login} 
+                                            onChange={e => setFormData({...formData, login: e.target.value.toLowerCase().replace(/\s+/g, '')})}
+                                            className="lab-search-input" placeholder="Ex: ana.maria"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: '1.25rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>Perfil de Acesso</label>
+                                    <select 
+                                        className="lab-filter-select" style={{ width: '100%' }}
+                                        value={formData.profile}
+                                        onChange={e => setFormData({...formData, profile: e.target.value})}
+                                    >
+                                        <option value="ADMINISTRADOR">ADMINISTRADOR</option>
+                                        <option value="BIOMEDICO">BIOMÉDICO</option>
+                                        <option value="TECNICO">TÉCNICO/BANCADA</option>
+                                        <option value="COLETA">COLETA</option>
+                                        <option value="RECEPCAO">RECEPÇÃO</option>
+                                        <option value="VISUALIZADOR">VISUALIZADOR</option>
+                                    </select>
+                                </div>
+                                
+                                <div style={{ background: '#f1f5f9', padding: '1rem', borderRadius: '8px', marginBottom: '1.25rem' }}>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <ShieldAlert size={14} /> Permissões Concedidas:
+                                    </div>
+                                    <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.85rem', color: '#64748b' }}>
+                                        {formData.profile === 'ADMINISTRADOR' && <li>Acesso total, incluindo configurações e usuários.</li>}
+                                        {formData.profile === 'BIOMEDICO' && <li>Acesso a Dashboard, Conferência, Laudos e Relatórios.</li>}
+                                        {formData.profile === 'TECNICO' && <li>Acesso a Dashboard, Mapas e Lançamento de Resultados.</li>}
+                                        {formData.profile === 'COLETA' && <li>Acesso a Dashboard, Coleta de amostras e Mapas.</li>}
+                                        {formData.profile === 'RECEPCAO' && <li>Acesso a Dashboard, Cadastro de Pacientes e Atendimento.</li>}
+                                        {formData.profile === 'VISUALIZADOR' && <li>Acesso somente leitura aos dados.</li>}
+                                    </ul>
+                                </div>
+
+                                {formData.profile === 'BIOMEDICO' && (
+                                    <div style={{ marginBottom: '1.25rem' }}>
+                                        <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.75rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>DADOS PROFISSIONAIS</h3>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>CRBM *</label>
+                                                <input 
+                                                    type="text" required value={formData.crbm} 
+                                                    onChange={e => setFormData({...formData, crbm: e.target.value})}
+                                                    className="lab-search-input" placeholder="Ex.: CRBM-4 12345"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>Assinatura para os laudos *</label>
+                                                <input 
+                                                    ref={signatureInputRef}
+                                                    type="file" 
+                                                    accept="image/png, image/jpeg" 
+                                                    onChange={handleFileChange}
+                                                    className="signature-file-input"
+                                                />
+                                                <div className="signature-upload-row">
+                                                    <button
+                                                        type="button"
+                                                        className="signature-upload-button"
+                                                        onClick={() => signatureInputRef.current?.click()}
+                                                    >
+                                                        <Upload size={16} />
+                                                        {formData.signatureFile || formData.signaturePath ? 'Substituir assinatura' : 'Selecionar assinatura'}
+                                                    </button>
+
+                                                    <span className="signature-file-name" title={formData.signatureFile ? formData.signatureFile.name : (formData.signaturePath ? 'assinatura-salva' : 'Nenhum arquivo selecionado')}>
+                                                        {formData.signatureFile ? formData.signatureFile.name : (formData.signaturePath ? 'assinatura-salva' : 'Nenhum arquivo selecionado')}
+                                                    </span>
+
+                                                    {(formData.signatureFile || formData.signaturePath) && (
+                                                        <button type="button" className="signature-remove-button" onClick={handleRemoveFile}>
+                                                            Remover
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0.5rem 0 0' }}>Formatos permitidos: PNG ou JPG — máximo de 2 MB.</p>
+                                                {formData.signaturePreview && (
+                                                    <div className="signature-preview">
+                                                        <span className="signature-preview-label">Pré-visualização:</span>
+                                                        <img src={formData.signaturePreview} alt="Assinatura" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>Nome Completo *</label>
-                                    <input 
-                                        type="text" required value={formData.name} 
-                                        onChange={e => setFormData({...formData, name: e.target.value})}
-                                        className="lab-search-input" placeholder="Ex: Ana Maria"
-                                    />
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>Usuário *</label>
-                                    <input 
-                                        type="text" required value={formData.login} 
-                                        onChange={e => setFormData({...formData, login: e.target.value.toLowerCase().replace(/\s+/g, '')})}
-                                        className="lab-search-input" placeholder="Ex: ana.maria"
-                                    />
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>Status da Conta</label>
+                                    <select 
+                                        className="lab-filter-select" style={{ width: '100%' }}
+                                        value={formData.status}
+                                        onChange={e => setFormData({...formData, status: e.target.value})}
+                                    >
+                                        <option value="ATIVO">Ativo (Acesso Permitido)</option>
+                                        <option value="INATIVO">Inativo (Acesso Suspenso)</option>
+                                    </select>
                                 </div>
                             </div>
 
-                            <div style={{ marginBottom: '1.25rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>Perfil de Acesso</label>
-                                <select 
-                                    className="lab-filter-select" style={{ width: '100%' }}
-                                    value={formData.profile}
-                                    onChange={e => setFormData({...formData, profile: e.target.value})}
-                                >
-                                    <option value="ADMINISTRADOR">ADMINISTRADOR (Acesso Total)</option>
-                                    <option value="BIOMEDICO">BIOMÉDICO (Conferência e Liberação)</option>
-                                    <option value="TECNICO">TÉCNICO/BANCADA (Resultados)</option>
-                                    <option value="COLETA">COLETA (Atendimento e Mapas)</option>
-                                    <option value="RECEPCAO">RECEPÇÃO (Pacientes e Atendimento)</option>
-                                    <option value="VISUALIZADOR">VISUALIZADOR (Somente Leitura)</option>
-                                </select>
-                            </div>
-                            
-                            <div style={{ background: '#f1f5f9', padding: '1rem', borderRadius: '8px', marginBottom: '1.25rem' }}>
-                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <ShieldAlert size={14} /> Permissões Concedidas:
-                                </div>
-                                <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.85rem', color: '#64748b' }}>
-                                    {formData.profile === 'ADMINISTRADOR' && <li>Acesso total, incluindo configurações e usuários.</li>}
-                                    {formData.profile === 'BIOMEDICO' && <li>Acesso a Dashboard, Conferência, Laudos e Relatórios.</li>}
-                                    {formData.profile === 'TECNICO' && <li>Acesso a Dashboard, Mapas e Lançamento de Resultados.</li>}
-                                    {formData.profile === 'COLETA' && <li>Acesso a Dashboard, Coleta de amostras e Mapas.</li>}
-                                    {formData.profile === 'RECEPCAO' && <li>Acesso a Dashboard, Cadastro de Pacientes e Atendimento.</li>}
-                                    {formData.profile === 'VISUALIZADOR' && <li>Acesso somente leitura aos dados.</li>}
-                                </ul>
-                            </div>
-
-                            <div style={{ marginBottom: '1.25rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>Status da Conta</label>
-                                <select 
-                                    className="lab-filter-select" style={{ width: '100%' }}
-                                    value={formData.status}
-                                    onChange={e => setFormData({...formData, status: e.target.value})}
-                                >
-                                    <option value="ATIVO">Ativo (Acesso Permitido)</option>
-                                    <option value="INATIVO">Inativo (Acesso Suspenso)</option>
-                                </select>
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
+                            <div className="laboratorio-user-modal-footer" style={{ flex: '0 0 auto', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', padding: '16px 24px', background: '#ffffff', borderTop: '1px solid #e2e8f0', zIndex: 1 }}>
                                 <button type="button" onClick={closeModal} style={{ background: 'transparent', border: 'none', color: '#64748b', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                                 <button type="submit" disabled={isSaving} style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: '8px', fontWeight: 600, cursor: isSaving ? 'not-allowed' : 'pointer' }}>
                                     {isSaving ? 'Salvando...' : 'Salvar'}

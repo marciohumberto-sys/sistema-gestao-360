@@ -17,30 +17,690 @@ const getLocalDateInputValue = (date = new Date()) => {
     return `${year}-${month}-${day}`;
 };
 
+// ==============================================================
+// LÓGICAS EXCLUSIVAS DO HEMOGRAMA COMPACTO
+// ==============================================================
+const HEMO_GROUPS = {
+  eritrograma: ['HEMACIAS', 'HEMOGLOBINA', 'HEMATOCRITO', 'HCM', 'VCM', 'CHCM', 'RDW'],
+  leucograma: ['LEUCOCITOS', 'MIELOCITOS', 'METAMIELOCITOS', 'BASTONETES', 'SEGMENTADOS', 'EOSINOFILOS', 'BASOFILOS', 'LINFOCITOS_TIPICOS', 'LINFOCITOS_ATIPICOS', 'MONOCITOS', 'PLASMOCITOS'],
+  plaquetas: ['PLAQUETAS'],
+  observacoes: ['OBS_ERITROGRAMA', 'SERIE_ERITROCITARIA', 'SERIE_LEUCOCITARIA', 'SERIE_PLAQUETARIA']
+};
+
+const HEMO_PERCENTUAL_CODES = [
+  'MIELOCITOS', 'METAMIELOCITOS', 'BASTONETES', 'SEGMENTADOS', 
+  'EOSINOFILOS', 'BASOFILOS', 'LINFOCITOS_TIPICOS', 'LINFOCITOS_ATIPICOS', 
+  'MONOCITOS', 'PLASMOCITOS'
+];
+
+const HEMO_INTEGER_COUNT_CODES = new Set([
+  'LEUCOCITOS',
+  'PLAQUETAS'
+]);
+
+function parseHemoNumber(valueStr, parameterCode) {
+    if (valueStr === null || valueStr === undefined) return NaN;
+    let str = String(valueStr).trim();
+    
+    str = str.replace(/(?:milhões\/mm³|milhões\/mm3|milhões|unidade\s*real|\/mm³|\/mm3|mm³|mm3|%|pg|fL|g\/dL)/gi, '');
+    
+    if (/[<>≤≥a-zA-Z]/.test(str)) {
+       str = str.replace(/[a-zA-Z<>≤≥\s]/g, ''); 
+    } else {
+       str = str.replace(/[a-zA-Z\s]/g, ''); 
+    }
+    if (str === '') return NaN;
+
+    const normalizedCode = String(parameterCode ?? '').trim().toUpperCase();
+
+    if (HEMO_INTEGER_COUNT_CODES.has(normalizedCode)) {
+        if (str.includes(',')) return NaN;
+        return parseInt(str.replace(/\./g, ''), 10);
+    }
+
+    if (str.includes(',')) return parseFloat(str.replace(/\./g, '').replace(',', '.'));
+    if (/^-?\d{1,3}(\.\d{3})+$/.test(str)) return parseFloat(str.replace(/\./g, ''));
+    return parseFloat(str);
+}
+
+function formatHemoResultValue(valueStr, parameterCode) {
+    if (valueStr === null || valueStr === undefined || valueStr === '') return '';
+    let str = String(valueStr).trim();
+    if (str === '') return '';
+
+    if (HEMO_INTEGER_COUNT_CODES.has(parameterCode)) {
+        const num = parseInt(str.replace(/[\.,]/g, ''), 10);
+        if (!isNaN(num)) return new Intl.NumberFormat('pt-BR').format(num);
+    } else {
+        if (!isNaN(parseFloat(str.replace(',', '.')))) {
+            return str.replace('.', ',');
+        }
+    }
+    return str;
+}
+
+function formatHemoReferenceText(refStr, parameterCode, stripUnits = true) {
+    if (!refStr) return '';
+    let formatted = refStr;
+    formatted = formatted.replace(/\b(\d+(?:[\.,]\d+)?)\b/g, (match) => {
+        if (HEMO_INTEGER_COUNT_CODES.has(parameterCode)) {
+            const num = parseInt(match.replace(/[\.,]/g, ''), 10);
+            if (!isNaN(num)) return new Intl.NumberFormat('pt-BR').format(num);
+        } else {
+            return match.replace('.', ',');
+        }
+        return match;
+    });
+    formatted = formatted.replace(/\s+-\s+/g, ' – ');
+    
+    if (stripUnits) {
+        formatted = formatted.replace(/(?:milhões\/mm³|milhões\/mm3|milhões|unidade\s*real|\/mm³|\/mm3|mm³|mm3|%|pg|fL|g\/dL)/gi, '').trim();
+    }
+    return formatted;
+}
+
+function resolveHemoReference(parameterCode, referenceText, patientAgeDays, patientSexGroup) {
+    if (!referenceText) return { text: "Referência não determinada", valid: false };
+    if (referenceText.toLowerCase().includes('campo livre')) return { text: "Sem valor de referência numérico", valid: false, isText: true };
+
+    const lines = referenceText.split(/\r?\n/).map(l => l.trim()).filter(l => l);
+    
+    let relativeVal = null;
+    let absoluteVal = null;
+    let fixedMatched = false;
+    
+    if (lines.length >= 2) {
+        if (lines[0].toLowerCase().includes('valor relativo') && lines[1].toLowerCase().includes('valor absoluto')) {
+            relativeVal = lines[0].substring(lines[0].indexOf(':') + 1).trim();
+            absoluteVal = lines[1].substring(lines[1].indexOf(':') + 1).trim();
+            fixedMatched = true;
+        }
+    }
+    
+    if (fixedMatched) {
+        const relNum = parseHemoNumber(relativeVal, parameterCode);
+        const absNum = parseHemoNumber(absoluteVal, parameterCode);
+        return {
+            text: `${lines[0]} | ${lines[1]}`,
+            displayLines: [
+                { text: `Valor relativo: ${formatHemoReferenceText(relativeVal, parameterCode)}`, highlight: false },
+                { text: `Valor absoluto: ${formatHemoReferenceText(absoluteVal, parameterCode)}`, highlight: false }
+            ],
+            valid: !isNaN(relNum) && !isNaN(absNum),
+            relMin: relNum, relMax: relNum,
+            absMin: absNum, absMax: absNum,
+            isFixed: true,
+            isText: false
+        };
+    }
+
+    let matchedLine = null;
+    let ageIdx = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+        const lower = lines[i].toLowerCase();
+        let matches = false;
+        
+        if (lower.startsWith('recém-nascido') || lower.startsWith('recem-nascido')) {
+            if (patientAgeDays <= 89) matches = true; 
+        } else if (lower.startsWith('3 meses a 1 ano')) {
+            if (patientAgeDays >= 90 && patientAgeDays <= 729) matches = true; 
+        } else if (lower.startsWith('2 a 4 anos')) {
+            if (patientAgeDays >= 730 && patientAgeDays <= 1824) matches = true; 
+        } else if (lower.startsWith('5 a 11 anos')) {
+            if (patientAgeDays >= 1825 && patientAgeDays <= 4744) matches = true; 
+        } else if (lower.startsWith('13 a 18 anos')) {
+            if (patientAgeDays >= 4745 && patientAgeDays <= 6934) matches = true; 
+        } else if (lower.startsWith('maiores de 18 anos') || lower.startsWith('adultos')) {
+            if (patientAgeDays >= 6935) matches = true;
+        }
+
+        if (matches) {
+            matchedLine = lines[i];
+            ageIdx = i;
+            break;
+        }
+    }
+
+    if (!matchedLine) {
+        if (lines.length === 1 && !lines[0].includes('anos') && !lines[0].includes('nascido')) {
+            matchedLine = lines[0];
+        } else {
+            return { text: "Referência não determinada", valid: false, isText: false };
+        }
+    }
+
+    let finalRefStr = matchedLine.substring(matchedLine.indexOf(':') + 1).trim();
+    let displayLines = null;
+    
+    if (ageIdx !== -1 && finalRefStr === '') {
+        let genderMatched = false;
+        let maleStr = '';
+        let femaleStr = '';
+        for (let j = ageIdx + 1; j < lines.length; j++) {
+            const gLine = lines[j];
+            if (gLine.toLowerCase().startsWith('homens:')) {
+                maleStr = gLine.substring(gLine.indexOf(':') + 1).trim();
+            } else if (gLine.toLowerCase().startsWith('mulheres:')) {
+                femaleStr = gLine.substring(gLine.indexOf(':') + 1).trim();
+            } else if (gLine === '' || gLine.toLowerCase().startsWith('homens:') || gLine.toLowerCase().startsWith('mulheres:')) {
+                continue;
+            } else {
+                break;
+            }
+        }
+        
+        if (maleStr && femaleStr) {
+            displayLines = [
+                { text: formatHemoReferenceText(maleStr, parameterCode), highlight: patientSexGroup === 'MALE', isMale: true },
+                { text: formatHemoReferenceText(femaleStr, parameterCode), highlight: patientSexGroup === 'FEMALE', isFemale: true }
+            ];
+        }
+        
+        if (patientSexGroup === 'MALE' && maleStr) {
+            finalRefStr = maleStr;
+            genderMatched = true;
+        } else if (patientSexGroup === 'FEMALE' && femaleStr) {
+            finalRefStr = femaleStr;
+            genderMatched = true;
+        }
+        
+        if (!genderMatched) return { text: "Referência não determinada", valid: false, reason: "Sexo ausente", isText: false };
+    }
+
+    if (!finalRefStr) return { text: "Referência não determinada", valid: false, isText: false };
+
+    const parts = finalRefStr.split('|');
+    const parseRange = (str) => {
+        const p = str.split('-');
+        if (p.length >= 2) return { min: parseHemoNumber(p[0], parameterCode), max: parseHemoNumber(p[1], parameterCode), str: str.trim() };
+        if (p.length === 1) {
+            const v = parseHemoNumber(p[0], parameterCode);
+            if (!isNaN(v)) return { min: v, max: v, str: str.trim() };
+        }
+        return null;
+    };
+
+    if (parts.length === 2) {
+        const relR = parseRange(parts[0]);
+        const absR = parseRange(parts[1]);
+        if (relR && absR) {
+            return {
+                text: finalRefStr,
+                displayLines: displayLines || [
+                    { text: formatHemoReferenceText(parts[0].trim(), parameterCode), highlight: false, isRel: true },
+                    { text: formatHemoReferenceText(parts[1].trim(), parameterCode), highlight: false, isAbs: true }
+                ],
+                valid: true,
+                relMin: relR.min, relMax: relR.max,
+                absMin: absR.min, absMax: absR.max,
+                isFixed: (relR.min === relR.max) || (absR.min === absR.max),
+                isText: false
+            };
+        }
+    } else {
+        const r = parseRange(finalRefStr);
+        if (r) {
+            return {
+                text: finalRefStr,
+                displayLines: displayLines || [
+                    { text: formatHemoReferenceText(finalRefStr, parameterCode), highlight: false, isSingle: true }
+                ],
+                valid: true,
+                relMin: r.min, relMax: r.max,
+                absMin: null, absMax: null,
+                isFixed: r.min === r.max,
+                isText: false
+            };
+        }
+    }
+    
+    return { text: finalRefStr, valid: false, isText: false };
+}
+
+const GraficoHemo = ({ value, min, max, parameterCode }) => {
+    if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max) || min >= max) {
+        return <div style={{ width: '100%', minWidth: '60px' }}></div>;
+    }
+    
+    const GRAPH_NORMAL_START = 20;
+    const GRAPH_NORMAL_END = 80;
+    
+    const clinicalRatio = (value - min) / (max - min);
+    
+    let markerPosition = GRAPH_NORMAL_START + clinicalRatio * (GRAPH_NORMAL_END - GRAPH_NORMAL_START);
+    
+    if (markerPosition < 0) markerPosition = 0;
+    if (markerPosition > 100) markerPosition = 100;
+    
+    const isBelow = value < min;
+    const isAbove = value > max;
+
+    return (
+        <div style={{ width: '100%', maxWidth: '80px', height: '12px', position: 'relative', display: 'flex', alignItems: 'center', margin: '0 auto' }}>
+            <div style={{ position: 'absolute', width: '100%', height: '1px', background: '#94a3b8', top: '50%' }}></div>
+            <div style={{ position: 'absolute', left: `${GRAPH_NORMAL_START}%`, height: '4px', width: '1px', background: '#475569', top: 'calc(50% - 2px)' }}></div>
+            <div style={{ position: 'absolute', left: `${GRAPH_NORMAL_END}%`, height: '4px', width: '1px', background: '#475569', top: 'calc(50% - 2px)' }}></div>
+            <div style={{ 
+                position: 'absolute', 
+                '--hemo-marker-position': `${markerPosition}%`,
+                left: 'var(--hemo-marker-position)',
+                width: '6px', 
+                height: '6px', 
+                borderRadius: '50%', 
+                background: '#0f172a',
+                transform: 'translateX(-50%)',
+                zIndex: 2
+            }}></div>
+            {isBelow && <span style={{ position: 'absolute', left: '-10px', fontSize: '9px', fontWeight: 'bold' }}>↓</span>}
+            {isAbove && <span style={{ position: 'absolute', right: '-10px', fontSize: '9px', fontWeight: 'bold' }}>↑</span>}
+        </div>
+    );
+};
+
+const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, patientCode, signatureSignedUrl }) => {
+    const bDate = selectedExam.pacienteDataNascimento ? new Date(selectedExam.pacienteDataNascimento.split('/').reverse().join('-')) : null;
+    let aDateStr = selectedExam.dataAtendimentoRaw || selectedExam.dataAtendimento;
+    if (aDateStr && aDateStr.includes('/')) aDateStr = aDateStr.split('/').reverse().join('-');
+    const aDate = aDateStr ? new Date(aDateStr) : new Date();
+    
+    const ageDays = bDate && !isNaN(bDate) && !isNaN(aDate) ? Math.floor((aDate - bDate) / (1000 * 60 * 60 * 24)) : -1;
+    
+    const normalizedSex = String(selectedExam.pacienteSexo || '').trim().toUpperCase();
+    const sexGroup = ['M', 'MASCULINO'].includes(normalizedSex) ? 'MALE' : ['F', 'FEMININO'].includes(normalizedSex) ? 'FEMALE' : null;
+
+    const findHemoParameter = (targetCode) => {
+        return examDetails.find((item) => {
+            const realCode = String(item.parameter_code ?? item.parameterCode ?? item.code ?? item.parametro_codigo ?? '').trim().toUpperCase();
+            if (targetCode === 'OBS_ERITROGRAMA' && realCode === 'OBSERVACOES_ERITROGRAMA') return true;
+            return realCode === targetCode;
+        });
+    };
+    
+    // Leucocitos Totais para Absoluto
+    const leucocitosParam = findHemoParameter('LEUCOCITOS');
+    const leucocitosTotais = leucocitosParam ? parseHemoNumber(leucocitosParam.value_numeric !== null ? leucocitosParam.value_numeric : leucocitosParam.value_text, 'LEUCOCITOS') : NaN;
+
+    const formatDateTimeH = (dateStr) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '';
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        const HH = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${dd}/${mm}/${yyyy} ${HH}:${min}h`;
+    };
+
+    const getCollectionDateAndTime = (dateStr) => {
+        if (!dateStr) return { date: '', time: '' };
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return { date: '', time: '' };
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        const HH = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return { date: `${dd}/${mm}/${yyyy}`, time: `${HH}:${min}h` };
+    };
+
+    const renderRow = (code, mode) => {
+        const param = findHemoParameter(code);
+        if (!param) return null;
+
+        const rawResult = param.value_numeric !== null ? param.value_numeric : (param.value_text || '');
+        const valNum = parseHemoNumber(rawResult, param.parameter_code);
+        const formattedResult = formatHemoResultValue(rawResult, param.parameter_code);
+        
+        const refObj = resolveHemoReference(param.parameter_code, param.reference_text, ageDays, sexGroup);
+        
+        let absResultStr = '';
+        if ((mode === 'leuco' || mode === 'leuco-abs') && !isNaN(valNum) && !isNaN(leucocitosTotais) && rawResult !== '') {
+            const absVal = Math.round((leucocitosTotais * valNum) / 100);
+            absResultStr = new Intl.NumberFormat('pt-BR').format(absVal);
+        }
+
+        const isAbnormalRel = refObj.valid && !refObj.isFixed && !isNaN(valNum) && (valNum < refObj.relMin || valNum > refObj.relMax);
+
+        const maleLine = refObj.displayLines?.find(l => l.isMale);
+        const femaleLine = refObj.displayLines?.find(l => l.isFemale);
+        const singleLine = refObj.displayLines?.find(l => l.isSingle);
+        const relLine = refObj.displayLines?.find(l => l.isRel);
+        const absLine = refObj.displayLines?.find(l => l.isAbs);
+
+        if (mode === 'eritro') {
+            return (
+                <div key={param.id} className="hemo-eritro-grid">
+                    <div className="hemo-col-name">{param.parameter_name || param.parameter_code}</div>
+                    <div className={`hemo-col-result ${isAbnormalRel ? 'hemo-abnormal' : ''}`}>{formattedResult}</div>
+                    <div className="hemo-col-unit">{param.unit ? param.unit.replace(/\/mm3/g, '/mm³') : ''}</div>
+                    <div className="hemo-col-graph">
+                        {refObj.valid && !refObj.isFixed && <GraficoHemo value={valNum} min={refObj.relMin} max={refObj.relMax} parameterCode={param.parameter_code} />}
+                    </div>
+                    <div className="hemo-col-ref-group">
+                        <div className="hemo-sex-reference-grid">
+                            {singleLine ? (
+                                <div className="hemo-col-ref-single">{singleLine.text}</div>
+                            ) : (
+                                <>
+                                    <div className={`hemo-col-ref-male ${maleLine?.highlight ? 'hemo-highlight' : ''}`}>{maleLine?.text || ''}</div>
+                                    <div className={`hemo-col-ref-female ${femaleLine?.highlight ? 'hemo-highlight' : ''}`}>{femaleLine?.text || ''}</div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        if (mode === 'leuco' || mode === 'leuco-abs') {
+            const isAbsOnly = mode === 'leuco-abs';
+            return (
+                <div key={param.id} className="hemo-leuco-grid">
+                    <div className="hemo-col-name">{param.parameter_name || param.parameter_code}</div>
+                    <div className={`hemo-leuco-col-rel ${isAbnormalRel ? 'hemo-abnormal' : ''}`}>{isAbsOnly ? '—' : formattedResult}</div>
+                    <div className="hemo-leuco-col-abs">{isAbsOnly ? formattedResult : absResultStr}</div>
+                    <div className="hemo-col-graph">
+                        {refObj.valid && !refObj.isFixed && <GraficoHemo value={valNum} min={refObj.relMin} max={refObj.relMax} parameterCode={param.parameter_code} />}
+                    </div>
+                    <div className="hemo-col-ref-group">
+                        <div className="hemo-leuco-reference-grid">
+                            <div className="hemo-col-ref-rel">{isAbsOnly ? '—' : (relLine?.text || singleLine?.text || '')}</div>
+                            <div className="hemo-col-ref-abs">{isAbsOnly ? (singleLine?.text || absLine?.text || '') : (absLine?.text || '')}</div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        if (mode === 'plaq') {
+            return (
+                <div key={param.id} className="hemo-eritro-grid">
+                    <div className="hemo-col-name">{param.parameter_name || param.parameter_code}</div>
+                    <div className={`hemo-col-result ${isAbnormalRel ? 'hemo-abnormal' : ''}`}>{formattedResult}</div>
+                    <div className="hemo-col-unit">{param.unit ? param.unit.replace(/\/mm3/g, '/mm³') : ''}</div>
+                    <div className="hemo-col-graph">
+                        {refObj.valid && !refObj.isFixed && <GraficoHemo value={valNum} min={refObj.relMin} max={refObj.relMax} parameterCode={param.parameter_code} />}
+                    </div>
+                    <div className="hemo-col-ref-group">
+                        <div className="hemo-sex-reference-grid">
+                            <div className="hemo-col-ref-single" style={{ gridColumn: '1 / -1' }}>{singleLine?.text || refObj.text}</div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // OTHER
+        return (
+            <div key={param.id} className="hemo-eritro-grid">
+                <div className="hemo-col-name">{param.parameter_name || param.parameter_code}</div>
+                <div className={`hemo-col-result ${isAbnormalRel ? 'hemo-abnormal' : ''}`}>{formattedResult}</div>
+                <div className="hemo-col-unit">{param.unit ? param.unit.replace(/\/mm3/g, '/mm³') : ''}</div>
+                <div className="hemo-col-graph">
+                    {refObj.valid && !refObj.isFixed && <GraficoHemo value={valNum} min={refObj.relMin} max={refObj.relMax} parameterCode={param.parameter_code} />}
+                </div>
+                <div className="hemo-col-ref-group">
+                    <div className="hemo-ref-sub">
+                        <div className="hemo-col-ref-single">{singleLine?.text || refObj.text}</div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const findHemoTextParameter = (targetCode) => {
+        return examDetails.find((item) => {
+            const code = String(item.parameter_code ?? '').trim().toUpperCase();
+            if (targetCode === 'OBS_ERITROGRAMA' && code === 'OBSERVACOES_ERITROGRAMA') return true;
+            return code === targetCode;
+        });
+    };
+
+    const getHemoTextResult = (targetCode) => {
+        const parameter = findHemoTextParameter(targetCode);
+        const value = parameter?.value_text;
+        if (typeof value === 'string') return value.trim();
+        if (value == null) return '';
+        return String(value).trim();
+    };
+
+
+    
+    const others = examDetails.filter(e => 
+        !HEMO_GROUPS.eritrograma.includes(e.parameter_code) &&
+        !HEMO_GROUPS.leucograma.includes(e.parameter_code) &&
+        !HEMO_GROUPS.plaquetas.includes(e.parameter_code) &&
+        !HEMO_GROUPS.observacoes.includes(e.parameter_code)
+    );
+
+    return (
+        <div className="hemo-compact-container">
+            <div className="hemo-report-main">
+                {/* Cabeçalho Hemo */}
+                <div className="hemo-header">
+                <div className="hemo-header-logo">
+                    <img src="/logo-laboratorio.png" alt="Logo" onError={(e) => { e.target.style.display = 'none'; }} />
+                </div>
+                <div className="hemo-header-center">
+                    <h2>
+                        LABORATÓRIO MUNICIPAL<br/>
+                        LINDBERG CÂNDIDO DE SOUZA
+                    </h2>
+                    <p>Sistema Gestão Pública Inteligente</p>
+                </div>
+                <div className="hemo-header-right">
+                    <img src="/logo-bezerros.png" alt="Prefeitura" onError={(e) => { e.target.style.display = 'none'; }} />
+                </div>
+            </div>
+
+            {/* Paciente Hemo */}
+            <div className="hemo-patient-box">
+                <div className="hemo-patient-col">
+                    <div><span className="hemo-lbl">Paciente:</span> {selectedExam.pacienteNome}</div>
+                    <div><span className="hemo-lbl">Médico:</span> {selectedExam.medico || 'NÃO INFORMADO'}</div>
+                    <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam.pacienteCode || selectedExam.patientCode || '---'}</div>
+                    <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam.pacienteDataNascimento}</div>
+                    <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeH(selectedExam.dataAtendimentoRaw)}</div>
+                </div>
+                <div className="hemo-patient-col right">
+                    <div><span className="hemo-lbl">Idade:</span> {selectedExam.pacienteIdade}</div>
+                    <div><span className="hemo-lbl">Sexo:</span> {selectedExam.pacienteSexo || 'NÃO INFORMADO'}</div>
+                    <div><span className="hemo-lbl">RG:</span> {selectedExam.pacienteRg || '---'}</div>
+                    <div><span className="hemo-lbl">CNS:</span> {selectedExam.pacienteCns || '---'}</div>
+                    <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH(selectedExam.released_at || selectedExam.checked_at)}</div>
+                    <div><span className="hemo-lbl">Origem:</span> {formatAttendanceOrigin(selectedExam.attendance_origin)}</div>
+                </div>
+            </div>
+
+            {/* Título Exame */}
+            <div className="hemo-exam-title-bar">
+                <h3>HEMOGRAMA COMPLETO</h3>
+                <div className="hemo-collection-info">
+                    <span className="hemo-collection-label">Data da Coleta:</span>
+                    {(() => {
+                        const cDate = selectedExam?.collection_date ?? selectedExam?.attendance_exam?.collection_date;
+                        const cTime = selectedExam?.collection_time ?? selectedExam?.attendance_exam?.collection_time;
+                        if (cDate) {
+                            return (
+                                <>
+                                    <span className="hemo-collection-date">{cDate.split('-').reverse().join('/')}</span>
+                                    {cTime && <span className="hemo-collection-separator">às</span>}
+                                    {cTime && <span className="hemo-collection-time">{cTime.slice(0, 5)}h</span>}
+                                </>
+                            );
+                        }
+                        return <span className="hemo-collection-date">---</span>;
+                    })()}
+                </div>
+            </div>
+
+            {/* ERITROGRAMA */}
+            <div className="hemo-section">
+                <div className="hemo-section-title">ERITROGRAMA</div>
+                <div className="hemo-eritro-grid header">
+                    <div className="hemo-col-name">Parâmetro</div>
+                    <div className="hemo-col-result">Resultado</div>
+                    <div className="hemo-col-unit">Unidade</div>
+                    <div className="hemo-col-graph"></div>
+                    <div className="hemo-col-ref-group">
+                        <div className="hemo-ref-title">Valores de Referência</div>
+                        <div className="hemo-sex-reference-grid">
+                            <div className="hemo-col-ref-male">Homens</div>
+                            <div className="hemo-col-ref-female">Mulheres</div>
+                        </div>
+                    </div>
+                </div>
+                {HEMO_GROUPS.eritrograma.map(c => renderRow(c, 'eritro'))}
+            </div>
+
+            {/* LEUCOGRAMA */}
+            <div className="hemo-section">
+                <div className="hemo-section-title">LEUCOGRAMA</div>
+                <div className="hemo-leuco-grid header">
+                    <div className="hemo-col-name">Parâmetro</div>
+                    <div className="hemo-leuco-col-rel">%</div>
+                    <div className="hemo-leuco-col-abs">/mm³</div>
+                    <div className="hemo-col-graph"></div>
+                    <div className="hemo-col-ref-group">
+                        <div className="hemo-ref-title">Valores de Referência</div>
+                        <div className="hemo-leuco-reference-grid">
+                            <div className="hemo-col-ref-rel">Ref. %</div>
+                            <div className="hemo-col-ref-abs">Ref. /mm³</div>
+                        </div>
+                    </div>
+                </div>
+                {renderRow('LEUCOCITOS', 'leuco-abs')}
+                {HEMO_GROUPS.leucograma.filter(c => c !== 'LEUCOCITOS').map(c => renderRow(c, 'leuco'))}
+            </div>
+
+            {/* PLAQUETAS */}
+            <div className="hemo-section">
+                <div className="hemo-section-title">SÉRIE PLAQUETÁRIA</div>
+                <div className="hemo-eritro-grid header">
+                    <div className="hemo-col-name">Parâmetro</div>
+                    <div className="hemo-col-result">Resultado</div>
+                    <div className="hemo-col-unit">Unidade</div>
+                    <div className="hemo-col-graph"></div>
+                    <div className="hemo-col-ref-group">
+                        <div className="hemo-sex-reference-grid">
+                            <div className="hemo-col-ref-single" style={{ gridColumn: '1 / -1' }}>Valores de Referência</div>
+                        </div>
+                    </div>
+                </div>
+                {HEMO_GROUPS.plaquetas.map(c => renderRow(c, 'plaq'))}
+            </div>
+            
+            {/* OUTROS PARÂMETROS DESCONHECIDOS SE HOUVER */}
+            {others.length > 0 && (
+                <div className="hemo-section">
+                    <div className="hemo-section-title">OUTROS PARÂMETROS</div>
+                    {others.map(e => renderRow(e.parameter_code, 'other'))}
+                </div>
+            )}
+            
+            {/* OBSERVAÇÕES E SÉRIES */}
+            <div className="hemo-series-block" style={{ fontSize: '11px' }}>
+                {(() => {
+                    const isValid = (val) => val && val !== '' && !val.includes('Campo livre') && !val.includes('Digite o resultado') && val !== '---';
+                    const obsEri = getHemoTextResult('OBS_ERITROGRAMA');
+                    const serEri = getHemoTextResult('SERIE_ERITROCITARIA');
+                    const serLeu = getHemoTextResult('SERIE_LEUCOCITARIA');
+                    const serPlaq = getHemoTextResult('SERIE_PLAQUETARIA');
+                    return (
+                        <>
+                            {isValid(obsEri) && (
+                                <div className="hemo-series-item">
+                                    <div className="hemo-series-title">OBSERVAÇÕES DO ERITROGRAMA:</div>
+                                    <div className="hemo-series-text">{obsEri}</div>
+                                </div>
+                            )}
+                            {isValid(serEri) && (
+                                <div className="hemo-series-item">
+                                    <div className="hemo-series-title">SÉRIE ERITROCITÁRIA:</div>
+                                    <div className="hemo-series-text">{serEri}</div>
+                                </div>
+                            )}
+                            {isValid(serLeu) && (
+                                <div className="hemo-series-item">
+                                    <div className="hemo-series-title">SÉRIE LEUCOCITÁRIA:</div>
+                                    <div className="hemo-series-text">{serLeu}</div>
+                                </div>
+                            )}
+                            {isValid(serPlaq) && (
+                                <div className="hemo-series-item">
+                                    <div className="hemo-series-title">SÉRIE PLAQUETÁRIA:</div>
+                                    <div className="hemo-series-text">{serPlaq}</div>
+                                </div>
+                            )}
+                        </>
+                    );
+                })()}
+            </div>
+            
+            </div> {/* Fim hemo-report-main */}
+
+            <div className="hemo-report-bottom">
+                <div className="hemo-signature-area">
+                    {selectedExam.responsible_name ? (
+                        <>
+                            {signatureSignedUrl && (
+                                <img
+                                    src={signatureSignedUrl}
+                                    alt={`Assinatura de ${selectedExam.responsible_name}`}
+                                    className="lab-report-signature-image"
+                                />
+                            )}
+                            <div className="hemo-signature-name" style={{ marginTop: signatureSignedUrl ? '2px' : '20px' }}>
+                                {selectedExam.responsible_name.toUpperCase()}
+                                {selectedExam.responsible_crbm && (
+                                    <><br /><span style={{ fontWeight: 400, fontSize: '0.78em' }}>Biomédico(a) — CRBM {selectedExam.responsible_crbm}</span></>
+                                )}
+                            </div>
+                            {selectedExam.checked_at && (
+                                <div className="hemo-signature-date">
+                                    {(() => {
+                                        const d = new Date(selectedExam.checked_at);
+                                        const dd = String(d.getDate()).padStart(2,'0');
+                                        const mm = String(d.getMonth()+1).padStart(2,'0');
+                                        const yyyy = d.getFullYear();
+                                        const HH = String(d.getHours()).padStart(2,'0');
+                                        const min = String(d.getMinutes()).padStart(2,'0');
+                                        return `Conferido e assinado eletronicamente em ${dd}/${mm}/${yyyy} às ${HH}:${min}h`;
+                                    })()}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <div className="hemo-signature-line"></div>
+                            <div className="hemo-signature-name">Biomédico(a) Responsável</div>
+                            {selectedExam.released_at && (
+                                <div className="hemo-signature-date">
+                                    Liberado eletronicamente em {new Date(selectedExam.released_at).toLocaleString('pt-BR')}
+                                </div>
+                            )}
+                            <div style={{ fontSize: '0.7em', color: '#94a3b8', marginTop: '2px' }}>Dados profissionais indisponíveis para este laudo anterior.</div>
+                        </>
+                    )}
+                </div>
+                
+                <div className="hemo-footer-address">
+                    Rua Imperador Dom Pedro II, 76 - Santo Antônio - Bezerros - PE - CEP: 55.660-000
+                </div>
+            </div>
+        </div>
+    );
+};
 const LaboratorioLaudos = () => {
     const [searchFilters, setSearchFilters] = useState({
         date: '',
-        protocol: location.state?.protocolNumber || '',
         patient: '',
-        exam: '',
+        patientCode: '',
         status: 'AGUARDANDO',
         attendance_origin: ''
     });
-    
-    const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
-    
-    const activeFiltersCount = (searchFilters.exam ? 1 : 0) + 
-                               (searchFilters.status !== 'AGUARDANDO' ? 1 : 0) + 
-                               (searchFilters.attendance_origin ? 1 : 0);
-
-    const handleClearAdvancedFilters = () => {
-        setSearchFilters(prev => ({
-            ...prev,
-            exam: '',
-            status: 'AGUARDANDO',
-            attendance_origin: ''
-        }));
-    };
     
     const [localSearch, setLocalSearch] = useState('');
     const [selectedProtocol, setSelectedProtocol] = useState(null);
@@ -57,11 +717,33 @@ const LaboratorioLaudos = () => {
     const [saving, setSaving] = useState(false);
     const [feedbackMsg, setFeedbackMsg] = useState(null);
     const [generatingPdf, setGeneratingPdf] = useState(false);
+    const [signatureSignedUrl, setSignatureSignedUrl] = useState(null);
+    const [loadingSignature, setLoadingSignature] = useState(false);
     const laudoRef = useRef(null);
 
     useEffect(() => {
         handleSearch();
     }, []);
+
+    // Carrega a Signed URL da assinatura sempre que o exame selecionado muda
+    useEffect(() => {
+        setSignatureSignedUrl(null);
+        const path = selectedExam?.responsible_signature_path;
+        if (!path) return;
+
+        let cancelled = false;
+        setLoadingSignature(true);
+        laboratorioLaudosService.getLaboratorioSignatureSignedUrl(path).then(url => {
+            if (!cancelled) {
+                setSignatureSignedUrl(url);
+                setLoadingSignature(false);
+            }
+        }).catch(() => {
+            if (!cancelled) setLoadingSignature(false);
+        });
+
+        return () => { cancelled = true; };
+    }, [selectedExam?.id]);
 
     const handleFilterKeyDown = (event) => {
         if (event.key === 'Enter') {
@@ -94,7 +776,9 @@ const LaboratorioLaudos = () => {
             if (!groups[ex.protocolo]) {
                 groups[ex.protocolo] = {
                     protocolo: ex.protocolo,
+                    pacienteCode: ex.pacienteCodigo,
                     dataAtendimento: ex.dataAtendimento,
+                    dataAtendimentoRaw: ex.dataAtendimentoRaw,
                     pacienteNome: ex.pacienteNome,
                     pacienteIdade: ex.pacienteIdade,
                     pacienteSexo: ex.pacienteSexo,
@@ -103,12 +787,44 @@ const LaboratorioLaudos = () => {
                     convenio: ex.convenio,
                     medico: ex.medico,
                     local_entrega: ex.local_entrega,
+                    attendance_origin: ex.attendance_origin,
                     exams: []
                 };
             }
             groups[ex.protocolo].exams.push(ex);
         });
-        return Object.values(groups);
+        
+        const protocolsArray = Object.values(groups);
+        
+        protocolsArray.sort((a, b) => {
+            // 1. Data do atendimento — mais antiga para mais nova
+            const dateA = a.dataAtendimentoRaw ? new Date(a.dataAtendimentoRaw).getTime() : Infinity;
+            const dateB = b.dataAtendimentoRaw ? new Date(b.dataAtendimentoRaw).getTime() : Infinity;
+            
+            if (dateA !== dateB) {
+                // Tratamento para datas inválidas / Infinity
+                if (isNaN(dateA)) return 1;
+                if (isNaN(dateB)) return -1;
+                return dateA - dateB;
+            }
+            
+            // 2. Na mesma data, código do paciente — menor para maior
+            const codeA = a.pacienteCode ? parseInt(a.pacienteCode, 10) : Infinity;
+            const codeB = b.pacienteCode ? parseInt(b.pacienteCode, 10) : Infinity;
+            
+            if (!isNaN(codeA) && !isNaN(codeB) && codeA !== codeB) {
+                return codeA - codeB;
+            }
+            
+            // 3. Critério de desempate estável (protocolo)
+            if (a.protocolo && b.protocolo) {
+                return a.protocolo.localeCompare(b.protocolo);
+            }
+            
+            return 0;
+        });
+        
+        return protocolsArray;
     }, [filteredResults]);
 
     useEffect(() => {
@@ -386,8 +1102,8 @@ const LaboratorioLaudos = () => {
 
             {/* Filtros */}
             <div className={`lab-card lab-filters-card ${selectedExam ? 'compact' : ''}`}>
-                <div className="lab-filters-grid laudos-first-row-flex">
-                    <div className="lab-filter-item lab-filter-group laudos-flex-data">
+                <div className="lab-filters-grid laudos-first-row-flex" style={{ display: 'grid', gridTemplateColumns: '145px minmax(230px, 1fr) 125px 215px 135px 110px', gap: '0.75rem', alignItems: 'end' }}>
+                    <div className="lab-filter-item lab-filter-group">
                         <label>Data</label>
                         <input 
                             type="date" 
@@ -396,17 +1112,7 @@ const LaboratorioLaudos = () => {
                             onKeyDown={handleFilterKeyDown}
                         />
                     </div>
-                    <div className="lab-filter-item lab-filter-group laudos-flex-protocolo">
-                        <label>Protocolo</label>
-                        <input 
-                            type="text" 
-                            placeholder="Buscar por protocolo..."
-                            value={searchFilters.protocol}
-                            onChange={(e) => setSearchFilters({...searchFilters, protocol: e.target.value})}
-                            onKeyDown={handleFilterKeyDown}
-                        />
-                    </div>
-                    <div className="lab-filter-item lab-filter-group laudos-flex-paciente">
+                    <div className="lab-filter-item lab-filter-group">
                         <label>Paciente</label>
                         <input 
                             type="text" 
@@ -417,101 +1123,47 @@ const LaboratorioLaudos = () => {
                             className="laudos-paciente-input"
                         />
                     </div>
-                    <div className="lab-filter-item lab-filter-group lab-filter-actions laudos-flex-buscar">
+                    <div className="lab-filter-item lab-filter-group">
+                        <label>Código do Paciente</label>
+                        <input 
+                            type="text" 
+                            placeholder="Ex.: 115003"
+                            value={searchFilters.patientCode}
+                            onChange={(e) => setSearchFilters({...searchFilters, patientCode: e.target.value})}
+                            onKeyDown={handleFilterKeyDown}
+                        />
+                    </div>
+                    <div className="lab-filter-item lab-filter-group" style={{ margin: 0 }}>
+                        <label>Status</label>
+                        <select 
+                            value={searchFilters.status}
+                            onChange={(e) => setSearchFilters({...searchFilters, status: e.target.value})}
+                        >
+                            <option value="AGUARDANDO">Aguardando liberação</option>
+                            <option value="LIBERADO">Liberados</option>
+                            <option value="TODOS">Todos</option>
+                        </select>
+                    </div>
+                    <div className="lab-filter-item lab-filter-group" style={{ margin: 0 }}>
+                        <label>Origem</label>
+                        <select 
+                            value={searchFilters.attendance_origin}
+                            onChange={(e) => setSearchFilters({...searchFilters, attendance_origin: e.target.value})}
+                        >
+                            <option value="">Todos</option>
+                            {ATTENDANCE_ORIGINS.map(origin => (
+                                <option key={origin.value} value={origin.value}>{origin.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="lab-filter-item lab-filter-group lab-filter-actions">
                         <label className="filter-label-spacer" aria-hidden="true">Ação</label>
-                        <button className="lab-btn lab-btn-primary" onClick={handleSearch} disabled={loading} style={{ width: '100%', boxSizing: 'border-box' }}>
+                        <button className="lab-btn lab-btn-primary" onClick={handleSearch} disabled={loading} style={{ width: '100%', boxSizing: 'border-box', whiteSpace: 'nowrap' }}>
                             {loading ? <Loader2 size={16} className="spin" /> : <Search size={16} />}
                             Buscar
                         </button>
                     </div>
-                    <div className="lab-filter-item lab-filter-group lab-filter-actions laudos-flex-filtros">
-                        <label className="filter-label-spacer" aria-hidden="true">Ação</label>
-                        <button 
-                            className="lab-btn lab-btn-outline" 
-                            onClick={() => setIsAdvancedFiltersOpen(!isAdvancedFiltersOpen)} 
-                            style={{ width: '100%', boxSizing: 'border-box', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
-                            title="Filtros avançados"
-                        >
-                            <SlidersHorizontal size={16} />
-                            <span className="hide-on-mobile">Filtros</span>
-                            {isAdvancedFiltersOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                            
-                            {activeFiltersCount > 0 && (
-                                <span style={{
-                                    position: 'absolute', top: '-6px', right: '-6px',
-                                    background: '#3b82f6', color: '#fff', fontSize: '0.7rem',
-                                    fontWeight: 'bold', width: '18px', height: '18px',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    borderRadius: '50%'
-                                }}>
-                                    {activeFiltersCount}
-                                </span>
-                            )}
-                        </button>
-                    </div>
                 </div>
-
-                {/* Painel de Filtros Avançados */}
-                {isAdvancedFiltersOpen && (
-                    <div style={{
-                        marginTop: '0.5rem', padding: '0.75rem 1rem', background: '#fff',
-                        border: '1px solid #e2e8f0', borderRadius: '12px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-                        animation: 'slideDown 200ms ease-out forwards',
-                        transformOrigin: 'top center'
-                    }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-                            <div className="lab-filter-item lab-filter-group" style={{ margin: 0 }}>
-                                <label>Código do Exame</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="Código ou nome..."
-                                    value={searchFilters.exam}
-                                    onChange={(e) => setSearchFilters({...searchFilters, exam: e.target.value})}
-                                    onKeyDown={handleFilterKeyDown}
-                                />
-                            </div>
-                            <div className="lab-filter-item lab-filter-group" style={{ margin: 0 }}>
-                                <label>Status</label>
-                                <select 
-                                    value={searchFilters.status}
-                                    onChange={(e) => setSearchFilters({...searchFilters, status: e.target.value})}
-                                >
-                                    <option value="AGUARDANDO">Aguardando liberação</option>
-                                    <option value="LIBERADO">Liberados</option>
-                                    <option value="TODOS">Todos</option>
-                                </select>
-                            </div>
-                            <div className="lab-filter-item lab-filter-group" style={{ margin: 0 }}>
-                                <label>Origem do Atendimento</label>
-                                <select 
-                                    value={searchFilters.attendance_origin}
-                                    onChange={(e) => setSearchFilters({...searchFilters, attendance_origin: e.target.value})}
-                                >
-                                    <option value="">Todos</option>
-                                    {ATTENDANCE_ORIGINS.map(origin => (
-                                        <option key={origin.value} value={origin.value}>{origin.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                        
-                        {activeFiltersCount > 0 && (
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                                <button 
-                                    onClick={handleClearAdvancedFilters}
-                                    style={{ 
-                                        background: 'transparent', border: 'none', color: '#64748b',
-                                        fontSize: '0.8rem', cursor: 'pointer', padding: '0.2rem',
-                                        textDecoration: 'underline'
-                                    }}
-                                >
-                                    Limpar filtros
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
             </div>
 
             {/* Layout Principal */}
@@ -532,28 +1184,63 @@ const LaboratorioLaudos = () => {
                                     <p style={{ fontSize: '0.85rem', color: '#64748b', maxWidth: '250px', lineHeight: '1.4' }}>Ajuste os filtros e clique em Buscar para localizar laudos.</p>
                                 </div>
                             )}
-                            {searchResults.map((item) => (
-                                <div 
-                                    key={item.id} 
-                                    className={`lab-queue-item ${selectedExam?.id === item.id ? 'active' : ''}`}
-                                    onClick={() => handleSelectExam(item)}
-                                >
-                                    <div className="lab-qi-header">
-                                        <span className="font-bold text-gray-900">{item.protocolo}</span>
-                                        <span className="text-gray-500 text-sm">{item.dataAtendimento}</span>
+                            {groupedProtocols.map((group, idx) => {
+                                const isSelected = selectedProtocol?.protocolo === group.protocolo;
+                                const isKeyboardSelected = keyboardSelectedIndex === idx;
+                                return (
+                                    <div 
+                                        key={group.protocolo} 
+                                        className={`lab-queue-item ${isSelected ? 'active' : ''}`}
+                                        style={{ 
+                                            padding: '10px 12px', 
+                                            borderLeft: isSelected ? '4px solid #3b82f6' : '4px solid #e2e8f0',
+                                            borderTop: '1px solid #e2e8f0',
+                                            borderRight: '1px solid #e2e8f0',
+                                            borderBottom: '1px solid #e2e8f0',
+                                            borderRadius: '8px',
+                                            marginBottom: '8px',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '4px',
+                                            background: isSelected ? '#eff6ff' : '#fff',
+                                            boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            if (!isSelected) {
+                                                e.currentTarget.style.background = '#f8fafc';
+                                                e.currentTarget.style.borderColor = '#cbd5e1';
+                                                e.currentTarget.style.borderLeftColor = '#cbd5e1';
+                                            }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            if (!isSelected) {
+                                                e.currentTarget.style.background = '#fff';
+                                                e.currentTarget.style.borderColor = '#e2e8f0';
+                                                e.currentTarget.style.borderLeftColor = '#e2e8f0';
+                                            }
+                                        }}
+                                        onClick={() => {
+                                            setSelectedProtocol(group);
+                                            handleSelectExam(group.exams[0]);
+                                        }}
+                                    >
+                                        <div className="lab-qi-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>Cód. {group.pacienteCode || 'N/I'}</span>
+                                            <span style={{ fontSize: '13px', color: '#64748b' }}>{group.dataAtendimento}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '5px', gap: '8px' }}>
+                                            <div style={{ fontSize: '14.5px', fontWeight: '600', color: '#0f172a', lineHeight: '1.2', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', minWidth: '0' }}>
+                                                {group.pacienteNome}
+                                            </div>
+                                            <span style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'nowrap', paddingTop: '1px' }}>
+                                                {group.exams.length} {group.exams.length === 1 ? 'exame' : 'exames'}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="lab-qi-name font-semibold text-primary">{item.pacienteNome}</div>
-                                    <div className="lab-qi-meta mt-1">
-                                        <span className="font-medium text-gray-800 text-sm">{item.exameCodigo} — {item.exameNome}</span>
-                                    </div>
-                                    <div className="lab-qi-meta mt-1">
-                                        <span className="text-gray-500 text-xs">{item.parametros} parâmetros</span>
-                                    </div>
-                                    <div className="lab-qi-status mt-2">
-                                        <span className={`lab-badge ${item.status === 'LIBERADO' ? 'lab-badge-success' : 'lab-badge-warning'}`}>{item.status}</span>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
@@ -632,9 +1319,43 @@ const LaboratorioLaudos = () => {
                                         </button>
                                     )}
                                 </div>
+                                
+                                {/* ABAS DOS EXAMES (NO PRINT) */}
+                                <div className="no-print" style={{ padding: '10px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', flexWrap: 'wrap', gap: '8px', background: '#fff' }}>
+                                    {selectedProtocol?.exams.map(ex => (
+                                        <button 
+                                            key={ex.id}
+                                            onClick={() => handleSelectExam(ex)}
+                                            style={{
+                                                height: '36px',
+                                                padding: '0 14px',
+                                                borderRadius: '6px',
+                                                fontSize: '14px',
+                                                fontWeight: '600',
+                                                border: selectedExam?.id === ex.id ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                                                backgroundColor: selectedExam?.id === ex.id ? '#eff6ff' : '#fff',
+                                                color: selectedExam?.id === ex.id ? '#1d4ed8' : '#475569',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            {ex.exameCodigo}
+                                        </button>
+                                    ))}
+                                </div>
 
-                                {/* Header do Laudo */}
-                                <div className="print-header laudo-screen-header" style={{ padding: '1.5rem 2rem 1rem 2rem', display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) minmax(360px, 2.2fr) minmax(150px, 1fr)', alignItems: 'center', gap: '1rem', pageBreakInside: 'avoid', breakInside: 'avoid', borderBottom: '1px solid #cbd5e1', marginBottom: '1.25rem' }}>
+                                {/* Header do Laudo ou HEMO */}
+                                {String(selectedExam.exameCodigo || '').trim().toUpperCase() === 'HEMO' ? (
+                                    <HemogramaCompactoCompleto
+                                        selectedExam={selectedExam}
+                                        examDetails={examDetails}
+                                        statusReal={statusReal}
+                                        patientCode={selectedProtocol?.pacienteCode}
+                                        signatureSignedUrl={signatureSignedUrl}
+                                    />
+                                ) : (
+                                    <>
+                                        <div className="print-header laudo-screen-header" style={{ padding: '1.5rem 2rem 1rem 2rem', display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) minmax(360px, 2.2fr) minmax(150px, 1fr)', alignItems: 'center', gap: '1rem', pageBreakInside: 'avoid', breakInside: 'avoid', borderBottom: '1px solid #cbd5e1', marginBottom: '1.25rem' }}>
                                     
                                     {/* Esquerda: Logo do Laboratório */}
                                     <div className="print-logo-container laudo-screen-header-left" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
@@ -684,7 +1405,6 @@ const LaboratorioLaudos = () => {
                                             <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>Paciente:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{selectedExam.pacienteNome}</span></div>
                                             <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>Médico:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{selectedExam.medico || 'Não informado'}</span></div>
                                             <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>Origem:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{formatAttendanceOrigin(selectedExam.attendance_origin)}</span></div>
-                                            <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>Protocolo:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{selectedExam.protocolo}</span></div>
                                             <div style={{ fontSize: '0.85rem' }}><strong style={{ color: '#64748b', display: 'inline-block', width: '80px' }}>Data Nasc.:</strong> <span style={{ fontWeight: 600, color: '#0f172a' }}>{selectedExam.pacienteDataNascimento} ({selectedExam.pacienteIdade}) - {selectedExam.pacienteSexo}</span></div>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
@@ -794,10 +1514,47 @@ const LaboratorioLaudos = () => {
                                 <div className="print-footer" style={{ padding: '1rem 2rem 0.5rem 2rem', borderTop: '2px solid #1e293b', display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                     
                                     <div className="print-footer-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
-                                        {/* Assinatura */}
-                                        <div className="print-signature" style={{ textAlign: 'center', width: '250px' }}>
-                                            <div style={{ borderBottom: '1px solid #1e293b', marginBottom: '0.2rem', height: '30px' }}></div>
-                                            <div style={{ fontSize: '0.85rem', fontWeight: '600', color: '#1e293b' }}>Biomédico(a)</div>
+                                        {/* Assinatura com snapshot do biomédico */}
+                                        <div className="print-signature" style={{ textAlign: 'center', minWidth: '220px' }}>
+                                            {selectedExam.responsible_name ? (
+                                                <>
+                                                    {signatureSignedUrl && (
+                                                        <img
+                                                            src={signatureSignedUrl}
+                                                            alt={`Assinatura de ${selectedExam.responsible_name}`}
+                                                            className="lab-report-signature-image"
+                                                        />
+                                                    )}
+                                                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', marginTop: signatureSignedUrl ? '2px' : '28px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                                                        {selectedExam.responsible_name}
+                                                    </div>
+                                                    {selectedExam.responsible_crbm && (
+                                                        <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '2px' }}>
+                                                            Biomédico(a) — CRBM {selectedExam.responsible_crbm}
+                                                        </div>
+                                                    )}
+                                                    {selectedExam.checked_at && (
+                                                        <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px' }}>
+                                                            Conferido e assinado eletronicamente em{' '}
+                                                            {(() => {
+                                                                const d = new Date(selectedExam.checked_at);
+                                                                const dd = String(d.getDate()).padStart(2,'0');
+                                                                const mm = String(d.getMonth()+1).padStart(2,'0');
+                                                                const yyyy = d.getFullYear();
+                                                                const HH = String(d.getHours()).padStart(2,'0');
+                                                                const min = String(d.getMinutes()).padStart(2,'0');
+                                                                return `${dd}/${mm}/${yyyy} às ${HH}:${min}h`;
+                                                            })()}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div style={{ borderBottom: '1px solid #1e293b', marginBottom: '0.2rem', height: '30px' }}></div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>Biomédico(a) Responsável</div>
+                                                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>Dados profissionais indisponíveis para este laudo anterior.</div>
+                                                </>
+                                            )}
                                         </div>
 
                                         {/* Datas técnicas */}
@@ -812,6 +1569,8 @@ const LaboratorioLaudos = () => {
                                         Documento gerado pelo Sistema Gestão Pública Inteligente
                                     </div>
                                 </div>
+                                </>
+                                )}
                             </div>
                         </>
                     )}

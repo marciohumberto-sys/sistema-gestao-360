@@ -559,3 +559,6 @@
     flex-direction: column;
     min-width: 0;
 }
+
+/* Novas Classes de Status Adicionais para Laboratório */
+.status-aguardando-lib { background: #f3e8ff !important; color: #6b21a8 !important; border-color: #d8b4fe !important; }

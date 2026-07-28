@@ -342,6 +342,66 @@ const LaboratorioMapas = () => {
         }
     };
 
+    const deduplicateExamsForPrint = (exams) => {
+        if (!exams || !exams.length) return [];
+        const examMap = new Map();
+        const normalize = (str) => (str || '').toString().trim().toUpperCase();
+
+        const mergeHistories = (hist1, hist2) => {
+            const combined = [...(hist1 || []), ...(hist2 || [])];
+            const unique = [];
+            const seen = new Set();
+            combined.forEach(h => {
+                if (!h || (!h.value_numeric && !h.value_text && !h.observation)) return;
+                const key = `${h.date}_${h.value_numeric || h.value_text || h.observation}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    unique.push(h);
+                }
+            });
+            return unique.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 2).reverse();
+        };
+
+        exams.forEach(ex => {
+            const exKey = ex.exam_id || `${normalize(ex.code)}::${normalize(ex.name)}`;
+            
+            if (!examMap.has(exKey)) {
+                const cleanEx = { ...ex };
+                if (cleanEx.parameters && cleanEx.parameters.length > 0) {
+                    cleanEx.parameters = cleanEx.parameters.map(p => ({ ...p, history: mergeHistories(p.history, []) }));
+                } else {
+                    cleanEx.history = mergeHistories(cleanEx.history, []);
+                }
+                examMap.set(exKey, cleanEx);
+            } else {
+                const existing = examMap.get(exKey);
+                const existingParams = existing.parameters || [];
+                const newParams = ex.parameters || [];
+                
+                let base = existing;
+                let other = ex;
+                
+                if (newParams.length > existingParams.length) {
+                    base = ex;
+                    other = existing;
+                }
+                
+                const merged = { ...base };
+                if (merged.parameters && merged.parameters.length > 0) {
+                    merged.parameters = merged.parameters.map((p, pIdx) => {
+                        const otherP = (other.parameters || [])[pIdx];
+                        return { ...p, history: mergeHistories(p.history, otherP?.history) };
+                    });
+                } else {
+                    merged.history = mergeHistories(merged.history, other.history);
+                }
+                examMap.set(exKey, merged);
+            }
+        });
+
+        return Array.from(examMap.values());
+    };
+
     const handleImprimirDocumento = (lote) => {
         if (!lote) return;
         if (lote.status === 'CANCELED') {
@@ -378,51 +438,68 @@ const LaboratorioMapas = () => {
             
             .lab-patient-block { margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid; }
             .lab-patient-header { background: #f8fafc; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 3px 6px; font-weight: bold; display: flex; flex-wrap: wrap; gap: 8px; font-size: 8.5pt; }
-            .lab-patient-exams { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+            .lab-patient-exams { width: 100%; border-collapse: collapse; font-size: 8.5pt; table-layout: fixed; }
             .lab-patient-exams th { text-align: left; padding: 3px 6px; border-bottom: 1px solid #e2e8f0; }
             .lab-patient-exams td { padding: 4px 6px; border-bottom: 1px dotted #e2e8f0; vertical-align: top; }
-            .col-ex-cod { width: 8%; }
-            .col-ex-name { width: 30%; font-weight: bold; }
-            .col-ex-param { width: 42%; }
-            .col-ex-hist { width: 20%; color: #64748b; text-align: right; font-size: 7.5pt; }
+            
+            .col-ex-cod { width: 34px; }
+            .col-ex-name { width: auto; font-weight: bold; word-break: break-word; }
+            .col-ex-param { width: 25mm; transform: translateX(-12px); }
+            .col-ex-hist1 { width: 33mm; color: #64748b; font-size: 7.5pt; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .col-ex-hist2 { width: 33mm; color: #64748b; font-size: 7.5pt; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             
             .param-row { display: flex; justify-content: space-between; margin-bottom: 4px; align-items: baseline; }
-            .param-line { border-bottom: 1px solid #cbd5e1; flex-grow: 1; margin: 0 8px; min-height: 10px; }
-            .hist-item { margin-left: 6px; white-space: nowrap; }
+            .param-name { font-size: 8pt; white-space: nowrap; word-break: break-word; }
+            .param-line { border-bottom: 1px solid #cbd5e1; flex-grow: 1; min-width: 15px; margin-left: 8px; min-height: 10px; }
+            
+            .hist-row-container { display: flex; justify-content: flex-start; align-items: baseline; gap: 12px; margin-bottom: 4px; min-height: 14px; }
+            .hist-item { display: inline-block; white-space: nowrap; }
             
             .lab-paper-footer { margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 5px; font-size: 7.5pt; color: #94a3b8; display: flex; justify-content: space-between; }
         `;
 
+        const renderHistItemHTML = (histArray, index) => {
+            if (!histArray || histArray.length <= index) return '';
+            const h = histArray[index];
+            if (!h) return '';
+            const val = String(h.value_numeric || h.value_text || h.observation || '').trim();
+            let displayVal = val;
+            const numericMatch = displayVal.match(/^([<>]?\s*[\d.,]+)\s+[a-zA-Z/%µ].*$/);
+            if (numericMatch && numericMatch[1]) {
+                displayVal = numericMatch[1];
+            }
+            return `<span class="hist-item">${formatDate(h.date)} &rarr; ${escapeHtml(displayVal)}</span>`;
+        };
+
         let bodyHtml = '';
         snapshot.patients.forEach(pat => {
             let examsRows = '';
-            pat.exams.forEach(ex => {
+            const deduplicatedExams = deduplicateExamsForPrint(pat.exams);
+            deduplicatedExams.forEach(ex => {
                 let paramsHtml = '';
-                let histHtml = '';
+                let hist1Html = '';
+                let hist2Html = '';
 
-                // Se houver parâmetros explícitos
                 if (ex.parameters && ex.parameters.length > 0) {
                     ex.parameters.forEach(p => {
-                        let pHist = '';
-                        if (p.history && p.history.length > 0) {
-                            pHist = p.history.map(h => `<span class="hist-item">${formatDate(h.date)}: ${escapeHtml(h.value_numeric || h.value_text || h.observation || '')} ${escapeHtml(p.unit || '')}</span>`).join(' | ');
-                        }
                         paramsHtml += `
                             <div class="param-row">
-                                <span class="param-name">${escapeHtml(p.name)}</span>
+                                <span class="param-name">${escapeHtml(p.name || ':')}</span>
                                 <div class="param-line"></div>
                             </div>
                         `;
-                        if(pHist) {
-                            histHtml += `<div>${pHist}</div>`;
-                        }
+                        hist1Html += `<div class="hist-row-container">${renderHistItemHTML(p.history, 0)}</div>`;
+                        hist2Html += `<div class="hist-row-container">${renderHistItemHTML(p.history, 1)}</div>`;
                     });
                 } else {
-                    // Sem parâmetros - exame simples, linha única
-                    paramsHtml = `<div class="param-row"><div class="param-line"></div></div>`;
-                    if (ex.history && ex.history.length > 0) {
-                        histHtml = ex.history.map(h => `<span class="hist-item">${formatDate(h.date)}: ${escapeHtml(h.value_numeric || h.value_text || h.observation || '')}</span>`).join(' | ');
-                    }
+                    paramsHtml = `
+                        <div class="param-row">
+                            <span class="param-name">:</span>
+                            <div class="param-line"></div>
+                        </div>
+                    `;
+                    hist1Html = `<div class="hist-row-container">${renderHistItemHTML(ex.history, 0)}</div>`;
+                    hist2Html = `<div class="hist-row-container">${renderHistItemHTML(ex.history, 1)}</div>`;
                 }
 
                 examsRows += `
@@ -430,7 +507,8 @@ const LaboratorioMapas = () => {
                         <td class="col-ex-cod">${escapeHtml(ex.code)}</td>
                         <td class="col-ex-name">${escapeHtml(ex.name)}</td>
                         <td class="col-ex-param">${paramsHtml}</td>
-                        <td class="col-ex-hist">${histHtml}</td>
+                        <td class="col-ex-hist1">${hist1Html}</td>
+                        <td class="col-ex-hist2">${hist2Html}</td>
                     </tr>
                 `;
             });
@@ -476,8 +554,8 @@ const LaboratorioMapas = () => {
                             <h4>Laboratório Municipal Lindoberg Cândido de Souza</h4>
                         </div>
                         <div class="header-logos">
-                            <img src="${window.location.origin}/logo-prefeitura-pb.jpg" alt="Prefeitura" onerror="this.style.display='none'" />
-                            <img src="${window.location.origin}/logo-laboratorio-pb.jpg" alt="Laboratório" onerror="this.style.display='none'" />
+                            <img src="${window.location.origin}/logo-prefeitura-pb.jpg" alt="Prefeitura" onError={(e) => { e.currentTarget.style.display='none'; }} />
+                            <img src="${window.location.origin}/logo-laboratorio-pb.jpg" alt="Laboratório" onError={(e) => { e.currentTarget.style.display='none'; }} />
                         </div>
                     </div>
                     <div class="header-bottom">
@@ -981,8 +1059,8 @@ const LaboratorioMapas = () => {
                                             <h4>Laboratório Municipal Lindoberg Cândido de Souza</h4>
                                         </div>
                                         <div className="header-logos">
-                                            <img src="/logo-prefeitura-pb.jpg" alt="Prefeitura" onerror="this.style.display='none'" />
-                                            <img src="/logo-laboratorio-pb.jpg" alt="Laboratório" onerror="this.style.display='none'" />
+                                            <img src="/logo-prefeitura-pb.jpg" alt="Prefeitura" onError={(e) => { e.currentTarget.style.display='none'; }} />
+                                            <img src="/logo-laboratorio-pb.jpg" alt="Laboratório" onError={(e) => { e.currentTarget.style.display='none'; }} />
                                         </div>
                                     </div>
                                     <div className="header-bottom">
@@ -991,60 +1069,97 @@ const LaboratorioMapas = () => {
                                     </div>
                                 </div>
 
-                                {previewSnap.patients.map((pat, idx) => (
-                                    <div key={idx} className="lab-patient-block">
-                                        <div className="lab-patient-header" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                                            <div style={{ wordBreak: 'break-word', color: '#1e293b' }}>
-                                                <span style={{ fontWeight: 700 }}>CÓD. {pat.code}</span> — <span>{pat.name}</span>
+                                {(() => {
+                                    const renderHistoryItem = (histArray, index) => {
+                                        if (!histArray || histArray.length <= index) return null;
+                                        const h = histArray[index];
+                                        if (!h) return null;
+                                        const val = String(h.value_numeric || h.value_text || h.observation || '').trim();
+                                        let displayVal = val;
+                                        const numericMatch = displayVal.match(/^([<>]?\s*[\d.,]+)\s+[a-zA-Z/%µ].*$/);
+                                        if (numericMatch && numericMatch[1]) {
+                                            displayVal = numericMatch[1];
+                                        }
+                                        return (
+                                            <span className="hist-item">
+                                                {formatDate(h.date)} &rarr; {displayVal}
+                                            </span>
+                                        );
+                                    };
+
+                                    return previewSnap.patients.map((pat, idx) => {
+                                        const deduplicatedExams = deduplicateExamsForPrint(pat.exams);
+                                        return (
+                                            <div key={idx} className="lab-patient-block">
+                                                <div className="lab-patient-header" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                                                    <div style={{ wordBreak: 'break-word', color: '#1e293b' }}>
+                                                        <span style={{ fontWeight: 700 }}>CÓD. {pat.code}</span> — <span>{pat.name}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', fontSize: '0.8rem', color: '#475569' }}>
+                                                        <span>{pat.age_at_generation}</span>
+                                                        <span style={{ color: '#94a3b8' }}>|</span>
+                                                        <span>{pat.sex}</span>
+                                                        <span style={{ color: '#94a3b8' }}>|</span>
+                                                        <span>Origem: {pat.origin}</span>
+                                                        <span style={{ color: '#94a3b8' }}>|</span>
+                                                        <span>Médico: {pat.doctor}</span>
+                                                    </div>
+                                                </div>
+                                                <table className="lab-patient-exams">
+                                                    <tbody>
+                                                        {deduplicatedExams.map((ex, eIdx) => (
+                                                            <tr key={eIdx}>
+                                                                <td className="col-ex-cod">{ex.code}</td>
+                                                                <td className="col-ex-name">{ex.name}</td>
+                                                                <td className="col-ex-param" style={{ transform: 'translateX(-12px)' }}>
+                                                                    {ex.parameters && ex.parameters.length > 0 ? (
+                                                                        ex.parameters.map((p, pIdx) => (
+                                                                            <div key={pIdx} className="param-row">
+                                                                                <span className="param-name">{p.name || ':'}</span>
+                                                                                <div className="param-line"></div>
+                                                                            </div>
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="param-row">
+                                                                            <span className="param-name">:</span>
+                                                                            <div className="param-line"></div>
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="col-ex-hist1">
+                                                                    {ex.parameters && ex.parameters.length > 0 ? (
+                                                                        ex.parameters.map((p, pIdx) => (
+                                                                            <div key={pIdx} className="hist-row-container">
+                                                                                {renderHistoryItem(p.history, 0)}
+                                                                            </div>
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="hist-row-container">
+                                                                            {renderHistoryItem(ex.history, 0)}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="col-ex-hist2">
+                                                                    {ex.parameters && ex.parameters.length > 0 ? (
+                                                                        ex.parameters.map((p, pIdx) => (
+                                                                            <div key={pIdx} className="hist-row-container">
+                                                                                {renderHistoryItem(p.history, 1)}
+                                                                            </div>
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="hist-row-container">
+                                                                            {renderHistoryItem(ex.history, 1)}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
                                             </div>
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', fontSize: '0.8rem', color: '#475569' }}>
-                                                <span>{pat.age_at_generation}</span>
-                                                <span style={{ color: '#94a3b8' }}>|</span>
-                                                <span>{pat.sex}</span>
-                                                <span style={{ color: '#94a3b8' }}>|</span>
-                                                <span>Origem: {pat.origin}</span>
-                                                <span style={{ color: '#94a3b8' }}>|</span>
-                                                <span>Médico: {pat.doctor}</span>
-                                            </div>
-                                        </div>
-                                        <table className="lab-patient-exams">
-                                            <tbody>
-                                                {pat.exams?.map((ex, eIdx) => (
-                                                    <tr key={eIdx}>
-                                                        <td className="col-ex-cod">{ex.code}</td>
-                                                        <td className="col-ex-name">{ex.name}</td>
-                                                        <td className="col-ex-param">
-                                                            {ex.parameters && ex.parameters.length > 0 ? (
-                                                                ex.parameters.map((p, pIdx) => (
-                                                                    <div key={pIdx} className="param-row">
-                                                                        <span className="param-name">{p.name}</span>
-                                                                        <div className="param-line"></div>
-                                                                    </div>
-                                                                ))
-                                                            ) : (
-                                                                <div className="param-row"><div className="param-line"></div></div>
-                                                            )}
-                                                        </td>
-                                                        <td className="col-ex-hist">
-                                                            {ex.parameters && ex.parameters.length > 0 ? (
-                                                                ex.parameters.map((p, pIdx) => {
-                                                                    if(p.history && p.history.length > 0) {
-                                                                       return <div key={pIdx}>{p.history.map((h, hIdx) => <span key={hIdx} className="hist-item">{formatDate(h.date)}: {h.value_numeric || h.value_text || h.observation || ''}</span>)}</div>
-                                                                    }
-                                                                    return <div key={pIdx}></div>
-                                                                })
-                                                            ) : (
-                                                                ex.history && ex.history.length > 0 ? (
-                                                                    ex.history.map((h, hIdx) => <span key={hIdx} className="hist-item">{formatDate(h.date)}: {h.value_numeric || h.value_text || h.observation || ''}</span>)
-                                                                ) : null
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ))}
+                                        );
+                                    });
+                                })()}
                             </div>
                         )}
                     </div>

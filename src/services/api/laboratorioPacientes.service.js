@@ -137,13 +137,15 @@ export const laboratorioPacientesService = {
         }
     },
 
-    verificarDuplicidadePaciente: async (dados, pacienteIdAtual = null) => {
+    verificarDuplicidadePaciente: async (dados, pacienteIdAtual = null, dadosOriginais = null) => {
         try {
             const cpf = dados.cpf?.trim();
             const cns = dados.cns?.trim();
             const rg = dados.rg?.trim();
-            const fullName = dados.full_name?.trim();
-            const birthDate = dados.birth_date;
+
+            const origCpf = dadosOriginais?.cpf?.trim();
+            const origCns = dadosOriginais?.cns?.trim();
+            const origRg = dadosOriginais?.rg?.trim();
 
             let result = {
                 duplicadoForte: false,
@@ -152,81 +154,59 @@ export const laboratorioPacientesService = {
                 motivo: ''
             };
 
-            // 1. Busca Forte (CPF ou CNS exatos e preenchidos)
-            if (cpf || cns) {
-                let orConditions = [];
-                if (cpf) orConditions.push(`cpf.eq.${cpf}`);
-                if (cns) orConditions.push(`cns.eq.${cns}`);
+            let orConditions = [];
+            
+            // Somente inclui na query se for preenchido E for diferente do valor original (na edição)
+            if (cpf && cpf !== origCpf) orConditions.push(`cpf.eq.${cpf}`);
+            if (cns && cns !== origCns) orConditions.push(`cns.eq.${cns}`);
+            if (rg && rg !== origRg) orConditions.push(`rg.eq.${rg}`);
+            
+            // Se nenhum documento for informado ou se nenhum foi alterado, pula a validação
+            if (orConditions.length === 0) return result;
 
-                let queryForte = supabase
-                    .from('lab_patients')
-                    .select('id, full_name, code, cpf, cns, birth_date, is_active')
-                    .eq('tenant_id', TENANT_ID)
-                    .or(orConditions.join(','));
+            let query = supabase
+                .from('lab_patients')
+                .select('id, cpf, cns, rg')
+                .eq('tenant_id', TENANT_ID)
+                .or(orConditions.join(','));
 
-                if (pacienteIdAtual) {
-                    queryForte = queryForte.neq('id', pacienteIdAtual);
-                }
-
-                const { data: dataForte, error: errForte } = await queryForte.limit(1);
-                
-                if (errForte) throw errForte;
-
-                if (dataForte && dataForte.length > 0) {
-                    const paciente = dataForte[0];
-                    result.duplicadoForte = true;
-                    result.pacienteExistente = paciente;
-                    if (cpf && paciente.cpf === cpf) {
-                        result.motivo = 'Já existe um paciente com este CPF.';
-                    } else {
-                        result.motivo = 'Já existe um paciente com este CNS.';
-                    }
-                    return result; // Retorna imediatamente se for forte
-                }
+            if (pacienteIdAtual) {
+                query = query.neq('id', pacienteIdAtual);
             }
 
-            // 2. Busca de Alerta (RG exato ou Nome + Data Nascimento exatos)
-            if (rg || (fullName && birthDate)) {
-                let orConditionsAlerta = [];
-                if (rg) orConditionsAlerta.push(`rg.eq.${rg}`);
-                if (fullName && birthDate) {
-                    // Substitui aspas simples no nome para n quebrar query
-                    const safeName = fullName.replace(/'/g, "''");
-                    orConditionsAlerta.push(`and(full_name.ilike."${safeName}",birth_date.eq.${birthDate})`);
-                }
+            const { data, error } = await query;
+            if (error) throw error;
 
-                if (orConditionsAlerta.length > 0) {
-                    let queryAlerta = supabase
-                        .from('lab_patients')
-                        .select('id, full_name, code, cpf, cns, birth_date, is_active, rg')
-                        .eq('tenant_id', TENANT_ID)
-                        .or(orConditionsAlerta.join(','));
+            if (data && data.length > 0) {
+                let dupCpf = false;
+                let dupCns = false;
+                let dupRg = false;
 
-                    if (pacienteIdAtual) {
-                        queryAlerta = queryAlerta.neq('id', pacienteIdAtual);
-                    }
+                data.forEach(p => {
+                    if (cpf && p.cpf === cpf) dupCpf = true;
+                    if (cns && p.cns === cns) dupCns = true;
+                    if (rg && p.rg === rg) dupRg = true;
+                });
 
-                    const { data: dataAlerta, error: errAlerta } = await queryAlerta.limit(1);
+                if (dupCpf || dupCns || dupRg) {
+                    result.alerta = true;
                     
-                    if (errAlerta) throw errAlerta;
+                    const formatCpfMsg = (c) => c ? c.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : '';
+                    const formatCnsMsg = (c) => c ? c.replace(/^(\d{3})(\d{1,4})?(\d{1,4})?(\d{1,4})?/, (m, p1, p2, p3, p4) => [p1, p2, p3, p4].filter(Boolean).join(' ')) : '';
+                    
+                    let msgs = [];
+                    if (dupRg) msgs.push(`- RG: ${rg}`);
+                    if (dupCns) msgs.push(`- CNS: ${formatCnsMsg(cns)}`);
+                    if (dupCpf) msgs.push(`- CPF: ${formatCpfMsg(cpf)}`);
 
-                    if (dataAlerta && dataAlerta.length > 0) {
-                        const paciente = dataAlerta[0];
-                        result.alerta = true;
-                        result.pacienteExistente = paciente;
-                        if (rg && paciente.rg === rg) {
-                            result.motivo = 'Encontramos um paciente com o mesmo RG. Deseja revisar antes de continuar?';
-                        } else {
-                            result.motivo = 'Encontramos um paciente com o mesmo nome e data de nascimento. Deseja revisar antes de continuar?';
-                        }
-                    }
+                    result.motivo = `Foram encontrados documentos já utilizados por outro paciente:\n${msgs.join('\n')}\n\nDeseja revisar os dados antes de continuar?`;
                 }
             }
 
             return result;
         } catch (error) {
             console.error('Erro no service verificarDuplicidadePaciente:', error);
-            throw error; // Propaga erro para toast na interface
+            throw error;
         }
     },
 

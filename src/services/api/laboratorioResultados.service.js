@@ -22,7 +22,7 @@ class LaboratorioResultadosService {
                 const { data: patients, error: errPat } = await supabase
                     .from('lab_patients')
                     .select('id')
-                    .or(`name.ilike.%${pacienteLimpo}%,full_name.ilike.%${pacienteLimpo}%`);
+                    .ilike('full_name', `%${pacienteLimpo}%`);
                 if (errPat) throw errPat;
                 patientIds = patients?.map(p => p.id) || [];
                 if (patientIds.length === 0) return []; // Ninguém encontrado
@@ -39,17 +39,14 @@ class LaboratorioResultadosService {
                 query = query.eq('attendance_date', dataInicialNormalizada);
             }
 
-            if (protocolo) {
-                query = query.ilike('protocol_number', `%${protocolo.trim()}%`);
-            }
             if (patientIds) query = query.in('patient_id', patientIds);
             
             if (attendance_origin) {
                 query = query.eq('attendance_origin', attendance_origin);
             }
 
-            // Ordenar por data mais recente e protocolo
-            query = query.order('attendance_date', { ascending: false }).order('protocol_number', { ascending: false });
+            // Ordenar por data mais recente, horário mais recente e protocolo
+            query = query.order('attendance_date', { ascending: false }).order('attendance_time', { ascending: false }).order('protocol_number', { ascending: false });
 
             const { data: attendances, error: errAtt } = await query;
             if (errAtt) throw errAtt;
@@ -79,25 +76,30 @@ class LaboratorioResultadosService {
                 const digitados = allStatuses.filter(s => s === 'DIGITADO').length;
                 const conferidos = allStatuses.filter(s => s === 'CONFERIDO').length;
                 const liberados = allStatuses.filter(s => s === 'LIBERADO').length;
-                
-                // Filtro de status se houver
-                if (status && status !== 'TODOS' && status !== '') {
-                    if (status === 'PENDENTE' && pendentes === 0) return null;
-                    if (status === 'DIGITADO' && digitados === 0) return null;
-                }
+                const cancelados = allStatuses.filter(s => s === 'CANCELADO').length;
                 
                 let statusGeral = 'Em andamento';
 
                 if (total === 0) {
                     statusGeral = 'Sem exames';
-                } else if (allStatuses.every(s => s === 'LIBERADO')) {
-                    statusGeral = 'Laudo liberado';
-                } else if (allStatuses.includes('PENDENTE')) {
-                    statusGeral = 'Em digitação';
-                } else if (allStatuses.includes('DIGITADO')) {
-                    statusGeral = 'Aguardando conferência';
-                } else if (allStatuses.includes('CONFERIDO')) {
-                    statusGeral = 'Aguardando liberação';
+                } else if (cancelados === total) {
+                    statusGeral = 'Cancelado';
+                } else {
+                    const activeStatuses = allStatuses.filter(s => s !== 'CANCELADO');
+                    if (activeStatuses.every(s => s === 'LIBERADO')) {
+                        statusGeral = 'Laudo liberado';
+                    } else if (activeStatuses.includes('PENDENTE')) {
+                        statusGeral = 'Em digitação';
+                    } else if (activeStatuses.includes('DIGITADO')) {
+                        statusGeral = 'Aguardando conferência';
+                    } else if (activeStatuses.includes('CONFERIDO')) {
+                        statusGeral = 'Aguardando liberação';
+                    }
+                }
+
+                // Filtro de status se houver
+                if (status && status !== 'TODOS' && status !== '') {
+                    if (statusGeral !== status) return null;
                 }
 
                 return {
@@ -114,6 +116,7 @@ class LaboratorioResultadosService {
                     examesDigitados: digitados,
                     examesConferidos: conferidos,
                     examesLiberados: liberados,
+                    examesCancelados: cancelados,
                     statusGeral
                 };
             }).filter(Boolean);
@@ -265,48 +268,76 @@ class LaboratorioResultadosService {
         // updatedValues = array de objetos formatados no componente UI
         if (!resultId || !updatedValues || updatedValues.length === 0) return;
 
-        let hasError = false;
-
-        const promises = updatedValues.map(async v => {
-            if (!v.value_id) {
-                console.log('[DEBUG] param sem value_id, impossivel atualizar', v);
-                hasError = true;
-                return;
-            }
+        for (let i = 0; i < updatedValues.length; i++) {
+            const v = updatedValues[i];
             
-            const payload = {
-                updated_at: new Date().toISOString()
-            };
-            
-            if (v.result_type === 'NUMERICO') {
-                payload.value_numeric = v.value_numeric !== '' && v.value_numeric !== null ? parseFloat(v.value_numeric) : null;
-                payload.value_text = null;
-            } else {
-                payload.value_text = v.value_text;
-                payload.value_numeric = null;
-            }
-            
-            payload.observation = v.observation;
+            const operation = v.value_id ? 'UPDATE' : 'INSERT';
+            const normalizedValue = v.result_type === 'NUMERICO' && v.value_numeric !== '' && v.value_numeric !== null ? parseFloat(v.value_numeric) : v.value_text;
 
-            console.log(`[DEBUG] payload de update para lab_result_values (id: ${v.value_id}):`, payload);
+            console.debug('[TESTANDO PARÂMETRO]', {
+                code: v.parameter_code || v.code,
+                resultType: v.result_type,
+                rawValue: v.value_numeric !== null && v.value_numeric !== undefined ? v.value_numeric : v.value_text,
+                normalizedValue: normalizedValue,
+                parameterId: v.parameter_id,
+                resultValueId: v.value_id,
+                attendanceExamId: resultId,
+                examId: v.exam_id,
+                operation
+            });
 
-            const { data, error } = await supabase
-                .from('lab_result_values')
-                .update(payload)
-                .eq('id', v.value_id)
-                .select();
+            try {
+                const payload = {
+                    updated_at: new Date().toISOString()
+                };
+
+                if (v.result_type === 'NUMERICO') {
+                    payload.value_numeric = v.value_numeric !== '' && v.value_numeric !== null ? parseFloat(v.value_numeric) : null;
+                    payload.value_text = null;
+                } else {
+                    payload.value_text = v.value_text;
+                    payload.value_numeric = null;
+                }
                 
-            console.log('[DEBUG] retorno Supabase lab_result_values:', { data, error });
-            if (error) {
-                hasError = true;
+                payload.observation = v.observation;
+
+                if (operation === 'INSERT') {
+                    if (!v.parameter_id) {
+                        throw new Error(`[ERRO ESTRUTURAL] parameter_id ausente para insert no parâmetro ${v.name}`);
+                    }
+                    
+                    const insertPayload = {
+                        ...payload,
+                        result_id: resultId,
+                        parameter_id: v.parameter_id,
+                        created_at: new Date().toISOString()
+                    };
+                    
+                    const { error } = await supabase
+                        .from('lab_result_values')
+                        .insert([insertPayload]);
+                    
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase
+                        .from('lab_result_values')
+                        .update(payload)
+                        .eq('id', v.value_id);
+                    
+                    if (error) throw error;
+                }
+            } catch (error) {
+                console.error('[PARÂMETRO QUE FALHOU]', {
+                    code: v.parameter_code || v.code,
+                    value: v.value_numeric !== null && v.value_numeric !== undefined ? v.value_numeric : v.value_text,
+                    resultValueId: v.value_id,
+                    operation,
+                    error
+                });
+                throw error;
             }
-        });
-
-        await Promise.all(promises);
-
-        if (hasError) {
-            throw new Error("Falha ao salvar valores de lab_result_values. Status não atualizado.");
         }
+
 
         // 2. Atualiza lab_results para DIGITADO
         const { data: resData, error: errUpdateResult } = await supabase
