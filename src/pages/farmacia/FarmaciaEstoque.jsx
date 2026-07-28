@@ -33,14 +33,13 @@ const FarmaciaEstoque = () => {
     const [itemToEdit, setItemToEdit] = useState(null);
 
     const [busca, setBusca] = useState('');
-    const [unidadeFiltro, setUnidadeFiltro] = useState(unidadeAtiva?.label || 'Todos');
+    // Filtro de unidade inicia sempre em 'Todos' (consolidado). Nunca herda o seletor global.
+    const [unidadeFiltro, setUnidadeFiltro] = useState('Todos');
     const [statusFiltro, setStatusFiltro] = useState('Todos');
     const [sortFiltro, setSortFiltro] = useState('nome-asc');
 
-    // Garante que se o usuário alterar "Operando em" lá no header, a grid se recalcula sozinha
-    useEffect(() => {
-        if (unidadeAtiva?.label) setUnidadeFiltro(unidadeAtiva.label);
-    }, [unidadeAtiva]);
+    // REMOVIDO: sincronização do filtro com unidadeAtiva global.
+    // O filtro de listagem agora é independente do contexto — inicia em 'Todos'.
 
     const [rawData, setRawData] = useState({ items: [], movements: [], batches: [], units: [] });
     const [isLoading, setIsLoading] = useState(true);

@@ -16,15 +16,15 @@ const FarmaciaAjustes = () => {
     const { setOpenModal, unidadeAtiva, dataRefreshKey } = useFarmacia();
     const [busca, setBusca] = useState('');
     const [periodoFiltro, setPeriodoFiltro] = useState('Hoje');
-    const [unidadeFiltro, setUnidadeFiltro] = useState(unidadeAtiva?.label || 'Todas');
+    // Filtro de unidade inicia sempre em 'Todas' (consolidado). Nunca herda o seletor global.
+    const [unidadeFiltro, setUnidadeFiltro] = useState('Todas');
     const [sortConfig, setSortConfig] = useState({ key: 'data', direction: 'desc' });
 
     const [rawData, setRawData] = useState({ items: [], movements: [], units: [] });
     const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        if (unidadeAtiva?.label) setUnidadeFiltro(unidadeAtiva.label);
-    }, [unidadeAtiva]);
+    // REMOVIDO: sincronização do filtro com unidadeAtiva global.
+    // O filtro de listagem é independente — inicia em 'Todas'.
 
     useEffect(() => {
         const fetchRealData = async () => {

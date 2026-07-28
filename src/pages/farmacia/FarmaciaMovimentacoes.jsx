@@ -35,15 +35,15 @@ const FarmaciaMovimentacoes = () => {
     const [busca, setBusca] = useState('');
     const [tipoFiltro, setTipoFiltro] = useState('Todos os tipos');
     const [periodoFiltro, setPeriodoFiltro] = useState('Hoje');
-    const [setorFiltro, setSetorFiltro] = useState(unidadeAtiva?.label || 'Todas');
+    // Filtro de unidade inicia sempre em 'Todas' (consolidado). Nunca herda o seletor global.
+    const [setorFiltro, setSetorFiltro] = useState('Todas');
     const [sortConfig, setSortConfig] = useState({ key: 'data', direction: 'desc' });
 
     const [rawData, setRawData] = useState({ items: [], movements: [], units: [] });
     const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        if (unidadeAtiva?.label) setSetorFiltro(unidadeAtiva.label);
-    }, [unidadeAtiva]);
+    // REMOVIDO: sincronização do filtro com unidadeAtiva global.
+    // O filtro de listagem é independente — inicia em 'Todas'.
 
     useEffect(() => {
         const fetchRealData = async () => {

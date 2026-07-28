@@ -70,11 +70,14 @@ const getRangeParaPeriodo = (periodo, customInicio = '', customFim = '') => {
 /**
  * Lê os searchParams e retorna os filtros iniciais de forma segura.
  * Chamado UMA vez na inicialização do componente via useRef.
+ * ATENÇÃO: o filtro de unidade é SEMPRE 'Todas' na carga inicial,
+ * independente de parâmetro na URL ou do contexto global (unidadeAtiva).
+ * Isso evita que uma URL antiga (ex: unidade=UMSJ) force um filtro indesejado.
  */
-const readFiltersFromUrl = (searchParams, unidadeAtiva) => ({
+const readFiltersFromUrl = (searchParams) => ({
     busca: searchParams.get('busca') || '',
     periodo: searchParams.get('periodo') || 'Hoje',
-    unidade: searchParams.get('unidade') || unidadeAtiva?.label || 'Todas',
+    unidade: 'Todas',   // Sempre inicia consolidado — nunca lê da URL nem do contexto global
     dataInicio: searchParams.get('dataInicio') || '',
     dataFim: searchParams.get('dataFim') || '',
 });
@@ -89,7 +92,7 @@ const FarmaciaSaidas = () => {
 
     // Inicialização dos filtros feita UMA vez, lendo a URL atual.
     // useRef garante que mesmo em remontagem o valor inicial seja da URL.
-    const initialFilters = useRef(readFiltersFromUrl(searchParams, unidadeAtiva));
+    const initialFilters = useRef(readFiltersFromUrl(searchParams));
 
     const [busca, setBusca]             = useState(initialFilters.current.busca);
     const [periodoFiltro, setPeriodo]   = useState(initialFilters.current.periodo);
@@ -118,14 +121,9 @@ const FarmaciaSaidas = () => {
         setSearchParams(params, { replace: true });
     }, [busca, periodoFiltro, unidadeFiltro, dataInicio, dataFim]);
 
-    // Sincroniza unidade global → filtro local, mas APENAS se o usuário
-    // não escolheu explicitamente uma unidade via URL ou filtro.
-    const unidadeFromUrl = searchParams.get('unidade');
-    useEffect(() => {
-        if (unidadeAtiva?.label && !unidadeFromUrl) {
-            setUnidade(unidadeAtiva.label);
-        }
-    }, [unidadeAtiva]);
+    // REMOVIDO: sincronização unidade global → filtro local.
+    // O filtro de unidade nas Saídas é sempre 'Todas' na carga inicial,
+    // e só muda se o usuário selecionar manualmente.
 
     // Fetch de dados — preserva rawData anterior para evitar piscadas
     const fetchData = useCallback(async () => {
