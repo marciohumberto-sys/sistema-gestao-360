@@ -1,0 +1,93 @@
+name: Backup diário do Supabase
+
+on:
+  # Permite executar manualmente pela aba Actions
+  workflow_dispatch:
+
+  # Todos os dias às 03:17 no horário de Pernambuco
+  # GitHub Actions trabalha com UTC: 06:17 UTC = 03:17 UTC-3
+  schedule:
+    - cron: "17 6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Backup gestao360-prod
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+
+    steps:
+      - name: Instalar Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Gerar backup completo do banco
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TIMESTAMP="$(date -u +'%Y-%m-%d_%H-%M-%S_UTC')"
+          BACKUP_DIR="backup-${TIMESTAMP}"
+          ARCHIVE="gestao360-prod-${TIMESTAMP}.tar.gz"
+          ENCRYPTED_FILE="${ARCHIVE}.enc"
+
+          mkdir -p "${BACKUP_DIR}"
+
+          echo "1/3 - Exportando roles..."
+          supabase db dump \
+            --db-url "${SUPABASE_DB_URL}" \
+            -f "${BACKUP_DIR}/roles.sql" \
+            --role-only
+
+          echo "2/3 - Exportando estrutura..."
+          supabase db dump \
+            --db-url "${SUPABASE_DB_URL}" \
+            -f "${BACKUP_DIR}/schema.sql"
+
+          echo "3/3 - Exportando dados..."
+          supabase db dump \
+            --db-url "${SUPABASE_DB_URL}" \
+            -f "${BACKUP_DIR}/data.sql" \
+            --data-only \
+            --use-copy \
+            -x "storage.buckets_vectors" \
+            -x "storage.vector_indexes"
+
+          echo "Compactando..."
+          tar -czf "${ARCHIVE}" "${BACKUP_DIR}"
+
+          echo "Criptografando..."
+          openssl enc \
+            -aes-256-cbc \
+            -salt \
+            -pbkdf2 \
+            -iter 200000 \
+            -in "${ARCHIVE}" \
+            -out "${ENCRYPTED_FILE}" \
+            -pass env:BACKUP_PASSWORD
+
+          rm -rf "${BACKUP_DIR}" "${ARCHIVE}"
+
+          if [ ! -s "${ENCRYPTED_FILE}" ]; then
+            echo "Erro: o arquivo de backup não foi criado."
+            exit 1
+          fi
+
+          echo "BACKUP_FILE=${ENCRYPTED_FILE}" >> "${GITHUB_ENV}"
+          echo "Backup criado com sucesso."
+
+      - name: Armazenar backup criptografado
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-gestao360-prod-${{ github.run_number }}
+          path: ${{ env.BACKUP_FILE }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
