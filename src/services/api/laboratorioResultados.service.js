@@ -5,24 +5,28 @@ class LaboratorioResultadosService {
     // Filtro temporário para teste inicial da integração
     static TEST_PROTOCOL = 'TESTE-LAB-001';
 
-    async buscarAtendimentos({ dataInicial, protocolo, paciente, status, attendance_origin } = {}) {
+    async buscarAtendimentos({ dataInicial, protocolo, paciente, patient_code, status, attendance_origin } = {}) {
         try {
             console.debug('[LAB][RESULTADOS] Filtros recebidos', {
               dataInicial,
               dataInicialTipo: typeof dataInicial,
               protocolo,
               paciente,
+              patient_code,
               status,
               attendance_origin,
             });
 
             let patientIds = null;
-            if (paciente) {
-                const pacienteLimpo = paciente.trim();
-                const { data: patients, error: errPat } = await supabase
-                    .from('lab_patients')
-                    .select('id')
-                    .ilike('full_name', `%${pacienteLimpo}%`);
+            if (paciente || patient_code) {
+                let patientQuery = supabase.from('lab_patients').select('id');
+                if (paciente) {
+                    patientQuery = patientQuery.ilike('full_name', `%${paciente.trim()}%`);
+                }
+                if (patient_code) {
+                    patientQuery = patientQuery.eq('code', patient_code.trim());
+                }
+                const { data: patients, error: errPat } = await patientQuery;
                 if (errPat) throw errPat;
                 patientIds = patients?.map(p => p.id) || [];
                 if (patientIds.length === 0) return []; // Ninguém encontrado
@@ -111,6 +115,7 @@ class LaboratorioResultadosService {
                     pacienteSexo: paciente.gender || paciente.sex || 'Não inf.',
                     pacienteCns: paciente.cns || null,
                     pacienteCpf: paciente.cpf || null,
+                    pacienteCodigo: paciente.code || null,
                     convenio: att.agreement || 'Não inf.',
                     local_entrega: att.delivery_location || 'Central',
                     examesTotal: total,
@@ -249,6 +254,7 @@ class LaboratorioResultadosService {
                 pacienteNome: paciente.name || paciente.full_name || 'Paciente não encontrado',
                 pacienteIdade: paciente.birth_date ? this.calculateAge(paciente.birth_date) : 'Não inf.',
                 pacienteSexo: paciente.gender || paciente.sex || 'Não inf.',
+                pacienteCodigo: paciente.code || null,
                 resultados: attendanceResults
             };
         });

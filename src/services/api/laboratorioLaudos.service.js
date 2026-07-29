@@ -158,6 +158,7 @@ export const laboratorioLaudosService = {
                     local_entrega: att.delivery_location,
                     medico: att.requesting_doctor,
                     attendance_origin: att.attendance_origin,
+                    totalExams: att.lab_attendance_exams?.length || 0,
                     exameId: ex.id,
                     exameCodigo: ex.code,
                     exameNome: ex.name,

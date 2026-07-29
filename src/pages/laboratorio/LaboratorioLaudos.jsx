@@ -1026,7 +1026,7 @@ const LaboratorioLaudos = () => {
         date: '',
         patient: '',
         patientCode: '',
-        status: 'AGUARDANDO',
+        status: 'LIBERADO',
         attendance_origin: ''
     });
     
@@ -1120,9 +1120,21 @@ const LaboratorioLaudos = () => {
                     medico: ex.medico,
                     local_entrega: ex.local_entrega,
                     attendance_origin: ex.attendance_origin,
-                    exams: []
+                    totalExams: ex.totalExams,
+                    exams: [],
+                    latestEventDate: 0
                 };
             }
+            
+            // Find the most recent event date for this exam
+            const evDate = ex.released_at ? new Date(ex.released_at).getTime() 
+                         : ex.checked_at ? new Date(ex.checked_at).getTime()
+                         : 0;
+            
+            if (evDate > groups[ex.protocolo].latestEventDate) {
+                groups[ex.protocolo].latestEventDate = evDate;
+            }
+
             groups[ex.protocolo].exams.push(ex);
         });
         
@@ -1140,15 +1152,17 @@ const LaboratorioLaudos = () => {
         });
         
         protocolsArray.sort((a, b) => {
-            // 1. Data do atendimento — mais antiga para mais nova
-            const dateA = a.dataAtendimentoRaw ? new Date(a.dataAtendimentoRaw).getTime() : Infinity;
-            const dateB = b.dataAtendimentoRaw ? new Date(b.dataAtendimentoRaw).getTime() : Infinity;
+            // 1. Mais recente liberado/conferido primeiro (decrescente)
+            if (a.latestEventDate !== b.latestEventDate) {
+                return b.latestEventDate - a.latestEventDate;
+            }
+
+            // 2. Data do atendimento (mais recente primeiro)
+            const dateA = a.dataAtendimentoRaw ? new Date(a.dataAtendimentoRaw).getTime() : 0;
+            const dateB = b.dataAtendimentoRaw ? new Date(b.dataAtendimentoRaw).getTime() : 0;
             
             if (dateA !== dateB) {
-                // Tratamento para datas inválidas / Infinity
-                if (isNaN(dateA)) return 1;
-                if (isNaN(dateB)) return -1;
-                return dateA - dateB;
+                return dateB - dateA;
             }
             
             // 2. Na mesma data, código do paciente — menor para maior
@@ -1457,7 +1471,7 @@ const LaboratorioLaudos = () => {
             <header className="lab-conf-header">
                 <div>
                     <h1 className="lab-title">Laudos</h1>
-                    <p className="lab-subtitle">Visualização e liberação final de resultados para o paciente</p>
+                    <p className="lab-subtitle">Consulta, impressão e download dos laudos liberados</p>
                 </div>
                 <div className="lab-header-actions" style={{ position: 'relative' }}>
                     {feedbackMsg && !selectedExam && (
@@ -1506,7 +1520,7 @@ const LaboratorioLaudos = () => {
                         />
                     </div>
                     <div className="lab-filter-item lab-filter-group">
-                        <label>Código do Paciente</label>
+                        <label>CÓD. PACIENTE</label>
                         <input 
                             type="text" 
                             placeholder="Ex.: 115003"
@@ -1610,7 +1624,7 @@ const LaboratorioLaudos = () => {
                                     >
                                         <div className="lab-qi-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <span style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>Cód. {group.pacienteCode || 'N/I'}</span>
-                                            <span style={{ fontSize: '13px', color: '#64748b' }}>{group.dataAtendimento}</span>
+                                            <span style={{ fontSize: '13px', color: '#64748b' }}>Atend.: {group.dataAtendimento}</span>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '5px', gap: '8px' }}>
                                             <div style={{ fontSize: '14.5px', fontWeight: '600', color: '#0f172a', lineHeight: '1.2', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', minWidth: '0' }}>
@@ -1653,6 +1667,20 @@ const LaboratorioLaudos = () => {
                                     marginBottom: '1rem', display: 'inline-block'
                                 }}>
                                     {feedbackMsg.text}
+                                </div>
+                            )}
+
+                            {selectedProtocol && (selectedProtocol.totalExams - selectedProtocol.exams.length) > 0 && (
+                                <div className="no-print" style={{
+                                    background: '#fffbeb',
+                                    color: '#b45309',
+                                    border: '1px solid #fcd34d',
+                                    padding: '0.5rem 1rem', borderRadius: '8px',
+                                    fontWeight: '500', fontSize: '0.85rem', zIndex: 10,
+                                    marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px'
+                                }}>
+                                    <AlertTriangle size={16} />
+                                    Ainda { (selectedProtocol.totalExams - selectedProtocol.exams.length) === 1 ? 'existe 1 exame pendente' : `existem ${selectedProtocol.totalExams - selectedProtocol.exams.length} exames pendentes` } de conferência neste atendimento.
                                 </div>
                             )}
 
@@ -1708,7 +1736,7 @@ const LaboratorioLaudos = () => {
                                             Selecionar exames
                                         </button>
 
-                                        {statusReal === 'LIBERADO' && (
+                                        {selectedExamIds.size > 0 && (
                                             <>
                                                 <button
                                                     type="button"

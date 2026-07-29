@@ -134,9 +134,7 @@ const LaboratorioConferencia = () => {
     }, [filteredResults]);
 
     useEffect(() => {
-        if (groupedProtocols.length > 0 && selectedProtocol === null) {
-            setSelectedProtocol(groupedProtocols[0]);
-        } else if (groupedProtocols.length === 0) {
+        if (groupedProtocols.length === 0) {
             setSelectedProtocol(null);
             setSelectedExam(null);
             setExamDetails([]);
@@ -153,7 +151,7 @@ const LaboratorioConferencia = () => {
                     }
                 }
             } else {
-                setSelectedProtocol(groupedProtocols[0]);
+                setSelectedProtocol(null);
                 setSelectedExam(null);
                 setExamDetails([]);
             }
@@ -464,7 +462,7 @@ const LaboratorioConferencia = () => {
                         />
                     </div>
                     <div className="lab-filter-item lab-filter-group">
-                        <label>Código do Paciente</label>
+                        <label>CÓD. PACIENTE</label>
                         <input 
                             type="text" 
                             placeholder="Ex.: 115003"
@@ -594,10 +592,11 @@ const LaboratorioConferencia = () => {
                     {!selectedProtocol && (
                         <div className="lab-card flex flex-col items-center justify-center p-8 text-center h-full" style={{ minHeight: '400px' }}>
                             <Activity size={48} className="text-gray-300 mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-700">Não há exames pendentes para conferência.</h3>
-                            <p className="text-gray-500 max-w-md mt-2">
-                                Selecione um atendimento na lista lateral se desejar revisar exames novamente.
-                            </p>
+                            <h3 className="text-lg font-semibold text-gray-700">
+                                {groupedProtocols.length > 0 
+                                    ? 'Selecione um atendimento para continuar a conferência.' 
+                                    : 'Não há exames pendentes para conferência.'}
+                            </h3>
                         </div>
                     )}
 

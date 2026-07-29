@@ -232,15 +232,18 @@ export const laboratorioConferenciaService = {
                 throw new Error('Não foi possível confirmar o exame. A assinatura do biomédico não está cadastrada.');
             }
 
-            // Update único e atômico — status + snapshot profissional
+            // Update único e atômico — status + snapshot profissional e liberação direta
+            const now = new Date().toISOString();
             const updateData = {
-                status: 'CONFERIDO',
+                status: 'LIBERADO',
                 checked_by: userId,
-                checked_at: new Date().toISOString(),
+                checked_at: now,
+                released_by: userId,
+                released_at: now,
                 responsible_name: professionalName,
                 responsible_crbm: link.crbm.trim(),
                 responsible_signature_path: link.signature_path,
-                updated_at: new Date().toISOString()
+                updated_at: now
             };
 
             const { data, error } = await supabase

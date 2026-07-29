@@ -62,6 +62,7 @@ const LaboratorioResultados = () => {
     const [searchFilters, setSearchFilters] = useState({
         date: location.state?.attendanceDate || '',
         patient: '',
+        patient_code: '',
         status: 'Em digitação',
         sector: '',
         attendance_origin: ''
@@ -96,6 +97,7 @@ const LaboratorioResultados = () => {
             const filtros = {
                 dataInicial: finalDate,
                 paciente: searchFilters.patient,
+                patient_code: searchFilters.patient_code ? searchFilters.patient_code.trim() : undefined,
                 status: searchFilters.status,
                 attendance_origin: searchFilters.attendance_origin
             };
@@ -539,10 +541,14 @@ const LaboratorioResultados = () => {
 
             {/* Filtros */}
             <div className={`lab-filters-card ${selectedAttendance ? 'compact' : ''}`}>
-                <div className="lab-filters-grid" style={{ gridTemplateColumns: '145px minmax(300px, 1fr) 180px 170px 130px' }}>
+                <div className="lab-filters-grid" style={{ gridTemplateColumns: '130px 145px minmax(200px, 1fr) 160px 160px 120px' }}>
                     <div className="lab-filter-group">
                         <label>Data Inicial</label>
                         <input type="date" className="lab-input" value={searchFilters.date} onChange={(e) => setSearchFilters({...searchFilters, date: e.target.value})} onKeyDown={handleFilterKeyDown} />
+                    </div>
+                    <div className="lab-filter-group">
+                        <label>CÓD. PACIENTE</label>
+                        <input type="text" className="lab-input" placeholder="Ex.: 115003" value={searchFilters.patient_code} onChange={(e) => setSearchFilters({...searchFilters, patient_code: e.target.value})} onKeyDown={handleFilterKeyDown} />
                     </div>
                     <div className="lab-filter-group">
                         <label>Paciente</label>
@@ -609,7 +615,7 @@ const LaboratorioResultados = () => {
                                 <div key={att.id} className="lab-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', padding: '1rem 1.25rem', borderLeft: `3px solid ${visuals.border}` }}>
                                     <div style={{ display: 'grid', gridTemplateColumns: att.attendance_date ? 'minmax(0, 1fr) auto auto auto' : 'minmax(0, 1fr) auto auto', gap: '1rem', alignItems: 'center' }}>
                                         <strong title={att.pacienteNome} style={{ fontSize: '1.15rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{att.pacienteNome}</strong>
-                                        <span style={{ fontSize: '0.8rem', color: '#475569', background: '#f1f5f9', padding: '0.2rem 0.6rem', borderRadius: '20px', fontWeight: '600', border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Prot: {att.protocol_number}</span>
+                                        <span style={{ fontSize: '0.8rem', color: '#475569', background: '#f1f5f9', padding: '0.2rem 0.6rem', borderRadius: '20px', fontWeight: '600', border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Cód. Paciente: {att.pacienteCodigo}</span>
                                         {att.attendance_date && (
                                             <span style={{ fontSize: '0.8rem', color: '#475569', background: '#f1f5f9', padding: '0.2rem 0.6rem', borderRadius: '20px', fontWeight: '600', border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Data: {att.attendance_date.split('-').reverse().join('/')}</span>
                                         )}
