@@ -1923,3 +1923,115 @@
   word-break: break-word;
   overflow-wrap: anywhere;
 }
+
+.lab-complete-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    width: 100%;
+    padding-bottom: 40px;
+}
+
+.lab-complete-preview-page {
+    flex: 0 0 auto;
+    width: 100%;
+}
+
+/* ETAPA 5.2 - Compositor Inteligente */
+.lab-composed-page {
+    width: 210mm;
+    height: 297mm;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    overflow: visible;
+    margin: 0;
+    padding: 8mm 10mm 8mm 10mm;
+    background: #fff;
+}
+
+.lab-pagination-validation-root {
+    position: absolute;
+    left: -100000px;
+    top: 0;
+    visibility: hidden;
+    pointer-events: none;
+    width: 210mm;
+    transform: none;
+    zoom: 1;
+}
+
+.lab-composed-exams {
+    display: flex;
+    flex-direction: column;
+}
+
+.lab-composed-bottom {
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+    flex: none;
+    z-index: auto;
+    box-sizing: border-box;
+    padding-top: 8mm;
+}
+
+.lab-composed-exam-body {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    width: 100%;
+}
+
+.lab-measure-exam {
+    width: calc(210mm - 20mm); /* 10mm left + 10mm right padding */
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    transform: none;
+    zoom: 1;
+    box-sizing: border-box;
+}
+
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 0;
+    }
+
+    html,
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .lab-complete-preview {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+    }
+
+    .lab-composed-page {
+        width: 210mm !important;
+        height: 297mm !important;
+        min-height: 297mm !important;
+        max-height: 297mm !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        break-after: page;
+        page-break-after: always;
+    }
+
+    .lab-composed-page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+    }
+
+    .lab-measure-area,
+    .lab-pagination-validation-root {
+        display: none !important;
+    }
+}

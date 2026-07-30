@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { formatCpf } from '../../utils/formatters';
 import { 
     CheckCircle2, AlertTriangle, Search, RefreshCw, 
     Activity, Clock, User, Loader2, FileText, Printer, Download, SlidersHorizontal, ChevronDown, ChevronUp
 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import './LaboratorioConferencia.css';
 import './LaboratorioLaudos.css';
 import { laboratorioLaudosService } from '../../services/api/laboratorioLaudos.service';
@@ -310,7 +312,7 @@ const GraficoHemo = ({ value, min, max, parameterCode, containerMaxWidth = '80px
     );
 };
 
-const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, patientCode, signatureSignedUrl }) => {
+const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, patientCode, signatureSignedUrl, isComposed = false }) => {
     const bDate = selectedExam.pacienteDataNascimento ? new Date(selectedExam.pacienteDataNascimento.split('/').reverse().join('-')) : null;
     let aDateStr = selectedExam.dataAtendimentoRaw || selectedExam.dataAtendimento;
     if (aDateStr && aDateStr.includes('/')) aDateStr = aDateStr.split('/').reverse().join('-');
@@ -730,7 +732,7 @@ const cleanValueURI = (val) => {
     return str;
 };
 
-const LaudoURI = ({ selectedExam, examDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl }) => {
+const LaudoURI = ({ selectedExam, examDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl, isComposed = false }) => {
     const getParam = (names) => {
         return examDetails.find(p => {
             const code = (p.parameter_code || p.code || p.parameter_name || '').toUpperCase().trim();
@@ -908,7 +910,7 @@ const LaudoURI = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
     );
 };
 
-const LaudoPAR = ({ selectedExam, examDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl }) => {
+const LaudoPAR = ({ selectedExam, examDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl, isComposed = false }) => {
     const isObs = (name) => {
         const n = (name || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         return n === 'OBSERVACAO' || n === 'OBSERVACAO GERAL';
@@ -1947,6 +1949,108 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
                 <div className="hemo-footer-address">
                     Rua Imperador Dom Pedro II, 76 - Santo Antônio - Bezerros - PE - CEP: 55.660-000
                 </div>
+            </div>
+        </div>
+    );
+};
+
+const LaudoExameRender = ({ examData, formatDateTimeH, formatAttendanceOrigin, statusReal, patientCode, isComposed = false }) => {
+    if (!examData) return null;
+    const { exam, details, signatureSignedUrl, history } = examData;
+    const examCode = getExamCode(exam);
+
+    if (examCode === 'HEMO') {
+        return <HemogramaCompactoCompleto selectedExam={exam} examDetails={details} statusReal={statusReal} patientCode={patientCode} signatureSignedUrl={signatureSignedUrl} isComposed={isComposed} />;
+    } else if (examCode === 'URI') {
+        return <LaudoURI selectedExam={exam} examDetails={details} formatDateTimeH={formatDateTimeH} patientCode={patientCode} formatAttendanceOrigin={formatAttendanceOrigin} signatureSignedUrl={signatureSignedUrl} isComposed={isComposed} />;
+    } else if (examCode === 'PAR') {
+        return <LaudoPAR selectedExam={exam} examDetails={details} formatDateTimeH={formatDateTimeH} patientCode={patientCode} formatAttendanceOrigin={formatAttendanceOrigin} signatureSignedUrl={signatureSignedUrl} isComposed={isComposed} />;
+    } else {
+        return <LaudoExameSimples selectedExam={exam} examDetails={details} loadingDetails={false} formatDateTimeH={formatDateTimeH} patientCode={patientCode} formatAttendanceOrigin={formatAttendanceOrigin} signatureSignedUrl={signatureSignedUrl} historyProp={history} isComposed={isComposed} />;
+    }
+};
+
+const LaudoA4Page = ({ pageExams, patientCode, selectedProtocol, formatDateTimeH, formatAttendanceOrigin, statusReal }) => {
+    // pageExams contains [{ exam, details, signatureSignedUrl, history }]
+    
+    // Pega o responsável do primeiro exame da página, pois a paginação garante que são iguais
+    const firstExamData = pageExams[0];
+    const firstExam = firstExamData?.exam;
+    const signatureSignedUrl = firstExamData?.signatureSignedUrl;
+
+    return (
+        <div className="lab-complete-preview-page lab-composed-page">
+            <div className="lab-composed-header hemo-header">
+                <div className="hemo-header-logo">
+                    <img src="/logo-laboratorio.png" alt="Logo" onError={(e) => { e.target.style.display = 'none'; }} />
+                </div>
+                <div className="hemo-header-center">
+                    <h2>LABORATÓRIO MUNICIPAL<br/>LINDBERG CÂNDIDO DE SOUZA</h2>
+                    <p>Sistema Gestão Pública Inteligente</p>
+                </div>
+                <div className="hemo-header-right">
+                    <img src="/logo-bezerros.png" alt="Prefeitura" onError={(e) => { e.target.style.display = 'none'; }} />
+                </div>
+            </div>
+
+            <div className="lab-composed-patient hemo-patient-box">
+                <div className="hemo-patient-col">
+                    <div><span className="hemo-lbl">Paciente:</span> {firstExam?.pacienteNome}</div>
+                    <div><span className="hemo-lbl">Médico:</span> {firstExam?.medico || 'NÃO INFORMADO'}</div>
+                    <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || firstExam?.pacienteCode || firstExam?.patientCode || '---'}</div>
+                    <div><span className="hemo-lbl">Data Nasc.:</span> {firstExam?.pacienteDataNascimento}</div>
+                    <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeH ? formatDateTimeH(firstExam?.dataAtendimentoRaw) : ''}</div>
+                </div>
+                <div className="hemo-patient-col right">
+                    <div><span className="hemo-lbl">Idade:</span> {firstExam?.pacienteIdade}</div>
+                    <div><span className="hemo-lbl">Sexo:</span> {firstExam?.pacienteSexo || 'NÃO INFORMADO'}</div>
+                    <div><span className="hemo-lbl">RG:</span> {firstExam?.pacienteRg || '---'}</div>
+                    <div><span className="hemo-lbl">CNS:</span> {firstExam?.pacienteCns || '---'}</div>
+                    <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(firstExam?.released_at || firstExam?.checked_at) : ''}</div>
+                    <div><span className="hemo-lbl">Origem:</span> {formatAttendanceOrigin && firstExam?.attendance_origin ? formatAttendanceOrigin(firstExam?.attendance_origin) : ''}</div>
+                </div>
+            </div>
+
+            <div className="lab-composed-exams">
+                {pageExams.map((examData, idx) => (
+                    <div key={examData.exam.id} className="lab-composed-exam-wrapper" data-exam-id={examData.exam.id} style={{ marginTop: idx > 0 ? '16px' : '0' }}>
+                        <LaudoExameRender 
+                            examData={examData} 
+                            formatDateTimeH={formatDateTimeH} 
+                            formatAttendanceOrigin={formatAttendanceOrigin} 
+                            statusReal={statusReal} 
+                            patientCode={patientCode} 
+                            isComposed={true} 
+                        />
+                    </div>
+                ))}
+            </div>
+
+            <div className="lab-composed-bottom hemo-report-bottom">
+                <div className="hemo-signature-area">
+                    {firstExam?.responsible_name ? (
+                        <>
+                            {signatureSignedUrl && <img src={signatureSignedUrl} alt="Assinatura" className="lab-report-signature-image" />}
+                            <div className="hemo-signature-name" style={{ marginTop: signatureSignedUrl ? '2px' : '20px' }}>
+                                {firstExam.responsible_name.toUpperCase()}
+                                {firstExam.responsible_crbm && <><br /><span style={{ fontWeight: 400, fontSize: '0.78em' }}>Biomédico(a) — CRBM {firstExam.responsible_crbm}</span></>}
+                            </div>
+                            {firstExam.checked_at && (
+                                <div className="hemo-signature-date">
+                                    Conferido e assinado eletronicamente em {new Date(firstExam.checked_at).toLocaleString('pt-BR')}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <div className="hemo-signature-line"></div>
+                            <div className="hemo-signature-name">Biomédico(a) Responsável</div>
+                            {firstExam?.released_at && <div className="hemo-signature-date">Liberado eletronicamente em {new Date(firstExam.released_at).toLocaleString('pt-BR')}</div>}
+                            <div style={{ fontSize: '0.7em', color: '#94a3b8', marginTop: '2px' }}>Dados profissionais indisponíveis para este laudo anterior.</div>
+                        </>
+                    )}
+                </div>
+                <div className="hemo-footer-address">Rua Imperador Dom Pedro II, 76 - Santo Antônio - Bezerros - PE - CEP: 55.660-000</div>
             </div>
         </div>
     );

@@ -221,6 +221,40 @@ export const laboratorioLaudosService = {
         }
     },
 
+    carregarDetalhesLaudosLote: async (resultIds) => {
+        try {
+            if (!resultIds || !Array.isArray(resultIds)) return {};
+            const validIds = [...new Set(resultIds.filter(id => id))];
+            if (validIds.length === 0) return {};
+
+            const { data: values, error } = await supabase
+                .from('lab_result_values')
+                .select('*')
+                .in('result_id', validIds)
+                .order('display_order', { ascending: true });
+                
+            if (error) throw error;
+            
+            const grouped = {};
+            validIds.forEach(id => {
+                grouped[id] = { details: [] };
+            });
+            
+            if (values) {
+                values.forEach(val => {
+                    if (grouped[val.result_id]) {
+                        grouped[val.result_id].details.push(val);
+                    }
+                });
+            }
+            
+            return grouped;
+        } catch (error) {
+            console.error('Erro ao carregar detalhes dos laudos em lote:', error);
+            throw error;
+        }
+    },
+
     liberarLaudo: async (resultId) => {
         try {
             const { data: sessionData } = await supabase.auth.getSession();
