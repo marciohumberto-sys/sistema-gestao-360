@@ -2084,6 +2084,7 @@ const LaboratorioLaudos = () => {
     const [loadingSignature, setLoadingSignature] = useState(false);
     // Conjunto dos result_ids selecionados para impressão
     const [selectedExamIds, setSelectedExamIds] = useState(new Set());
+    const [previewMode, setPreviewMode] = useState('individual');
     // Controle do drawer de seleção de exames
     const [drawerOpen, setDrawerOpen] = useState(false);
     const laudoRef = useRef(null);
@@ -2237,6 +2238,12 @@ const LaboratorioLaudos = () => {
         );
         setSelectedExamIds(printable);
     }, [selectedProtocol?.protocolo]); // depende apenas do protocolo, não de selectedProtocol inteiro
+
+    useEffect(() => {
+        if (selectedExamIds.size <= 1 && previewMode !== 'individual') {
+            setPreviewMode('individual');
+        }
+    }, [selectedExamIds.size, previewMode]);
 
     useEffect(() => {
         if (groupedProtocols.length > 0 && selectedProtocol === null) {
@@ -2882,6 +2889,19 @@ const LaboratorioLaudos = () => {
 
                                     {/* Direita: botões de ação */}
                                     <div className="laudos-action-bar-right">
+                                        {selectedExamIds.size > 1 && (
+                                            <button
+                                                type="button"
+                                                className="laudos-action-btn laudos-action-btn-secondary"
+                                                onClick={() => {
+                                                    setPreviewMode(current => current === 'complete' ? 'individual' : 'complete');
+                                                }}
+                                            >
+                                                <FileText size={14} />
+                                                {previewMode === 'complete' ? 'Voltar ao exame' : 'Prévia completa'}
+                                            </button>
+                                        )}
+
                                         <button
                                             type="button"
                                             className="laudos-action-btn laudos-action-btn-secondary"
