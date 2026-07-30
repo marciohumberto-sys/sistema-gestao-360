@@ -23,6 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 
+debug_gli.mjs
 test-output.json
 test-rpc.js
 check*.json

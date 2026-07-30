@@ -12,7 +12,7 @@ export const laboratorioLaudosService = {
 
     buscarLaudos: async (filters = {}) => {
         try {
-            let attendancesQuery = supabase.from('lab_attendances').select('id, protocol_number, patient_id, attendance_date, requesting_doctor, delivery_location, agreement, attendance_origin, lab_attendance_exams(exam_id, collection_date, collection_time)');
+            let attendancesQuery = supabase.from('lab_attendances').select('id, protocol_number, patient_id, attendance_date, created_at, requesting_doctor, delivery_location, agreement, attendance_origin, lab_attendance_exams(exam_id, collection_date, collection_time)');
             
             if (filters.protocol) {
                 attendancesQuery = attendancesQuery.ilike('protocol_number', `%${filters.protocol}%`);
@@ -145,6 +145,7 @@ export const laboratorioLaudosService = {
 
                 return {
                     id: r.id, 
+                    patient_id: pat.id,
                     protocolo: att.protocol_number,
                     pacienteCodigo: pat.code,
                     pacienteNome: pat.full_name,
@@ -170,10 +171,12 @@ export const laboratorioLaudosService = {
                     printsOnReport: ex.prints_on_report !== false,
                     dataAtendimento: laboratorioLaudosService.formatDateOnly(att.attendance_date),
                     dataAtendimentoRaw: att.attendance_date,
+                    attendance_created_at: att.created_at,
                     collection_date: attExam?.collection_date || null,
                     collection_time: attExam?.collection_time || null,
                     status: r.status,
                     observacaoGeral: r.general_observation,
+                    result_created_at: r.created_at,
                     typed_at: r.typed_at,
                     checked_at: r.checked_at,
                     released_at: r.released_at,
@@ -281,6 +284,119 @@ export const laboratorioLaudosService = {
         } catch (err) {
             console.error('[Laudos] Erro inesperado ao gerar signed URL:', err);
             return null;
+        }
+    },
+
+    buscarHistoricoExame: async (examCode, patientId, currentResultId, currentTimestamp) => {
+        try {
+            if (!examCode || !patientId || !currentResultId || !currentTimestamp) return [];
+            
+            const currTime = new Date(currentTimestamp).getTime();
+            if (isNaN(currTime)) return [];
+
+            // Find attendances for this patient in the same tenant
+            const { data: attendances, error: attErr } = await supabase
+                .from('lab_attendances')
+                .select('id, attendance_date, lab_attendance_exams(exam_id, collection_date, collection_time)')
+                .eq('patient_id', patientId);
+            
+            if (attErr) throw attErr;
+            if (!attendances || attendances.length === 0) return [];
+            
+            const attendanceIds = attendances.map(a => a.id);
+            
+            // Find exam_id for specific examCode
+            const { data: exams, error: examErr } = await supabase
+                .from('lab_exams')
+                .select('id')
+                .eq('code', examCode);
+            
+            if (examErr) throw examErr;
+            if (!exams || exams.length === 0) return [];
+            const examId = exams[0].id;
+            
+            // Find results
+            const { data: results, error: resErr } = await supabase
+                .from('lab_results')
+                .select('id, attendance_id, status, checked_at, released_at, typed_at')
+                .in('attendance_id', attendanceIds)
+                .eq('exam_id', examId)
+                .in('status', ['CONFERIDO', 'LIBERADO'])
+                .neq('id', currentResultId);
+                
+            if (resErr) throw resErr;
+            if (!results || results.length === 0) return [];
+            
+            const resultIds = results.map(r => r.id);
+            
+            // Fetch values
+            const { data: values, error: valErr } = await supabase
+                .from('lab_result_values')
+                .select('result_id, value_numeric, value_text')
+                .in('result_id', resultIds);
+                
+            if (valErr) throw valErr;
+            
+            // Consolidate data
+            const historico = results.map(r => {
+                const att = attendances.find(a => a.id === r.attendance_id);
+                const attExam = att?.lab_attendance_exams?.find(ae => ae.exam_id === examId);
+                
+                const resultValues = values.filter(v => v.result_id === r.id);
+                if (resultValues.length === 0) return null;
+                
+                // parse value procurando o primeiro valor numérico válido
+                let numVal = null;
+                for (const val of resultValues) {
+                    let tempNum = val.value_numeric;
+                    if (tempNum === null || tempNum === undefined) {
+                        const parsed = parseFloat(String(val.value_text).replace(',', '.'));
+                        if (!isNaN(parsed)) tempNum = parsed;
+                    }
+                    if (tempNum !== null && tempNum !== undefined) {
+                        numVal = tempNum;
+                        break;
+                    }
+                }
+                
+                if (numVal === null || numVal === undefined) return null;
+                
+                // build ISO timestamp
+                let rawDate = null;
+                if (attExam?.collection_date) {
+                    rawDate = attExam.collection_date;
+                    if (attExam.collection_time) {
+                        rawDate = `${rawDate}T${attExam.collection_time}`;
+                    } else {
+                        rawDate = `${rawDate}T00:00:00`;
+                    }
+                } else {
+                    rawDate = r.checked_at || r.released_at;
+                    if (!rawDate && att?.attendance_date) {
+                        rawDate = `${att.attendance_date}T00:00:00`;
+                    }
+                }
+
+                if (!rawDate) return null;
+                const histTime = new Date(rawDate).getTime();
+                
+                // CRITICAL RULE: only STRICTLY BEFORE current timestamp
+                if (isNaN(histTime) || histTime >= currTime) return null;
+                
+                return {
+                    id: r.id,
+                    value: numVal,
+                    rawDate: rawDate,
+                    histTime: histTime
+                };
+            }).filter(Boolean);
+            
+            // Sort by date DESC and get max 3
+            historico.sort((a, b) => b.histTime - a.histTime);
+            return historico.slice(0, 3);
+        } catch (error) {
+            console.error('Erro ao buscar historico GLI:', error);
+            return [];
         }
     }
 };

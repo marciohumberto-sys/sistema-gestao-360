@@ -256,9 +256,20 @@ function resolveHemoReference(parameterCode, referenceText, patientAgeDays, pati
     }
     
     return { text: finalRefStr, valid: false, isText: false };
+    return { text: finalRefStr, valid: false, isText: false };
 }
 
-const GraficoHemo = ({ value, min, max, parameterCode }) => {
+/**
+ * Normaliza a obtenção do código real do exame, 
+ * unificando possíveis nomes de campos.
+ */
+const getExamCode = (exam) => {
+    if (!exam) return '';
+    const raw = exam.exameCodigo || exam.exam_code || exam.exame_code || exam.code || '';
+    return String(raw).trim().toUpperCase();
+};
+
+const GraficoHemo = ({ value, min, max, parameterCode, containerMaxWidth = '80px', containerHeight = '12px', markerSize = 6, markHeight = 4, lineWidth = '1px', markWidth = '1px', containerMargin = '0 auto' }) => {
     if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max) || min >= max) {
         return <div style={{ width: '100%', minWidth: '60px' }}></div>;
     }
@@ -277,19 +288,20 @@ const GraficoHemo = ({ value, min, max, parameterCode }) => {
     const isAbove = value > max;
 
     return (
-        <div style={{ width: '100%', maxWidth: '80px', height: '12px', position: 'relative', display: 'flex', alignItems: 'center', margin: '0 auto' }}>
-            <div style={{ position: 'absolute', width: '100%', height: '1px', background: '#94a3b8', top: '50%' }}></div>
-            <div style={{ position: 'absolute', left: `${GRAPH_NORMAL_START}%`, height: '4px', width: '1px', background: '#475569', top: 'calc(50% - 2px)' }}></div>
-            <div style={{ position: 'absolute', left: `${GRAPH_NORMAL_END}%`, height: '4px', width: '1px', background: '#475569', top: 'calc(50% - 2px)' }}></div>
+        <div style={{ width: '100%', maxWidth: containerMaxWidth, height: containerHeight, position: 'relative', display: 'flex', alignItems: 'center', margin: containerMargin }}>
+            <div style={{ position: 'absolute', width: '100%', height: lineWidth, background: '#94a3b8', top: '50%', transform: 'translateY(-50%)' }}></div>
+            <div style={{ position: 'absolute', left: `${GRAPH_NORMAL_START}%`, height: `${markHeight}px`, width: markWidth, background: '#475569', top: '50%', transform: 'translateY(-50%)' }}></div>
+            <div style={{ position: 'absolute', left: `${GRAPH_NORMAL_END}%`, height: `${markHeight}px`, width: markWidth, background: '#475569', top: '50%', transform: 'translateY(-50%)' }}></div>
             <div style={{ 
                 position: 'absolute', 
                 '--hemo-marker-position': `${markerPosition}%`,
                 left: 'var(--hemo-marker-position)',
-                width: '6px', 
-                height: '6px', 
+                width: `${markerSize}px`, 
+                height: `${markerSize}px`, 
                 borderRadius: '50%', 
                 background: '#0f172a',
-                transform: 'translateX(-50%)',
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
                 zIndex: 2
             }}></div>
             {isBelow && <span style={{ position: 'absolute', left: '-10px', fontSize: '9px', fontWeight: 'bold' }}>↓</span>}
@@ -703,7 +715,641 @@ const isAbnormal = (val_num, min, max) => {
     return 'normal';
 };
 
+const cleanValueURI = (val) => {
+    if (val === null || val === undefined) return '';
+    let str = String(val).trim();
+    if (str === '') return '';
+    if (str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') return '';
+    
+    const lower = str.toLowerCase();
+    if (lower === 'não cadastrada' || lower === 'não cadastrado' || lower === 'ausente na amostra analisada') return '';
+    
+    const internalCodes = ['AS', 'ACL', 'L', 'NO', 'N', 'VAR', 'ALG'];
+    if (internalCodes.includes(str.toUpperCase())) return '';
+    
+    return str;
+};
+
+const LaudoURI = ({ selectedExam, examDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl }) => {
+    const getParam = (names) => {
+        return examDetails.find(p => {
+            const code = (p.parameter_code || p.code || p.parameter_name || '').toUpperCase().trim();
+            const name = (p.parameter_name || '').toUpperCase().trim();
+            const nCode = code.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const nName = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            return names.some(n => {
+                const nn = n.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                return nCode === nn || nName === nn || nCode.includes(nn) || nName.includes(nn);
+            });
+        });
+    };
+
+    const renderRow = (label, names) => {
+        const param = getParam(names);
+        if (!param) return null;
+        
+        let res = param.value_numeric !== null && param.value_numeric !== undefined 
+            ? param.value_numeric.toString().replace('.', ',') 
+            : param.value_text;
+            
+        res = cleanValueURI(res);
+        let unit = cleanValueURI(param.unit);
+        
+        if (!res) return null;
+
+        return (
+            <div key={label} style={{ display: 'grid', gridTemplateColumns: '40% 30% 30%', borderBottom: '1px solid #f8fafc', padding: '3px 4px', fontSize: '11px' }}>
+                <div style={{ fontWeight: 500, color: '#334155' }}>{label}</div>
+                <div style={{ color: '#0f172a' }}>{res}</div>
+                <div style={{ color: '#64748b' }}>{unit}</div>
+            </div>
+        );
+    };
+
+    const obsParam = examDetails.find(p => {
+        const name = (p.parameter_name || p.parameter_code || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return name === 'OBSERVACAO';
+    });
+    const obsVal = cleanValueURI(obsParam?.value_text ?? obsParam?.value ?? obsParam?.value_numeric);
+
+    return (
+        <div className="hemo-compact-container">
+            <div className="hemo-report-main">
+                <div className="hemo-header">
+                    <div className="hemo-header-logo">
+                        <img src="/logo-laboratorio.png" alt="Logo" onError={(e) => { e.target.style.display = 'none'; }} />
+                    </div>
+                    <div className="hemo-header-center">
+                        <h2>LABORATÓRIO MUNICIPAL<br/>LINDBERG CÂNDIDO DE SOUZA</h2>
+                        <p>Sistema Gestão Pública Inteligente</p>
+                    </div>
+                    <div className="hemo-header-right">
+                        <img src="/logo-bezerros.png" alt="Prefeitura" onError={(e) => { e.target.style.display = 'none'; }} />
+                    </div>
+                </div>
+
+                <div className="hemo-patient-box">
+                    <div className="hemo-patient-col">
+                        <div><span className="hemo-lbl">Paciente:</span> {selectedExam?.pacienteNome}</div>
+                        <div><span className="hemo-lbl">Médico:</span> {selectedExam?.medico || 'NÃO INFORMADO'}</div>
+                        <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam?.pacienteCode || selectedExam?.patientCode || '---'}</div>
+                        <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam?.pacienteDataNascimento}</div>
+                        <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.dataAtendimentoRaw) : ''}</div>
+                    </div>
+                    <div className="hemo-patient-col right">
+                        <div><span className="hemo-lbl">Idade:</span> {selectedExam?.pacienteIdade}</div>
+                        <div><span className="hemo-lbl">Sexo:</span> {selectedExam?.pacienteSexo || 'NÃO INFORMADO'}</div>
+                        <div><span className="hemo-lbl">RG:</span> {selectedExam?.pacienteRg || '---'}</div>
+                        <div><span className="hemo-lbl">CNS:</span> {selectedExam?.pacienteCns || '---'}</div>
+                        <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.released_at || selectedExam?.checked_at) : ''}</div>
+                        <div><span className="hemo-lbl">Origem:</span> {formatAttendanceOrigin && selectedExam?.attendance_origin ? formatAttendanceOrigin(selectedExam?.attendance_origin) : ''}</div>
+                    </div>
+                </div>
+
+                <div className="hemo-exam-title-bar">
+                    <h3>URI - Urina Tipo I</h3>
+                    <div className="hemo-collection-info">
+                        <span className="hemo-collection-label">Data da Coleta:</span>
+                        {selectedExam?.collection_date ? (
+                            <>
+                                <span className="hemo-collection-date">{selectedExam.collection_date.split('-').reverse().join('/')}</span>
+                                {selectedExam.collection_time && <span className="hemo-collection-separator">às</span>}
+                                {selectedExam.collection_time && <span className="hemo-collection-time">{selectedExam.collection_time.slice(0, 5)}h</span>}
+                            </>
+                        ) : (
+                            <span className="hemo-collection-date">---</span>
+                        )}
+                    </div>
+                </div>
+
+                <div className="hemo-section">
+                    <div style={{ display: 'flex', gap: '2rem', fontSize: '11px', color: '#64748b', marginBottom: '8px', padding: '0 4px' }}>
+                        <div><strong>Material:</strong> <span style={{ color: '#0f172a' }}>Urina</span></div>
+                        <div><strong>Método:</strong> <span style={{ color: '#0f172a' }}>Químico - Microscópico</span></div>
+                    </div>
+                    
+                    <div style={{ marginBottom: '8px' }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#1e293b', borderBottom: '1px solid #cbd5e1', paddingBottom: '2px', marginBottom: '4px' }}>EXAME FÍSICO</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '40% 30% 30%', padding: '2px 4px', fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>
+                            <div>PARÂMETRO</div><div>RESULTADO</div><div>UNIDADE</div>
+                        </div>
+                        {renderRow('Volume', ['VOLUME'])}
+                        {renderRow('Cor', ['COR'])}
+                        {renderRow('Aspecto', ['ASPECTO'])}
+                        {renderRow('Densidade', ['DENSIDADE'])}
+                        {renderRow('pH', ['PH'])}
+                    </div>
+
+                    <div style={{ marginBottom: '8px' }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#1e293b', borderBottom: '1px solid #cbd5e1', paddingBottom: '2px', marginBottom: '4px' }}>EXAME QUÍMICO</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '40% 30% 30%', padding: '2px 4px', fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>
+                            <div>PARÂMETRO</div><div>RESULTADO</div><div>UNIDADE</div>
+                        </div>
+                        {renderRow('Proteínas', ['PROTEINA', 'PROTEINAS'])}
+                        {renderRow('Corpos Cetônicos', ['CETONICOS', 'CORPOS', 'CETONAS'])}
+                        {renderRow('Glicose', ['GLICOSE'])}
+                        {renderRow('Urobilinogênio', ['UROBILINOGENIO'])}
+                        {renderRow('Bilirrubina', ['BILIRRUBINA', 'BILIRRUBINAS'])}
+                        {renderRow('Sangue/Hemoglobina', ['SANGUE', 'HEMOGLOBINA'])}
+                        {renderRow('Nitrito', ['NITRITO', 'NITRITOS'])}
+                    </div>
+
+                    <div style={{ marginBottom: '8px' }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#1e293b', borderBottom: '1px solid #cbd5e1', paddingBottom: '2px', marginBottom: '4px' }}>SEDIMENTOSCOPIA</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '40% 30% 30%', padding: '2px 4px', fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>
+                            <div>PARÂMETRO</div><div>RESULTADO</div><div>UNIDADE</div>
+                        </div>
+                        {renderRow('Células Epiteliais', ['CELULAS', 'EPITELIAIS'])}
+                        {renderRow('Filamentos de Muco', ['MUCO', 'FILAMENTOS'])}
+                        {renderRow('Leucócitos', ['LEUCOCITO', 'PIOCITO'])}
+                        {renderRow('Hemácias', ['HEMACIA', 'ERITROCITO'])}
+                        {renderRow('Bactérias', ['BACTERIA'])}
+                        {renderRow('Cilindros', ['CILINDRO'])}
+                        {renderRow('Cristais', ['CRISTAL', 'CRISTAIS'])}
+                        {renderRow('Estruturas Leveduriformes', ['LEVEDUR'])}
+                    </div>
+
+                    {obsVal && (
+                        <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#1e293b', borderBottom: '1px solid #cbd5e1', paddingBottom: '2px', marginBottom: '4px' }}>OBSERVAÇÃO</div>
+                            <div style={{ fontSize: '11px', color: '#0f172a', padding: '2px 4px', whiteSpace: 'pre-wrap' }}>{obsVal}</div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="hemo-report-bottom">
+                <div className="hemo-signature-area">
+                    {selectedExam?.responsible_name ? (
+                        <>
+                            {signatureSignedUrl && <img src={signatureSignedUrl} alt="Assinatura" className="lab-report-signature-image" />}
+                            <div className="hemo-signature-name" style={{ marginTop: signatureSignedUrl ? '2px' : '20px' }}>
+                                {selectedExam.responsible_name.toUpperCase()}
+                                {selectedExam.responsible_crbm && <><br /><span style={{ fontWeight: 400, fontSize: '0.78em' }}>Biomédico(a) — CRBM {selectedExam.responsible_crbm}</span></>}
+                            </div>
+                            {selectedExam.checked_at && (
+                                <div className="hemo-signature-date">
+                                    Conferido e assinado eletronicamente em {new Date(selectedExam.checked_at).toLocaleString('pt-BR')}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <div className="hemo-signature-line"></div>
+                            <div className="hemo-signature-name">Biomédico(a) Responsável</div>
+                            {selectedExam?.released_at && <div className="hemo-signature-date">Liberado eletronicamente em {new Date(selectedExam.released_at).toLocaleString('pt-BR')}</div>}
+                            <div style={{ fontSize: '0.7em', color: '#94a3b8', marginTop: '2px' }}>Dados profissionais indisponíveis para este laudo anterior.</div>
+                        </>
+                    )}
+                </div>
+                <div className="hemo-footer-address">Rua Imperador Dom Pedro II, 76 - Santo Antônio - Bezerros - PE - CEP: 55.660-000</div>
+            </div>
+        </div>
+    );
+};
+
+const LaudoPAR = ({ selectedExam, examDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl }) => {
+    const isObs = (name) => {
+        const n = (name || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return n === 'OBSERVACAO' || n === 'OBSERVACAO GERAL';
+    };
+
+    const obsParam = examDetails.find(p => isObs(p.parameter_name || p.parameter_code || ''));
+    const obsVal = cleanValueURI(obsParam?.value_text ?? obsParam?.value ?? obsParam?.value_numeric);
+
+    const renderRow = (param) => {
+        let res = param.value_numeric !== null && param.value_numeric !== undefined 
+            ? param.value_numeric.toString().replace('.', ',') 
+            : param.value_text;
+            
+        res = cleanValueURI(res);
+        if (!res) return null;
+        
+        return (
+            <div key={param.id} style={{ display: 'grid', gridTemplateColumns: '50% 50%', borderBottom: '1px solid #f8fafc', padding: '3px 4px', fontSize: '11px' }}>
+                <div style={{ fontWeight: 500, color: '#334155' }}>{param.parameter_name || param.parameter_code}</div>
+                <div style={{ color: '#0f172a' }}>{res}</div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="hemo-compact-container">
+            <div className="hemo-report-main">
+                <div className="hemo-header">
+                    <div className="hemo-header-logo">
+                        <img src="/logo-laboratorio.png" alt="Logo" onError={(e) => { e.target.style.display = 'none'; }} />
+                    </div>
+                    <div className="hemo-header-center">
+                        <h2>LABORATÓRIO MUNICIPAL<br/>LINDBERG CÂNDIDO DE SOUZA</h2>
+                        <p>Sistema Gestão Pública Inteligente</p>
+                    </div>
+                    <div className="hemo-header-right">
+                        <img src="/logo-bezerros.png" alt="Prefeitura" onError={(e) => { e.target.style.display = 'none'; }} />
+                    </div>
+                </div>
+
+                <div className="hemo-patient-box">
+                    <div className="hemo-patient-col">
+                        <div><span className="hemo-lbl">Paciente:</span> {selectedExam?.pacienteNome}</div>
+                        <div><span className="hemo-lbl">Médico:</span> {selectedExam?.medico || 'NÃO INFORMADO'}</div>
+                        <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam?.pacienteCode || selectedExam?.patientCode || '---'}</div>
+                        <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam?.pacienteDataNascimento}</div>
+                        <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.dataAtendimentoRaw) : ''}</div>
+                    </div>
+                    <div className="hemo-patient-col right">
+                        <div><span className="hemo-lbl">Idade:</span> {selectedExam?.pacienteIdade}</div>
+                        <div><span className="hemo-lbl">Sexo:</span> {selectedExam?.pacienteSexo || 'NÃO INFORMADO'}</div>
+                        <div><span className="hemo-lbl">RG:</span> {selectedExam?.pacienteRg || '---'}</div>
+                        <div><span className="hemo-lbl">CNS:</span> {selectedExam?.pacienteCns || '---'}</div>
+                        <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.released_at || selectedExam?.checked_at) : ''}</div>
+                        <div><span className="hemo-lbl">Origem:</span> {formatAttendanceOrigin && selectedExam?.attendance_origin ? formatAttendanceOrigin(selectedExam?.attendance_origin) : ''}</div>
+                    </div>
+                </div>
+
+                <div className="hemo-exam-title-bar">
+                    <h3>PAR - Parasitológico de Fezes</h3>
+                    <div className="hemo-collection-info">
+                        <span className="hemo-collection-label">Data da Coleta:</span>
+                        {selectedExam?.collection_date ? (
+                            <>
+                                <span className="hemo-collection-date">{selectedExam.collection_date.split('-').reverse().join('/')}</span>
+                                {selectedExam.collection_time && <span className="hemo-collection-separator">às</span>}
+                                {selectedExam.collection_time && <span className="hemo-collection-time">{selectedExam.collection_time.slice(0, 5)}h</span>}
+                            </>
+                        ) : (
+                            <span className="hemo-collection-date">---</span>
+                        )}
+                    </div>
+                </div>
+
+                <div className="hemo-section">
+                    <div style={{ display: 'flex', gap: '2rem', fontSize: '11px', color: '#64748b', marginBottom: '8px', padding: '0 4px' }}>
+                        <div><strong>Material:</strong> <span style={{ color: '#0f172a' }}>Fezes</span></div>
+                        <div><strong>Método:</strong> <span style={{ color: '#0f172a' }}>Hoffman</span></div>
+                    </div>
+                    
+                    <div style={{ marginBottom: '8px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '50% 50%', padding: '2px 4px', fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>
+                            <div>PARÂMETRO</div><div>RESULTADO</div>
+                        </div>
+                        {examDetails.filter(p => !isObs(p.parameter_name || p.parameter_code || '')).map(renderRow)}
+                    </div>
+
+                    {obsVal && (
+                        <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#1e293b', borderBottom: '1px solid #cbd5e1', paddingBottom: '2px', marginBottom: '4px' }}>OBSERVAÇÃO</div>
+                            <div style={{ fontSize: '11px', color: '#0f172a', padding: '2px 4px', whiteSpace: 'pre-wrap' }}>{obsVal}</div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="hemo-report-bottom">
+                <div className="hemo-signature-area">
+                    {selectedExam?.responsible_name ? (
+                        <>
+                            {signatureSignedUrl && <img src={signatureSignedUrl} alt="Assinatura" className="lab-report-signature-image" />}
+                            <div className="hemo-signature-name" style={{ marginTop: signatureSignedUrl ? '2px' : '20px' }}>
+                                {selectedExam.responsible_name.toUpperCase()}
+                                {selectedExam.responsible_crbm && <><br /><span style={{ fontWeight: 400, fontSize: '0.78em' }}>Biomédico(a) — CRBM {selectedExam.responsible_crbm}</span></>}
+                            </div>
+                            {selectedExam.checked_at && (
+                                <div className="hemo-signature-date">
+                                    Conferido e assinado eletronicamente em {new Date(selectedExam.checked_at).toLocaleString('pt-BR')}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <div className="hemo-signature-line"></div>
+                            <div className="hemo-signature-name">Biomédico(a) Responsável</div>
+                            {selectedExam?.released_at && <div className="hemo-signature-date">Liberado eletronicamente em {new Date(selectedExam.released_at).toLocaleString('pt-BR')}</div>}
+                            <div style={{ fontSize: '0.7em', color: '#94a3b8', marginTop: '2px' }}>Dados profissionais indisponíveis para este laudo anterior.</div>
+                        </>
+                    )}
+                </div>
+                <div className="hemo-footer-address">Rua Imperador Dom Pedro II, 76 - Santo Antônio - Bezerros - PE - CEP: 55.660-000</div>
+            </div>
+        </div>
+    );
+};
+
+const resolveGLIReferenceRange = (referenceText, patient) => {
+    if (!referenceText) return null;
+    const regex = /crian[çc]as\s+e\s+adultos\s*:\s*([\d.,]+)\s*[-–a]\s*([\d.,]+)/i;
+    const match = String(referenceText).match(regex);
+    if (match) {
+        return {
+            min: parseFloat(match[1].replace(',', '.')),
+            max: parseFloat(match[2].replace(',', '.'))
+        };
+    }
+    return null;
+};
+
+const resolveVHSReferenceRange = (referenceText, patientSex, patientAgeDays) => {
+    if (!referenceText) return null;
+    const text = String(referenceText).toLowerCase();
+    const isChild = patientAgeDays !== null && patientAgeDays < (12 * 365.25);
+
+    if (isChild) {
+        const match = text.match(/crian[çc]as?\s*:\s*([\d.,]+)\s*[-–a]\s*([\d.,]+)/i);
+        if (match) return { min: parseFloat(match[1].replace(',', '.')), max: parseFloat(match[2].replace(',', '.')) };
+    }
+    
+    if (patientSex === 'MALE' || patientSex === 'M') {
+        const match = text.match(/(?:homens|masculino).*?:\s*([\d.,]+)\s*[-–a]\s*([\d.,]+)/i);
+        if (match) return { min: parseFloat(match[1].replace(',', '.')), max: parseFloat(match[2].replace(',', '.')) };
+    } else if (patientSex === 'FEMALE' || patientSex === 'F') {
+        const match = text.match(/(?:mulheres|feminino).*?:\s*([\d.,]+)\s*[-–a]\s*([\d.,]+)/i);
+        if (match) return { min: parseFloat(match[1].replace(',', '.')), max: parseFloat(match[2].replace(',', '.')) };
+    }
+    return null;
+};
+
+const resolveTGOReferenceRange = (referenceText, patientSex, patientAgeDays) => {
+    if (!referenceText) return null;
+    const text = String(referenceText).toLowerCase();
+    
+    if (patientSex === 'MALE' || patientSex === 'M') {
+        const match = text.match(/(?:homens|masculino).*?:\s*([\d.,]+)\s*[-–a]\s*([\d.,]+)/i);
+        if (match) return { min: parseFloat(match[1].replace(',', '.')), max: parseFloat(match[2].replace(',', '.')) };
+    } else if (patientSex === 'FEMALE' || patientSex === 'F') {
+        const match = text.match(/(?:mulheres|feminino).*?:\s*([\d.,]+)\s*[-–a]\s*([\d.,]+)/i);
+        if (match) return { min: parseFloat(match[1].replace(',', '.')), max: parseFloat(match[2].replace(',', '.')) };
+    }
+    return null;
+};
+
+const parseISODateShort = (isoStr) => {
+    if (!isoStr) return '';
+    const parts = isoStr.split('T');
+    const d = parts[0].split('-');
+    if (d.length !== 3) return '';
+    return `${d[2]}/${d[1]}/${d[0].slice(-2)}`;
+};
+
+const parseISOTimeShort = (isoStr) => {
+    if (!isoStr) return '';
+    const parts = isoStr.split('T');
+    if (parts.length < 2) return '';
+    const t = parts[1].split(':');
+    if (t.length >= 2) return `${t[0]}:${t[1]}`;
+    return '';
+};
+
+const GraficoHistoricoExame = ({ historico, refMin, refMax, subtitle, examCode }) => {
+    if (!historico || historico.length <= 1) {
+        return null;
+    }
+
+    const width = 440;
+    const height = 135;
+    
+    // As mesmas constantes exatas do GLI (resolvidas para suas coordenadas reais absolutas)
+    const plotLeft = 74;
+    const rightMargin = 28;
+    const plotRight = width - rightMargin; // equivale a 412
+    const plotWidth = plotRight - plotLeft; // equivale a 338
+
+    const plotTop = 32;
+    const plotBottom = 36;
+    
+    const innerWidth = plotWidth;
+    const innerHeight = height - plotTop - plotBottom;
+
+    const values = historico.map(h => h.value);
+    let minValRaw = Math.min(...values);
+    let maxValRaw = Math.max(...values);
+    
+    // Para HDL, forçamos os limites visuais no gráfico
+    let finalRefMin = refMin;
+    let finalRefMax = refMax;
+    if (examCode === 'HDL') {
+        finalRefMin = 40;
+        finalRefMax = 60;
+    }
+    
+    if (typeof finalRefMin === 'number' && !isNaN(finalRefMin)) minValRaw = Math.min(minValRaw, finalRefMin);
+    if (typeof finalRefMax === 'number' && !isNaN(finalRefMax)) maxValRaw = Math.max(maxValRaw, finalRefMax);
+
+    // Add margin
+    const margin = (maxValRaw - minValRaw) * 0.2 || 10;
+    const minVal = minValRaw - margin;
+    const maxVal = maxValRaw + margin;
+    const range = maxVal - minVal;
+
+    const getY = (val) => plotTop + innerHeight - ((val - minVal) / range) * innerHeight;
+
+    // Distância extra interna para os pontos não colarem nas bordas da área de plotagem
+    const pointMarginX = 16;
+    const pointAreaWidth = innerWidth - (pointMarginX * 2);
+
+    const points = historico.map((h, i) => {
+        const x = historico.length === 1
+            ? plotLeft + pointMarginX + pointAreaWidth / 2
+            : plotLeft + pointMarginX + (i / (historico.length - 1)) * pointAreaWidth;
+        const y = getY(h.value);
+        return { ...h, x, y, isLast: i === historico.length - 1 };
+    });
+
+    const dateCounts = {};
+    points.forEach(p => {
+        dateCounts[p.dateText] = (dateCounts[p.dateText] || 0) + 1;
+    });
+
+    const pathD = points.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
+
+    const hasRefMin = typeof finalRefMin === 'number' && !isNaN(finalRefMin);
+    const hasRefMax = typeof finalRefMax === 'number' && !isNaN(finalRefMax);
+    const showRef = hasRefMin || hasRefMax;
+    const referenceLabelX = plotLeft - 10;
+
+    return (
+        <div style={{ marginTop: '20px', maxWidth: `${width}px` }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '10px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>RESULTADOS ANTERIORES</span>
+                <span style={{ fontSize: '10px', color: '#64748b' }}>{subtitle || 'Evolução'}</span>
+            </div>
+            <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible', background: '#fafaf9', display: 'block', borderRadius: '6px', border: '1px solid #f1f5f9' }}>
+                {showRef && (
+                    <>
+                        {/* Bandas de Referência */}
+                        {examCode !== 'HDL' && hasRefMin && hasRefMax && (
+                            <rect x={plotLeft} y={getY(finalRefMax)} width={plotWidth} height={getY(finalRefMin) - getY(finalRefMax)} fill="#f1f5f9" />
+                        )}
+                        {examCode === 'HDL' && hasRefMax && (
+                            <rect x={plotLeft} y={plotTop} width={plotWidth} height={getY(finalRefMax) - plotTop} fill="#f1f5f9" />
+                        )}
+                        {examCode !== 'HDL' && hasRefMax && !hasRefMin && (
+                            <rect x={plotLeft} y={getY(finalRefMax)} width={plotWidth} height={(plotTop + innerHeight) - getY(finalRefMax)} fill="#f1f5f9" />
+                        )}
+                        {examCode !== 'HDL' && hasRefMin && !hasRefMax && (
+                            <rect x={plotLeft} y={plotTop} width={plotWidth} height={getY(finalRefMin) - plotTop} fill="#f1f5f9" />
+                        )}
+                        
+                        {/* Guias superiores e inferiores */}
+                        {hasRefMax && <line x1={plotLeft} y1={getY(finalRefMax)} x2={plotRight} y2={getY(finalRefMax)} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3 3" />}
+                        {hasRefMin && <line x1={plotLeft} y1={getY(finalRefMin)} x2={plotRight} y2={getY(finalRefMin)} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3 3" />}
+                        
+                        {/* Labels da Referência */}
+                        {hasRefMax && <text x={referenceLabelX} y={getY(finalRefMax) + 3} fontSize="9" fill="#94a3b8" textAnchor="end">{String(finalRefMax).replace('.', ',')}</text>}
+                        {hasRefMin && <text x={referenceLabelX} y={getY(finalRefMin) + 3} fontSize="9" fill="#94a3b8" textAnchor="end">{String(finalRefMin).replace('.', ',')}</text>}
+                    </>
+                )}
+                
+                {/* Linha de Evolução */}
+                <path d={pathD} fill="none" stroke="#334155" strokeWidth="1.8" />
+                
+                {/* Pontos e Textos */}
+                {points.map((p, i) => {
+                    // Detecção de colisão visual (eixo Y) entre o valor do ponto e o rótulo refMin
+                    const baseTextY = p.y - 12;
+                    const refMinLabelY = getY(refMin) + 3;
+                    const isColliding = showRef && Math.abs(baseTextY - refMinLabelY) < 12;
+
+                    const textOffsetX = isColliding ? 5 : 0;
+                    const textOffsetY = isColliding ? 7 : 0;
+
+                    return (
+                        <g key={i}>
+                            {/* Círculo */}
+                            <circle 
+                                cx={p.x} 
+                                cy={p.y} 
+                                r={p.isLast ? 4 : 3} 
+                                fill={p.isLast ? '#0f172a' : '#64748b'} 
+                                stroke="#ffffff"
+                                strokeWidth="1.5"
+                            />
+                            
+                            {/* Valor acima do ponto */}
+                            <text 
+                                x={p.x + textOffsetX} 
+                                y={baseTextY - textOffsetY} 
+                                fontSize={p.isLast ? "12" : "11"} 
+                                fill={p.isLast ? '#0f172a' : '#475569'} 
+                                textAnchor={isColliding ? "start" : "middle"} 
+                                fontWeight={p.isLast ? 'bold' : '500'}
+                            >
+                                {String(p.value).replace('.', ',')}
+                            </text>
+                            
+                            {/* Data abaixo do ponto (Y fixo na margem inferior para não pular) */}
+                            <text 
+                                x={p.x} 
+                                y={height - 18} 
+                                fontSize="10" 
+                                fill={p.isLast ? '#334155' : '#64748b'} 
+                                textAnchor="middle" 
+                                fontWeight={p.isLast ? '600' : 'normal'}
+                            >
+                                {p.dateText}
+                            </text>
+                            
+                            {/* Hora caso haja mais de 1 no mesmo dia */}
+                            {dateCounts[p.dateText] > 1 && p.timeText && (
+                                <text x={p.x} y={height - 6} fontSize="9" fill="#94a3b8" textAnchor="middle">
+                                    {p.timeText}
+                                </text>
+                            )}
+                        </g>
+                    );
+                })}
+            </svg>
+        </div>
+    );
+};
+
 const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl }) => {
+    const [historicoExame, setHistoricoExame] = useState(null);
+    const [loadingHistorico, setLoadingHistorico] = useState(false);
+
+    useEffect(() => {
+        let isMounted = true;
+        const examCode = getExamCode(selectedExam);
+        
+        // Sempre limpa o histórico ao mudar o exame (evita gráfico piscando ou reutilizado)
+        setHistoricoExame(null);
+        
+        const allowedHistoryExams = ['GLI', 'HDL', 'URE', 'CRE', 'TRI', 'AUR', 'LDL', 'VLDL', 'COL', 'BIL'];
+        
+        if (allowedHistoryExams.includes(examCode) && selectedExam?.patient_id && selectedExam?.id) {
+            
+            const currCDate = selectedExam.collection_date ?? selectedExam.attendance_exam?.collection_date;
+            const currCTime = selectedExam.collection_time ?? selectedExam.attendance_exam?.collection_time;
+            let currentTimestamp = null;
+            if (currCDate) {
+                currentTimestamp = currCTime ? `${currCDate}T${currCTime}` : `${currCDate}T00:00:00`;
+            } else {
+                const backupDate = selectedExam.checked_at || selectedExam.released_at || selectedExam.dataAtendimentoRaw;
+                if (backupDate) {
+                    currentTimestamp = backupDate.includes('T') ? backupDate : `${backupDate}T00:00:00`;
+                }
+            }
+
+            setLoadingHistorico(true);
+            laboratorioLaudosService.buscarHistoricoExame(examCode, selectedExam.patient_id, selectedExam.id, currentTimestamp)
+                .then(historico => {
+                    if (!isMounted) return;
+                    
+                    if (historico && historico.length > 0) {
+                        let finalHistorico = [...historico];
+                        
+                        // Encontra o parâmetro numérico atual (pode não ser o primeiro em alguns exames)
+                        if (examDetails && examDetails.length > 0) {
+                            const param = examCode === 'BIL' 
+                                ? examDetails.find(p => (p.parameter_name || p.parameter_code || '').toUpperCase().includes('TOTAL'))
+                                : examDetails.find(p => p.value_numeric !== null || !isNaN(parseFloat(String(p.value_text || p.value || p.resultado).replace(',', '.'))));
+                            if (param) {
+                                let numVal = param.value_numeric;
+                                if (numVal === null || numVal === undefined) {
+                                    const parsed = parseFloat(String(param.value_text || param.value || param.resultado).replace(',', '.'));
+                                    if (!isNaN(parsed)) numVal = parsed;
+                                }
+                                if (numVal !== null && numVal !== undefined && currentTimestamp) {
+                                    finalHistorico.push({
+                                        id: selectedExam.id,
+                                        value: numVal,
+                                        dateText: parseISODateShort(currentTimestamp),
+                                        timeText: parseISOTimeShort(currentTimestamp),
+                                        rawDate: currentTimestamp,
+                                        histTime: new Date(currentTimestamp).getTime()
+                                    });
+                                }
+                            }
+                        }
+                        
+                        // Parse dates for history
+                        finalHistorico = finalHistorico.map(h => ({
+                            ...h,
+                            dateText: h.dateText ? h.dateText : parseISODateShort(h.rawDate),
+                            timeText: h.timeText ? h.timeText : parseISOTimeShort(h.rawDate)
+                        }));
+                        
+                        // Ordenar por data/hora real de coleta crescente (mais antigo -> mais recente -> atual)
+                        finalHistorico.sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime());
+
+                        setHistoricoExame(finalHistorico.length > 1 ? finalHistorico : []); 
+                    } else {
+                        setHistoricoExame([]);
+                    }
+                })
+                .catch(err => {
+                    console.error('Erro buscar histórico do exame', err);
+                    if (isMounted) setHistoricoExame([]);
+                })
+                .finally(() => {
+                    if (isMounted) setLoadingHistorico(false);
+                });
+        } else {
+            setHistoricoExame(null);
+        }
+
+        return () => { isMounted = false; };
+    }, [selectedExam?.id, selectedExam?.patient_id, examDetails]);
+
     // Format Collection Date
     let collectionFormatted = '';
     const cDate = selectedExam?.collection_date ?? selectedExam?.attendance_exam?.collection_date;
@@ -719,8 +1365,18 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
     }
 
     // Pre-processamento para TC, TS e GSRH
+    const patientSexGroup = selectedExam?.patient_sex === 'M' ? 'MALE' : selectedExam?.patient_sex === 'F' ? 'FEMALE' : 'UNKNOWN';
+    let patientAgeDays = -1;
+    if (selectedExam?.birth_date) {
+        const bDate = new Date(selectedExam.birth_date);
+        const aDate = new Date();
+        if (!isNaN(bDate)) {
+            patientAgeDays = Math.floor((aDate - bDate) / (1000 * 60 * 60 * 24));
+        }
+    }
+
     let finalExamDetails = [...(examDetails || [])].map(p => ({ ...p }));
-    const examCode = (selectedExam?.exameCodigo || '').toUpperCase();
+    const examCode = getExamCode(selectedExam);
     const isGsrh = examCode === 'GSRH';
 
     const normalizeCode = (code) => {
@@ -782,8 +1438,10 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
         finalExamDetails = finalExamDetails.filter(p => {
             const pName = (p.parameter_name || p.parameter_code || '').toUpperCase();
             if (pName.includes('VARIANTE') || pName.includes('D FRACO')) {
-                const raw = p.value_text ?? p.value_numeric ?? '';
-                if (String(raw).trim() === '') return false;
+                const raw = String(p.value_text ?? p.value_numeric ?? p.resultado ?? p.value ?? '').trim().toUpperCase();
+                if (raw === '' || raw === 'D FRACO' || raw === 'VARIANTE GENÉTICA' || raw === 'VARIANTE GENETICA' || raw === 'VARIANTE GENÉTICA (D FRACO)' || raw === 'VARIANTE GENETICA (D FRACO)' || raw === 'NULL' || raw === 'UNDEFINED') {
+                    return false;
+                }
             }
             return true;
         });
@@ -900,20 +1558,79 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
                         .map((param, index) => {
                             const isNumericValid = param.value_numeric !== null && param.value_numeric !== undefined;
                             const textValue = (param.value_text || '').trim();
-                            const isTextValid = textValue !== '';
                             
                             const pType = (param.result_type || selectedExam?.result_type || '').toUpperCase();
-                            const isQualitative = pType === 'QUALITATIVO' || (!pType && !isNumericValid && isTextValid);
+                            const isQualitative = pType === 'QUALITATIVO';
                             
                             let displayValue = '';
-                            if (isQualitative) {
+                            if (pType === 'TEXTO' || (!isNumericValid && textValue !== '')) {
                                 displayValue = textValue;
+                            } else if (isNumericValid) {
+                                displayValue = param.value_numeric.toString().replace('.', ',');
                             } else {
-                                displayValue = isNumericValid ? param.value_numeric.toString().replace('.', ',') : textValue;
+                                displayValue = textValue;
                             }
 
-                            const abnormalStatus = isQualitative ? 'normal' : isAbnormal(param.value_numeric, param.min_value, param.max_value);
+                            let finalMin = param.min_value !== null && param.min_value !== undefined ? String(param.min_value).replace(',', '.') : null;
+                            let finalMax = param.max_value !== null && param.max_value !== undefined ? String(param.max_value).replace(',', '.') : null;
+
+                            if (examCode === 'VHS' && (finalMin === null || finalMax === null) && param.reference_text) {
+                                const ref = resolveVHSReferenceRange(param.reference_text, patientSexGroup, patientAgeDays);
+                                if (ref) {
+                                    finalMin = ref.min;
+                                    finalMax = ref.max;
+                                }
+                            }
+                            if (examCode === 'TGO' && (finalMin === null || finalMax === null) && param.reference_text) {
+                                const ref = resolveTGOReferenceRange(param.reference_text, patientSexGroup, patientAgeDays);
+                                if (ref) {
+                                    finalMin = ref.min;
+                                    finalMax = ref.max;
+                                }
+                            }
+
+                            let valForAbnormal = param.value_numeric;
+                            if (valForAbnormal === null || valForAbnormal === undefined) {
+                                if (param.value_text) {
+                                    valForAbnormal = parseFloat(String(param.value_text).replace(',', '.'));
+                                    if (isNaN(valForAbnormal)) valForAbnormal = null;
+                                }
+                            }
+
+                            const abnormalStatus = isQualitative ? 'normal' : isAbnormal(valForAbnormal, finalMin, finalMax);
                             const isObservationParam = (param.parameter_name || param.parameter_code || '').toUpperCase() === 'OBSERVACAO' || (param.parameter_name || param.parameter_code || '').toUpperCase() === 'OBSERVAÇÃO';
+
+                            // Ajuste pontual exclusivo para parâmetros do exame TAP (exceto a observação geral)
+                            if (examCode === 'TAP' && !isObservationParam && displayValue) {
+                                const pName = (param.parameter_name || param.parameter_code || '').toUpperCase();
+                                
+                                let minimoCasas = 0;
+                                if (pName.includes('PROTROMBINA')) {
+                                    minimoCasas = 1;
+                                } else if (pName.includes('ATIVIDADE')) {
+                                    minimoCasas = 1;
+                                } else if (pName.includes('INR') || pName.includes('I.N.R')) {
+                                    minimoCasas = 2;
+                                }
+                                
+                                const formatarDecimalTap = (valorAtual, minCasas) => {
+                                    if (!valorAtual) return valorAtual;
+                                    let valStr = String(valorAtual).replace(',', '.').trim();
+                                    if (isNaN(Number(valStr)) || valStr === '') return String(valorAtual).replace('.', ',');
+
+                                    let parts = valStr.split('.');
+                                    let integerPart = parts[0];
+                                    let decimalPart = parts.length > 1 ? parts[1] : '';
+
+                                    if (decimalPart.length < minCasas) {
+                                        decimalPart = decimalPart.padEnd(minCasas, '0');
+                                    }
+
+                                    return decimalPart.length > 0 ? `${integerPart},${decimalPart}` : integerPart;
+                                };
+                                
+                                displayValue = formatarDecimalTap(isNumericValid ? param.value_numeric : textValue, minimoCasas);
+                            }
 
                             if (isObservationParam) {
                                 return (
@@ -926,6 +1643,20 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
                                 );
                             }
 
+                            let chartMin = param.min_value !== null ? parseFloat(param.min_value) : NaN;
+                            let chartMax = param.max_value !== null ? parseFloat(param.max_value) : NaN;
+                            let resultValue = param.value_numeric !== null && param.value_numeric !== undefined ? parseFloat(param.value_numeric) : NaN;
+
+                            if ((isNaN(chartMin) || isNaN(chartMax)) && examCode === 'GLI' && param.reference_text) {
+                                const gliRef = resolveGLIReferenceRange(param.reference_text, selectedExam);
+                                if (gliRef) {
+                                    chartMin = gliRef.min;
+                                    chartMax = gliRef.max;
+                                }
+                            }
+                            
+                            const showChart = examCode === 'GLI' && Number.isFinite(resultValue) && Number.isFinite(chartMin) && Number.isFinite(chartMax) && chartMax > chartMin;
+
                             return (
                                 <React.Fragment key={param.id}>
                                     <div className={`hemo-eritro-grid row ${!showUnitColumn && !isGsrh ? 'simple-report-results-grid--qualitative' : ''}`} style={{ gridTemplateColumns: gridLayout }}>
@@ -937,8 +1668,33 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
                                         </div>
                                         {showUnitColumn && <div className="hemo-col-unit">{!isQualitative && param.unit ? param.unit : ''}</div>}
                                         {showRefColumn && (
-                                            <div className="hemo-col-ref-single" style={{ gridColumn: showUnitColumn ? '4' : '3', whiteSpace: 'pre-line', justifyContent: 'flex-start', textAlign: 'left' }}>
-                                                {param.reference_text || (!isQualitative && (param.min_value !== null || param.max_value !== null) ? `${param.min_value || 0} a ${param.max_value || '∞'}` : (examCode === 'TC' || examCode === 'TS' ? '' : 'Não cadastrada'))}
+                                            <div className="hemo-col-ref-single" style={{ gridColumn: showUnitColumn ? '4' : '3', whiteSpace: 'pre-line', justifyContent: 'flex-start', textAlign: 'left', display: 'flex', flexDirection: 'column' }}>
+                                                <div>
+                                                    {param.reference_text || (!isQualitative && (param.min_value !== null || param.max_value !== null) ? `${param.min_value || 0} a ${param.max_value || '∞'}` : (examCode === 'TC' || examCode === 'TS' ? '' : 'Não cadastrada'))}
+                                                </div>
+                                                {showChart && (
+                                                    <div className="gli-reference-chart" style={{ width: '140px', minHeight: '20px', display: 'block', overflow: 'visible', marginTop: '4px' }}>
+                                                        <GraficoHemo 
+                                                            value={resultValue} 
+                                                            min={chartMin} 
+                                                            max={chartMax} 
+                                                            parameterCode={param.parameter_code || 'GLI'} 
+                                                            containerMaxWidth="100%"
+                                                            containerHeight="20px"
+                                                            markerSize={6}
+                                                            markHeight={6}
+                                                            lineWidth="1px"
+                                                            markWidth="1px"
+                                                            containerMargin="0"
+                                                        />
+                                                    </div>
+                                                )}
+                                                {examCode === 'GLI' && !showChart && process.env.NODE_ENV === 'development' && (
+                                                    <div style={{ fontSize: '10px', color: 'orange', marginTop: '4px' }}>
+                                                        Faixa GLI não resolvida
+                                                        {console.warn('GLI Ref Error:', { resultValue, chartMin, chartMax, text: param.reference_text })}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -955,6 +1711,181 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
                         })
                     )}
                 </div>
+
+                {(() => {
+                    const allowedHistoryExams = ['GLI', 'HDL', 'URE', 'CRE', 'TRI', 'AUR', 'LDL', 'VLDL', 'COL', 'BIL'];
+                    if (allowedHistoryExams.includes(examCode) && historicoExame) {
+                        let refMin = NaN;
+                        let refMax = NaN;
+                        let subtitle = 'Evolução';
+                        let unit = '';
+                        
+                        if (examDetails && examDetails.length > 0) {
+                            const p = examCode === 'BIL' 
+                                ? (examDetails.find(param => (param.parameter_name || param.parameter_code || '').toUpperCase().includes('TOTAL')) || examDetails[0])
+                                : (examDetails.find(param => param.value_numeric !== null || !isNaN(parseFloat(String(param.value_text || param.value || param.resultado).replace(',', '.')))) || examDetails[0]);
+                            unit = p.unit || '';
+                            refMin = p.min_value != null && p.min_value !== '' ? parseFloat(String(p.min_value).replace(',', '.')) : NaN;
+                            refMax = p.max_value != null && p.max_value !== '' ? parseFloat(String(p.max_value).replace(',', '.')) : NaN;
+                            
+                            if (examCode === 'GLI' && (isNaN(refMin) || isNaN(refMax)) && p.reference_text) {
+                                const ref = resolveGLIReferenceRange(p.reference_text, selectedExam);
+                                if (ref) {
+                                    refMin = ref.min;
+                                    refMax = ref.max;
+                                }
+                            }
+                            
+                            // Regra específica para o COL (evita que max_value null desligue a formatação e impede uso do 310)
+                            if (examCode === 'COL') {
+                                refMin = NaN;
+                                refMax = 190;
+                            }
+
+                            // Regra específica para BIL: Referência unilateral (somente máxima)
+                            if (examCode === 'BIL') {
+                                refMin = NaN;
+                                if (isNaN(refMax)) {
+                                    refMax = 1.2;
+                                }
+                            }
+                        }
+                        
+                        if (examCode === 'GLI') subtitle = 'Evolução da glicose';
+                        else if (examCode === 'URE') subtitle = 'Evolução da ureia';
+                        else if (examCode === 'CRE') subtitle = 'Evolução da creatinina';
+                        else if (examCode === 'TRI') subtitle = 'Evolução dos triglicerídeos';
+                        else if (examCode === 'AUR') subtitle = 'Evolução do ácido úrico';
+                        else if (examCode === 'LDL') subtitle = 'Evolução do colesterol LDL';
+                        else if (examCode === 'VLDL') subtitle = 'Evolução do colesterol VLDL';
+                        else if (examCode === 'COL') subtitle = 'Evolução do colesterol total';
+                        else if (examCode === 'HDL') subtitle = 'Evolução do colesterol HDL';
+                        else if (examCode === 'BIL') subtitle = 'Evolução da bilirrubina total';
+                        
+                        if (unit) subtitle += ` (${unit})`;
+                        
+                        if (examCode === 'HDL') {
+                            // Separar anteriores do atual para validação
+                            const resultadosAnterioresValidos = (historicoExame || []).filter(h => h.id !== selectedExam.id);
+                            
+                            if (resultadosAnterioresValidos.length === 0) {
+                                return null;
+                            }
+                            
+                            const historico = historicoExame;
+                            const subtitleHDL = "Evolução do colesterol HDL (mg/dL)";
+                            const refMinHDL = 40;
+                            const refMaxHDL = 60;
+                            
+                            // ---------------------------------------------------------
+                            // CÓPIA LITERAL DA LÓGICA DO GLI (GraficoHistoricoExame)
+                            // ---------------------------------------------------------
+                            const width = 440;
+                            const height = 135;
+                            
+                            const plotLeft = 74;
+                            const rightMargin = 28;
+                            const plotRight = width - rightMargin; // 412
+                            const plotWidth = plotRight - plotLeft; // 338
+
+                            const plotTop = 32;
+                            const plotBottom = 36;
+                            
+                            const innerWidth = plotWidth;
+                            const innerHeight = height - plotTop - plotBottom;
+
+                            const values = historico.map(h => h.value);
+                            let minValRaw = Math.min(...values);
+                            let maxValRaw = Math.max(...values);
+                            
+                            minValRaw = Math.min(minValRaw, refMinHDL);
+                            maxValRaw = Math.max(maxValRaw, refMaxHDL);
+
+                            const margin = (maxValRaw - minValRaw) * 0.2 || 10;
+                            const minVal = minValRaw - margin;
+                            const maxVal = maxValRaw + margin;
+                            const range = maxVal - minVal;
+
+                            const getY = (val) => plotTop + innerHeight - ((val - minVal) / range) * innerHeight;
+
+                            const pointMarginX = 16;
+                            const pointAreaWidth = innerWidth - (pointMarginX * 2);
+
+                            const points = historico.map((h, i) => {
+                                // Cálculo horizontal sem offset, distribuindo em toda a área útil
+                                const x = historico.length === 1
+                                    ? plotLeft + pointMarginX + pointAreaWidth / 2
+                                    : plotLeft + pointMarginX + (i / (historico.length - 1)) * pointAreaWidth;
+                                const y = getY(h.value);
+                                return { ...h, x, y, isLast: i === historico.length - 1 };
+                            });
+
+                            const dateCounts = {};
+                            points.forEach(p => {
+                                dateCounts[p.dateText] = (dateCounts[p.dateText] || 0) + 1;
+                            });
+
+                            const pathD = points.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
+
+                            const referenceLabelX = plotLeft - 10;
+
+                            return (
+                                <div style={{ marginTop: '20px', maxWidth: `${width}px` }} key="hdl-history">
+                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '10px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+                                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>RESULTADOS ANTERIORES</span>
+                                        <span style={{ fontSize: '10px', color: '#64748b' }}>{subtitleHDL}</span>
+                                    </div>
+                                    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible', background: '#fafaf9', display: 'block', borderRadius: '6px', border: '1px solid #f1f5f9' }}>
+                                        
+                                        {/* Faixa sombreada acima de 60 */}
+                                        <rect x={plotLeft} y={plotTop} width={plotWidth} height={getY(refMaxHDL) - plotTop} fill="#f1f5f9" />
+                                        
+                                        {/* Guias superiores e inferiores */}
+                                        <line x1={plotLeft} y1={getY(refMaxHDL)} x2={plotRight} y2={getY(refMaxHDL)} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3 3" />
+                                        <line x1={plotLeft} y1={getY(refMinHDL)} x2={plotRight} y2={getY(refMinHDL)} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3 3" />
+                                        
+                                        {/* Labels da Referência */}
+                                        <text x={referenceLabelX} y={getY(refMaxHDL) + 3} fontSize="9" fill="#94a3b8" textAnchor="end">{refMaxHDL}</text>
+                                        <text x={referenceLabelX} y={getY(refMinHDL) + 3} fontSize="9" fill="#94a3b8" textAnchor="end">{refMinHDL}</text>
+                                        
+                                        {/* Linha de Evolução */}
+                                        <path d={pathD} fill="none" stroke="#334155" strokeWidth="1.8" />
+                                        
+                                        {/* Pontos e Textos (cópia literal do GLI) */}
+                                        {points.map((p, i) => {
+                                            const baseTextY = p.y - 12;
+                                            const refMinLabelY = getY(refMinHDL) + 3;
+                                            const isColliding = Math.abs(baseTextY - refMinLabelY) < 12;
+
+                                            const textOffsetX = isColliding ? 5 : 0;
+                                            const textOffsetY = isColliding ? 7 : 0;
+
+                                            return (
+                                                <g key={i}>
+                                                    <circle cx={p.x} cy={p.y} r={p.isLast ? 4 : 3} fill={p.isLast ? '#0f172a' : '#64748b'} stroke="#ffffff" strokeWidth="1.5" />
+                                                    <text x={p.x + textOffsetX} y={baseTextY - textOffsetY} fontSize={p.isLast ? "12" : "11"} fill={p.isLast ? '#0f172a' : '#475569'} textAnchor={isColliding ? "start" : "middle"} fontWeight={p.isLast ? 'bold' : '500'}>
+                                                        {String(p.value).replace('.', ',')}
+                                                    </text>
+                                                    <text x={p.x} y={height - 18} fontSize="10" fill={p.isLast ? '#334155' : '#64748b'} textAnchor="middle" fontWeight={p.isLast ? '600' : 'normal'}>
+                                                        {p.dateText}
+                                                    </text>
+                                                    {dateCounts[p.dateText] > 1 && p.timeText && (
+                                                        <text x={p.x} y={height - 6} fontSize="9" fill="#94a3b8" textAnchor="middle">
+                                                            {p.timeText}
+                                                        </text>
+                                                    )}
+                                                </g>
+                                            );
+                                        })}
+                                    </svg>
+                                </div>
+                            );
+                        }
+                        
+                        return <GraficoHistoricoExame historico={historicoExame} refMin={refMin} refMax={refMax} subtitle={subtitle} examCode={examCode} />;
+                    }
+                    return null;
+                })()}
 
                 {/* Observação Geral */}
                 {generalObs && (
@@ -1104,6 +2035,8 @@ const LaboratorioLaudos = () => {
 
     const groupedProtocols = useMemo(() => {
         const groups = {};
+        const statusFilter = searchFilters.status;
+
         filteredResults.forEach(ex => {
             if (!groups[ex.protocolo]) {
                 groups[ex.protocolo] = {
@@ -1126,11 +2059,21 @@ const LaboratorioLaudos = () => {
                 };
             }
             
-            // Find the most recent event date for this exam
-            const evDate = ex.released_at ? new Date(ex.released_at).getTime() 
-                         : ex.checked_at ? new Date(ex.checked_at).getTime()
-                         : 0;
+            // Definir a data de ordenação pela coleta real (independentemente do status)
+            let evDate = 0;
+            if (ex.collection_date) {
+                // Montar o ISO string para criar o timestamp completo
+                const timeStr = ex.collection_time || '00:00:00';
+                evDate = new Date(`${ex.collection_date}T${timeStr}`).getTime();
+            } else if (ex.dataAtendimentoRaw) {
+                evDate = new Date(ex.dataAtendimentoRaw).getTime();
+            } else if (ex.attendance_created_at) {
+                evDate = new Date(ex.attendance_created_at).getTime();
+            } else if (ex.result_created_at) {
+                evDate = new Date(ex.result_created_at).getTime();
+            }
             
+            // Usar a data de coleta mais recente entre os exames válidos deste atendimento
             if (evDate > groups[ex.protocolo].latestEventDate) {
                 groups[ex.protocolo].latestEventDate = evDate;
             }
@@ -1152,37 +2095,29 @@ const LaboratorioLaudos = () => {
         });
         
         protocolsArray.sort((a, b) => {
-            // 1. Mais recente liberado/conferido primeiro (decrescente)
+            // 1. Mais recente coleta primeiro (decrescente)
             if (a.latestEventDate !== b.latestEventDate) {
                 return b.latestEventDate - a.latestEventDate;
             }
 
-            // 2. Data do atendimento (mais recente primeiro)
-            const dateA = a.dataAtendimentoRaw ? new Date(a.dataAtendimentoRaw).getTime() : 0;
-            const dateB = b.dataAtendimentoRaw ? new Date(b.dataAtendimentoRaw).getTime() : 0;
+            // 2. Data de criação do atendimento como desempate (mais recente primeiro)
+            const createdA = a.exams[0]?.attendance_created_at ? new Date(a.exams[0].attendance_created_at).getTime() : 0;
+            const createdB = b.exams[0]?.attendance_created_at ? new Date(b.exams[0].attendance_created_at).getTime() : 0;
             
-            if (dateA !== dateB) {
-                return dateB - dateA;
+            if (createdA !== createdB) {
+                return createdB - createdA;
             }
             
-            // 2. Na mesma data, código do paciente — menor para maior
-            const codeA = a.pacienteCode ? parseInt(a.pacienteCode, 10) : Infinity;
-            const codeB = b.pacienteCode ? parseInt(b.pacienteCode, 10) : Infinity;
-            
-            if (!isNaN(codeA) && !isNaN(codeB) && codeA !== codeB) {
-                return codeA - codeB;
-            }
-            
-            // 3. Critério de desempate estável (protocolo)
+            // 3. Critério de desempate estável (protocolo - ordem inversa para estabilizar novos)
             if (a.protocolo && b.protocolo) {
-                return a.protocolo.localeCompare(b.protocolo);
+                return b.protocolo.localeCompare(a.protocolo);
             }
             
             return 0;
         });
         
         return protocolsArray;
-    }, [filteredResults]);
+    }, [filteredResults, searchFilters.status]);
 
     // Reinicializar seleção sempre que o atendimento selecionado mudar
     useEffect(() => {
@@ -1250,6 +2185,117 @@ const LaboratorioLaudos = () => {
         }
     };
 
+    useEffect(() => {
+        const handleGlobalKeyDown = (e) => {
+            // Se estiver em drawer, modal, ou gerando PDF, ignora
+            const isModalOpen = document.querySelector('.modal, [role="dialog"], .swal2-container');
+            if (drawerOpen || generatingPdf || isModalOpen) return;
+
+            // Ignora se o foco for em um campo de formulário/texto
+            const activeElement = document.activeElement;
+            if (activeElement) {
+                const tagName = activeElement.tagName.toUpperCase();
+                const type = activeElement.type?.toLowerCase();
+                const isInputOrSelect = ['INPUT', 'SELECT', 'TEXTAREA'].includes(tagName);
+                const isContentEditable = activeElement.isContentEditable;
+                // Exceções para inputs de data, busca, etc (todos caem aqui se forem inputs)
+                if (isInputOrSelect || isContentEditable) return;
+            }
+
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                if (groupedProtocols.length === 0) return;
+
+                let currentIndex = -1;
+                if (selectedProtocol) {
+                    currentIndex = groupedProtocols.findIndex(g => g.protocolo === selectedProtocol.protocolo);
+                }
+
+                let newIndex = 0;
+                
+                if (e.key === 'ArrowDown') {
+                    if (currentIndex === -1) {
+                        newIndex = 0; // se não tinha seleção, seleciona o primeiro
+                    } else if (currentIndex < groupedProtocols.length - 1) {
+                        newIndex = currentIndex + 1;
+                    } else {
+                        newIndex = currentIndex; // mantém o último
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    if (currentIndex === -1) {
+                        newIndex = 0; // se não tinha seleção, seleciona o primeiro
+                    } else if (currentIndex > 0) {
+                        newIndex = currentIndex - 1;
+                    } else {
+                        newIndex = currentIndex; // mantém o primeiro
+                    }
+                }
+
+                if (newIndex !== currentIndex && newIndex >= 0 && newIndex < groupedProtocols.length) {
+                    e.preventDefault(); // Impede rolagem da página quando estamos trocando os cards
+                    const newProtocol = groupedProtocols[newIndex];
+                    setSelectedProtocol(newProtocol);
+                    
+                    // Define o primeiro exame selecionado (ou o primeiro disponível) como ativo
+                    const selectedForNew = newProtocol.exams.filter(ex => newProtocol.exams.some(e => e.id === ex.id) /* fallback logic is handled below properly */);
+                    // actually we don't know selectedExamIds for newProtocol yet if it's not loaded, but it's handled by drawer or print_order. Wait, we can just use exams[0].
+                    handleSelectExam(newProtocol.exams[0]);
+
+                    // Faz scroll do card selecionado para dentro da view
+                    setTimeout(() => {
+                        const cardId = `protocol-card-${newProtocol.protocolo}`;
+                        const card = document.getElementById(cardId);
+                        if (card) {
+                            card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                        }
+                    }, 50);
+                } else if (newIndex === currentIndex && currentIndex !== -1) {
+                    // Impede rolagem caso já esteja nos limites para não deslocar a tela inteira atoa
+                    e.preventDefault();
+                }
+            } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                if (!selectedProtocol || !selectedExam) return;
+
+                // Encontra os exames selecionados, preservando a ordem (que já é baseada em print_order no backend)
+                const printableExams = selectedProtocol.exams.filter(ex => selectedExamIds.has(ex.id));
+                if (printableExams.length <= 1) return;
+
+                const currentIndex = printableExams.findIndex(ex => ex.id === selectedExam.id);
+                let newIndex = currentIndex;
+
+                if (e.key === 'ArrowRight') {
+                    if (currentIndex === -1) {
+                        newIndex = 0;
+                    } else if (currentIndex < printableExams.length - 1) {
+                        newIndex = currentIndex + 1;
+                    }
+                } else if (e.key === 'ArrowLeft') {
+                    if (currentIndex === -1) {
+                        newIndex = 0;
+                    } else if (currentIndex > 0) {
+                        newIndex = currentIndex - 1;
+                    }
+                }
+
+                if (newIndex !== currentIndex && newIndex >= 0 && newIndex < printableExams.length) {
+                    e.preventDefault();
+                    const newExam = printableExams[newIndex];
+                    handleSelectExam(newExam);
+
+                    setTimeout(() => {
+                        if (laudoRef.current) {
+                            laudoRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                        }
+                    }, 50);
+                } else if (newIndex === currentIndex && currentIndex !== -1) {
+                    e.preventDefault();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [groupedProtocols, selectedProtocol, selectedExam, selectedExamIds, drawerOpen, generatingPdf]);
+
     const handleSearch = async () => {
         try {
             setLoading(true);
@@ -1304,7 +2350,11 @@ const LaboratorioLaudos = () => {
                 setSelectedExam(null);
                 setExamDetails([]);
             } else {
-                const updatedExam = { ...selectedExam, status: 'LIBERADO' };
+                const updatedExam = { 
+                    ...selectedExam, 
+                    status: 'LIBERADO',
+                    released_at: resultData?.released_at || new Date().toISOString()
+                };
                 setSelectedExam(updatedExam);
                 setSearchResults(prev => prev.map(ex => ex.id === updatedExam.id ? updatedExam : ex));
             }
@@ -1586,6 +2636,7 @@ const LaboratorioLaudos = () => {
                                 return (
                                     <div 
                                         key={group.protocolo} 
+                                        id={`protocol-card-${group.protocolo}`}
                                         className={`lab-queue-item ${isSelected ? 'active' : ''}`}
                                         style={{ 
                                             padding: '10px 12px', 
@@ -1837,12 +2888,50 @@ const LaboratorioLaudos = () => {
                                 )}
 
                                 {/* Header do Laudo ou HEMO */}
-                                {String(selectedExam.exameCodigo || '').trim().toUpperCase() === 'HEMO' ? (
+                                {getExamCode(selectedExam) === 'HEMO' ? (
                                     <HemogramaCompactoCompleto
                                         selectedExam={selectedExam}
                                         examDetails={examDetails}
                                         statusReal={statusReal}
                                         patientCode={selectedProtocol?.pacienteCode}
+                                        signatureSignedUrl={signatureSignedUrl}
+                                    />
+                                ) : getExamCode(selectedExam) === 'URI' ? (
+                                    <LaudoURI
+                                        selectedExam={selectedExam}
+                                        examDetails={examDetails}
+                                        formatDateTimeH={(dateStr) => {
+                                            if (!dateStr) return '';
+                                            const d = new Date(dateStr);
+                                            if (isNaN(d.getTime())) return '';
+                                            const dd = String(d.getDate()).padStart(2, '0');
+                                            const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                            const yyyy = d.getFullYear();
+                                            const HH = String(d.getHours()).padStart(2, '0');
+                                            const min = String(d.getMinutes()).padStart(2, '0');
+                                            return `${dd}/${mm}/${yyyy} às ${HH}:${min}h`;
+                                        }}
+                                        patientCode={selectedProtocol?.pacienteCode}
+                                        formatAttendanceOrigin={formatAttendanceOrigin}
+                                        signatureSignedUrl={signatureSignedUrl}
+                                    />
+                                ) : getExamCode(selectedExam) === 'PAR' ? (
+                                    <LaudoPAR
+                                        selectedExam={selectedExam}
+                                        examDetails={examDetails}
+                                        formatDateTimeH={(dateStr) => {
+                                            if (!dateStr) return '';
+                                            const d = new Date(dateStr);
+                                            if (isNaN(d.getTime())) return '';
+                                            const dd = String(d.getDate()).padStart(2, '0');
+                                            const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                            const yyyy = d.getFullYear();
+                                            const HH = String(d.getHours()).padStart(2, '0');
+                                            const min = String(d.getMinutes()).padStart(2, '0');
+                                            return `${dd}/${mm}/${yyyy} às ${HH}:${min}h`;
+                                        }}
+                                        patientCode={selectedProtocol?.pacienteCode}
+                                        formatAttendanceOrigin={formatAttendanceOrigin}
                                         signatureSignedUrl={signatureSignedUrl}
                                     />
                                 ) : (
