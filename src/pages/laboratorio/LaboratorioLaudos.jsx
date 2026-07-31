@@ -1970,16 +1970,18 @@ const LaudoExameRender = ({ examData, formatDateTimeH, formatAttendanceOrigin, s
     }
 };
 
-const LaudoA4Page = ({ pageExams, patientCode, selectedProtocol, formatDateTimeH, formatAttendanceOrigin, statusReal }) => {
-    // pageExams contains [{ exam, details, signatureSignedUrl, history }]
-    
-    // Pega o responsável do primeiro exame da página, pois a paginação garante que são iguais
-    const firstExamData = pageExams[0];
-    const firstExam = firstExamData?.exam;
-    const signatureSignedUrl = firstExamData?.signatureSignedUrl;
+const LaudoA4Page = ({ pageExamData, pageNumber, patientCode, selectedProtocol, formatDateTimeH, formatAttendanceOrigin, statusReal }) => {
+    const firstExamData = pageExamData?.[0] ?? null;
+
+    if (!firstExamData) {
+        return null;
+    }
+
+    const firstExam = firstExamData.exam;
+    const signatureSignedUrl = firstExamData.signatureSignedUrl;
 
     return (
-        <div className="lab-complete-preview-page lab-composed-page">
+        <div className="lab-complete-preview-page lab-composed-page" data-composed-page="true" data-composed-page-number={pageNumber}>
             <div className="lab-composed-header hemo-header">
                 <div className="hemo-header-logo">
                     <img src="/logo-laboratorio.png" alt="Logo" onError={(e) => { e.target.style.display = 'none'; }} />
@@ -2012,8 +2014,13 @@ const LaudoA4Page = ({ pageExams, patientCode, selectedProtocol, formatDateTimeH
             </div>
 
             <div className="lab-composed-exams">
-                {pageExams.map((examData, idx) => (
-                    <div key={examData.exam.id} className="lab-composed-exam-wrapper" data-exam-id={examData.exam.id} style={{ marginTop: idx > 0 ? '16px' : '0' }}>
+                {pageExamData.map((examData, idx) => (
+                    <div
+                        key={examData.exam.id}
+                        className="lab-composed-exam-block"
+                        data-composed-exam-id={examData.exam.id}
+                        data-composed-exam-code={getExamCode(examData.exam)}
+                    >
                         <LaudoExameRender 
                             examData={examData} 
                             formatDateTimeH={formatDateTimeH} 
@@ -2026,7 +2033,7 @@ const LaudoA4Page = ({ pageExams, patientCode, selectedProtocol, formatDateTimeH
                 ))}
             </div>
 
-            <div className="lab-composed-bottom hemo-report-bottom">
+            <div className="lab-composed-bottom hemo-report-bottom" data-composed-bottom="true">
                 <div className="hemo-signature-area">
                     {firstExam?.responsible_name ? (
                         <>
@@ -2085,6 +2092,13 @@ const LaboratorioLaudos = () => {
     // Conjunto dos result_ids selecionados para impressão
     const [selectedExamIds, setSelectedExamIds] = useState(new Set());
     const [previewMode, setPreviewMode] = useState('individual');
+    const [paginationPlan, setPaginationPlan] = useState([]);
+    const [paginationStatus, setPaginationStatus] = useState('idle');
+    const [paginationMetrics, setPaginationMetrics] = useState(null);
+    const completePreviewMeasureRef = useRef(null);
+    const paginatedPreviewRef = useRef(null);
+    const paginationAdjustmentCountRef = useRef(0);
+    const paginationAdjustmentFrameRef = useRef(null);
     const [completeExamDataById, setCompleteExamDataById] = useState({});
     const [loadingCompletePreview, setLoadingCompletePreview] = useState(false);
     const completeExamDataCacheRef = useRef({});
@@ -2516,6 +2530,15 @@ const LaboratorioLaudos = () => {
         selectedExamsForReport.length > 1 &&
         completePreviewExamData.length === selectedExamsForReport.length;
 
+    const paginationSelectionKey =
+        completePreviewExamData
+            .map(item => String(item.exam.id))
+            .join('|');
+
+    useEffect(() => {
+        paginationAdjustmentCountRef.current = 0;
+    }, [paginationSelectionKey]);
+
     useEffect(() => {
         if (
             previewMode === 'complete' &&
@@ -2527,6 +2550,640 @@ const LaboratorioLaudos = () => {
         previewMode,
         completePreviewExamData.length,
         selectedExamsForReport.length
+    ]);
+
+    useEffect(() => {
+        if (
+            previewMode !== 'complete' ||
+            !isCompletePreviewReady ||
+            completePreviewExamData.length === 0
+        ) {
+            setPaginationPlan([]);
+            setPaginationMetrics(null);
+            setPaginationStatus('idle');
+            return;
+        }
+
+        let cancelled = false;
+
+        const measureAndPlan = async () => {
+            try {
+                setPaginationStatus('measuring');
+
+                await new Promise(resolve =>
+                    requestAnimationFrame(() =>
+                        requestAnimationFrame(resolve)
+                    )
+                );
+
+                const root = completePreviewMeasureRef.current;
+
+                if (!root) {
+                    throw new Error(
+                        'Área da Prévia completa não localizada.'
+                    );
+                }
+
+                await waitForStableExamLayout(root);
+
+                await new Promise(resolve =>
+                    requestAnimationFrame(resolve)
+                );
+
+                if (cancelled) return;
+
+                const composedPage =
+                    root.querySelector('[data-composed-page="true"]');
+
+                const bottom =
+                    root.querySelector('[data-composed-bottom="true"]');
+
+                const examBlocks = Array.from(
+                    root.querySelectorAll('[data-composed-exam-id]')
+                );
+
+                if (!composedPage || !bottom || examBlocks.length === 0) {
+                    throw new Error(
+                        'Elementos necessários para medir a paginação não foram encontrados.'
+                    );
+                }
+
+                const MM_TO_PX = 96 / 25.4;
+                const PAGE_HEIGHT_PX = 297 * MM_TO_PX;
+                const PAGE_SAFETY_PX = 10 * MM_TO_PX;
+                const EXAM_GAP_PX = 4 * MM_TO_PX;
+
+                const pageRect = composedPage.getBoundingClientRect();
+                const firstExamRect = examBlocks[0].getBoundingClientRect();
+                const bottomRect = bottom.getBoundingClientRect();
+
+                const pageStyle = window.getComputedStyle(composedPage);
+                const bottomStyle = window.getComputedStyle(bottom);
+
+                const paddingBottom =
+                    Number.parseFloat(pageStyle.paddingBottom) || 0;
+
+                const bottomMarginTop =
+                    Number.parseFloat(bottomStyle.marginTop) || 0;
+
+                const bottomMarginBottom =
+                    Number.parseFloat(bottomStyle.marginBottom) || 0;
+
+                const topReservedHeight =
+                    firstExamRect.top - pageRect.top;
+
+                const bottomReservedHeight =
+                    bottomRect.height +
+                    bottomMarginTop +
+                    bottomMarginBottom +
+                    paddingBottom;
+
+                const availableExamHeight =
+                    PAGE_HEIGHT_PX -
+                    topReservedHeight -
+                    bottomReservedHeight -
+                    PAGE_SAFETY_PX;
+
+                if (availableExamHeight <= 0) {
+                    throw new Error(
+                        'A área útil calculada para os exames é inválida.'
+                    );
+                }
+
+                const heightById = {};
+
+                examBlocks.forEach(block => {
+                    const resultId =
+                        block.dataset.composedExamId;
+
+                    const wrapperRect =
+                        block.getBoundingClientRect();
+
+                    const visualHeight =
+                        getElementVisualHeight(block);
+
+                    heightById[resultId] =
+                        visualHeight;
+
+                    console.debug(
+                        '[Paginação A4] Altura do exame',
+                        {
+                            resultId,
+                            examCode:
+                                block.dataset.composedExamCode,
+                            wrapperHeight:
+                                Math.ceil(wrapperRect.height),
+                            visualHeight,
+                            overflowHeight:
+                                Math.max(
+                                    0,
+                                    visualHeight -
+                                    Math.ceil(wrapperRect.height)
+                                )
+                        }
+                    );
+                });
+
+                const pages = [];
+                let currentPage = null;
+
+                const flushPage = () => {
+                    if (
+                        currentPage &&
+                        currentPage.exams.length > 0
+                    ) {
+                        pages.push(currentPage);
+                    }
+
+                    currentPage = null;
+                };
+
+                completePreviewExamData.forEach(examData => {
+                    const exam = examData.exam;
+                    const resultId = String(exam.id);
+                    const examCode =
+                        getExamCode(exam);
+
+                    const examHeight =
+                        heightById[resultId];
+
+                    if (!examHeight) {
+                        throw new Error(
+                            `Altura não encontrada para o exame ${examCode}.`
+                        );
+                    }
+
+                    const responsibleKey =
+                        getPaginationResponsibleKey(examData);
+
+                    const isHemo =
+                        examCode === 'HEMO';
+
+                    const isOversized =
+                        examHeight > availableExamHeight;
+
+                    if (isHemo) {
+                        flushPage();
+
+                        pages.push({
+                            exams: [examData],
+                            usedHeight: examHeight,
+                            availableHeight: availableExamHeight,
+                            responsibleKey,
+                            exclusive: true,
+                            oversized: isOversized
+                        });
+
+                        return;
+                    }
+
+                    if (
+                        currentPage &&
+                        currentPage.responsibleKey !== responsibleKey
+                    ) {
+                        flushPage();
+                    }
+
+                    if (!currentPage) {
+                        currentPage = {
+                            exams: [],
+                            usedHeight: 0,
+                            availableHeight: availableExamHeight,
+                            responsibleKey,
+                            exclusive: false,
+                            oversized: false
+                        };
+                    }
+
+                    const additionalHeight =
+                        currentPage.exams.length === 0
+                            ? examHeight
+                            : EXAM_GAP_PX + examHeight;
+
+                    if (
+                        currentPage.exams.length > 0 &&
+                        currentPage.usedHeight + additionalHeight >
+                            availableExamHeight
+                    ) {
+                        flushPage();
+
+                        currentPage = {
+                            exams: [],
+                            usedHeight: 0,
+                            availableHeight: availableExamHeight,
+                            responsibleKey,
+                            exclusive: false,
+                            oversized: false
+                        };
+                    }
+
+                    const pageExamHeight =
+                        currentPage.exams.length === 0
+                            ? examHeight
+                            : EXAM_GAP_PX + examHeight;
+
+                    currentPage.exams.push(examData);
+                    currentPage.usedHeight += pageExamHeight;
+
+                    if (isOversized) {
+                        currentPage.oversized = true;
+                    }
+                });
+
+                flushPage();
+
+                const normalizedPages = pages.map(
+                    (page, index) => ({
+                        ...page,
+                        pageNumber: index + 1,
+                        resultIds: page.exams.map(
+                            item => item.exam.id
+                        ),
+                        examCodes: page.exams.map(
+                            item => getExamCode(item.exam)
+                        )
+                    })
+                );
+
+                const measuredResultIds =
+                    normalizedPages.flatMap(
+                        page => page.resultIds.map(String)
+                    );
+
+                const expectedResultIds =
+                    completePreviewExamData.map(
+                        item => String(item.exam.id)
+                    );
+
+                const hasCompleteMeasurement =
+                    expectedResultIds.every(
+                        resultId =>
+                            measuredResultIds.includes(resultId) &&
+                            Number.isFinite(
+                                heightById[resultId]
+                            ) &&
+                            heightById[resultId] > 0
+                    );
+
+                if (!hasCompleteMeasurement) {
+                    throw new Error(
+                        'Nem todos os exames tiveram sua altura visual medida corretamente.'
+                    );
+                }
+
+                const oversizedCodes = normalizedPages
+                    .filter(page => page.oversized)
+                    .flatMap(page => page.examCodes);
+
+                if (cancelled) return;
+
+                setPaginationPlan(normalizedPages);
+
+                setPaginationMetrics({
+                    pageHeightPx: PAGE_HEIGHT_PX,
+                    topReservedHeight,
+                    bottomReservedHeight,
+                    availableExamHeight,
+                    oversizedCodes
+                });
+
+                setPaginationStatus(
+                    oversizedCodes.length > 0
+                        ? 'warning'
+                        : 'ready'
+                );
+
+                console.table(
+                    normalizedPages.map(page => ({
+                        pagina: page.pageNumber,
+                        exames: page.examCodes.join(', '),
+                        quantidade: page.examCodes.length,
+                        alturaUsada: Math.round(
+                            page.usedHeight
+                        ),
+                        alturaDisponivel: Math.round(
+                            page.availableHeight
+                        ),
+                        exclusiva: page.exclusive
+                            ? 'SIM'
+                            : 'NÃO',
+                        excedeu: page.oversized
+                            ? 'SIM'
+                            : 'NÃO'
+                    }))
+                );
+            } catch (error) {
+                console.error(
+                    'Erro ao calcular a paginação da Prévia completa:',
+                    error
+                );
+
+                if (!cancelled) {
+                    setPaginationPlan([]);
+                    setPaginationMetrics(null);
+                    setPaginationStatus('error');
+                }
+            }
+        };
+
+        measureAndPlan();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        previewMode,
+        isCompletePreviewReady,
+        completePreviewExamData
+    ]);
+
+    useLayoutEffect(() => {
+        if (
+            previewMode !== 'complete' ||
+            paginationStatus !== 'ready' ||
+            paginationPlan.length === 0
+        ) {
+            return undefined;
+        }
+
+        const root = paginatedPreviewRef.current;
+
+        if (!root) {
+            return undefined;
+        }
+
+        let cancelled = false;
+        let resizeObserver = null;
+
+        const scheduleValidation = () => {
+            if (cancelled) {
+                return;
+            }
+
+            if (paginationAdjustmentFrameRef.current) {
+                cancelAnimationFrame(
+                    paginationAdjustmentFrameRef.current
+                );
+            }
+
+            paginationAdjustmentFrameRef.current =
+                requestAnimationFrame(() => {
+                    paginationAdjustmentFrameRef.current =
+                        requestAnimationFrame(() => {
+                            validateRenderedPages();
+                        });
+                });
+        };
+
+        const validateRenderedPages = () => {
+            if (cancelled) {
+                return;
+            }
+
+            const pageElements = Array.from(
+                root.querySelectorAll(
+                    '[data-composed-page="true"]'
+                )
+            );
+
+            if (
+                pageElements.length !==
+                paginationPlan.length
+            ) {
+                scheduleValidation();
+                return;
+            }
+
+            const BOTTOM_CLEARANCE_PX = 24;
+
+            let collisionPageIndex = -1;
+
+            pageElements.some((pageElement, index) => {
+                const bottomElement =
+                    pageElement.querySelector(
+                        '[data-composed-bottom="true"]'
+                    );
+
+                const examElements = Array.from(
+                    pageElement.querySelectorAll(
+                        '[data-composed-exam-id]'
+                    )
+                );
+
+                const lastExamElement =
+                    examElements.at(-1);
+
+                if (
+                    !bottomElement ||
+                    !lastExamElement
+                ) {
+                    return false;
+                }
+
+                const bottomRect =
+                    bottomElement.getBoundingClientRect();
+
+                const lastExamRect =
+                    lastExamElement.getBoundingClientRect();
+
+                const hasCollision =
+                    lastExamRect.bottom +
+                        BOTTOM_CLEARANCE_PX >
+                    bottomRect.top;
+
+                if (hasCollision) {
+                    collisionPageIndex = index;
+
+                    console.warn(
+                        '[Paginação A4] Colisão real detectada',
+                        {
+                            pagina: index + 1,
+                            ultimoExame:
+                                lastExamElement.dataset
+                                    .composedExamCode,
+                            finalDoExame:
+                                Math.ceil(
+                                    lastExamRect.bottom
+                                ),
+                            inicioDaAssinatura:
+                                Math.floor(
+                                    bottomRect.top
+                                ),
+                            distancia:
+                                Math.floor(
+                                    bottomRect.top -
+                                    lastExamRect.bottom
+                                )
+                        }
+                    );
+
+                    return true;
+                }
+
+                return false;
+            });
+
+            if (collisionPageIndex < 0) {
+                console.info(
+                    '[Paginação A4] Todas as páginas foram validadas sem colisão.'
+                );
+
+                return;
+            }
+
+            if (
+                paginationAdjustmentCountRef.current >=
+                20
+            ) {
+                console.error(
+                    '[Paginação A4] Limite de ajustes atingido.'
+                );
+
+                return;
+            }
+
+            paginationAdjustmentCountRef.current += 1;
+
+            setPaginationPlan(previousPlan => {
+                const pages = previousPlan.map(page => ({
+                    ...page,
+                    exams: [...page.exams]
+                }));
+
+                const sourcePage =
+                    pages[collisionPageIndex];
+
+                if (
+                    !sourcePage ||
+                    sourcePage.exams.length <= 1
+                ) {
+                    console.error(
+                        '[Paginação A4] Um único exame ultrapassa a área disponível.',
+                        {
+                            pagina:
+                                collisionPageIndex + 1,
+                            exames:
+                                sourcePage?.examCodes ?? []
+                        }
+                    );
+
+                    return previousPlan;
+                }
+
+                const movedExam =
+                    sourcePage.exams.pop();
+
+                const movedExamCode =
+                    getExamCode(movedExam.exam);
+
+                if (movedExamCode === 'HEMO') {
+                    console.error(
+                        '[Paginação A4] O HEMO não pode ser movido para outra página.'
+                    );
+
+                    return previousPlan;
+                }
+
+                const movedResponsibleKey =
+                    getPaginationResponsibleKey(
+                        movedExam
+                    );
+
+                const nextPage =
+                    pages[collisionPageIndex + 1];
+
+                const canUseNextPage =
+                    nextPage &&
+                    !nextPage.exclusive &&
+                    nextPage.responsibleKey ===
+                        movedResponsibleKey;
+
+                if (canUseNextPage) {
+                    nextPage.exams.unshift(
+                        movedExam
+                    );
+                } else {
+                    pages.splice(
+                        collisionPageIndex + 1,
+                        0,
+                        {
+                            exams: [movedExam],
+                            usedHeight: 0,
+                            availableHeight:
+                                sourcePage.availableHeight,
+                            responsibleKey:
+                                movedResponsibleKey,
+                            exclusive: false,
+                            oversized: false
+                        }
+                    );
+                }
+
+                const normalizedPages =
+                    normalizeRenderedPaginationPlan(
+                        pages
+                    );
+
+                console.info(
+                    '[Paginação A4] Exame movido para evitar colisão',
+                    {
+                        exame: movedExamCode,
+                        paginaOrigem:
+                            collisionPageIndex + 1,
+                        paginaDestino:
+                            collisionPageIndex + 2,
+                        totalPaginas:
+                            normalizedPages.length
+                    }
+                );
+
+                return normalizedPages;
+            });
+        };
+
+        scheduleValidation();
+
+        if (typeof ResizeObserver !== 'undefined') {
+            resizeObserver =
+                new ResizeObserver(() => {
+                    scheduleValidation();
+                });
+
+            resizeObserver.observe(root);
+
+            root.querySelectorAll(
+                '[data-composed-page="true"], ' +
+                '[data-composed-exam-id], ' +
+                '[data-composed-exam-id] svg, ' +
+                '[data-composed-exam-id] canvas, ' +
+                '[data-composed-exam-id] img'
+            ).forEach(element => {
+                resizeObserver.observe(element);
+            });
+        }
+
+        return () => {
+            cancelled = true;
+
+            if (
+                paginationAdjustmentFrameRef.current
+            ) {
+                cancelAnimationFrame(
+                    paginationAdjustmentFrameRef.current
+                );
+
+                paginationAdjustmentFrameRef.current =
+                    null;
+            }
+
+            if (resizeObserver) {
+                resizeObserver.disconnect();
+            }
+        };
+    }, [
+        previewMode,
+        paginationStatus,
+        paginationPlan
     ]);
 
     const prepareCompletePreview = async () => {
@@ -2638,6 +3295,163 @@ const LaboratorioLaudos = () => {
             }, 5000);
         } finally {
             setLoadingCompletePreview(false);
+        }
+    };
+
+    const normalizeRenderedPaginationPlan = pages =>
+        pages
+            .filter(page => page.exams.length > 0)
+            .map((page, index) => ({
+                ...page,
+                pageNumber: index + 1,
+                resultIds: page.exams.map(
+                    item => item.exam.id
+                ),
+                examCodes: page.exams.map(
+                    item => getExamCode(item.exam)
+                )
+            }));
+
+    const getPaginationResponsibleKey = (examData) => {
+        const exam = examData?.exam ?? {};
+
+        return [
+            exam.responsible_name ?? '',
+            exam.responsible_crbm ?? '',
+            exam.responsible_signature_path ?? ''
+        ]
+            .map(value => String(value).trim().toUpperCase())
+            .join('|');
+    };
+
+    const waitForPreviewImages = async (root) => {
+        if (!root) return;
+
+        const images = Array.from(root.querySelectorAll('img'));
+
+        await Promise.all(
+            images.map(image => {
+                if (image.complete) {
+                    return Promise.resolve();
+                }
+
+                return new Promise(resolve => {
+                    const finish = () => resolve();
+
+                    image.addEventListener('load', finish, { once: true });
+                    image.addEventListener('error', finish, { once: true });
+                });
+            })
+        );
+    };
+
+    const getElementVisualHeight = element => {
+        if (!element) {
+            return 0;
+        }
+
+        const elementRect =
+            element.getBoundingClientRect();
+
+        let visualBottom = elementRect.bottom;
+
+        const descendants = Array.from(
+            element.querySelectorAll('*')
+        );
+
+        descendants.forEach(descendant => {
+            const style =
+                window.getComputedStyle(descendant);
+
+            if (
+                style.display === 'none' ||
+                style.visibility === 'hidden' ||
+                style.position === 'fixed'
+            ) {
+                return;
+            }
+
+            const rect =
+                descendant.getBoundingClientRect();
+
+            if (
+                !Number.isFinite(rect.top) ||
+                !Number.isFinite(rect.bottom)
+            ) {
+                return;
+            }
+
+            if (
+                rect.width === 0 &&
+                rect.height === 0
+            ) {
+                return;
+            }
+
+            visualBottom = Math.max(
+                visualBottom,
+                rect.bottom
+            );
+        });
+
+        return Math.max(
+            0,
+            Math.ceil(
+                visualBottom - elementRect.top
+            )
+        );
+    };
+
+    const waitForStableExamLayout = async root => {
+        if (!root) {
+            return;
+        }
+
+        if (document.fonts?.ready) {
+            try {
+                await document.fonts.ready;
+            } catch {
+                // A medição continuará normalmente.
+            }
+        }
+
+        await waitForPreviewImages(root);
+
+        let previousMeasurement = '';
+        let stableFrames = 0;
+
+        for (
+            let attempt = 0;
+            attempt < 15 && stableFrames < 3;
+            attempt += 1
+        ) {
+            await new Promise(resolve =>
+                requestAnimationFrame(resolve)
+            );
+
+            const blocks = Array.from(
+                root.querySelectorAll(
+                    '[data-composed-exam-id]'
+                )
+            );
+
+            const currentMeasurement = blocks
+                .map(block =>
+                    getElementVisualHeight(block)
+                )
+                .join('|');
+
+            if (
+                currentMeasurement ===
+                previousMeasurement
+            ) {
+                stableFrames += 1;
+            } else {
+                previousMeasurement =
+                    currentMeasurement;
+
+                stableFrames = 0;
+            }
         }
     };
 
@@ -3192,17 +4006,59 @@ const LaboratorioLaudos = () => {
                                 )}
 
                                 {/* Header do Laudo ou HEMO */}
-                                {isCompletePreviewReady ? (
-                                    <div className="lab-complete-preview lab-complete-preview-unpaginated">
-                                        <LaudoA4Page
-                                            pageExams={completePreviewExamData}
-                                            patientCode={selectedProtocol?.pacienteCode}
-                                            selectedProtocol={selectedProtocol}
-                                            formatDateTimeH={formatDateTimeHForReport}
-                                            formatAttendanceOrigin={formatAttendanceOrigin}
-                                            statusReal={statusReal}
-                                        />
+                                {previewMode === 'complete' && (
+                                    <div
+                                        className={`lab-pagination-diagnostic${
+                                            paginationStatus === 'warning'
+                                                ? ' is-warning'
+                                                : paginationStatus === 'error'
+                                                    ? ' is-error'
+                                                    : ''
+                                        }`}
+                                    >
+                                        {paginationStatus === 'measuring' &&
+                                            'Calculando a distribuição das páginas A4...'}
+
+                                        {paginationStatus === 'ready' &&
+                                            `Paginação calculada: ${paginationPlan.length} página(s).`}
+
+                                        {paginationStatus === 'warning' &&
+                                            `Paginação calculada com alerta: ${paginationPlan.length} página(s). Exame maior que a área útil: ${
+                                                paginationMetrics?.oversizedCodes?.join(', ') || 'não identificado'
+                                            }.`}
+
+                                        {paginationStatus === 'error' &&
+                                            'Não foi possível calcular a paginação dos exames selecionados.'}
                                     </div>
+                                )}
+                                {isCompletePreviewReady ? (
+                                    paginationStatus === 'ready' ? (
+                                        <div ref={paginatedPreviewRef} className="lab-complete-preview lab-complete-preview-paginated">
+                                            {paginationPlan.map(page => (
+                                                <LaudoA4Page
+                                                    key={`pagina-${page.pageNumber}`}
+                                                    pageNumber={page.pageNumber}
+                                                    pageExamData={page.exams}
+                                                    patientCode={selectedProtocol?.pacienteCode}
+                                                    selectedProtocol={selectedProtocol}
+                                                    formatDateTimeH={formatDateTimeHForReport}
+                                                    formatAttendanceOrigin={formatAttendanceOrigin}
+                                                    statusReal={statusReal}
+                                                />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div ref={completePreviewMeasureRef} className="lab-complete-preview lab-complete-preview-unpaginated">
+                                            <LaudoA4Page
+                                                pageExamData={completePreviewExamData}
+                                                patientCode={selectedProtocol?.pacienteCode}
+                                                selectedProtocol={selectedProtocol}
+                                                formatDateTimeH={formatDateTimeHForReport}
+                                                formatAttendanceOrigin={formatAttendanceOrigin}
+                                                statusReal={statusReal}
+                                            />
+                                        </div>
+                                    )
                                 ) : getExamCode(selectedExam) === 'HEMO' ? (
                                     <HemogramaCompactoCompleto
                                         selectedExam={selectedExam}

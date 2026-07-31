@@ -2079,3 +2079,64 @@
 .hemo-compact-container:not(.laudo-model-composed) {
     font-family: var(--font-family, system-ui, sans-serif) !important;
 }
+
+/* Bloco neutro usado para medir cada exame da Prévia completa */
+.lab-composed-exam-block {
+    width: 100%;
+    display: flow-root;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.lab-pagination-diagnostic {
+    width: 100%;
+    max-width: 196mm;
+    margin: 8px auto 0;
+    padding: 7px 10px;
+    border: 1px solid #dbe4f0;
+    border-radius: 6px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 12px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.lab-pagination-diagnostic.is-warning {
+    border-color: #f2c46d;
+    background: #fffaf0;
+    color: #8a5a00;
+}
+
+.lab-pagination-diagnostic.is-error {
+    border-color: #efb4b4;
+    background: #fff5f5;
+    color: #a32323;
+}
+
+/* Prévia completa dividida em páginas A4 reais */
+.lab-complete-preview-paginated {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+    padding: 0 0 28px;
+    box-sizing: border-box;
+}
+
+.lab-complete-preview-paginated .lab-composed-page {
+    width: 100%;
+    max-width: 196mm;
+    height: 297mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    background: #ffffff;
+    box-sizing: border-box;
+    overflow: hidden;
+    flex: 0 0 auto;
+    box-shadow:
+        0 0 0 1px rgba(148, 163, 184, 0.28),
+        0 8px 22px rgba(15, 23, 42, 0.10);
+}
