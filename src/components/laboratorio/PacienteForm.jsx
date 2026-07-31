@@ -132,13 +132,7 @@ const hasCustomState = (val) => val && val.trim().toUpperCase() !== 'PE' && val.
 
 const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = false }) => {
     const [predictedCode, setPredictedCode] = React.useState('');
-    const [expandedSections, setExpandedSections] = React.useState({
-        identificacao: true,
-        documentos: false,
-        contatoEndereco: false,
-        filiacao: false,
-        observacoes: false
-    });
+    const [activeTab, setActiveTab] = React.useState(null);
 
     React.useEffect(() => {
         let isMounted = true;
@@ -152,52 +146,22 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = fal
         return () => { isMounted = false; };
     }, [formData?.code]);
 
-    // Auto-expand sections with errors
+    // Auto-expand tabs with errors
     React.useEffect(() => {
         if (formErrors && Object.keys(formErrors).length > 0) {
-            setExpandedSections(prev => {
-                const next = { ...prev };
-                if (formErrors.full_name || formErrors.birth_date || formErrors.sex) next.identificacao = true;
-                if (formErrors.cpf || formErrors.rg || formErrors.cns) next.documentos = true;
-                if (formErrors.mobile || formErrors.phone || formErrors.zip_code || formErrors.street || formErrors.number || formErrors.complement || formErrors.district || formErrors.city || formErrors.state) next.contatoEndereco = true;
-                if (formErrors.mother_name || formErrors.father_name) next.filiacao = true;
-                if (formErrors.notes || formErrors.is_active) next.observacoes = true;
-                return next;
-            });
+            if (formErrors.cpf || formErrors.rg || formErrors.cns) setActiveTab('documentos');
+            else if (formErrors.mobile || formErrors.phone || formErrors.zip_code || formErrors.street || formErrors.number || formErrors.complement || formErrors.district || formErrors.city || formErrors.state) setActiveTab('contatoEndereco');
+            else if (formErrors.mother_name || formErrors.father_name) setActiveTab('filiacao');
+            else if (formErrors.notes || formErrors.is_active) setActiveTab('observacoes');
         }
     }, [formErrors]);
 
     if (!formData) return null;
 
-    const toggleSection = (sec) => setExpandedSections(prev => ({ ...prev, [sec]: !prev[sec] }));
+    const toggleTab = (tab) => {
+        setActiveTab(prev => prev === tab ? null : tab);
+    };
 
-    const renderSectionHeader = (id, title, isExpanded, hasData, isRequired = false) => (
-        <div 
-            onClick={() => toggleSection(id)}
-            style={{ 
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-                padding: '0.6rem 1rem', background: '#f8fafc', borderBottom: isExpanded ? '1px solid #e2e8f0' : 'none', 
-                cursor: 'pointer', borderRadius: isExpanded ? '6px 6px 0 0' : '6px',
-                userSelect: 'none', transition: 'background 150ms'
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
-            onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}
-        >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <h3 style={{ margin: 0, border: 'none', padding: 0, fontSize: '0.95rem', fontWeight: 600, color: '#334155' }}>{title}</h3>
-                {!isRequired && (
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', background: '#e2e8f0', padding: '0.1rem 0.4rem', borderRadius: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Opcional</span>
-                )}
-                {hasData && !isRequired && (
-                    <span style={{ fontSize: '0.7rem', color: '#047857', background: '#d1fae5', padding: '0.1rem 0.4rem', borderRadius: '4px', textTransform: 'uppercase', fontWeight: 600 }}>Preenchido</span>
-                )}
-            </div>
-            <div style={{ color: '#64748b', display: 'flex', alignItems: 'center' }}>
-                {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-            </div>
-        </div>
-    );
-    
     const contatoEnderecoPreenchido = 
         hasRealDigits(formData.mobile) || 
         hasRealDigits(formData.phone) || 
@@ -216,176 +180,210 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = fal
         pointerEvents: readOnly ? 'none' : 'auto' 
     };
 
+    const renderTab = (id, title, hasData) => {
+        const isActive = activeTab === id;
+        return (
+            <button
+                type="button"
+                onClick={() => toggleTab(id)}
+                style={{
+                    flex: '1 1 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.6rem 1rem',
+                    background: isActive ? '#fff' : '#f1f5f9',
+                    border: `1px solid ${isActive ? '#3b82f6' : '#e2e8f0'}`,
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    transition: 'all 150ms',
+                    color: isActive ? '#1d4ed8' : '#64748b',
+                    fontWeight: isActive ? 700 : 500,
+                    fontSize: '0.9rem',
+                    boxShadow: isActive ? '0 1px 3px rgba(59, 130, 246, 0.1)' : 'none',
+                    minWidth: '180px',
+                    whiteSpace: 'nowrap'
+                }}
+                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.background = '#f8fafc'; } }}
+                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#f1f5f9'; } }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {title}
+                    {hasData && (
+                        <span style={{ fontSize: '0.65rem', color: isActive ? '#047857' : '#047857', background: '#d1fae5', padding: '0.1rem 0.3rem', borderRadius: '4px', textTransform: 'uppercase' }}>Preenchido</span>
+                    )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', color: isActive ? '#3b82f6' : '#94a3b8' }}>
+                    <ChevronDown size={18} style={{ transform: isActive ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms ease' }} />
+                </div>
+            </button>
+        );
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }} className={readOnly ? 'paciente-form-readonly' : ''}>
             
-            {/* IDENTIFICAÇÃO */}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', background: '#fff' }}>
-                {renderSectionHeader('identificacao', '1. Identificação', expandedSections.identificacao, true, true)}
-                {expandedSections.identificacao && (
-                    <div className="lab-pac-form-grid" style={{ padding: '1rem', gap: '1rem' }}>
-                        <div className="lab-pac-form-group">
-                            <label className="lab-pac-form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                {formData.code ? 'CÓDIGO DO PACIENTE' : 'CÓDIGO PREVISTO'}
-                                {!formData.code && (
-                                    <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', background: '#e2e8f0', color: '#475569', borderRadius: '4px', fontWeight: 600, textTransform: 'uppercase' }}>
-                                        Provisório
-                                    </span>
-                                )}
-                            </label>
-                            <input 
-                                type="text" 
-                                className="lab-pac-form-input" 
-                                disabled 
-                                value={formData.code || predictedCode || 'Calculando...'} 
-                                style={!formData.code ? { background: '#f8fafc', color: '#64748b' } : { fontWeight: 'bold' }}
-                            />
+            {/* IDENTIFICAÇÃO (Sempre visível) */}
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', background: '#fff', padding: '0.75rem 1rem' }}>
+                <div className="lab-pac-form-grid lab-identificacao-grid" style={{ gap: '1rem' }}>
+                    <div className="lab-pac-form-group">
+                        <label className="lab-pac-form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', whiteSpace: 'nowrap' }}>
+                            <span>{formData.code ? 'CÓDIGO DO PACIENTE' : 'COD. PACIENTE'}</span>
                             {!formData.code && (
-                                <div style={{ marginTop: '0.25rem', fontSize: '0.8rem', color: '#64748b' }}>
-                                    {isSaving ? 'Confirmando código...' : 'O código definitivo será confirmado ao salvar o paciente.'}
-                                </div>
+                                <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.3rem', background: '#e2e8f0', color: '#475569', borderRadius: '4px', fontWeight: 700, textTransform: 'uppercase', marginLeft: '0.5rem' }}>
+                                    Prov.
+                                </span>
                             )}
-                        </div>
-                        <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
-                            <label className="lab-pac-form-label">Nome completo *</label>
-                            <input type="text" name="full_name" className="lab-pac-form-input" placeholder="Ex: Maria da Silva" value={formData.full_name} onChange={onChange} autoFocus={!readOnly} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                            {formErrors?.full_name && <span className="lab-pac-form-error">{formErrors.full_name}</span>}
-                        </div>
-                        <div className="lab-pac-form-group">
-                            <label className="lab-pac-form-label">Data de nascimento *</label>
-                            <input type="date" name="birth_date" className="lab-pac-form-input" value={formData.birth_date} onChange={onChange} max={new Date().toISOString().split('T')[0]} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                            {formErrors?.birth_date && <span className="lab-pac-form-error">{formErrors.birth_date}</span>}
-                        </div>
-                        <div className="lab-pac-form-group">
-                            <label className="lab-pac-form-label">Sexo *</label>
-                            <select name="sex" className="lab-pac-form-select" value={formData.sex} onChange={onChange} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}}>
-                                <option value="">Selecione...</option>
-                                <option value="FEMININO">Feminino</option>
-                                <option value="MASCULINO">Masculino</option>
-                            </select>
-                            {formErrors?.sex && <span className="lab-pac-form-error">{formErrors.sex}</span>}
-                        </div>
+                        </label>
+                        <input 
+                            type="text" 
+                            className="lab-pac-form-input" 
+                            disabled 
+                            value={formData.code || predictedCode || 'Calculando...'} 
+                            style={!formData.code ? { background: '#f8fafc', color: '#64748b' } : { fontWeight: 'bold' }}
+                        />
                     </div>
-                )}
+                    <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
+                        <label className="lab-pac-form-label">Nome completo *</label>
+                        <input type="text" name="full_name" className="lab-pac-form-input" placeholder="Ex: Maria da Silva" value={formData.full_name} onChange={onChange} autoFocus={!readOnly} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                        {formErrors?.full_name && <span className="lab-pac-form-error">{formErrors.full_name}</span>}
+                    </div>
+                    <div className="lab-pac-form-group">
+                        <label className="lab-pac-form-label">Data de nascimento *</label>
+                        <input type="date" name="birth_date" className="lab-pac-form-input" value={formData.birth_date} onChange={onChange} max={new Date().toISOString().split('T')[0]} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                        {formErrors?.birth_date && <span className="lab-pac-form-error">{formErrors.birth_date}</span>}
+                    </div>
+                    <div className="lab-pac-form-group">
+                        <label className="lab-pac-form-label">Sexo *</label>
+                        <select name="sex" className="lab-pac-form-select" value={formData.sex} onChange={onChange} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}}>
+                            <option value="">Selecione...</option>
+                            <option value="FEMININO">Feminino</option>
+                            <option value="MASCULINO">Masculino</option>
+                        </select>
+                        {formErrors?.sex && <span className="lab-pac-form-error">{formErrors.sex}</span>}
+                    </div>
+                </div>
             </div>
             
-            {/* DOCUMENTOS */}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', background: '#fff' }}>
-                {renderSectionHeader('documentos', '2. Documentos', expandedSections.documentos, !!(hasRealDigits(formData.cpf) || hasRealString(formData.rg) || hasRealDigits(formData.cns)))}
-                {expandedSections.documentos && (
-                    <div className="lab-pac-form-grid" style={{ padding: '1rem', gap: '1rem' }}>
-                        <div className="lab-pac-form-group">
-                            <label className="lab-pac-form-label">CPF</label>
-                            <input type="text" name="cpf" className="lab-pac-form-input" placeholder="000.000.000-00" value={formData.cpf} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                            {formErrors?.cpf && <span className="lab-pac-form-error">{formErrors.cpf}</span>}
-                        </div>
-                        <div className="lab-pac-form-group">
-                            <label className="lab-pac-form-label">RG</label>
-                            <input type="text" name="rg" className="lab-pac-form-input" placeholder="Apenas números ou letras" value={formData.rg} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                        </div>
-                        <div className="lab-pac-form-group">
-                            <label className="lab-pac-form-label">CNS</label>
-                            <input type="text" name="cns" className="lab-pac-form-input" placeholder="15 dígitos" value={formData.cns} onChange={onChange} maxLength="15" disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                            {formErrors?.cns && <span className="lab-pac-form-error">{formErrors.cns}</span>}
-                        </div>
-                    </div>
-                )}
+            {/* LINHA DE ABAS COMPLEMENTARES */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                {renderTab('documentos', 'Documentos', !!(hasRealDigits(formData.cpf) || hasRealString(formData.rg) || hasRealDigits(formData.cns)))}
+                {renderTab('contatoEndereco', 'Contato e Endereço', contatoEnderecoPreenchido)}
+                {renderTab('filiacao', 'Filiação', !!(hasRealString(formData.mother_name) || hasRealString(formData.father_name)))}
+                {renderTab('observacoes', 'Observações e Status', !!(hasRealString(formData.notes)))}
             </div>
 
-            {/* CONTATO E ENDEREÇO */}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', background: '#fff' }}>
-                {renderSectionHeader('contatoEndereco', '3. Contato e Endereço', expandedSections.contatoEndereco, contatoEnderecoPreenchido)}
-                {expandedSections.contatoEndereco && (
-                    <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        {/* Contato Subseção */}
+            {/* ÁREA DE CONTEÚDO DA ABA ATIVA */}
+            {activeTab && (
+                <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', background: '#f8fafc', padding: '1.25rem' }}>
+                    
+                    {/* CONTEÚDO DOCUMENTOS */}
+                    {activeTab === 'documentos' && (
+                        <div className="lab-pac-form-grid" style={{ gap: '1rem' }}>
+                            <div className="lab-pac-form-group">
+                                <label className="lab-pac-form-label">CPF</label>
+                                <input type="text" name="cpf" className="lab-pac-form-input" placeholder="000.000.000-00" value={formData.cpf} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                {formErrors?.cpf && <span className="lab-pac-form-error">{formErrors.cpf}</span>}
+                            </div>
+                            <div className="lab-pac-form-group">
+                                <label className="lab-pac-form-label">RG</label>
+                                <input type="text" name="rg" className="lab-pac-form-input" placeholder="Apenas números ou letras" value={formData.rg} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                            </div>
+                            <div className="lab-pac-form-group">
+                                <label className="lab-pac-form-label">CNS</label>
+                                <input type="text" name="cns" className="lab-pac-form-input" placeholder="15 dígitos" value={formData.cns} onChange={onChange} maxLength="15" disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                {formErrors?.cns && <span className="lab-pac-form-error">{formErrors.cns}</span>}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* CONTEÚDO CONTATO E ENDEREÇO */}
+                    {activeTab === 'contatoEndereco' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                            <div className="lab-pac-form-grid two-cols" style={{ gap: '1rem' }}>
+                                <div className="lab-pac-form-group">
+                                    <label className="lab-pac-form-label">Celular</label>
+                                    <input type="text" name="mobile" className="lab-pac-form-input" placeholder="(00) 00000-0000" value={formData.mobile} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                </div>
+                                <div className="lab-pac-form-group">
+                                    <label className="lab-pac-form-label">Telefone</label>
+                                    <input type="text" name="phone" className="lab-pac-form-input" placeholder="(00) 0000-0000" value={formData.phone} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                </div>
+                            </div>
+                            
+                            <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '1.25rem' }}>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Endereço</div>
+                                <div className="lab-pac-form-grid" style={{ gap: '1rem' }}>
+                                    <div className="lab-pac-form-group">
+                                        <label className="lab-pac-form-label">CEP</label>
+                                        <input type="text" name="zip_code" className="lab-pac-form-input" placeholder="00000-000" value={formData.zip_code} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                    </div>
+                                    <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
+                                        <label className="lab-pac-form-label">Logradouro</label>
+                                        <input type="text" name="street" className="lab-pac-form-input" placeholder="Ex: Rua das Flores" value={formData.street} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                    </div>
+                                    <div className="lab-pac-form-group">
+                                        <label className="lab-pac-form-label">Número</label>
+                                        <input type="text" name="number" className="lab-pac-form-input" placeholder="Ex: 123" value={formData.number} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                    </div>
+                                    <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
+                                        <label className="lab-pac-form-label">Complemento</label>
+                                        <input type="text" name="complement" className="lab-pac-form-input" placeholder="Ex: Apto 101" value={formData.complement} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                    </div>
+                                    <div className="lab-pac-form-group">
+                                        <label className="lab-pac-form-label">Bairro</label>
+                                        <input type="text" name="district" className="lab-pac-form-input" placeholder="Ex: Centro" value={formData.district} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                    </div>
+                                    <div className="lab-pac-form-group">
+                                        <label className="lab-pac-form-label">Cidade</label>
+                                        <input type="text" name="city" className="lab-pac-form-input" value={formData.city} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                    </div>
+                                    <div className="lab-pac-form-group">
+                                        <label className="lab-pac-form-label">Estado</label>
+                                        <select name="state" className="lab-pac-form-select" value={formData.state} onChange={onChange} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}}>
+                                            <option value="">Selecione...</option>
+                                            <option value="PE">Pernambuco (PE)</option>
+                                            <option value="PB">Paraíba (PB)</option>
+                                            <option value="AL">Alagoas (AL)</option>
+                                            <option value="SP">São Paulo (SP)</option>
+                                            <option value="RJ">Rio de Janeiro (RJ)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* CONTEÚDO FILIAÇÃO */}
+                    {activeTab === 'filiacao' && (
                         <div className="lab-pac-form-grid two-cols" style={{ gap: '1rem' }}>
-                            <div className="lab-pac-form-group">
-                                <label className="lab-pac-form-label">Celular</label>
-                                <input type="text" name="mobile" className="lab-pac-form-input" placeholder="(00) 00000-0000" value={formData.mobile} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                            <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
+                                <label className="lab-pac-form-label" style={{ color: '#0ea5e9' }}>Nome da mãe</label>
+                                <input type="text" name="mother_name" className="lab-pac-form-input" placeholder="Ex: Maria José da Silva" value={formData.mother_name} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                             </div>
-                            <div className="lab-pac-form-group">
-                                <label className="lab-pac-form-label">Telefone</label>
-                                <input type="text" name="phone" className="lab-pac-form-input" placeholder="(00) 0000-0000" value={formData.phone} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                            </div>
-                        </div>
-                        
-                        <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '1.25rem' }}>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Endereço</div>
-                            <div className="lab-pac-form-grid" style={{ gap: '1rem' }}>
-                                <div className="lab-pac-form-group">
-                                    <label className="lab-pac-form-label">CEP</label>
-                                    <input type="text" name="zip_code" className="lab-pac-form-input" placeholder="00000-000" value={formData.zip_code} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                                </div>
-                                <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
-                                    <label className="lab-pac-form-label">Logradouro</label>
-                                    <input type="text" name="street" className="lab-pac-form-input" placeholder="Ex: Rua das Flores" value={formData.street} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                                </div>
-                                <div className="lab-pac-form-group">
-                                    <label className="lab-pac-form-label">Número</label>
-                                    <input type="text" name="number" className="lab-pac-form-input" placeholder="Ex: 123" value={formData.number} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                                </div>
-                                <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
-                                    <label className="lab-pac-form-label">Complemento</label>
-                                    <input type="text" name="complement" className="lab-pac-form-input" placeholder="Ex: Apto 101" value={formData.complement} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                                </div>
-                                <div className="lab-pac-form-group">
-                                    <label className="lab-pac-form-label">Bairro</label>
-                                    <input type="text" name="district" className="lab-pac-form-input" placeholder="Ex: Centro" value={formData.district} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                                </div>
-                                <div className="lab-pac-form-group">
-                                    <label className="lab-pac-form-label">Cidade</label>
-                                    <input type="text" name="city" className="lab-pac-form-input" value={formData.city} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                                </div>
-                                <div className="lab-pac-form-group">
-                                    <label className="lab-pac-form-label">Estado</label>
-                                    <select name="state" className="lab-pac-form-select" value={formData.state} onChange={onChange} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}}>
-                                        <option value="">Selecione...</option>
-                                        <option value="PE">Pernambuco (PE)</option>
-                                        <option value="PB">Paraíba (PB)</option>
-                                        <option value="AL">Alagoas (AL)</option>
-                                        <option value="SP">São Paulo (SP)</option>
-                                        <option value="RJ">Rio de Janeiro (RJ)</option>
-                                    </select>
-                                </div>
+                            <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
+                                <label className="lab-pac-form-label">Nome do pai</label>
+                                <input type="text" name="father_name" className="lab-pac-form-input" placeholder="Ex: João da Silva" value={formData.father_name} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                             </div>
                         </div>
-                    </div>
-                )}
-            </div>
+                    )}
 
-            {/* FILIAÇÃO */}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', background: '#fff' }}>
-                {renderSectionHeader('filiacao', '4. Filiação', expandedSections.filiacao, !!(hasRealString(formData.mother_name) || hasRealString(formData.father_name)))}
-                {expandedSections.filiacao && (
-                    <div className="lab-pac-form-grid two-cols" style={{ padding: '1rem', gap: '1rem' }}>
-                        <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
-                            <label className="lab-pac-form-label" style={{ color: '#0ea5e9' }}>Nome da mãe</label>
-                            <input type="text" name="mother_name" className="lab-pac-form-input" placeholder="Ex: Maria José da Silva" value={formData.mother_name} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                    {/* CONTEÚDO OBSERVAÇÕES E STATUS */}
+                    {activeTab === 'observacoes' && (
+                        <div className="lab-pac-form-grid one-col" style={{ gap: '1rem' }}>
+                            <div className="lab-pac-form-group">
+                                <label className="lab-pac-form-label">Observações</label>
+                                <textarea name="notes" className="lab-pac-form-textarea" placeholder="Observações adicionais..." value={formData.notes} onChange={onChange} maxLength="500" disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? { ...readOnlyStyle, minHeight: '60px', resize: 'none' } : { minHeight: '60px' }}></textarea>
+                            </div>
+                            <div className="lab-pac-form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
+                                <input type="checkbox" id="is_active_chk" name="is_active" checked={formData.is_active} onChange={onChange} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={{ width: '18px', height: '18px', cursor: readOnly ? 'default' : 'pointer' }} />
+                                <label htmlFor="is_active_chk" style={{ cursor: readOnly ? 'default' : 'pointer', fontWeight: 600, color: '#334155' }}>Paciente ativo</label>
+                            </div>
                         </div>
-                        <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
-                            <label className="lab-pac-form-label">Nome do pai</label>
-                            <input type="text" name="father_name" className="lab-pac-form-input" placeholder="Ex: João da Silva" value={formData.father_name} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* OBSERVAÇÕES E STATUS */}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', background: '#fff' }}>
-                {renderSectionHeader('observacoes', '5. Observações e Status', expandedSections.observacoes, !!(hasRealString(formData.notes)))}
-                {expandedSections.observacoes && (
-                    <div className="lab-pac-form-grid one-col" style={{ padding: '1rem', gap: '1rem' }}>
-                        <div className="lab-pac-form-group">
-                            <label className="lab-pac-form-label">Observações</label>
-                            <textarea name="notes" className="lab-pac-form-textarea" placeholder="Observações adicionais..." value={formData.notes} onChange={onChange} maxLength="500" disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? { ...readOnlyStyle, minHeight: '60px', resize: 'none' } : { minHeight: '60px' }}></textarea>
-                        </div>
-                        <div className="lab-pac-form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
-                            <input type="checkbox" id="is_active_chk" name="is_active" checked={formData.is_active} onChange={onChange} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={{ width: '18px', height: '18px', cursor: readOnly ? 'default' : 'pointer' }} />
-                            <label htmlFor="is_active_chk" style={{ cursor: readOnly ? 'default' : 'pointer', fontWeight: 600, color: '#334155' }}>Paciente ativo</label>
-                        </div>
-                    </div>
-                )}
-            </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

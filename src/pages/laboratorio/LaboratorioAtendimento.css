@@ -554,3 +554,30 @@
     .lab-patient-list-row .hide-on-mobile { display: none; }
     .lab-patient-list-row .show-on-mobile { display: inline; }
 }
+
+/* Ajuste pontual para o modal Operacional (Novo Paciente e Atendimento) em telas de menor altura (ex: 1440x880) */
+@media (min-width: 1200px) and (max-height: 900px) {
+    /* Permite que o card "Dados do Paciente" cresça naturalmente e remove o scroll interno */
+    #patient-section-top {
+        max-height: none !important;
+        overflow-y: visible !important;
+    }
+    
+    /* Identificação em uma única linha */
+    .lab-identificacao-grid {
+        grid-template-columns: minmax(160px, 0.9fr) minmax(280px, 1.8fr) minmax(180px, 1fr) minmax(180px, 1fr) !important;
+    }
+    .lab-identificacao-grid > div:nth-child(2) {
+        grid-column: span 1 !important;
+    }
+    
+    /* Reduz espaçamentos gerais no topo e base do corpo do modal */
+    #operacional-modal-content .lab-pac-modal-body > div:first-child {
+        padding: 0.75rem 1.5rem 0.75rem !important;
+        gap: 0.5rem !important;
+    }
+
+    #operacional-modal-content .lab-pac-modal-body > div:last-child {
+        padding: 1rem 1.5rem !important;
+    }
+}

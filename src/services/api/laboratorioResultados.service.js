@@ -254,6 +254,7 @@ class LaboratorioResultadosService {
                 pacienteNome: paciente.name || paciente.full_name || 'Paciente não encontrado',
                 pacienteIdade: paciente.birth_date ? this.calculateAge(paciente.birth_date) : 'Não inf.',
                 pacienteSexo: paciente.gender || paciente.sex || 'Não inf.',
+                pacienteNascimento: paciente.birth_date || null,
                 pacienteCodigo: paciente.code || null,
                 resultados: attendanceResults
             };

@@ -18,6 +18,40 @@ const getLocalTimeInputValue = (date = new Date()) => {
     return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 };
 
+const POSTOS_UNIDADES = [
+    { value: 'ENCRUZILHADA', label: 'ENCRUZILHADA' },
+    { value: 'SANTO AMARO', label: 'SANTO AMARO' },
+    { value: 'SÃO PEDRO I', label: 'SÃO PEDRO I' },
+    { value: 'SÃO PEDRO II', label: 'SÃO PEDRO II' },
+    { value: 'SAPUCARANA', label: 'SAPUCARANA' },
+    { value: 'REMÉDIOS', label: 'REMÉDIOS' },
+    { value: 'BOAS NOVAS', label: 'BOAS NOVAS' },
+    { value: 'SERRA NEGRA', label: 'SERRA NEGRA' },
+    { value: 'GAMELEIRA', label: 'GAMELEIRA' },
+    { value: 'RETIRO', label: 'RETIRO' },
+    { value: 'POÇO VERDE', label: 'POÇO VERDE' },
+    { value: 'CRUZEIRO', label: 'CRUZEIRO' },
+    { value: 'GUARIBAS', label: 'GUARIBAS' },
+    { value: 'FREI CANECA', label: 'FREI CANECA' },
+    { value: 'SANTANA', label: 'SANTANA' },
+    { value: 'COHAB', label: 'COHAB' },
+    { value: 'RESIDENCIAL', label: 'RESIDENCIAL' },
+    { value: 'SÃO SEBASTIÃO', label: 'SÃO SEBASTIÃO' },
+    { value: 'SALGADO', label: 'SALGADO' },
+    { value: 'SÃO RAFAEL', label: 'SÃO RAFAEL' },
+    { value: 'SANTO ANTÔNIO', label: 'SANTO ANTÔNIO' },
+    { value: 'CAJAZEIRAS', label: 'CAJAZEIRAS' },
+    { value: 'AREIAS', label: 'AREIAS' },
+    { value: 'ROSÁRIO', label: 'ROSÁRIO' },
+    { value: 'SÃO JOSÉ', label: 'SÃO JOSÉ' }
+];
+
+const TODAS_ORIGENS = [...ATTENDANCE_ORIGINS, ...POSTOS_UNIDADES];
+
+const normalizeString = (str) => {
+    if (!str) return '';
+    return str.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+};
 const calculateAge = (birthDateStr) => {
     if (!birthDateStr) return '';
     const today = new Date();
@@ -62,6 +96,8 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
     });
 
     const [isOriginDropdownOpen, setIsOriginDropdownOpen] = useState(false);
+    const [originSearchText, setOriginSearchText] = useState('');
+    const [originHighlightedIndex, setOriginHighlightedIndex] = useState(-1);
     
     // --- EXAMES ---
     const [examesSolicitados, setExamesSolicitados] = useState([]);
@@ -93,13 +129,20 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
     const autoFocusRunRef = useRef(false);
 
     useEffect(() => {
-        if (isOpen && initialPatient && !loading && !autoFocusRunRef.current && mode === 'edit') {
+        if (isOpen && !loading && !autoFocusRunRef.current) {
             autoFocusRunRef.current = true;
             requestAnimationFrame(() => {
                 setTimeout(() => {
-                    if (quickExamInputRef.current) {
-                        quickExamInputRef.current.scrollIntoView({ block: 'center', behavior: 'auto' });
-                        quickExamInputRef.current.focus();
+                    if (mode === 'edit' && initialPatient) {
+                        if (quickExamInputRef.current) {
+                            quickExamInputRef.current.scrollIntoView({ block: 'center', behavior: 'auto' });
+                            quickExamInputRef.current.focus();
+                        }
+                    } else {
+                        const nameInput = document.getElementsByName('full_name')[0];
+                        if (nameInput) {
+                            nameInput.focus();
+                        }
                     }
                 }, 50);
             });
@@ -117,6 +160,8 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
             setExamesSolicitados([]);
             isSuccessRef.current = false;
             autoFocusRunRef.current = false;
+            setOriginSearchText('');
+            setOriginHighlightedIndex(-1);
             
             setAttendanceData({
                 attendance_date: getLocalDateInputValue(),
@@ -634,7 +679,11 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                 e.preventDefault();
                 if (!isEditingPatientCadastro && !confirmModal.open && !isExamModalOpen && originRef.current) {
                     originRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    setTimeout(() => originRef.current.focus(), 300);
+                    setTimeout(() => {
+                        const input = originRef.current.tagName?.toLowerCase() === 'input' ? originRef.current : originRef.current.querySelector('input');
+                        if (input) input.focus();
+                        else originRef.current.focus();
+                    }, 300);
                 }
                 return;
             }
@@ -701,8 +750,14 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                     }
 
                     if (nextEl) {
-                        nextEl.focus();
-                        if (nextEl.tagName.toLowerCase() === 'input' && ['text', 'number', 'tel', 'email'].includes(nextEl.type)) {
+                        if (nextEl === originRef.current) {
+                            const input = originRef.current.tagName?.toLowerCase() === 'input' ? originRef.current : originRef.current.querySelector('input');
+                            if (input) input.focus();
+                            else nextEl.focus();
+                        } else {
+                            nextEl.focus();
+                        }
+                        if (nextEl.tagName?.toLowerCase() === 'input' && ['text', 'number', 'tel', 'email'].includes(nextEl.type)) {
                             try { nextEl.select(); } catch (err) {}
                         }
                         nextEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -713,6 +768,8 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
 
             // Esc
             if (e.key === 'Escape') {
+                if (isOriginDropdownOpen) return;
+                
                 // Se pressionar Esc, evitar fechar o navegador nativamente se aplicável, 
                 // mas a prioridade de fechamento é:
                 // 1. Sugestões de exame
@@ -754,7 +811,12 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
 
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [isOpen, isSaving, confirmModal, isExamModalOpen, examSuggestions.length, patientData, attendanceData, examesSolicitados, internalPatientId, isEditingPatientCadastro, originalPatientData]);
+    }, [isOpen, isSaving, confirmModal, isExamModalOpen, examSuggestions.length, patientData, attendanceData, examesSolicitados, internalPatientId, isEditingPatientCadastro, originalPatientData, isOriginDropdownOpen]);
+
+    const normalizedOriginSearch = normalizeString(originSearchText);
+    const filteredGerais = ATTENDANCE_ORIGINS.filter(o => normalizeString(o.label).includes(normalizedOriginSearch));
+    const filteredPostos = POSTOS_UNIDADES.filter(o => normalizeString(o.label).includes(normalizedOriginSearch));
+    const flatFilteredOrigens = [...filteredGerais, ...filteredPostos];
 
     if (!isOpen) return null;
 
@@ -771,14 +833,14 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                     </button>
                 </div>
                 
-                <div className="lab-pac-modal-body" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#f1f5f9' }}>
+                <div className="lab-pac-modal-body" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#f1f5f9', padding: 0 }}>
                     {loading ? (
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', flex: 1 }}>
                             <Loader2 size={32} className="spin" style={{ color: '#3b82f6' }} />
                         </div>
                     ) : (
                         <>
-                            <div style={{ flexShrink: 0, padding: '1.5rem 1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -4px rgba(0,0,0,0.05)', position: 'relative', zIndex: 10 }}>
+                            <div style={{ flexShrink: 0, padding: '0.75rem 1.5rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -4px rgba(0,0,0,0.05)', position: 'relative', zIndex: 10 }}>
                                 {feedback && (
                                     <div style={{ padding: '1.25rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.75rem', background: feedback.type === 'success' ? '#ecfdf5' : '#fef2f2', border: `1px solid ${feedback.type === 'success' ? '#10b981' : '#ef4444'}`, color: feedback.type === 'success' ? '#047857' : '#b91c1c', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
                                         {feedback.type === 'success' ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
@@ -831,7 +893,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                 )}
 
                                 {isPatientExpanded && (
-                                    <div style={{ padding: '0 1.5rem 1.5rem', borderTop: '1px solid #e2e8f0' }}>
+                                    <div style={{ padding: '0 1.5rem 0.75rem', borderTop: '1px solid #e2e8f0' }}>
                                         <PacienteForm 
                                             formData={patientData} 
                                             formErrors={patientFormErrors} 
@@ -841,7 +903,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                         />
                                         
                                         {isEditingPatientCadastro && (
-                                            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
+                                            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
                                                 <button 
                                                     className="lab-btn"
                                                     style={{ background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1' }}
@@ -865,7 +927,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                 </div>
                             </div>
 
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.5rem' }}>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1.5rem', alignItems: 'start' }}>
                                     {/* COLUNA PRINCIPAL - EXAMES */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -890,43 +952,126 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                                 <label>ORIGEM <span style={{ color: '#ef4444' }}>*</span></label>
                                                 <div 
                                                     ref={originRef}
-                                                    tabIndex={0}
-                                                    onKeyDown={(e) => { 
-                                                        if (e.key === ' ' || e.key === 'ArrowDown') { 
-                                                            e.preventDefault(); 
-                                                            setIsOriginDropdownOpen(true); 
-                                                        } else if (e.key === 'Enter' && isOriginDropdownOpen) {
-                                                            e.preventDefault();
-                                                            setIsOriginDropdownOpen(false);
-                                                        }
-                                                    }}
                                                     className="lab-data-value" 
                                                     style={{ 
-                                                        padding: '0.35rem 0.6rem', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                                        cursor: isSaving ? 'not-allowed' : 'pointer', border: feedback?.text === 'Informe a Origem do Atendimento.' ? '1px solid #ef4444' : '1px solid #f1f5f9',
+                                                        position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                        cursor: isSaving ? 'not-allowed' : 'text', border: feedback?.text === 'Informe a Origem do Atendimento.' ? '1px solid #ef4444' : '1px solid #f1f5f9',
                                                         outline: 'none', boxShadow: feedback?.text === 'Informe a Origem do Atendimento.' ? '0 0 0 2px rgba(239, 68, 68, 0.2)' : 'none',
-                                                        minHeight: '36px'
+                                                        minHeight: '36px', padding: 0
                                                     }}
-                                                    onClick={() => { if (!isSaving) setIsOriginDropdownOpen(!isOriginDropdownOpen); }}
                                                 >
-                                                    <span style={{ color: attendanceData.attendance_origin ? '#0f172a' : '#64748b', fontSize: '0.9rem' }}>
-                                                        {attendanceData.attendance_origin ? ATTENDANCE_ORIGINS.find(o => o.value === attendanceData.attendance_origin)?.label : 'Selecione...'}
-                                                    </span>
-                                                    <ChevronDown size={16} color="#64748b" style={{ transform: isOriginDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms ease' }}/>
+                                                    <input 
+                                                        type="text"
+                                                        placeholder="Selecione ou digite..."
+                                                        disabled={isSaving}
+                                                        value={isOriginDropdownOpen ? originSearchText : (TODAS_ORIGENS.find(o => o.value === attendanceData.attendance_origin)?.label || '')}
+                                                        onChange={(e) => {
+                                                            setOriginSearchText(e.target.value);
+                                                            if (!isOriginDropdownOpen) setIsOriginDropdownOpen(true);
+                                                            setOriginHighlightedIndex(0);
+                                                        }}
+                                                        onFocus={(e) => {
+                                                            if (isSaving) return;
+                                                            setIsOriginDropdownOpen(true);
+                                                            setOriginSearchText(TODAS_ORIGENS.find(o => o.value === attendanceData.attendance_origin)?.label || '');
+                                                            setOriginHighlightedIndex(0);
+                                                            setTimeout(() => e.target.select(), 10);
+                                                        }}
+                                                        onBlur={() => setIsOriginDropdownOpen(false)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'ArrowDown') {
+                                                                e.preventDefault();
+                                                                if (!isOriginDropdownOpen) {
+                                                                    setIsOriginDropdownOpen(true);
+                                                                    setOriginHighlightedIndex(0);
+                                                                } else {
+                                                                    setOriginHighlightedIndex(prev => (prev < flatFilteredOrigens.length - 1 ? prev + 1 : prev));
+                                                                }
+                                                            } else if (e.key === 'ArrowUp') {
+                                                                e.preventDefault();
+                                                                setOriginHighlightedIndex(prev => (prev > 0 ? prev - 1 : 0));
+                                                            } else if (e.key === 'Enter') {
+                                                                if (isOriginDropdownOpen) {
+                                                                    e.preventDefault();
+                                                                    if (flatFilteredOrigens.length > 0) {
+                                                                        const idx = originHighlightedIndex >= 0 && originHighlightedIndex < flatFilteredOrigens.length ? originHighlightedIndex : 0;
+                                                                        const selected = flatFilteredOrigens[idx];
+                                                                        setAttendanceData({...attendanceData, attendance_origin: selected.value});
+                                                                        if (feedback?.text === 'Informe a Origem do Atendimento.') setFeedback(null);
+                                                                        setIsOriginDropdownOpen(false);
+                                                                        setTimeout(() => {
+                                                                            if (quickExamInputRef.current) {
+                                                                                quickExamInputRef.current.focus();
+                                                                                quickExamInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                                                            }
+                                                                        }, 10);
+                                                                    }
+                                                                }
+                                                            } else if (e.key === 'Escape') {
+                                                                if (isOriginDropdownOpen) {
+                                                                    e.preventDefault();
+                                                                    setIsOriginDropdownOpen(false);
+                                                                }
+                                                            }
+                                                        }}
+                                                        style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: '#0f172a', padding: '0.35rem 0.6rem', fontSize: '0.9rem' }}
+                                                    />
+                                                    <ChevronDown size={16} color="#64748b" style={{ transform: isOriginDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms ease', marginRight: '0.6rem', flexShrink: 0 }} onMouseDown={(e) => e.preventDefault()} onClick={() => {
+                                                        if (!isSaving) {
+                                                            if (isOriginDropdownOpen) setIsOriginDropdownOpen(false);
+                                                            else {
+                                                                const input = originRef.current?.querySelector('input');
+                                                                if (input) input.focus();
+                                                            }
+                                                        }
+                                                    }}/>
                                                     
                                                     {isOriginDropdownOpen && !isSaving && (
-                                                        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', zIndex: 50, overflow: 'hidden', animation: 'slideDownDropdown 200ms ease-out forwards', transformOrigin: 'top center' }}>
-                                                            {ATTENDANCE_ORIGINS.map(origin => (
-                                                                <div 
-                                                                    key={origin.value}
-                                                                    onClick={(e) => { e.stopPropagation(); setAttendanceData({...attendanceData, attendance_origin: origin.value}); setIsOriginDropdownOpen(false); if (feedback?.text === 'Informe a Origem do Atendimento.') setFeedback(null); }}
-                                                                    style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', background: attendanceData.attendance_origin === origin.value ? '#eff6ff' : 'transparent', color: attendanceData.attendance_origin === origin.value ? '#1d4ed8' : '#334155', fontWeight: attendanceData.attendance_origin === origin.value ? '600' : '500', fontSize: '0.9rem', transition: 'background 150ms' }}
-                                                                    onMouseEnter={(e) => e.target.style.background = attendanceData.attendance_origin === origin.value ? '#eff6ff' : '#f8fafc'}
-                                                                    onMouseLeave={(e) => e.target.style.background = attendanceData.attendance_origin === origin.value ? '#eff6ff' : 'transparent'}
-                                                                >
-                                                                    {origin.label}
-                                                                </div>
-                                                            ))}
+                                                        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', zIndex: 50, overflowY: 'auto', maxHeight: '250px', animation: 'slideDownDropdown 200ms ease-out forwards', transformOrigin: 'top center' }}>
+                                                            {flatFilteredOrigens.length === 0 ? (
+                                                                <div style={{ padding: '0.75rem', color: '#64748b', fontSize: '0.85rem', textAlign: 'center' }}>Nenhuma origem encontrada.</div>
+                                                            ) : (
+                                                                <>
+                                                                    {filteredGerais.length > 0 && (
+                                                                        <div style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                                                                            ORIGENS GERAIS
+                                                                        </div>
+                                                                    )}
+                                                                    {filteredGerais.map((origin) => {
+                                                                        const idx = flatFilteredOrigens.findIndex(o => o.value === origin.value);
+                                                                        return (
+                                                                            <div 
+                                                                                key={origin.value}
+                                                                                onMouseDown={(e) => e.preventDefault()}
+                                                                                onClick={(e) => { e.stopPropagation(); setAttendanceData({...attendanceData, attendance_origin: origin.value}); setIsOriginDropdownOpen(false); if (feedback?.text === 'Informe a Origem do Atendimento.') setFeedback(null); setTimeout(() => { if (quickExamInputRef.current) quickExamInputRef.current.focus(); }, 10); }}
+                                                                                style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', background: originHighlightedIndex === idx || (originHighlightedIndex === -1 && attendanceData.attendance_origin === origin.value) ? '#eff6ff' : 'transparent', color: attendanceData.attendance_origin === origin.value ? '#1d4ed8' : '#334155', fontWeight: attendanceData.attendance_origin === origin.value ? '600' : '500', fontSize: '0.9rem', transition: 'background 150ms' }}
+                                                                                onMouseEnter={() => setOriginHighlightedIndex(idx)}
+                                                                            >
+                                                                                {origin.label}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                    {filteredPostos.length > 0 && (
+                                                                        <div style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', borderTop: filteredGerais.length > 0 ? '1px solid #e2e8f0' : 'none' }}>
+                                                                            POSTOS / UNIDADES
+                                                                        </div>
+                                                                    )}
+                                                                    {filteredPostos.map((origin) => {
+                                                                        const idx = flatFilteredOrigens.findIndex(o => o.value === origin.value);
+                                                                        return (
+                                                                            <div 
+                                                                                key={origin.value}
+                                                                                onMouseDown={(e) => e.preventDefault()}
+                                                                                onClick={(e) => { e.stopPropagation(); setAttendanceData({...attendanceData, attendance_origin: origin.value}); setIsOriginDropdownOpen(false); if (feedback?.text === 'Informe a Origem do Atendimento.') setFeedback(null); setTimeout(() => { if (quickExamInputRef.current) quickExamInputRef.current.focus(); }, 10); }}
+                                                                                style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', background: originHighlightedIndex === idx || (originHighlightedIndex === -1 && attendanceData.attendance_origin === origin.value) ? '#eff6ff' : 'transparent', color: attendanceData.attendance_origin === origin.value ? '#1d4ed8' : '#334155', fontWeight: attendanceData.attendance_origin === origin.value ? '600' : '500', fontSize: '0.9rem', transition: 'background 150ms' }}
+                                                                                onMouseEnter={() => setOriginHighlightedIndex(idx)}
+                                                                            >
+                                                                                {origin.label}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -1168,7 +1313,20 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                         )}
 
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                            <button className="lab-btn lab-btn-secondary" onClick={() => setConfirmModal({ open: false })} disabled={isSaving}>
+                            <button 
+                                type="button"
+                                className="lab-btn lab-btn-secondary" 
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setConfirmModal({ open: false });
+                                    setTimeout(() => {
+                                        const nameInput = document.getElementsByName('full_name')[0];
+                                        if (nameInput) nameInput.focus();
+                                    }, 10);
+                                }} 
+                                disabled={isSaving}
+                            >
                                 {confirmModal.cancelText}
                             </button>
                             <button 

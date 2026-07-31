@@ -239,6 +239,16 @@
     background: white;
 }
 
+.lab-ref-tooltip-trigger:hover,
+.lab-ref-tooltip-trigger:focus {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+}
+
+.lab-custom-tooltip-portal {
+    animation: fadeInTooltip 0.15s ease-out;
+}
+
 .lab-exam-item:hover {
     border-color: #cbd5e1;
     background: #f8fafc;
