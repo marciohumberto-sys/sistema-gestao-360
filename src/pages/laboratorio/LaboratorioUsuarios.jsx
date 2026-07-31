@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Search, Users, ShieldCheck, UserCheck, UserX, Plus, Edit2, XCircle, ShieldAlert, Check, ChevronDown, AlertTriangle, Activity, Upload, Trash2 } from 'lucide-react';
+import { Search, Users, ShieldCheck, UserCheck, UserX, Plus, Edit2, XCircle, ShieldAlert, Check, ChevronDown, AlertTriangle, Activity, Upload, Trash2, KeyRound } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessLaboratorio, canManageLaboratorioUsers } from '../../utils/laboratorioAcl';
@@ -7,10 +7,11 @@ import {
     getCurrentTenantId, fetchLaboratorioUsers, createLaboratorioUser, updateLaboratorioUser, toggleLaboratorioUserStatus, deleteLaboratorioUser,
     getLaboratorioProfessionalData, getLaboratorioSignatureSignedUrl, uploadLaboratorioSignature, updateLaboratorioProfessionalData
 } from '../../services/laboratorioUsers.service';
+import { resetUserTemporaryPassword } from '../../services/passwordService';
 import './LaboratorioUsuarios.css';
 
 const LaboratorioUsuarios = () => {
-    const { tenantLink, isSuperAdmin } = useAuth();
+    const { authUser, tenantLink, isSuperAdmin } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const hasAccess = canAccessLaboratorio(role, '/laboratorio/usuarios');
 
@@ -27,6 +28,9 @@ const LaboratorioUsuarios = () => {
     const [deletingId, setDeletingId] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [userToDelete, setUserToDelete] = useState(null);
+    const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    const [userToReset, setUserToReset] = useState(null);
+    const [isResetting, setIsResetting] = useState(false);
     const [alertConfig, setAlertConfig] = useState({ 
         isOpen: false, 
         title: '', 
@@ -229,6 +233,46 @@ const LaboratorioUsuarios = () => {
         } finally {
             setDeletingId(null);
             setTimeout(() => setToast(false), 3000);
+        }
+    };
+
+    const handleResetPassword = (user) => {
+        setUserToReset(user);
+        setIsResetModalOpen(true);
+    };
+
+    const confirmReset = async () => {
+        if (!isSuperAdmin) {
+            showAlert('Acesso restrito', 'Apenas usuários SUPERADMIN podem redefinir senhas por esta opção.', 'error');
+            return;
+        }
+
+        if (!userToReset) return;
+
+        if (!userToReset.user_id) {
+            showAlert('Aviso', 'Não foi possível identificar este usuário para redefinir a senha.', 'warning');
+            return;
+        }
+
+        if (userToReset.user_id === authUser.id) {
+            showAlert('Aviso', 'Você não pode redefinir sua própria senha por esta opção.', 'warning');
+            return;
+        }
+
+        if (isResetting) return;
+
+        setIsResetting(true);
+        try {
+            await resetUserTemporaryPassword(userToReset.user_id);
+            setToast('Senha redefinida com sucesso. O usuário deverá criar uma nova senha no próximo acesso.');
+            setIsResetModalOpen(false);
+            setUserToReset(null);
+        } catch (e) {
+            console.error(e);
+            showAlert('Erro', e.message || 'Falha ao redefinir a senha do usuário.', 'error');
+        } finally {
+            setIsResetting(false);
+            setTimeout(() => setToast(false), 5000);
         }
     };
 
@@ -498,6 +542,11 @@ const LaboratorioUsuarios = () => {
                                             <button className="lab-action-icon" onClick={() => openModal(user)} title="Editar">
                                                 <Edit2 size={16} />
                                             </button>
+                                            {isSuperAdmin && user.user_id && user.user_id !== authUser.id && (
+                                                <button className="lab-action-icon" onClick={() => handleResetPassword(user)} title="Redefinir senha" style={{ color: '#0ea5e9' }}>
+                                                    <KeyRound size={16} />
+                                                </button>
+                                            )}
                                             <button className="lab-action-icon" onClick={() => handleDeleteUser(user)} title="Excluir" style={{ color: '#ef4444' }}>
                                                 <UserX size={16} />
                                             </button>
@@ -666,6 +715,26 @@ const LaboratorioUsuarios = () => {
                             <button onClick={() => setIsDeleteModalOpen(false)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                             <button onClick={confirmDeletion} disabled={deletingId} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#ef4444', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
                                 {deletingId ? 'Excluindo...' : 'Excluir'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Redefinir Senha */}
+            {isResetModalOpen && (
+                <div className="lab-modal-overlay">
+                    <div className="lab-modal-content" style={{ width: '450px', padding: '1.5rem', textAlign: 'center' }}>
+                        <div style={{ background: '#e0f2fe', color: '#0ea5e9', width: '48px', height: '48px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                            <KeyRound size={24} />
+                        </div>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.5rem' }}>Redefinir senha</h3>
+                        <p style={{ color: '#64748b', margin: '0 0 1rem' }}>A senha de <strong>{userToReset?.name}</strong> será redefinida para a senha temporária padrão. No próximo acesso, o usuário deverá criar uma nova senha pessoal.</p>
+                        <p style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600, margin: '0 0 1.5rem' }}>Esta ação altera a senha de acesso ao GPI.</p>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <button onClick={() => setIsResetModalOpen(false)} disabled={isResetting} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', fontWeight: 600, cursor: isResetting ? 'not-allowed' : 'pointer' }}>Cancelar</button>
+                            <button onClick={confirmReset} disabled={isResetting} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#0ea5e9', color: '#fff', fontWeight: 600, cursor: isResetting ? 'not-allowed' : 'pointer' }}>
+                                {isResetting ? 'Redefinindo...' : 'Confirmar redefinição'}
                             </button>
                         </div>
                     </div>

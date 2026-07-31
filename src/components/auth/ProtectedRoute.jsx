@@ -3,9 +3,10 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getPostLoginRedirectPath } from '../../utils/authUtils';
 import { WifiOff, RefreshCw, LogOut } from 'lucide-react';
+import AlterarSenhaObrigatoria from '../../pages/auth/AlterarSenhaObrigatoria';
 
 const ProtectedRoute = ({ module, children }) => {
-    const { isAuthenticated, loading, isSuperAdmin, accessibleModules, tenantLink, networkError, retryLoadSessionData, logout } = useAuth();
+    const { authUser, isAuthenticated, loading, isSuperAdmin, accessibleModules, tenantLink, networkError, retryLoadSessionData, logout } = useAuth();
     const location = useLocation();
     const [retrying, setRetrying] = useState(false);
 
@@ -43,6 +44,10 @@ const ProtectedRoute = ({ module, children }) => {
 
     if (!isAuthenticated) {
         return <Navigate to="/login" state={{ from: location, moduleContext: module }} replace />;
+    }
+
+    if (authUser?.app_metadata?.must_change_password === true) {
+        return <AlterarSenhaObrigatoria />;
     }
 
     if (networkError) {

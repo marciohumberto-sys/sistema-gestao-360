@@ -78,6 +78,7 @@ export const fetchLaboratorioUsers = async (tenantId) => {
         if (!groupedUsers[key]) {
             groupedUsers[key] = {
                 id: userId, 
+                user_id: userId,
                 user_tenant_id: row.user_tenant_id || key,
                 name: row.full_name || row.name || 'Usuário Sem Nome',
                 email: row.email || '',

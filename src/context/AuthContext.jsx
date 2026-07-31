@@ -117,9 +117,9 @@ export const AuthProvider = ({ children }) => {
         return () => subscription.unsubscribe();
     }, []);
 
-    const retryLoadSessionData = async () => {
+    const retryLoadSessionData = async (userOverride = null) => {
         setLoading(true);
-        await loadSessionData(authUser);
+        await loadSessionData(userOverride || authUser);
     };
 
     const value = {
