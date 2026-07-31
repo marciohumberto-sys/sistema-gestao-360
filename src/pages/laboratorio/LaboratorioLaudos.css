@@ -2140,3 +2140,57 @@
         0 0 0 1px rgba(148, 163, 184, 0.28),
         0 8px 22px rgba(15, 23, 42, 0.10);
 }
+
+@media print {
+    body:has(.lab-complete-preview-paginated) * {
+        visibility: hidden !important;
+    }
+
+    body:has(.lab-complete-preview-paginated)
+    .lab-complete-preview-paginated,
+    body:has(.lab-complete-preview-paginated)
+    .lab-complete-preview-paginated * {
+        visibility: visible !important;
+    }
+
+    body:has(.lab-complete-preview-paginated)
+    .lab-complete-preview-paginated {
+        position: absolute;
+        inset: 0;
+        width: 210mm;
+        margin: 0;
+        padding: 0;
+        gap: 0;
+        display: block;
+        background: #ffffff;
+    }
+
+    body:has(.lab-complete-preview-paginated)
+    .lab-composed-page {
+        width: 210mm !important;
+        max-width: 210mm !important;
+        height: 297mm !important;
+        min-height: 297mm !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        overflow: hidden !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        break-after: page !important;
+        page-break-after: always !important;
+    }
+
+    body:has(.lab-complete-preview-paginated)
+    .lab-composed-page:last-child {
+        break-after: auto !important;
+        page-break-after: auto !important;
+    }
+
+    body:has(.lab-complete-preview-paginated)
+    .no-print,
+    body:has(.lab-complete-preview-paginated)
+    .lab-pagination-diagnostic {
+        display: none !important;
+    }
+}

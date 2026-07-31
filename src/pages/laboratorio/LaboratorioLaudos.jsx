@@ -2087,11 +2087,16 @@ const LaboratorioLaudos = () => {
     const [saving, setSaving] = useState(false);
     const [feedbackMsg, setFeedbackMsg] = useState(null);
     const [generatingPdf, setGeneratingPdf] = useState(false);
+    const [isPrinting, setIsPrinting] = useState(false);
     const [signatureSignedUrl, setSignatureSignedUrl] = useState(null);
     const [loadingSignature, setLoadingSignature] = useState(false);
     // Conjunto dos result_ids selecionados para impressão
     const [selectedExamIds, setSelectedExamIds] = useState(new Set());
     const [previewMode, setPreviewMode] = useState('individual');
+    const [
+        isRenderedPaginationValidated,
+        setIsRenderedPaginationValidated
+    ] = useState(false);
     const [paginationPlan, setPaginationPlan] = useState([]);
     const [paginationStatus, setPaginationStatus] = useState('idle');
     const [paginationMetrics, setPaginationMetrics] = useState(null);
@@ -2453,8 +2458,13 @@ const LaboratorioLaudos = () => {
     };
 
     const handleSelectExam = async (exam) => {
+        setPreviewMode('individual');
+        setPaginationPlan([]);
+        setPaginationStatus('idle');
+        setIsRenderedPaginationValidated(false);
+        setCompleteExamDataById({});
+
         try {
-            console.log('LAUDO SELECIONADO:', exam);
             setSelectedExam(exam);
             setLoadingDetails(true);
             const detalhes = await laboratorioLaudosService.carregarDetalhesLaudo(exam.id);
@@ -2530,6 +2540,15 @@ const LaboratorioLaudos = () => {
         selectedExamsForReport.length > 1 &&
         completePreviewExamData.length === selectedExamsForReport.length;
 
+    const canPrintCompletePreview =
+        previewMode === 'complete' &&
+        paginationStatus === 'ready' &&
+        isRenderedPaginationValidated === true &&
+        paginationPlan.length > 0;
+
+    const canDownloadCompletePreview =
+        canPrintCompletePreview;
+
     const paginationSelectionKey =
         completePreviewExamData
             .map(item => String(item.exam.id))
@@ -2537,6 +2556,7 @@ const LaboratorioLaudos = () => {
 
     useEffect(() => {
         paginationAdjustmentCountRef.current = 0;
+        setIsRenderedPaginationValidated(false);
     }, [paginationSelectionKey]);
 
     useEffect(() => {
@@ -2561,6 +2581,7 @@ const LaboratorioLaudos = () => {
             setPaginationPlan([]);
             setPaginationMetrics(null);
             setPaginationStatus('idle');
+            setIsRenderedPaginationValidated(false);
             return;
         }
 
@@ -2569,6 +2590,7 @@ const LaboratorioLaudos = () => {
         const measureAndPlan = async () => {
             try {
                 setPaginationStatus('measuring');
+                setIsRenderedPaginationValidated(false);
 
                 await new Promise(resolve =>
                     requestAnimationFrame(() =>
@@ -2852,26 +2874,7 @@ const LaboratorioLaudos = () => {
                         ? 'warning'
                         : 'ready'
                 );
-
-                console.table(
-                    normalizedPages.map(page => ({
-                        pagina: page.pageNumber,
-                        exames: page.examCodes.join(', '),
-                        quantidade: page.examCodes.length,
-                        alturaUsada: Math.round(
-                            page.usedHeight
-                        ),
-                        alturaDisponivel: Math.round(
-                            page.availableHeight
-                        ),
-                        exclusiva: page.exclusive
-                            ? 'SIM'
-                            : 'NÃO',
-                        excedeu: page.oversized
-                            ? 'SIM'
-                            : 'NÃO'
-                    }))
-                );
+                setIsRenderedPaginationValidated(false);
             } catch (error) {
                 console.error(
                     'Erro ao calcular a paginação da Prévia completa:',
@@ -2882,6 +2885,7 @@ const LaboratorioLaudos = () => {
                     setPaginationPlan([]);
                     setPaginationMetrics(null);
                     setPaginationStatus('error');
+                    setIsRenderedPaginationValidated(false);
                 }
             }
         };
@@ -2993,30 +2997,6 @@ const LaboratorioLaudos = () => {
 
                 if (hasCollision) {
                     collisionPageIndex = index;
-
-                    console.warn(
-                        '[Paginação A4] Colisão real detectada',
-                        {
-                            pagina: index + 1,
-                            ultimoExame:
-                                lastExamElement.dataset
-                                    .composedExamCode,
-                            finalDoExame:
-                                Math.ceil(
-                                    lastExamRect.bottom
-                                ),
-                            inicioDaAssinatura:
-                                Math.floor(
-                                    bottomRect.top
-                                ),
-                            distancia:
-                                Math.floor(
-                                    bottomRect.top -
-                                    lastExamRect.bottom
-                                )
-                        }
-                    );
-
                     return true;
                 }
 
@@ -3024,12 +3004,11 @@ const LaboratorioLaudos = () => {
             });
 
             if (collisionPageIndex < 0) {
-                console.info(
-                    '[Paginação A4] Todas as páginas foram validadas sem colisão.'
-                );
-
+                setIsRenderedPaginationValidated(true);
                 return;
             }
+
+            setIsRenderedPaginationValidated(false);
 
             if (
                 paginationAdjustmentCountRef.current >=
@@ -3124,19 +3103,6 @@ const LaboratorioLaudos = () => {
                         pages
                     );
 
-                console.info(
-                    '[Paginação A4] Exame movido para evitar colisão',
-                    {
-                        exame: movedExamCode,
-                        paginaOrigem:
-                            collisionPageIndex + 1,
-                        paginaDestino:
-                            collisionPageIndex + 2,
-                        totalPaginas:
-                            normalizedPages.length
-                    }
-                );
-
                 return normalizedPages;
             });
         };
@@ -3211,12 +3177,6 @@ const LaboratorioLaudos = () => {
         const missingExams = examsWithIds.filter(
             ({ resultId }) => !completeExamDataCacheRef.current[resultId]
         );
-
-        console.log('[Prévia completa]', {
-            selecionados: examsWithIds.length,
-            emCache: examsWithIds.length - missingExams.length,
-            paraCarregar: missingExams.length
-        });
 
         if (missingExams.length === 0) {
             setPreviewMode('complete');
@@ -3457,12 +3417,17 @@ const LaboratorioLaudos = () => {
 
     // Handlers de seleção
     const handleToggleExamSelection = (id) => {
-        setSelectedExamIds(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-        });
+        const next = new Set(selectedExamIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        
+        setSelectedExamIds(next);
+        setPaginationPlan([]);
+        setPaginationStatus('idle');
+        setIsRenderedPaginationValidated(false);
+        if (next.size <= 1) {
+            setPreviewMode('individual');
+        }
     };
 
     const handleSelectAllPrintable = () => {
@@ -3473,10 +3438,21 @@ const LaboratorioLaudos = () => {
                 .map(ex => ex.id)
         );
         setSelectedExamIds(printable);
+        
+        setPaginationPlan([]);
+        setPaginationStatus('idle');
+        setIsRenderedPaginationValidated(false);
+        if (printable.size <= 1) {
+            setPreviewMode('individual');
+        }
     };
 
     const handleClearSelection = () => {
         setSelectedExamIds(new Set());
+        setPaginationPlan([]);
+        setPaginationStatus('idle');
+        setIsRenderedPaginationValidated(false);
+        setPreviewMode('individual');
     };
 
     const formatDateTimeHForReport = (dateStr) => {
@@ -3500,7 +3476,255 @@ const LaboratorioLaudos = () => {
         return new Date(dateStr).toLocaleString('pt-BR');
     };
 
+    const handleDownloadCompletePreviewPdf =
+        async () => {
+            if (!canDownloadCompletePreview) {
+                setFeedbackMsg({
+                    type: 'warning',
+                    text: 'Aguarde a validação completa das páginas antes de baixar o PDF.'
+                });
+
+                return;
+            }
+
+            const root =
+                paginatedPreviewRef.current;
+
+            if (!root) {
+                setFeedbackMsg({
+                    type: 'error',
+                    text: 'Não foi possível localizar as páginas da Prévia completa.'
+                });
+
+                return;
+            }
+
+            const pageElements = Array.from(
+                root.querySelectorAll(
+                    '[data-composed-page="true"]'
+                )
+            );
+
+            if (
+                pageElements.length === 0 ||
+                pageElements.length !==
+                    paginationPlan.length
+            ) {
+                setFeedbackMsg({
+                    type: 'error',
+                    text: 'As páginas do laudo ainda não estão prontas para download.'
+                });
+
+                return;
+            }
+
+            const waitForPageImages = async pageElement => {
+                const images = Array.from(
+                    pageElement.querySelectorAll('img')
+                );
+
+                await Promise.all(
+                    images.map(image => {
+                        if (
+                            image.complete &&
+                            image.naturalWidth > 0
+                        ) {
+                            return Promise.resolve();
+                        }
+
+                        return new Promise(resolve => {
+                            const finish = () => resolve();
+
+                            image.addEventListener(
+                                'load',
+                                finish,
+                                { once: true }
+                            );
+
+                            image.addEventListener(
+                                'error',
+                                finish,
+                                { once: true }
+                            );
+                        });
+                    })
+                );
+            };
+
+            try {
+                setGeneratingPdf(true);
+
+                if (document.fonts?.ready) {
+                    try {
+                        await document.fonts.ready;
+                    } catch {
+                        // continuar normalmente
+                    }
+                }
+
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const PDF_WIDTH_MM = 210;
+                const PDF_HEIGHT_MM = 297;
+
+                for (
+                    let index = 0;
+                    index < pageElements.length;
+                    index += 1
+                ) {
+                    const pageElement =
+                        pageElements[index];
+
+                    await waitForPageImages(
+                        pageElement
+                    );
+
+                    await new Promise(resolve =>
+                        requestAnimationFrame(() =>
+                            requestAnimationFrame(resolve)
+                        )
+                    );
+
+                    const previousBoxShadow =
+                        pageElement.style.boxShadow;
+
+                    const previousMargin =
+                        pageElement.style.margin;
+
+                    pageElement.style.boxShadow = 'none';
+                    pageElement.style.margin = '0';
+
+                    try {
+                        const canvas = await html2canvas(
+                            pageElement,
+                            {
+                                scale: 2,
+                                useCORS: true,
+                                allowTaint: false,
+                                backgroundColor: '#ffffff',
+                                logging: false,
+                                scrollX: 0,
+                                scrollY: 0
+                            }
+                        );
+
+                        const imageData =
+                            canvas.toDataURL(
+                                'image/jpeg',
+                                0.96
+                            );
+
+                        const canvasRatio =
+                            canvas.width / canvas.height;
+
+                        const pageRatio =
+                            PDF_WIDTH_MM / PDF_HEIGHT_MM;
+
+                        let imageWidth;
+                        let imageHeight;
+
+                        if (canvasRatio > pageRatio) {
+                            imageWidth = PDF_WIDTH_MM;
+
+                            imageHeight =
+                                imageWidth / canvasRatio;
+                        } else {
+                            imageHeight = PDF_HEIGHT_MM;
+
+                            imageWidth =
+                                imageHeight * canvasRatio;
+                        }
+
+                        const imageX =
+                            (PDF_WIDTH_MM - imageWidth) / 2;
+
+                        const imageY =
+                            (PDF_HEIGHT_MM - imageHeight) / 2;
+
+                        if (index > 0) {
+                            pdf.addPage(
+                                'a4',
+                                'portrait'
+                            );
+                        }
+
+                        pdf.addImage(
+                            imageData,
+                            'JPEG',
+                            imageX,
+                            imageY,
+                            imageWidth,
+                            imageHeight,
+                            undefined,
+                            'FAST'
+                        );
+                    } finally {
+                        pageElement.style.boxShadow =
+                            previousBoxShadow;
+
+                        pageElement.style.margin =
+                            previousMargin;
+                    }
+                }
+
+                const firstPageData =
+                    paginationPlan[0];
+
+                const firstExamData =
+                    firstPageData?.exams?.[0];
+
+                const rawPatientCode =
+                    selectedProtocol?.pacienteCode || firstExamData?.exam?.pacienteCode || firstExamData?.exam?.patientCode;
+
+                const rawPatientName =
+                    firstExamData?.exam?.pacienteNome;
+
+                const sanitizeFilePart = value =>
+                    String(value ?? '')
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .toUpperCase()
+                        .replace(/[^A-Z0-9]+/g, '-')
+                        .replace(/^-+|-+$/g, '');
+
+                const patientCodeForFile =
+                    sanitizeFilePart(rawPatientCode);
+
+                const patientNameForFile =
+                    sanitizeFilePart(rawPatientName);
+
+                const fileName =
+                    patientCodeForFile
+                        ? `Laudo-${patientCodeForFile}-${patientNameForFile || 'PACIENTE'}.pdf`
+                        : `Laudo-${patientNameForFile || 'PACIENTE'}.pdf`;
+
+                pdf.save(fileName);
+            } catch (error) {
+                console.error(
+                    'Erro ao gerar PDF da Prévia completa:',
+                    error
+                );
+
+                setFeedbackMsg({
+                    type: 'error',
+                    text: 'Não foi possível gerar o PDF da Prévia completa.'
+                });
+            } finally {
+                setGeneratingPdf(false);
+            }
+        };
+
     const handleDownloadPdf = async () => {
+        if (generatingPdf) return;
+        
+        if (previewMode === 'complete') {
+            await handleDownloadCompletePreviewPdf();
+            return;
+        }
         if (!laudoRef.current || !selectedExam) return;
         
         try {
@@ -3909,8 +4133,29 @@ const LaboratorioLaudos = () => {
                                                 <button
                                                     type="button"
                                                     className="laudos-action-btn laudos-action-btn-icon"
-                                                    onClick={() => window.print()}
-                                                    disabled={previewMode === 'complete'}
+                                                    onClick={() => {
+                                                        if (isPrinting) return;
+                                                        if (
+                                                            previewMode === 'complete' &&
+                                                            !canPrintCompletePreview
+                                                        ) {
+                                                            return;
+                                                        }
+                                                    
+                                                        setIsPrinting(true);
+                                                        try {
+                                                            window.print();
+                                                        } finally {
+                                                            setTimeout(() => {
+                                                                setIsPrinting(false);
+                                                            }, 500);
+                                                        }
+                                                    }}
+                                                    disabled={
+                                                        (previewMode === 'complete'
+                                                            ? !canPrintCompletePreview
+                                                            : false) || isPrinting
+                                                    }
                                                     aria-label="Imprimir"
                                                     title="Imprimir"
                                                 >
@@ -3920,7 +4165,11 @@ const LaboratorioLaudos = () => {
                                                     type="button"
                                                     className="laudos-action-btn laudos-action-btn-icon"
                                                     onClick={handleDownloadPdf}
-                                                    disabled={generatingPdf || previewMode === 'complete'}
+                                                    disabled={
+                                                        (previewMode === 'complete'
+                                                            ? !canDownloadCompletePreview
+                                                            : (generatingPdf || previewMode === 'complete')) || generatingPdf
+                                                    }
                                                     aria-label="Baixar PDF"
                                                     title="Baixar PDF"
                                                 >
@@ -4006,31 +4255,6 @@ const LaboratorioLaudos = () => {
                                 )}
 
                                 {/* Header do Laudo ou HEMO */}
-                                {previewMode === 'complete' && (
-                                    <div
-                                        className={`lab-pagination-diagnostic${
-                                            paginationStatus === 'warning'
-                                                ? ' is-warning'
-                                                : paginationStatus === 'error'
-                                                    ? ' is-error'
-                                                    : ''
-                                        }`}
-                                    >
-                                        {paginationStatus === 'measuring' &&
-                                            'Calculando a distribuição das páginas A4...'}
-
-                                        {paginationStatus === 'ready' &&
-                                            `Paginação calculada: ${paginationPlan.length} página(s).`}
-
-                                        {paginationStatus === 'warning' &&
-                                            `Paginação calculada com alerta: ${paginationPlan.length} página(s). Exame maior que a área útil: ${
-                                                paginationMetrics?.oversizedCodes?.join(', ') || 'não identificado'
-                                            }.`}
-
-                                        {paginationStatus === 'error' &&
-                                            'Não foi possível calcular a paginação dos exames selecionados.'}
-                                    </div>
-                                )}
                                 {isCompletePreviewReady ? (
                                     paginationStatus === 'ready' ? (
                                         <div ref={paginatedPreviewRef} className="lab-complete-preview lab-complete-preview-paginated">
