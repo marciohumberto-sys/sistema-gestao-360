@@ -490,7 +490,7 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
     );
 
     return (
-        <div className="hemo-compact-container">
+        <div className={`hemo-compact-container${isComposed ? ' laudo-model-composed' : ''}`}>
             <div className="hemo-report-main">
                 {/* Cabeçalho Hemo */}
                 <div className="hemo-header">
@@ -775,7 +775,7 @@ const LaudoURI = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
     const obsVal = cleanValueURI(obsParam?.value_text ?? obsParam?.value ?? obsParam?.value_numeric);
 
     return (
-        <div className="hemo-compact-container">
+        <div className={`hemo-compact-container${isComposed ? ' laudo-model-composed' : ''}`}>
             <div className="hemo-report-main">
                 <div className="hemo-header">
                     <div className="hemo-header-logo">
@@ -936,7 +936,7 @@ const LaudoPAR = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
     };
 
     return (
-        <div className="hemo-compact-container">
+        <div className={`hemo-compact-container${isComposed ? ' laudo-model-composed' : ''}`}>
             <div className="hemo-report-main">
                 <div className="hemo-header">
                     <div className="hemo-header-logo">
@@ -1264,7 +1264,7 @@ const GraficoHistoricoExame = ({ historico, refMin, refMax, subtitle, examCode }
     );
 };
 
-const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl }) => {
+const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl, isComposed = false }) => {
     const [historicoExame, setHistoricoExame] = useState(null);
     const [loadingHistorico, setLoadingHistorico] = useState(false);
 
@@ -1466,7 +1466,7 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
     }
 
     return (
-        <div className="hemo-compact-container">
+        <div className={`hemo-compact-container${isComposed ? ' laudo-model-composed' : ''}`}>
             <div className="hemo-report-main">
                 {/* Cabeçalho Hemo */}
                 <div className="hemo-header">
@@ -2085,6 +2085,10 @@ const LaboratorioLaudos = () => {
     // Conjunto dos result_ids selecionados para impressão
     const [selectedExamIds, setSelectedExamIds] = useState(new Set());
     const [previewMode, setPreviewMode] = useState('individual');
+    const [completeExamDataById, setCompleteExamDataById] = useState({});
+    const [loadingCompletePreview, setLoadingCompletePreview] = useState(false);
+    const completeExamDataCacheRef = useRef({});
+    const completeSignatureCacheRef = useRef({});
     // Controle do drawer de seleção de exames
     const [drawerOpen, setDrawerOpen] = useState(false);
     const laudoRef = useRef(null);
@@ -2244,6 +2248,14 @@ const LaboratorioLaudos = () => {
             setPreviewMode('individual');
         }
     }, [selectedExamIds.size, previewMode]);
+
+    useEffect(() => {
+        completeExamDataCacheRef.current = {};
+        completeSignatureCacheRef.current = {};
+        setCompleteExamDataById({});
+        setLoadingCompletePreview(false);
+        setPreviewMode('individual');
+    }, [selectedProtocol?.protocolo]);
 
     useEffect(() => {
         if (groupedProtocols.length > 0 && selectedProtocol === null) {
@@ -2493,6 +2505,142 @@ const LaboratorioLaudos = () => {
         // já estão ordenados pela ordenação aplicada no groupedProtocols
     }, [selectedProtocol, selectedExamIds]);
 
+    const completePreviewExamData = useMemo(() => {
+        return selectedExamsForReport
+            .map(exam => completeExamDataById[exam.id])
+            .filter(Boolean);
+    }, [selectedExamsForReport, completeExamDataById]);
+
+    const isCompletePreviewReady =
+        previewMode === 'complete' &&
+        selectedExamsForReport.length > 1 &&
+        completePreviewExamData.length === selectedExamsForReport.length;
+
+    useEffect(() => {
+        if (
+            previewMode === 'complete' &&
+            completePreviewExamData.length !== selectedExamsForReport.length
+        ) {
+            setPreviewMode('individual');
+        }
+    }, [
+        previewMode,
+        completePreviewExamData.length,
+        selectedExamsForReport.length
+    ]);
+
+    const prepareCompletePreview = async () => {
+        if (selectedExamsForReport.length <= 1 || loadingCompletePreview) {
+            return;
+        }
+
+        const getResultId = exam =>
+            exam?.id ??
+            exam?.result_id ??
+            exam?.resultId ??
+            null;
+
+        const examsWithIds = selectedExamsForReport
+            .map(exam => ({
+                exam,
+                resultId: getResultId(exam)
+            }))
+            .filter(item => Boolean(item.resultId));
+
+        if (examsWithIds.length !== selectedExamsForReport.length) {
+            throw new Error('Existem exames selecionados sem ID ou result_id válido.');
+        }
+
+        const missingExams = examsWithIds.filter(
+            ({ resultId }) => !completeExamDataCacheRef.current[resultId]
+        );
+
+        console.log('[Prévia completa]', {
+            selecionados: examsWithIds.length,
+            emCache: examsWithIds.length - missingExams.length,
+            paraCarregar: missingExams.length
+        });
+
+        if (missingExams.length === 0) {
+            setPreviewMode('complete');
+            return;
+        }
+
+        try {
+            setLoadingCompletePreview(true);
+            setFeedbackMsg(null);
+
+            const loadedEntries = await Promise.all(
+                missingExams.map(async ({ exam, resultId }) => {
+                    const details =
+                        await laboratorioLaudosService.carregarDetalhesLaudo(resultId);
+
+                    let completeSignatureSignedUrl = null;
+                    const signaturePath = exam.responsible_signature_path;
+
+                    if (signaturePath) {
+                        if (completeSignatureCacheRef.current[signaturePath]) {
+                            completeSignatureSignedUrl = completeSignatureCacheRef.current[signaturePath];
+                        } else {
+                            try {
+                                completeSignatureSignedUrl =
+                                    await laboratorioLaudosService
+                                        .getLaboratorioSignatureSignedUrl(signaturePath);
+                                completeSignatureCacheRef.current[signaturePath] = completeSignatureSignedUrl;
+                            } catch (signatureError) {
+                                console.error(
+                                    `Erro ao carregar assinatura do exame ${exam.exameCodigo}:`,
+                                    signatureError
+                                );
+                            }
+                        }
+                    }
+
+                    return [
+                        resultId,
+                        {
+                            exam,
+                            details,
+                            signatureSignedUrl: completeSignatureSignedUrl,
+                            history: null
+                        }
+                    ];
+                })
+            );
+
+            const loadedData = Object.fromEntries(loadedEntries);
+
+            completeExamDataCacheRef.current = {
+                ...completeExamDataCacheRef.current,
+                ...loadedData
+            };
+
+            setCompleteExamDataById({
+                ...completeExamDataCacheRef.current
+            });
+
+            setPreviewMode('complete');
+        } catch (error) {
+            console.error(
+                'Erro ao preparar os dados da Prévia completa:',
+                error
+            );
+
+            setFeedbackMsg({
+                type: 'error',
+                text: 'Não foi possível preparar todos os exames selecionados.'
+            });
+
+            setPreviewMode('individual');
+
+            setTimeout(() => {
+                setFeedbackMsg(null);
+            }, 5000);
+        } finally {
+            setLoadingCompletePreview(false);
+        }
+    };
+
     // Handlers de seleção
     const handleToggleExamSelection = (id) => {
         setSelectedExamIds(prev => {
@@ -2515,6 +2663,22 @@ const LaboratorioLaudos = () => {
 
     const handleClearSelection = () => {
         setSelectedExamIds(new Set());
+    };
+
+    const formatDateTimeHForReport = (dateStr) => {
+        if (!dateStr) return '';
+
+        const date = new Date(dateStr);
+
+        if (Number.isNaN(date.getTime())) return '';
+
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const hour = String(date.getHours()).padStart(2, '0');
+        const minute = String(date.getMinutes()).padStart(2, '0');
+
+        return `${day}/${month}/${year} às ${hour}:${minute}h`;
     };
 
     const formatDateTime = (dateStr) => {
@@ -2893,12 +3057,27 @@ const LaboratorioLaudos = () => {
                                             <button
                                                 type="button"
                                                 className="laudos-action-btn laudos-action-btn-secondary"
+                                                disabled={loadingCompletePreview}
                                                 onClick={() => {
-                                                    setPreviewMode(current => current === 'complete' ? 'individual' : 'complete');
+                                                    if (previewMode === 'complete') {
+                                                        setPreviewMode('individual');
+                                                        return;
+                                                    }
+
+                                                    prepareCompletePreview();
                                                 }}
                                             >
-                                                <FileText size={14} />
-                                                {previewMode === 'complete' ? 'Voltar ao exame' : 'Prévia completa'}
+                                                {loadingCompletePreview ? (
+                                                    <Loader2 size={14} className="spin" />
+                                                ) : (
+                                                    <FileText size={14} />
+                                                )}
+
+                                                {loadingCompletePreview
+                                                    ? 'Preparando...'
+                                                    : previewMode === 'complete'
+                                                        ? 'Voltar ao exame'
+                                                        : 'Prévia completa'}
                                             </button>
                                         )}
 
@@ -2917,6 +3096,7 @@ const LaboratorioLaudos = () => {
                                                     type="button"
                                                     className="laudos-action-btn laudos-action-btn-icon"
                                                     onClick={() => window.print()}
+                                                    disabled={previewMode === 'complete'}
                                                     aria-label="Imprimir"
                                                     title="Imprimir"
                                                 >
@@ -2926,7 +3106,7 @@ const LaboratorioLaudos = () => {
                                                     type="button"
                                                     className="laudos-action-btn laudos-action-btn-icon"
                                                     onClick={handleDownloadPdf}
-                                                    disabled={generatingPdf}
+                                                    disabled={generatingPdf || previewMode === 'complete'}
                                                     aria-label="Baixar PDF"
                                                     title="Baixar PDF"
                                                 >
@@ -3012,7 +3192,18 @@ const LaboratorioLaudos = () => {
                                 )}
 
                                 {/* Header do Laudo ou HEMO */}
-                                {getExamCode(selectedExam) === 'HEMO' ? (
+                                {isCompletePreviewReady ? (
+                                    <div className="lab-complete-preview lab-complete-preview-unpaginated">
+                                        <LaudoA4Page
+                                            pageExams={completePreviewExamData}
+                                            patientCode={selectedProtocol?.pacienteCode}
+                                            selectedProtocol={selectedProtocol}
+                                            formatDateTimeH={formatDateTimeHForReport}
+                                            formatAttendanceOrigin={formatAttendanceOrigin}
+                                            statusReal={statusReal}
+                                        />
+                                    </div>
+                                ) : getExamCode(selectedExam) === 'HEMO' ? (
                                     <HemogramaCompactoCompleto
                                         selectedExam={selectedExam}
                                         examDetails={examDetails}
