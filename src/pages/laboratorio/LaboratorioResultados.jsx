@@ -533,7 +533,21 @@ const LaboratorioResultados = () => {
             
             let hasInvalidNumeric = false;
             let hasInvalidInteger = false;
+            let hasInvalidPcr = false;
+            const isPCRExam = String(selectedResult?.exameCodigo || '').trim().toUpperCase() === 'PCR';
             const valuesToSave = Object.values(formValues).map(v => {
+                let vToSend = { ...v, _isPCRExam: isPCRExam };
+                if (isPCRExam) {
+                    const rawVal = vToSend.value_text || '';
+                    if (rawVal) {
+                        const cleanPcr = rawVal.replace('mg/L', '').trim();
+                        if (cleanPcr.includes('—')) {
+                            const parts = cleanPcr.split('—').map(p => p.trim());
+                            if (parts[0] && !/^1\/\d+$/.test(parts[0])) hasInvalidPcr = true;
+                        }
+                    }
+                    return vToSend;
+                }
                 if (v.result_type === 'NUMERICO' && v.value_numeric !== null && v.value_numeric !== undefined && v.value_numeric !== '') {
                     const str = String(v.value_numeric);
                     const code = String(v.parameter_code || v.code || '').toUpperCase();
@@ -569,16 +583,31 @@ const LaboratorioResultados = () => {
                 setSaveStatus('error');
                 return false;
             }
+            if (hasInvalidPcr) {
+                setFeedbackMsg({ type: 'error', text: 'Informe a diluição no formato 1/8.' });
+                setTimeout(() => setFeedbackMsg(null), 4000);
+                setSaveStatus('error');
+                return false;
+            }
 
             // Validate mandatory
             const OPCIONAIS_HEMO = ['OBS_ERITROGRAMA', 'SERIE_ERITROCITARIA', 'SERIE_LEUCOCITARIA', 'SERIE_PLAQUETARIA', 'OBS_GERAL'];
             
             const missingRequiredParameters = valuesToSave.filter(v => {
-                const code = v.parameter_code || v.code || '';
+                const code = String(v.parameter_code || v.code || '').toUpperCase();
                 
                 if (OPCIONAIS_HEMO.includes(code)) return false;
                 
                 if (v.result_type === 'TEXTO' && (v.name || '').toUpperCase().includes('OBSERVA')) return false;
+
+                if (isPCRExam) {
+                    const rawVal = (v.value_text || '').replace('mg/L', '').trim();
+                    if (rawVal.includes('—')) {
+                        const parts = rawVal.split('—').map(p => p.trim());
+                        return !parts[1]; // Result is empty
+                    }
+                    return !rawVal;
+                }
 
                 if (v.result_type === 'NUMERICO') {
                     return isLabValueEmpty(v.value_numeric);
@@ -1068,6 +1097,7 @@ const LaboratorioResultados = () => {
                                         let compactRefText = '';
                                         let isObservation = false;
                                         let isCalculatedIndex = false;
+                                        const isPCRExam = String(selectedResult?.exameCodigo || '').trim().toUpperCase() === 'PCR';
 
                                         if (isHemo) {
                                             if (obsCodes.has(code) || param.result_type === 'TEXTO') {
@@ -1128,12 +1158,66 @@ const LaboratorioResultados = () => {
                                                 )}
                                                 <div className="lab-typing-parameter-block" style={{ marginBottom: renderContainerPadding, paddingBottom: renderContainerPadding, borderBottom: '1px solid #f1f5f9' }}>
                                                     <div className="lab-typing-result-row" style={{ alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', display: 'flex' }}>
-                                                        <div className="lab-typing-input-group" style={{ flex: isCompactRef ? '0 0 58%' : 1, minWidth: isCompactRef ? '300px' : '300px', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                            <label style={{ color: isMissing ? '#ef4444' : undefined, flex: isCompactRef ? '0 0 35%' : 'none', minWidth: isCompactRef ? '120px' : undefined, margin: 0, fontSize: isCompactRef ? '0.9rem' : undefined, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={param.name || 'Parâmetro'}>
+                                                        <div className="lab-typing-input-group" style={{ flex: isCompactRef ? '0 0 58%' : 1, minWidth: isCompactRef ? '300px' : '300px', display: 'flex', alignItems: isPCRExam ? 'flex-start' : 'center', gap: '0.75rem' }}>
+                                                            <label style={{ color: isMissing ? '#ef4444' : undefined, flex: isCompactRef ? '0 0 35%' : 'none', minWidth: isCompactRef ? '120px' : undefined, margin: 0, fontSize: isCompactRef ? '0.9rem' : undefined, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: isPCRExam ? 'none' : undefined }} title={param.name || 'Parâmetro'}>
                                                                 {param.name || 'Parâmetro'}
                                                             </label>
                                                             <div className="lab-input-wrapper" style={{ display: 'flex', alignItems: 'stretch', flex: 1 }}>
-                                                                {isObservation && !isNumeric ? (
+                                                                {isPCRExam ? (() => {
+                                                                    let pcrDil = '';
+                                                                    let pcrRes = '';
+                                                                    const rawPcr = formState.value_text || (formState.value_numeric != null ? String(formState.value_numeric) : '');
+                                                                    const cleanPcr = rawPcr.replace('mg/L', '').trim();
+                                                                    if (cleanPcr.includes('—')) {
+                                                                        const parts = cleanPcr.split('—').map(p => p.trim());
+                                                                        pcrDil = parts[0];
+                                                                        pcrRes = parts[1] || '';
+                                                                    } else {
+                                                                        pcrRes = cleanPcr;
+                                                                    }
+                                                                    
+                                                                    return (
+                                                                        <div className="pcr-fields" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', width: '100%', alignItems: 'flex-start' }}>
+                                                                            <div className="pcr-field pcr-dilution-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 150px', minWidth: '150px', maxWidth: '180px' }}>
+                                                                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', margin: 0 }}>DILUIÇÃO (OPCIONAL)</label>
+                                                                                <input 
+                                                                                    type="text" 
+                                                                                    placeholder="Ex.: 1/8" 
+                                                                                    className="lab-input-field" 
+                                                                                    style={{ width: '100%', padding: '0.5rem 0.75rem', border: isMissing ? '2px solid #ef4444' : '1px solid #cbd5e1', borderRadius: '8px', fontSize: '1.1rem', outline: 'none' }}
+                                                                                    value={pcrDil}
+                                                                                    disabled={isReadOnly || saving}
+                                                                                    onChange={(e) => {
+                                                                                        const newDil = e.target.value;
+                                                                                        const newFull = newDil ? `${newDil} — ${pcrRes} mg/L` : (pcrRes ? `${pcrRes} mg/L` : '');
+                                                                                        handleValueChange(param.id, 'value_text', newFull);
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                            <div className="pcr-field pcr-result-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 240px', minWidth: '240px' }}>
+                                                                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: isMissing ? '#ef4444' : '#64748b', margin: 0 }}>RESULTADO *</label>
+                                                                                <div className="pcr-result-input-group" style={{ display: 'flex', alignItems: 'stretch' }}>
+                                                                                    <input 
+                                                                                        type="text" 
+                                                                                        placeholder="Ex.: < 6 ou 48" 
+                                                                                        className="lab-input-field" 
+                                                                                        style={{ flex: 1, padding: '0.5rem 0.75rem', border: isMissing ? '2px solid #ef4444' : '1px solid #cbd5e1', borderRadius: '8px 0 0 8px', fontSize: '1.1rem', outline: 'none', minWidth: 0 }}
+                                                                                        value={pcrRes}
+                                                                                        disabled={isReadOnly || saving}
+                                                                                        onChange={(e) => {
+                                                                                            const newRes = e.target.value;
+                                                                                            const newFull = pcrDil ? `${pcrDil} — ${newRes} mg/L` : (newRes ? `${newRes} mg/L` : '');
+                                                                                            handleValueChange(param.id, 'value_text', newFull);
+                                                                                        }}
+                                                                                    />
+                                                                                    <div className="pcr-unit" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 0.75rem', background: '#f8fafc', border: isMissing ? '2px solid #ef4444' : '1px solid #cbd5e1', borderLeft: 'none', borderRadius: '0 8px 8px 0', color: '#475569', fontWeight: 600, whiteSpace: 'nowrap', fontSize: '0.9rem' }}>
+                                                                                        mg/L
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })() : isObservation && !isNumeric ? (
                                                                     <textarea
                                                                         className="lab-input-field"
                                                                         style={{

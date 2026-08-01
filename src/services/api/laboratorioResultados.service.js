@@ -303,7 +303,9 @@ class LaboratorioResultadosService {
                     updated_at: new Date().toISOString()
                 };
 
-                if (v.result_type === 'NUMERICO') {
+                const isPCR = v._isPCRExam === true;
+
+                if (v.result_type === 'NUMERICO' && !isPCR) {
                     payload.value_numeric = v.value_numeric !== '' && v.value_numeric !== null ? parseFloat(v.value_numeric) : null;
                     payload.value_text = null;
                 } else {
