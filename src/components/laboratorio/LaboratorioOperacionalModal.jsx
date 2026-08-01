@@ -128,6 +128,10 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
     const dateRef = useRef(null);
     const timeRef = useRef(null);
     const prevExamsLengthRef = useRef(0);
+    const cpfRef = useRef(null);
+    const rgRef = useRef(null);
+    const cnsRef = useRef(null);
+    const btnDocumentosRef = useRef(null);
     const savingRef = useRef(false);
     const isSuccessRef = useRef(false);
     const autoFocusRunRef = useRef(false);
@@ -725,7 +729,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                 const isOrigin = originRef.current && (activeEl === originRef.current || originRef.current.contains(activeEl));
                 
                 // Verifica se está num dos campos da sequência principal
-                const isMainSequence = (elName === 'full_name' || elName === 'birth_date' || elName === 'sex' || isOrigin);
+                const isMainSequence = (elName === 'full_name' || elName === 'birth_date' || elName === 'sex' || elName === 'cpf' || elName === 'rg' || elName === 'cns' || isOrigin);
                 
                 if (!isMainSequence) {
                     // Campos fora da sequência rápida (Data, Hora, Médico, Obs, ou grupos opcionais)
@@ -748,7 +752,33 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                     } else if (elName === 'birth_date') {
                         nextEl = document.getElementsByName('sex')[0];
                     } else if (elName === 'sex') {
-                        nextEl = originRef.current;
+                        if (!patientData.sex) {
+                            setFeedback({ type: 'error', text: 'Informe o sexo.' });
+                            return;
+                        }
+                        if (btnDocumentosRef.current && !cpfRef.current) {
+                            btnDocumentosRef.current.click();
+                        }
+                        setTimeout(() => {
+                            if (cpfRef.current) cpfRef.current.focus();
+                        }, 100);
+                        return;
+                    } else if (elName === 'cpf') {
+                        nextEl = rgRef.current;
+                    } else if (elName === 'rg') {
+                        nextEl = cnsRef.current;
+                    } else if (elName === 'cns') {
+                        if (btnDocumentosRef.current && cpfRef.current) {
+                            btnDocumentosRef.current.click();
+                        }
+                        setTimeout(() => {
+                            if (originRef.current) {
+                                const input = originRef.current.tagName?.toLowerCase() === 'input' ? originRef.current : originRef.current.querySelector('input');
+                                if (input) input.focus();
+                                else originRef.current.focus();
+                            }
+                        }, 100);
+                        return;
                     } else if (isOrigin) {
                         nextEl = quickExamInputRef.current;
                     }
@@ -904,6 +934,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                             onChange={handlePatientChangeWrapper} 
                                             isSaving={isSaving}
                                             readOnly={mode === 'edit' && !isEditingPatientCadastro}
+                                            patientRefs={{ cpfRef, rgRef, cnsRef, btnDocumentosRef }}
                                         />
                                         
                                         {isEditingPatientCadastro && (

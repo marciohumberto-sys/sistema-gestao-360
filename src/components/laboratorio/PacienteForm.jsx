@@ -130,7 +130,7 @@ const hasRealString = (val) => val && val.trim().length > 0;
 const hasCustomCity = (val) => val && val.trim().toUpperCase() !== 'BEZERROS' && val.trim().length > 0;
 const hasCustomState = (val) => val && val.trim().toUpperCase() !== 'PE' && val.trim().length > 0;
 
-const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = false }) => {
+const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = false, patientRefs = {} }) => {
     const [predictedCode, setPredictedCode] = React.useState('');
     const [activeTab, setActiveTab] = React.useState(null);
 
@@ -184,6 +184,7 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = fal
         const isActive = activeTab === id;
         return (
             <button
+                ref={id === 'documentos' ? patientRefs.btnDocumentosRef : null}
                 type="button"
                 onClick={() => toggleTab(id)}
                 style={{
@@ -283,16 +284,16 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = fal
                         <div className="lab-pac-form-grid" style={{ gap: '1rem' }}>
                             <div className="lab-pac-form-group">
                                 <label className="lab-pac-form-label">CPF</label>
-                                <input type="text" name="cpf" className="lab-pac-form-input" placeholder="000.000.000-00" value={formData.cpf} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                <input ref={patientRefs.cpfRef} type="text" name="cpf" className="lab-pac-form-input" placeholder="000.000.000-00" value={formData.cpf} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                                 {formErrors?.cpf && <span className="lab-pac-form-error">{formErrors.cpf}</span>}
                             </div>
                             <div className="lab-pac-form-group">
                                 <label className="lab-pac-form-label">RG</label>
-                                <input type="text" name="rg" className="lab-pac-form-input" placeholder="Apenas números ou letras" value={formData.rg} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                <input ref={patientRefs.rgRef} type="text" name="rg" className="lab-pac-form-input" placeholder="Apenas números ou letras" value={formData.rg} onChange={onChange} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                             </div>
                             <div className="lab-pac-form-group">
                                 <label className="lab-pac-form-label">CNS</label>
-                                <input type="text" name="cns" className="lab-pac-form-input" placeholder="15 dígitos" value={formData.cns} onChange={onChange} maxLength="15" disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                                <input ref={patientRefs.cnsRef} type="text" name="cns" className="lab-pac-form-input" placeholder="15 dígitos" value={formData.cns} onChange={onChange} maxLength="15" disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                                 {formErrors?.cns && <span className="lab-pac-form-error">{formErrors.cns}</span>}
                             </div>
                         </div>
