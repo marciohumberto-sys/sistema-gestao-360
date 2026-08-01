@@ -423,37 +423,158 @@ const LaboratorioMapas = () => {
         const dataHoraImpressao = `${formatDate(todayDate)} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
         
         const cssStyles = `
-            @page { size: A4 portrait; margin: 12mm 15mm; }
+            @page { size: A4 portrait; margin: 10mm 12mm 12mm 12mm; }
+            html, body { width: 100%; margin: 0; padding: 0; }
             * { box-sizing: border-box; }
-            body { font-family: Arial, Helvetica, sans-serif; color: #333; margin: 0; padding: 0; font-size: 9pt; }
-            .lab-paper-header { border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px; }
-            .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
-            .header-text-block h3 { margin: 0 0 2px 0; font-size: 10pt; text-transform: uppercase; }
-            .header-text-block h4 { margin: 0; font-size: 8pt; color: #64748b; font-weight: normal; }
-            .header-logos { display: flex; gap: 10px; }
-            .header-logos img { height: 25px; object-fit: contain; }
-            .header-bottom { text-align: center; }
-            .header-bottom h2 { margin: 0 0 5px 0; font-size: 12pt; }
-            .lab-paper-sector-badge { font-size: 8pt; font-weight: bold; border: 1px solid #e2e8f0; padding: 2px 8px; border-radius: 4px; }
+            .mapa-print-document {
+                width: 100%;
+                max-width: none;
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                font-family: Arial, Helvetica, sans-serif;
+                color: #333;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .mapa-print-header-top {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                align-items: center;
+                gap: 16px;
+            }
+            .mapa-print-laboratorio-container {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                gap: 2px;
+            }
+            .mapa-print-laboratorio-l1 {
+                font-size: 15px;
+                line-height: 1.1;
+                font-weight: 700;
+                color: #0f172a;
+                margin: 0;
+                text-transform: uppercase;
+            }
+            .mapa-print-laboratorio-l2 {
+                font-size: 12px;
+                line-height: 1.2;
+                font-weight: 500;
+                color: #475569;
+                margin: 0;
+            }
+            .mapa-print-logos {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 10px;
+                flex-shrink: 0;
+            }
+            .mapa-print-logo-prefeitura {
+                width: auto;
+                max-width: 105px;
+                max-height: 40px;
+                object-fit: contain;
+            }
+            .mapa-print-logo-laboratorio {
+                width: auto;
+                max-width: 36px;
+                max-height: 36px;
+                object-fit: contain;
+            }
+            .mapa-print-title-area {
+                text-align: center;
+                margin-top: 10px;
+                padding-bottom: 8px;
+                margin-bottom: 12px;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .mapa-print-title-area h1 {
+                margin: 0;
+                font-size: 18px;
+                line-height: 1.15;
+                font-weight: 700;
+                letter-spacing: 0.01em;
+                color: #0f172a;
+            }
+            .mapa-print-reference {
+                display: inline-block;
+                margin-top: 6px;
+                padding: 4px 12px;
+                font-size: 10px;
+                line-height: 1.2;
+                font-weight: 600;
+                color: #1e293b;
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+            }
+
+            .patient-block {
+                margin-top: 14px;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .patient-header {
+                padding: 7px 9px;
+                font-size: 11px;
+                line-height: 1.3;
+                border: 1px solid #cbd5e1;
+                border-left: 3px solid #64748b;
+                font-weight: bold;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                background: #f8fafc;
+            }
             
-            .lab-patient-block { margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid; }
-            .lab-patient-header { background: #f8fafc; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 3px 6px; font-weight: bold; display: flex; flex-wrap: wrap; gap: 8px; font-size: 8.5pt; }
-            .lab-patient-exams { width: 100%; border-collapse: collapse; font-size: 8.5pt; table-layout: fixed; }
-            .lab-patient-exams th { text-align: left; padding: 3px 6px; border-bottom: 1px solid #e2e8f0; }
-            .lab-patient-exams td { padding: 4px 6px; border-bottom: 1px dotted #e2e8f0; vertical-align: top; }
+            .lab-patient-exams { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+            .lab-patient-exams th { text-align: left; padding: 6px 9px; border-bottom: 1px solid #e2e8f0; font-size: 10px; }
+            .lab-patient-exams td { padding: 0 4px; border-bottom: 1px dotted #e2e8f0; vertical-align: top; }
             
             .col-ex-main { vertical-align: top; }
-            .col-ex-hist1 { width: 33mm; color: #64748b; font-size: 7.5pt; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            .col-ex-hist2 { width: 33mm; color: #64748b; font-size: 7.5pt; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .col-ex-hist1 { width: 35mm; color: #64748b; font-size: 9px; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-top: 8px; }
+            .col-ex-hist2 { width: 35mm; color: #64748b; font-size: 9px; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-top: 8px; }
             
-            .param-row { display: flex; justify-content: space-between; margin-bottom: 4px; align-items: baseline; }
-            .param-name { font-size: 8pt; white-space: nowrap; word-break: break-word; }
-            .param-line { border-bottom: 1px solid #cbd5e1; flex-grow: 1; min-width: 15px; margin-left: 8px; min-height: 10px; }
+            .exam-row {
+                display: grid;
+                grid-template-columns: 62px minmax(0, 1fr);
+                column-gap: 12px;
+                padding: 8px 4px;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .exam-code {
+                font-size: 10px;
+                font-weight: 800;
+                white-space: nowrap;
+            }
+            .exam-name {
+                font-size: 11px;
+                line-height: 1.25;
+                font-weight: 600;
+                margin-bottom: 4px;
+            }
+            .parameter-row {
+                display: grid;
+                grid-template-columns: minmax(140px, auto) minmax(100px, 1fr);
+                align-items: end;
+                column-gap: 8px;
+                min-height: 17px;
+                font-size: 10px;
+            }
+            .parameter-line {
+                width: 100%;
+                min-width: 100px;
+                border-bottom: 1px solid #b8c5d3;
+            }
             
             .hist-row-container { display: flex; justify-content: flex-start; align-items: baseline; gap: 12px; margin-bottom: 4px; min-height: 14px; }
             .hist-item { display: inline-block; white-space: nowrap; }
             
-            .lab-paper-footer { margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 5px; font-size: 7.5pt; color: #94a3b8; display: flex; justify-content: space-between; }
+            .lab-paper-footer { margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 5px; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; }
         `;
 
         const renderHistItemHTML = (histArray, index) => {
@@ -490,9 +611,9 @@ const LaboratorioMapas = () => {
                 if (ex.parameters && ex.parameters.length > 0) {
                     ex.parameters.forEach(p => {
                         paramsHtml += `
-                            <div class="param-row">
-                                <span class="param-name">${escapeHtml(p.name || ':')}</span>
-                                <div class="param-line"></div>
+                            <div class="parameter-row">
+                                <span>${escapeHtml(p.name || ':')}</span>
+                                <div class="parameter-line"></div>
                             </div>
                         `;
                         hist1Html += `<div class="hist-row-container">${renderHistItemHTML(p.history, 0)}</div>`;
@@ -500,9 +621,9 @@ const LaboratorioMapas = () => {
                     });
                 } else {
                     paramsHtml = `
-                        <div class="param-row">
-                            <span class="param-name">:</span>
-                            <div class="param-line"></div>
+                        <div class="parameter-row">
+                            <span>:</span>
+                            <div class="parameter-line"></div>
                         </div>
                     `;
                     hist1Html = `<div class="hist-row-container">${renderHistItemHTML(ex.history, 0)}</div>`;
@@ -512,10 +633,10 @@ const LaboratorioMapas = () => {
                 examsRows += `
                     <tr>
                         <td class="col-ex-main">
-                            <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); column-gap: 12px; align-items: start;">
-                                <div style="font-weight: bold; white-space: nowrap;">${escapeHtml(ex.code)}</div>
-                                <div style="min-width: 0; white-space: normal; overflow-wrap: anywhere;">
-                                    <div style="font-weight: bold; margin-bottom: 4px;">${escapeHtml(ex.name)}</div>
+                            <div class="exam-row">
+                                <div class="exam-code">${escapeHtml(ex.code)}</div>
+                                <div>
+                                    <div class="exam-name">${escapeHtml(ex.name)}</div>
                                     <div>${paramsHtml}</div>
                                 </div>
                             </div>
@@ -527,12 +648,12 @@ const LaboratorioMapas = () => {
             });
 
             bodyHtml += `
-                <div class="lab-patient-block">
-                    <div class="lab-patient-header" style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
-                        <div style="word-break: break-word; color: #1e293b;">
-                            <span style="font-weight: 700;">CÓD. ${escapeHtml(pat.code)}</span> — <span>${escapeHtml(pat.name)}</span>
+                <div class="patient-block">
+                    <div class="patient-header">
+                        <div style="word-break: break-word; color: #1e293b; width: 100%;">
+                            <span style="font-weight: 800;">CÓD. ${escapeHtml(pat.code)}</span> — <span>${escapeHtml(pat.name)}</span>
                         </div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 8pt; color: #475569;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: #475569;">
                             <span>${escapeHtml(pat.age_at_generation)}</span>
                             <span style="color: #94a3b8;">|</span>
                             <span>${escapeHtml(pat.sex)}</span>
@@ -558,27 +679,29 @@ const LaboratorioMapas = () => {
                 <style>${cssStyles}</style>
             </head>
             <body>
-                <div class="lab-paper-header">
-                    <div class="header-top">
-                        <div class="header-text-block">
-                            <h3>Secretaria Municipal de Saúde de Bezerros</h3>
-                            <h4>Laboratório Municipal Lindoberg Cândido de Souza</h4>
+              <div class="mapa-print-document">
+                <header class="mapa-print-header">
+                    <div class="mapa-print-header-top">
+                        <div class="mapa-print-laboratorio-container">
+                            <div class="mapa-print-laboratorio-l1">LABORATÓRIO MUNICIPAL</div>
+                            <div class="mapa-print-laboratorio-l2">Lindoberg Cândido de Souza</div>
                         </div>
-                        <div class="header-logos">
-                            <img src="${window.location.origin}/logo-prefeitura-pb.jpg" alt="Prefeitura" onError={(e) => { e.currentTarget.style.display='none'; }} />
-                            <img src="${window.location.origin}/logo-laboratorio-pb.jpg" alt="Laboratório" onError={(e) => { e.currentTarget.style.display='none'; }} />
+                        <div class="mapa-print-logos">
+                            <img src="${new URL('/logo-prefeitura-pb.jpg', window.location.origin).href}" alt="Prefeitura" class="mapa-print-logo-prefeitura">
+                            <img src="${new URL('/logo-laboratorio-pb.jpg', window.location.origin).href}" alt="Laboratório" class="mapa-print-logo-laboratorio">
                         </div>
                     </div>
-                    <div class="header-bottom">
-                        <h2>MAPA DE TRABALHO COLETIVO</h2>
-                        <span class="lab-paper-sector-badge">SETOR: ${escapeHtml(sectorName).toUpperCase()} | DATA REF: ${formatDate(snapshot.metadata?.reference_date)}</span>
+                    <div class="mapa-print-title-area">
+                        <h1>MAPA DE TRABALHO COLETIVO</h1>
+                        <div class="mapa-print-reference">SETOR: ${escapeHtml(sectorName).toUpperCase()} | DATA REF: ${formatDate(snapshot.metadata?.reference_date)}</div>
                     </div>
-                </div>
+                </header>
                 ${bodyHtml}
                 <div class="lab-paper-footer">
                     <p>Impresso por: ${escapeHtml(displayName)} em ${escapeHtml(dataHoraImpressao)}</p>
                     <p>Gestão 360 - Lote: ${escapeHtml(snapshot.metadata?.batch_id)}</p>
                 </div>
+              </div>
             </body>
             </html>
         `;
@@ -1065,13 +1188,13 @@ const LaboratorioMapas = () => {
                             <div className="lab-paper-mock">
                                 <div className="lab-paper-header">
                                     <div className="header-top">
-                                        <div className="header-text-block">
-                                            <h3>Secretaria Municipal de Saúde de Bezerros</h3>
-                                            <h4>Laboratório Municipal Lindoberg Cândido de Souza</h4>
+                                        <div className="mapa-laboratorio-container">
+                                            <div className="mapa-laboratorio-l1">LABORATÓRIO MUNICIPAL</div>
+                                            <div className="mapa-laboratorio-l2">Lindoberg Cândido de Souza</div>
                                         </div>
                                         <div className="header-logos">
-                                            <img src="/logo-prefeitura-pb.jpg" alt="Prefeitura" onError={(e) => { e.currentTarget.style.display='none'; }} />
-                                            <img src="/logo-laboratorio-pb.jpg" alt="Laboratório" onError={(e) => { e.currentTarget.style.display='none'; }} />
+                                            <img src="/logo-prefeitura-pb.jpg" alt="Prefeitura" className="mapa-print-logo-prefeitura" onError={(e) => { e.currentTarget.style.display='none'; }} />
+                                            <img src="/logo-laboratorio-pb.jpg" alt="Laboratório" className="mapa-print-logo-laboratorio" onError={(e) => { e.currentTarget.style.display='none'; }} />
                                         </div>
                                     </div>
                                     <div className="header-bottom">
@@ -1132,7 +1255,7 @@ const LaboratorioMapas = () => {
                                                                     <div style={{ display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr)', columnGap: '12px', alignItems: 'start' }}>
                                                                         <div style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{ex.code}</div>
                                                                         <div style={{ minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
-                                                                            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{ex.name}</div>
+                                                                            <div style={{ fontWeight: 600, marginBottom: '4px' }}>{ex.name}</div>
                                                                             <div>
                                                                                 {ex.parameters && ex.parameters.length > 0 ? (
                                                                                     ex.parameters.map((p, pIdx) => (

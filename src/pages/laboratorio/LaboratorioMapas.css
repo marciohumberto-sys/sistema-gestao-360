@@ -448,68 +448,85 @@
 
 .laboratorio-mapas .lab-paper-header {
     border-bottom: 1px solid #e2e8f0;
-    padding-bottom: 1rem;
-    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem;
 }
 
 .laboratorio-mapas .header-top {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    margin-bottom: 0.5rem;
+    gap: 1rem;
 }
 
-.laboratorio-mapas .header-text-block h3 {
-    margin: 0 0 0.15rem 0;
-    font-size: 1rem;
+.laboratorio-mapas .mapa-laboratorio-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+}
+
+.laboratorio-mapas .mapa-laboratorio-l1 {
+    font-size: 1.15rem;
     font-weight: 700;
-    color: #334155;
+    color: #0f172a;
+    line-height: 1.1;
+    margin: 0;
     text-transform: uppercase;
 }
 
-.laboratorio-mapas .header-text-block h4 {
+.laboratorio-mapas .mapa-laboratorio-l2 {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #475569;
+    line-height: 1.2;
     margin: 0;
-    font-size: 0.85rem;
-    color: #64748b;
-    font-weight: normal;
 }
 
 .laboratorio-mapas .header-logos {
     display: flex;
     gap: 10px;
     align-items: center;
+    justify-content: flex-end;
 }
 
-.laboratorio-mapas .header-logos img {
-    height: 25px;
+.laboratorio-mapas .mapa-print-logo-prefeitura {
+    width: auto;
+    max-width: 105px;
+    max-height: 40px;
+    object-fit: contain;
+}
+
+.laboratorio-mapas .mapa-print-logo-laboratorio {
+    width: auto;
+    max-width: 36px;
+    max-height: 36px;
     object-fit: contain;
 }
 
 .laboratorio-mapas .header-bottom {
     text-align: center;
-    margin-top: 1rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.4rem;
+    margin-top: 0.75rem;
 }
 
 .laboratorio-mapas .header-bottom h2 {
     margin: 0;
-    font-size: 1.25rem;
+    font-size: 1.15rem;
     font-weight: 700;
-    color: #1e293b;
-    letter-spacing: 0.5px;
+    color: #0f172a;
+    letter-spacing: 0.01em;
 }
 
 .laboratorio-mapas .lab-paper-sector-badge {
-    font-size: 0.85rem;
-    font-weight: 600;
     display: inline-block;
-    color: #64748b;
-    padding: 0.2rem 1rem;
-    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-top: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    background-color: #f8fafc;
     border: 1px solid #e2e8f0;
+    border-radius: 6px;
 }
 
 .laboratorio-mapas .lab-patient-block {
