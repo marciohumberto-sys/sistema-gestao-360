@@ -64,8 +64,12 @@ export const canAccessLaboratorio = (role, featurePath) => {
     if (role === 'TECNICO') {
         const allowedPaths = [
             '/laboratorio/dashboard',
+            '/laboratorio/pacientes',
+            '/laboratorio/coleta',
             '/laboratorio/mapas',
-            '/laboratorio/resultados'
+            '/laboratorio/resultados',
+            '/laboratorio/laudos',
+            '/laboratorio/relatorios'
         ];
         return allowedPaths.some(p => featurePath.startsWith(p));
     }

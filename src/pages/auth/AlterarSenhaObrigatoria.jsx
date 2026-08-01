@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { changeOwnTemporaryPassword } from '../../services/passwordService';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Lock, Eye, EyeOff, Loader2, LogOut, CheckCircle, XCircle } from 'lucide-react';
 
 const AlterarSenhaObrigatoria = () => {
-    const { logout, retryLoadSessionData } = useAuth();
+    const { logout } = useAuth();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -51,21 +50,9 @@ const AlterarSenhaObrigatoria = () => {
         try {
             await changeOwnTemporaryPassword(password);
             
-            const { data, error } = await supabase.auth.refreshSession();
-            
-            if (error || !data?.session) {
-                setLoading(false);
-                setShowSuccessModal(true);
-                return;
-            }
-
-            if (data.session.user?.app_metadata?.must_change_password === true) {
-                setLoading(false);
-                setShowSuccessModal(true);
-                return;
-            }
-
-            await retryLoadSessionData(data.session.user);
+            setLoading(false);
+            setShowSuccessModal(true);
+            return;
             
         } catch (err) {
             setErrorMsg(err.message || 'Não foi possível alterar a senha. Tente novamente.');

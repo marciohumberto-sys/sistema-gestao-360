@@ -446,7 +446,7 @@ const LaboratorioUsuarios = () => {
                     <option value="Todos">Perfil: Todos</option>
                     <option value="ADMINISTRADOR">Administrador</option>
                     <option value="BIOMEDICO">Biomédico</option>
-                    <option value="TECNICO">Técnico/Bancada</option>
+                    <option value="TECNICO">TÉCNICO/BANCADA</option>
                     <option value="COLETA">Coleta</option>
                     <option value="RECEPCAO">Recepção</option>
                     <option value="VISUALIZADOR">Visualizador</option>
@@ -501,14 +501,14 @@ const LaboratorioUsuarios = () => {
                                         </td>
                                         <td>
                                             <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#0ea5e9' }}>
-                                                {user.profile}
+                                                {user.profile === 'TECNICO' ? 'TÉCNICO/BANCADA' : user.profile}
                                             </span>
                                         </td>
                                         <td>
                                             <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
                                                 {user.profile === 'ADMINISTRADOR' ? 'Acesso total ao módulo' :
                                                  user.profile === 'BIOMEDICO' ? 'Conferência e liberação de laudos' :
-                                                 user.profile === 'TECNICO' ? 'Lançamento de resultados, Mapas' :
+                                                 user.profile === 'TECNICO' ? 'Pacientes, Atendimento, Mapas, Resultados, Laudos e Relatórios' :
                                                  user.profile === 'COLETA' ? 'Mapas, Atendimento e Coleta' :
                                                  user.profile === 'RECEPCAO' ? 'Pacientes, Atendimento, Mapas, Resultados e Laudos' : 'Apenas leitura'}
                                             </span>
@@ -612,7 +612,7 @@ const LaboratorioUsuarios = () => {
                                     <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.85rem', color: '#64748b' }}>
                                         {formData.profile === 'ADMINISTRADOR' && <li>Acesso total, incluindo configurações e usuários.</li>}
                                         {formData.profile === 'BIOMEDICO' && <li>Acesso a Dashboard, Conferência, Laudos e Relatórios.</li>}
-                                        {formData.profile === 'TECNICO' && <li>Acesso a Dashboard, Mapas e Lançamento de Resultados.</li>}
+                                        {formData.profile === 'TECNICO' && <li>Acesso a Dashboard, Pacientes / Atendimento, Mapas, Resultados, Laudos e Relatórios.</li>}
                                         {formData.profile === 'COLETA' && <li>Acesso a Dashboard, Coleta de amostras e Mapas.</li>}
                                         {formData.profile === 'RECEPCAO' && <li>Acesso a Dashboard, Pacientes / Atendimento, Mapas, Resultados e Laudos.</li>}
                                         {formData.profile === 'VISUALIZADOR' && <li>Acesso somente leitura aos dados.</li>}
