@@ -46,7 +46,11 @@ const POSTOS_UNIDADES = [
     { value: 'SÃO JOSÉ', label: 'SÃO JOSÉ' }
 ];
 
-const TODAS_ORIGENS = [...ATTENDANCE_ORIGINS, ...POSTOS_UNIDADES];
+const POSTOS_UNIDADES_ORDENADOS = [...POSTOS_UNIDADES].sort((a, b) => 
+    a.label.localeCompare(b.label, 'pt-BR', { sensitivity: 'base' })
+);
+
+const TODAS_ORIGENS = [...ATTENDANCE_ORIGINS, ...POSTOS_UNIDADES_ORDENADOS];
 
 const normalizeString = (str) => {
     if (!str) return '';
@@ -815,7 +819,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
 
     const normalizedOriginSearch = normalizeString(originSearchText);
     const filteredGerais = ATTENDANCE_ORIGINS.filter(o => normalizeString(o.label).includes(normalizedOriginSearch));
-    const filteredPostos = POSTOS_UNIDADES.filter(o => normalizeString(o.label).includes(normalizedOriginSearch));
+    const filteredPostos = POSTOS_UNIDADES_ORDENADOS.filter(o => normalizeString(o.label).includes(normalizedOriginSearch));
     const flatFilteredOrigens = [...filteredGerais, ...filteredPostos];
 
     if (!isOpen) return null;

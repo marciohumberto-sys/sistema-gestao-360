@@ -1,15 +1,15 @@
 export const ATTENDANCE_ORIGINS = [
-    { value: 'UPA', label: 'UPA' },
-    { value: 'UNIDADE_MISTA', label: 'UNIDADE MISTA' },
-    { value: 'SAD', label: 'SAD' },
-    { value: 'DOMICILIAR', label: 'DOMICILIAR' },
-    { value: 'URGENCIA', label: 'URGÊNCIA' },
     { value: 'CENTRAL', label: 'CENTRAL' },
+    { value: 'DOMICILIAR', label: 'DOMICILIAR' },
+    { value: 'SAD', label: 'SAD' },
+    { value: 'UNIDADE_MISTA', label: 'UMSJ' },
+    { value: 'UPA', label: 'UPA' },
+    { value: 'URGENCIA', label: 'URGÊNCIA' },
 ];
 
 const ATTENDANCE_ORIGIN_LABELS = {
     UPA: 'UPA',
-    UNIDADE_MISTA: 'UNIDADE MISTA',
+    UNIDADE_MISTA: 'UMSJ',
     SAD: 'SAD',
     DOMICILIAR: 'DOMICILIAR',
     URGENCIA: 'URGÊNCIA',
