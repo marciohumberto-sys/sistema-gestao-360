@@ -446,7 +446,7 @@ const LaboratorioUsuarios = () => {
                     <option value="Todos">Perfil: Todos</option>
                     <option value="ADMINISTRADOR">Administrador</option>
                     <option value="BIOMEDICO">Biomédico</option>
-                    <option value="TECNICO">TÉCNICO/BANCADA</option>
+                    <option value="TECNICO">Técnico/Bancada</option>
                     <option value="COLETA">Coleta</option>
                     <option value="RECEPCAO">Recepção</option>
                     <option value="VISUALIZADOR">Visualizador</option>
@@ -501,7 +501,7 @@ const LaboratorioUsuarios = () => {
                                         </td>
                                         <td>
                                             <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#0ea5e9' }}>
-                                                {user.profile === 'TECNICO' ? 'TÉCNICO/BANCADA' : user.profile}
+                                                {user.profile === 'TECNICO' ? 'Técnico/Bancada' : user.profile}
                                             </span>
                                         </td>
                                         <td>
@@ -598,7 +598,7 @@ const LaboratorioUsuarios = () => {
                                     >
                                         <option value="ADMINISTRADOR">ADMINISTRADOR</option>
                                         <option value="BIOMEDICO">BIOMÉDICO</option>
-                                        <option value="TECNICO">TÉCNICO/BANCADA</option>
+                                        <option value="TECNICO">Técnico/Bancada</option>
                                         <option value="COLETA">COLETA</option>
                                         <option value="RECEPCAO">RECEPÇÃO</option>
                                         <option value="VISUALIZADOR">VISUALIZADOR</option>
