@@ -442,9 +442,7 @@ const LaboratorioMapas = () => {
             .lab-patient-exams th { text-align: left; padding: 3px 6px; border-bottom: 1px solid #e2e8f0; }
             .lab-patient-exams td { padding: 4px 6px; border-bottom: 1px dotted #e2e8f0; vertical-align: top; }
             
-            .col-ex-cod { width: 34px; }
-            .col-ex-name { width: auto; font-weight: bold; word-break: break-word; }
-            .col-ex-param { width: 25mm; transform: translateX(-12px); }
+            .col-ex-main { vertical-align: top; }
             .col-ex-hist1 { width: 33mm; color: #64748b; font-size: 7.5pt; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             .col-ex-hist2 { width: 33mm; color: #64748b; font-size: 7.5pt; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             
@@ -471,10 +469,19 @@ const LaboratorioMapas = () => {
             return `<span class="hist-item">${formatDate(h.date)} &rarr; ${escapeHtml(displayVal)}</span>`;
         };
 
+        const sectorName = snapshot.metadata?.sector?.name || 'SETOR DESCONHECIDO';
+        const isHematologia = sectorName.trim().toUpperCase() === 'HEMATOLOGIA';
+
         let bodyHtml = '';
         snapshot.patients.forEach(pat => {
+            const examesVisiveis = isHematologia
+                ? (pat.exams || []).filter(exam => String(exam.code || '').trim().toUpperCase() !== 'HEMO')
+                : (pat.exams || []);
+
+            if (examesVisiveis.length === 0) return;
+
             let examsRows = '';
-            const deduplicatedExams = deduplicateExamsForPrint(pat.exams);
+            const deduplicatedExams = deduplicateExamsForPrint(examesVisiveis);
             deduplicatedExams.forEach(ex => {
                 let paramsHtml = '';
                 let hist1Html = '';
@@ -504,9 +511,15 @@ const LaboratorioMapas = () => {
 
                 examsRows += `
                     <tr>
-                        <td class="col-ex-cod">${escapeHtml(ex.code)}</td>
-                        <td class="col-ex-name">${escapeHtml(ex.name)}</td>
-                        <td class="col-ex-param">${paramsHtml}</td>
+                        <td class="col-ex-main">
+                            <div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); column-gap: 12px; align-items: start;">
+                                <div style="font-weight: bold; white-space: nowrap;">${escapeHtml(ex.code)}</div>
+                                <div style="min-width: 0; white-space: normal; overflow-wrap: anywhere;">
+                                    <div style="font-weight: bold; margin-bottom: 4px;">${escapeHtml(ex.name)}</div>
+                                    <div>${paramsHtml}</div>
+                                </div>
+                            </div>
+                        </td>
                         <td class="col-ex-hist1">${hist1Html}</td>
                         <td class="col-ex-hist2">${hist2Html}</td>
                     </tr>
@@ -535,8 +548,6 @@ const LaboratorioMapas = () => {
                 </div>
             `;
         });
-
-        const sectorName = snapshot.metadata?.sector?.name || 'SETOR DESCONHECIDO';
 
         const htmlContent = `
             <!DOCTYPE html>
@@ -1087,8 +1098,16 @@ const LaboratorioMapas = () => {
                                         );
                                     };
 
+                                    const isHematologia = (previewSnap.metadata?.sector?.name || '').trim().toUpperCase() === 'HEMATOLOGIA';
+
                                     return previewSnap.patients.map((pat, idx) => {
-                                        const deduplicatedExams = deduplicateExamsForPrint(pat.exams);
+                                        const examesVisiveis = isHematologia
+                                            ? (pat.exams || []).filter(exam => String(exam.code || '').trim().toUpperCase() !== 'HEMO')
+                                            : (pat.exams || []);
+
+                                        if (examesVisiveis.length === 0) return null;
+
+                                        const deduplicatedExams = deduplicateExamsForPrint(examesVisiveis);
                                         return (
                                             <div key={idx} className="lab-patient-block">
                                                 <div className="lab-patient-header" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
@@ -1109,22 +1128,28 @@ const LaboratorioMapas = () => {
                                                     <tbody>
                                                         {deduplicatedExams.map((ex, eIdx) => (
                                                             <tr key={eIdx}>
-                                                                <td className="col-ex-cod">{ex.code}</td>
-                                                                <td className="col-ex-name">{ex.name}</td>
-                                                                <td className="col-ex-param" style={{ transform: 'translateX(-12px)' }}>
-                                                                    {ex.parameters && ex.parameters.length > 0 ? (
-                                                                        ex.parameters.map((p, pIdx) => (
-                                                                            <div key={pIdx} className="param-row">
-                                                                                <span className="param-name">{p.name || ':'}</span>
-                                                                                <div className="param-line"></div>
+                                                                <td className="col-ex-main">
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr)', columnGap: '12px', alignItems: 'start' }}>
+                                                                        <div style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{ex.code}</div>
+                                                                        <div style={{ minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                                                                            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{ex.name}</div>
+                                                                            <div>
+                                                                                {ex.parameters && ex.parameters.length > 0 ? (
+                                                                                    ex.parameters.map((p, pIdx) => (
+                                                                                        <div key={pIdx} className="param-row">
+                                                                                            <span className="param-name">{p.name || ':'}</span>
+                                                                                            <div className="param-line"></div>
+                                                                                        </div>
+                                                                                    ))
+                                                                                ) : (
+                                                                                    <div className="param-row">
+                                                                                        <span className="param-name">:</span>
+                                                                                        <div className="param-line"></div>
+                                                                                    </div>
+                                                                                )}
                                                                             </div>
-                                                                        ))
-                                                                    ) : (
-                                                                        <div className="param-row">
-                                                                            <span className="param-name">:</span>
-                                                                            <div className="param-line"></div>
                                                                         </div>
-                                                                    )}
+                                                                    </div>
                                                                 </td>
                                                                 <td className="col-ex-hist1">
                                                                     {ex.parameters && ex.parameters.length > 0 ? (
