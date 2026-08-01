@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { changeOwnTemporaryPassword } from '../../services/passwordService';
 import { useAuth } from '../../context/AuthContext';
-import { Lock, Eye, EyeOff, Loader2, LogOut, CheckCircle, XCircle } from 'lucide-react';
+import { Lock, Eye, EyeOff, Loader2, LogOut, CheckCircle, XCircle, ShieldCheck } from 'lucide-react';
 
 const AlterarSenhaObrigatoria = () => {
     const { logout } = useAuth();
@@ -66,24 +66,41 @@ const AlterarSenhaObrigatoria = () => {
     };
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', backgroundColor: '#f8fafc', fontFamily: 'var(--font-family, system-ui, sans-serif)', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
-            <div style={{ width: '100%', maxWidth: '440px', padding: '2.5rem 3rem', backgroundColor: '#fff', borderRadius: '16px', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+        <div className="alterar-senha-container" style={{ minHeight: '100vh', display: 'flex', background: 'linear-gradient(135deg, #edf7f5 0%, #f8fafc 48%, #eef2f7 100%)', fontFamily: 'var(--font-family, system-ui, sans-serif)', justifyContent: 'center', alignItems: 'center', padding: '1rem', position: 'relative', overflow: 'hidden' }}>
+            
+            {/* Elementos Decorativos */}
+            <div style={{ position: 'absolute', top: '-10%', left: '-5%', width: '420px', height: '420px', borderRadius: '50%', backgroundColor: 'rgba(15, 74, 68, 0.04)', filter: 'blur(60px)', pointerEvents: 'none', zIndex: 0 }}></div>
+            <div style={{ position: 'absolute', bottom: '-15%', right: '-5%', width: '360px', height: '360px', borderRadius: '50%', backgroundColor: 'rgba(14, 165, 233, 0.03)', filter: 'blur(60px)', pointerEvents: 'none', zIndex: 0 }}></div>
+            
+            {/* Detalhe Gráfico Institucional */}
+            <div style={{ position: 'absolute', top: '15%', right: '-10%', width: '600px', height: '200px', border: '1px solid rgba(15, 74, 68, 0.05)', borderRadius: '100px', transform: 'rotate(-15deg)', pointerEvents: 'none', zIndex: 0 }}></div>
+
+            <div className="alterar-senha-card" style={{ width: '100%', maxWidth: '460px', padding: '2.5rem 3rem', backgroundColor: 'rgba(255, 255, 255, 0.96)', borderRadius: '20px', boxShadow: '0 28px 70px -30px rgba(15, 74, 68, 0.35)', border: '1px solid rgba(15, 74, 68, 0.10)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1, boxSizing: 'border-box' }}>
                 
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
                     <img 
                         src="/logo-prefeitura_cores.png" 
                         alt="Logo" 
-                        style={{ height: '50px', width: 'auto', objectFit: 'contain' }}
+                        style={{ height: '44px', width: 'auto', objectFit: 'contain' }}
                         onError={(e) => e.target.style.display = 'none'}
                     />
                 </div>
 
-                <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem', textAlign: 'center', letterSpacing: '-0.02em' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#ecfdf5', color: '#10b981', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                        <ShieldCheck size={14} />
+                        Ambiente Seguro
+                    </div>
+                </div>
+
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem', textAlign: 'center', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
                     Crie sua nova senha
                 </h2>
-                <p style={{ color: '#64748b', marginBottom: '2rem', fontSize: '0.95rem', lineHeight: 1.5, textAlign: 'center' }}>
-                    Por segurança, substitua a senha temporária antes de continuar.
-                </p>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <p style={{ color: '#64748b', marginBottom: '2rem', fontSize: '0.95rem', lineHeight: 1.5, textAlign: 'center', maxWidth: '340px' }}>
+                        Por segurança, substitua a senha temporária antes de continuar.
+                    </p>
+                </div>
 
                 {errorMsg && (
                     <div style={{ padding: '12px 16px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: '10px', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', fontWeight: 500 }}>
@@ -96,19 +113,21 @@ const AlterarSenhaObrigatoria = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Nova senha</label>
                         <div style={{ position: 'relative' }}>
-                            <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                            <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
                             <input 
                                 type={showPassword ? "text" : "password"}
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
                                 placeholder="Sua nova senha" 
                                 required
-                                style={{ width: '100%', padding: '14px 46px 14px 46px', border: '1.5px solid #e2e8f0', borderRadius: '12px', fontSize: '1rem', color: '#0f172a', outline: 'none', transition: 'all 0.2s', backgroundColor: '#fdfdfd', boxSizing: 'border-box' }} 
+                                style={{ width: '100%', padding: '14px 46px 14px 46px', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '1rem', color: '#0f172a', outline: 'none', transition: 'all 0.2s', backgroundColor: '#f8fafc', boxSizing: 'border-box' }} 
+                                onFocus={e => { e.target.style.borderColor = '#0f4a44'; e.target.style.boxShadow = '0 0 0 4px rgba(15, 74, 68, 0.08)'; e.target.style.backgroundColor = '#fff'; }}
+                                onBlur={e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; e.target.style.backgroundColor = '#f8fafc'; }}
                             />
                             <button 
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             >
                                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
@@ -118,21 +137,23 @@ const AlterarSenhaObrigatoria = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Confirmar nova senha</label>
                         <div style={{ position: 'relative' }}>
-                            <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                            <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
                             <input 
                                 type={showPassword ? "text" : "password"}
                                 value={confirmPassword}
                                 onChange={e => setConfirmPassword(e.target.value)}
                                 placeholder="Repita a senha" 
                                 required
-                                style={{ width: '100%', padding: '14px 46px 14px 46px', border: '1.5px solid #e2e8f0', borderRadius: '12px', fontSize: '1rem', color: '#0f172a', outline: 'none', transition: 'all 0.2s', backgroundColor: '#fdfdfd', boxSizing: 'border-box' }} 
+                                style={{ width: '100%', padding: '14px 46px 14px 46px', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '1rem', color: '#0f172a', outline: 'none', transition: 'all 0.2s', backgroundColor: '#f8fafc', boxSizing: 'border-box' }} 
+                                onFocus={e => { e.target.style.borderColor = '#0f4a44'; e.target.style.boxShadow = '0 0 0 4px rgba(15, 74, 68, 0.08)'; e.target.style.backgroundColor = '#fff'; }}
+                                onBlur={e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; e.target.style.backgroundColor = '#f8fafc'; }}
                             />
                         </div>
                     </div>
 
-                    <div style={{ padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Requisitos de segurança:</p>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div style={{ padding: '1.25rem', backgroundColor: '#f1f8f6', borderRadius: '12px', border: '1px solid rgba(15, 74, 68, 0.08)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f4a44', margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Requisitos de segurança:</p>
+                        <div className="requirements-grid" style={{ display: 'grid', gap: '10px' }}>
                             <RequirementItem met={hasLength} text="Mínimo 8 caracteres" />
                             <RequirementItem met={hasUpper} text="Uma maiúscula" />
                             <RequirementItem met={hasLower} text="Uma minúscula" />
@@ -143,6 +164,7 @@ const AlterarSenhaObrigatoria = () => {
                     </div>
 
                     <button 
+                        className="btn-atualizar"
                         type="submit" 
                         disabled={loading || !isValid}
                         style={{ 
@@ -151,18 +173,18 @@ const AlterarSenhaObrigatoria = () => {
                             color: '#fff', border: 'none', borderRadius: '12px', 
                             fontSize: '1rem', fontWeight: 700, cursor: (loading || !isValid) ? 'not-allowed' : 'pointer', 
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                            opacity: (loading || !isValid) ? 0.7 : 1,
-                            transition: 'all 0.2s',
+                            opacity: (loading || !isValid) ? 0.6 : 1,
+                            transition: 'all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)',
                             boxShadow: (loading || !isValid) ? 'none' : '0 4px 14px rgba(15, 74, 68, 0.25)' 
                         }}
                     >
                         {loading ? <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> : 'Atualizar Senha'}
                     </button>
-                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                 </form>
 
                 <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'center' }}>
                     <button 
+                        className="btn-sair"
                         onClick={() => logout()}
                         disabled={loading}
                         style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: '#64748b', fontSize: '0.9rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', transition: 'color 0.2s' }}
@@ -171,6 +193,37 @@ const AlterarSenhaObrigatoria = () => {
                         Sair da conta
                     </button>
                 </div>
+
+                <style>{`
+                    @keyframes spin { to { transform: rotate(360deg); } }
+                    
+                    .requirements-grid {
+                        grid-template-columns: 1fr 1fr;
+                    }
+
+                    @media (max-width: 480px) {
+                        .alterar-senha-container {
+                            padding: 16px !important;
+                        }
+                        .alterar-senha-card {
+                            padding: 2rem 1.5rem !important;
+                            border-radius: 16px !important;
+                        }
+                        .requirements-grid {
+                            grid-template-columns: 1fr !important;
+                        }
+                    }
+
+                    .btn-atualizar:not(:disabled):hover {
+                        background-color: #135c55 !important;
+                        transform: translateY(-1px);
+                        box-shadow: 0 6px 20px rgba(15, 74, 68, 0.35) !important;
+                    }
+
+                    .btn-sair:not(:disabled):hover {
+                        color: #0f4a44 !important;
+                    }
+                `}</style>
 
                 {showSuccessModal && (
                     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
