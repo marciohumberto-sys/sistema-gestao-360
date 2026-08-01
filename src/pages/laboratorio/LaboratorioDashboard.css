@@ -142,14 +142,15 @@
     display: grid;
     gap: 1rem;
     margin-bottom: 1.5rem;
+    align-items: stretch;
 }
 
 .lab-sections-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .lab-secondary-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 @media (max-width: 1024px) {
@@ -167,6 +168,7 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    min-width: 0;
     box-sizing: border-box;
 }
 
@@ -211,6 +213,9 @@
 .lab-sectors-list {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    justify-content: space-between;
     gap: 0.75rem;
 }
 
@@ -262,6 +267,9 @@
 .lab-status-list {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    justify-content: space-between;
     gap: 0.6rem;
 }
 
@@ -342,8 +350,22 @@
 .lab-timeline {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
     position: relative;
     padding-left: 1rem;
+}
+
+.lab-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    min-height: 0;
+    color: #64748b;
+    text-align: center;
+    padding: 20px;
 }
 
 .lab-timeline::before {
@@ -419,7 +441,11 @@
 /* Indicadores Operacionais (Cards) */
 .lab-indicadores-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
+    align-items: stretch;
+    flex: 1;
+    min-height: 0;
     gap: 0.75rem;
 }
 
@@ -436,6 +462,7 @@
     padding: 1rem;
     display: flex;
     flex-direction: column;
+    height: 100%;
     gap: 0.75rem;
     transition: all 0.2s;
 }

@@ -621,9 +621,10 @@ const LaboratorioResultados = () => {
             setSaveStatus('success');
 
             const results = updatedData && updatedData.length > 0 && updatedData[0].resultados ? updatedData[0].resultados : [];
-            const isAllCompleted = results.length === 0;
+            const hasPendente = results.some(r => String(r.status || 'PENDENTE').toUpperCase() === 'PENDENTE');
+            const shouldRemoveFromView = searchFilters.status === 'Em digitação' && !hasPendente;
 
-            if (isAllCompleted) {
+            if (shouldRemoveFromView) {
                  setFeedbackMsg({ type: 'success', text: 'Todos os exames deste atendimento foram digitados.' });
                  setSearchResults(prev => (prev || []).filter(att => att.id !== selectedAttendance?.id));
                  setSelectedAttendance(null);
@@ -811,8 +812,13 @@ const LaboratorioResultados = () => {
                     </div>
                     <div className="lab-filter-group">
                         <label>Status</label>
-                        <select className="lab-select" value={searchFilters.status} disabled onChange={(e) => setSearchFilters({...searchFilters, status: e.target.value})}>
+                        <select className="lab-select" value={searchFilters.status} onChange={(e) => setSearchFilters({...searchFilters, status: e.target.value})}>
+                            <option value="Todos">Todos</option>
                             <option value="Em digitação">Em digitação</option>
+                            <option value="Aguardando conferência">Aguardando conferência</option>
+                            <option value="Conferidos">Conferidos</option>
+                            <option value="Liberados">Liberados</option>
+                            <option value="Cancelados">Cancelados</option>
                         </select>
                     </div>
                     <div className="lab-filter-group">

@@ -91,22 +91,22 @@ class LaboratorioResultadosService {
                 } else {
                     const activeStatuses = allStatuses.filter(s => s !== 'CANCELADO');
                     if (activeStatuses.every(s => s === 'LIBERADO')) {
-                        statusGeral = 'Laudo liberado';
+                        statusGeral = 'Liberados';
                     } else if (activeStatuses.includes('PENDENTE')) {
                         statusGeral = 'Em digitação';
                     } else if (activeStatuses.includes('DIGITADO')) {
                         statusGeral = 'Aguardando conferência';
                     } else if (activeStatuses.includes('CONFERIDO')) {
-                        statusGeral = 'Aguardando liberação';
+                        statusGeral = 'Conferidos';
+                    } else {
+                        statusGeral = 'Outros'; // Failsafe
                     }
                 }
 
-                // A TELA DE RESULTADOS DEVE EXIBIR SOMENTE EXAMES EM DIGITAÇÃO (PENDENTE)
-                if (pendentes === 0) return null;
-
-                // Como a tela de Resultados agora é exclusiva para PENDENTE, 
-                // fixamos o statusGeral para exibição correta na interface.
-                statusGeral = 'Em digitação';
+                // Filtragem por STATUS baseada no que a tela enviou
+                if (status && status !== 'Todos') {
+                    if (statusGeral !== status) return null;
+                }
 
                 return {
                     ...att,
@@ -210,9 +210,9 @@ class LaboratorioResultadosService {
 
         const combinedData = attendances.map(att => {
             const paciente = pacientesMap[att.patient_id] || {};
-            // A tela de Resultados só deve carregar exames PENDENTES
+            // Carregar todos os exames do atendimento para visualização lateral completa
             const attendanceResults = results
-                .filter(r => r.attendance_id === att.id && String(r.status || 'PENDENTE').toUpperCase() === 'PENDENTE')
+                .filter(r => r.attendance_id === att.id)
                 .map(r => {
                 const exame = examesMap[r.exam_id] || {};
                 
