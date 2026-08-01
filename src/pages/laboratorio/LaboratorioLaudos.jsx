@@ -159,11 +159,16 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
         const absLine = refObj.displayLines?.find(l => l.isAbs);
 
         if (mode === 'eritro') {
+            const pCode = String(param.parameter_code ?? param.parameterCode ?? param.code ?? '').trim().toUpperCase();
+            const pName = String(param.parameter_name ?? '').trim().toUpperCase();
+            const isHemoglobina = pCode === 'HEMOGLOBINA' || pName === 'HEMOGLOBINA';
+            const displayUnit = isHemoglobina ? 'g/dL' : (param.unit ? param.unit.replace(/\/mm3/g, '/mm³') : '');
+
             return (
                 <div key={param.id} className="hemo-eritro-grid">
                     <div className="hemo-col-name">{param.parameter_name || param.parameter_code}</div>
                     <div className={`hemo-col-result ${isAbnormalRel ? 'hemo-abnormal' : ''}`}>{formattedResult}</div>
-                    <div className="hemo-col-unit">{param.unit ? param.unit.replace(/\/mm3/g, '/mm³') : ''}</div>
+                    <div className="hemo-col-unit">{displayUnit}</div>
                     <div className="hemo-col-graph">
                         {refObj.valid && !refObj.isFixed && <GraficoHemo value={valNum} min={refObj.relMin} max={refObj.relMax} parameterCode={param.parameter_code} />}
                     </div>
@@ -269,7 +274,7 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
     );
 
     return (
-        <div className={`hemo-compact-container${isComposed ? ' laudo-model-composed' : ''}`}>
+        <div className={`hemo-compact-container hemo-compact-hemo${isComposed ? ' laudo-model-composed' : ''}`}>
             <div className="hemo-report-main">
                 {/* Cabeçalho Hemo */}
                 <div className="hemo-header">

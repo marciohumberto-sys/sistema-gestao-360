@@ -207,7 +207,6 @@ const LaboratorioResultados = () => {
     const tooltipTimeoutRef = useRef(null);
     const [missingFields, setMissingFields] = useState([]);
     const inputRefs = useRef([]);
-    const lastFocusedExamRef = useRef(null);
     const shouldScrollToTopRef = useRef(false);
     const examTopRef = useRef(null);
 
@@ -532,8 +531,6 @@ const LaboratorioResultados = () => {
 
     useEffect(() => {
         if (!selectedExamId || loading || saving) return;
-        
-        if (lastFocusedExamRef.current === selectedExamId) return;
 
         requestAnimationFrame(() => {
             setTimeout(() => {
@@ -543,13 +540,6 @@ const LaboratorioResultados = () => {
                 if (shouldScrollToTopRef.current && examTopRef.current) {
                     examTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     shouldScrollToTopRef.current = false;
-                }
-
-                const firstInput = inputRefs.current[0];
-                if (firstInput && !firstInput.disabled && !firstInput.readOnly) {
-                    firstInput.focus();
-                    if (firstInput.select) firstInput.select();
-                    lastFocusedExamRef.current = selectedExamId;
                 }
             }, 100);
         });

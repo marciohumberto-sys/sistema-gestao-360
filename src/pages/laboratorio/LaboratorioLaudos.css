@@ -1732,6 +1732,26 @@
         padding: 8mm 0 0 0 !important;
         margin-top: 0 !important;
     }
+
+    /* Ajuste cirúrgico exclusivo para impressão individual do HEMO */
+    .hemo-compact-hemo:not(.laudo-model-composed) {
+        min-height: 0 !important;
+        padding-top: 5mm !important;
+        padding-bottom: 0 !important;
+    }
+
+    .hemo-compact-hemo:not(.laudo-model-composed) .hemo-report-bottom {
+        padding-top: 0.8rem !important;
+    }
+
+    .hemo-compact-hemo:not(.laudo-model-composed) .hemo-signature-area {
+        margin-bottom: 6px !important;
+    }
+
+    .hemo-compact-hemo:not(.laudo-model-composed) .hemo-footer-address {
+        padding-top: 4px !important;
+        margin-bottom: 0 !important;
+    }
 }
 
 /* =========================================================
