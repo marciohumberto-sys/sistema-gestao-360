@@ -19,78 +19,42 @@ export const getCurrentTenantId = async () => {
  * Busca a lista consolidade de usuários vinculados ao módulo LABORATORIO.
  */
 export const fetchLaboratorioUsers = async (tenantId) => {
-    // 1. Obter ID do módulo LABORATORIO
-
-    const { data: moduleData } = await supabase
-        .from('system_modules')
-        .select('id')
-        .eq('key', 'LABORATORIO')
-        .maybeSingle();
-
-    if (!moduleData) return [];
-
-    // 2. Buscar IDs de usuários que possuem escopo no módulo LABORATORIO
-    const { data: scopeData } = await supabase
-        .from('user_access_scopes')
-        .select('user_id, unit_id, units(name)')
-        .eq('tenant_id', tenantId)
-        .eq('module_id', moduleData.id)
-        .eq('is_active', true);
-
-    const laboratorioUserIds = scopeData ? Array.from(new Set(scopeData.map(s => s.user_id))) : [];
-    
-    const userUnitsMap = {};
-    if (scopeData) {
-        scopeData.forEach(s => {
-            const uName = s.units?.name;
-            if (uName) {
-                if (!userUnitsMap[s.user_id]) userUnitsMap[s.user_id] = new Set();
-                userUnitsMap[s.user_id].add(uName);
-            }
-        });
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !sessionData?.session?.access_token) {
+        throw new Error('Sua sessão expirou. Entre novamente.');
     }
 
-    // 3. Chamar a RPC para obter dados de Auth + Tenants
-    // Usando a mesma RPC de Farmácia se não houver uma específica, mas o ideal seria 'get_users_with_auth'
-    // Como a RPC get_farmacia_users_with_auth parece genérica (pelo nome só tem Farmácia mas recebe tenant_id),
-    // usaremos ela ou 'get_tenant_users'. Se falhar, retornamos array vazio (mock).
-    const { data, error } = await supabase.rpc('get_farmacia_users_with_auth', {
-        p_tenant_id: tenantId
-    });
+    const payload = {
+        tenant_id: tenantId,
+        module_key: 'LABORATORIO'
+    };
 
-    if (error) {
-        console.error('Erro ao buscar usuários do laboratório:', error);
-        throw error;
-    }
-
-    if (!data) return [];
-
-    const groupedUsers = {};
-
-    data.forEach(row => {
-        const userId = row.user_id || row.id;
-        
-        // 4. FILTRAR: Só incluir se o usuário tiver escopo real no Laboratório
-        if (!laboratorioUserIds.includes(userId)) return;
-
-        const key = row.user_tenant_id || userId;
-
-        if (!groupedUsers[key]) {
-            groupedUsers[key] = {
-                id: userId, 
-                user_id: userId,
-                user_tenant_id: row.user_tenant_id || key,
-                name: row.full_name || row.name || 'Usuário Sem Nome',
-                email: row.email || '',
-                profile: row.role || row.profile || 'VISUALIZADOR',
-                status: (row.is_active === true || row.status === 'ATIVO') ? 'ATIVO' : 'INATIVO',
-                secretariat_name: row.secretariat_name || '',
-                units: userUnitsMap[userId] ? Array.from(userUnitsMap[userId]) : []
-            };
+    const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/list-laboratorio-users`,
+        {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${sessionData.session.access_token}`
+            },
+            body: JSON.stringify(payload)
         }
-    });
+    );
 
-    return Object.values(groupedUsers);
+    const result = await response.json();
+
+    if (!response.ok) {
+        if (response.status === 401) {
+            throw new Error('Sua sessão expirou. Entre novamente.');
+        }
+        if (response.status === 403) {
+            throw new Error('Você não possui permissão para visualizar os usuários do Laboratório.');
+        }
+        console.error('Erro na Edge Function list-laboratorio-users:', result.error || response.statusText);
+        throw new Error('Não foi possível carregar os usuários do Laboratório.');
+    }
+
+    return result.users || [];
 };
 
 export const createLaboratorioUser = async (tenantId, userData) => {
