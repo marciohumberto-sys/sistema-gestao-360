@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import * as authService from '../../services/authService';
 import { normalizeEmail, getPostLoginRedirectPath } from '../../utils/authUtils';
 import { brandConfig } from '../../config/brand';
-import { Lock, Mail, Loader2 } from 'lucide-react';
+import { Lock, Mail, Loader2, CheckCircle } from 'lucide-react';
 
 const Login = () => {
     const { authUser, isAuthenticated, loading: authLoading, tenantLink, isSuperAdmin, accessibleModules } = useAuth();
@@ -15,6 +15,24 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+    const [passwordChangeSuccess, setPasswordChangeSuccess] = useState(false);
+
+    React.useEffect(() => {
+        const consumePasswordChangeSuccess = () => {
+            const hasSuccess = sessionStorage.getItem('gpi_password_change_success') === 'true';
+            if (!hasSuccess) return;
+            sessionStorage.removeItem('gpi_password_change_success');
+            setPasswordChangeSuccess(true);
+        };
+
+        consumePasswordChangeSuccess();
+
+        window.addEventListener('gpi-password-change-success', consumePasswordChangeSuccess);
+
+        return () => {
+            window.removeEventListener('gpi-password-change-success', consumePasswordChangeSuccess);
+        };
+    }, []);
 
     // Se já estiver logado e O CARREGAMENTO CONCLUIU, redireciona.
     // Isso impede falsos redirects enquanto IS_SUPERADMIN ainda estiver mascarado.
@@ -130,6 +148,16 @@ const Login = () => {
                 <div style={{ marginTop: 'auto', marginBottom: 'auto' }}>
                     <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem', letterSpacing: '-0.025em' }}>Acesso Restrito</h2>
                     <p style={{ color: '#64748b', marginBottom: '2.5rem', fontSize: '1.05rem', lineHeight: 1.5 }}>Entre com suas credenciais institucionais.</p>
+
+                    {passwordChangeSuccess && (
+                        <div style={{ padding: '14px 16px', backgroundColor: '#ecfdf5', border: '1px solid #10b981', color: '#065f46', borderRadius: '10px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <CheckCircle size={28} style={{ color: '#10b981', flexShrink: 0 }} />
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>Senha alterada com sucesso</h3>
+                                <p style={{ margin: 0, fontSize: '0.85rem' }}>Entre com seu usuário e sua nova senha.</p>
+                            </div>
+                        </div>
+                    )}
 
                     {errorMsg && (
                         <div style={{ padding: '14px 16px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: '10px', marginBottom: '1.5rem', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500 }}>

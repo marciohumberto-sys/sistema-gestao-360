@@ -20,6 +20,8 @@ const AlterarSenhaObrigatoria = () => {
 
         setIsLoggingOut(true);
 
+        sessionStorage.removeItem('gpi_password_change_success');
+
         try {
             await logout();
         } catch (error) {
@@ -49,6 +51,9 @@ const AlterarSenhaObrigatoria = () => {
         setLoading(true);
         try {
             await changeOwnTemporaryPassword(password);
+            
+            sessionStorage.setItem('gpi_password_change_success', 'true');
+            window.dispatchEvent(new Event('gpi-password-change-success'));
             
             setLoading(false);
             setShowSuccessModal(true);
