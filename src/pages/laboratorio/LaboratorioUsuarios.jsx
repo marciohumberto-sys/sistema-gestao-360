@@ -510,7 +510,7 @@ const LaboratorioUsuarios = () => {
                                                  user.profile === 'BIOMEDICO' ? 'Conferência e liberação de laudos' :
                                                  user.profile === 'TECNICO' ? 'Lançamento de resultados, Mapas' :
                                                  user.profile === 'COLETA' ? 'Mapas, Atendimento e Coleta' :
-                                                 user.profile === 'RECEPCAO' ? 'Pacientes, Atendimento e Visualização' : 'Apenas leitura'}
+                                                 user.profile === 'RECEPCAO' ? 'Pacientes, Atendimento, Mapas, Resultados e Laudos' : 'Apenas leitura'}
                                             </span>
                                         </td>
                                         <td style={{ textAlign: 'center' }}>
@@ -614,7 +614,7 @@ const LaboratorioUsuarios = () => {
                                         {formData.profile === 'BIOMEDICO' && <li>Acesso a Dashboard, Conferência, Laudos e Relatórios.</li>}
                                         {formData.profile === 'TECNICO' && <li>Acesso a Dashboard, Mapas e Lançamento de Resultados.</li>}
                                         {formData.profile === 'COLETA' && <li>Acesso a Dashboard, Coleta de amostras e Mapas.</li>}
-                                        {formData.profile === 'RECEPCAO' && <li>Acesso a Dashboard, Cadastro de Pacientes e Atendimento.</li>}
+                                        {formData.profile === 'RECEPCAO' && <li>Acesso a Dashboard, Pacientes / Atendimento, Mapas, Resultados e Laudos.</li>}
                                         {formData.profile === 'VISUALIZADOR' && <li>Acesso somente leitura aos dados.</li>}
                                     </ul>
                                 </div>

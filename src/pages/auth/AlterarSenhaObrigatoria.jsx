@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { changeOwnTemporaryPassword } from '../../services/passwordService';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -11,6 +12,23 @@ const AlterarSenhaObrigatoria = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const navigate = useNavigate();
+
+    const handleLoginAgain = async () => {
+        if (isLoggingOut) return;
+
+        setIsLoggingOut(true);
+
+        try {
+            await logout();
+        } catch (error) {
+            console.error('Erro ao encerrar sessão após troca de senha:', error);
+        } finally {
+            navigate('/login', { replace: true });
+        }
+    };
 
     const hasLength = password.length >= 8 && password.length <= 128;
     const hasUpper = /[A-Z]/.test(password);
@@ -36,14 +54,14 @@ const AlterarSenhaObrigatoria = () => {
             const { data, error } = await supabase.auth.refreshSession();
             
             if (error || !data?.session) {
-                window.alert('Senha alterada com sucesso. Entre novamente usando sua nova senha.');
-                await logout();
+                setLoading(false);
+                setShowSuccessModal(true);
                 return;
             }
 
             if (data.session.user?.app_metadata?.must_change_password === true) {
-                window.alert('Senha alterada com sucesso. Entre novamente usando sua nova senha.');
-                await logout();
+                setLoading(false);
+                setShowSuccessModal(true);
                 return;
             }
 
@@ -161,6 +179,25 @@ const AlterarSenhaObrigatoria = () => {
                         Sair da conta
                     </button>
                 </div>
+
+                {showSuccessModal && (
+                    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+                        <div style={{ width: '400px', backgroundColor: '#fff', borderRadius: '16px', padding: '2rem', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                            <div style={{ backgroundColor: '#ecfdf5', color: '#10b981', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '1rem' }}>
+                                <CheckCircle size={32} />
+                            </div>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.5rem 0' }}>Senha alterada com sucesso</h3>
+                            <p style={{ color: '#64748b', fontSize: '0.95rem', margin: '0 0 1.5rem 0', lineHeight: 1.5 }}>Entre novamente usando sua nova senha.</p>
+                            <button 
+                                disabled={isLoggingOut}
+                                onClick={handleLoginAgain}
+                                style={{ width: '100%', padding: '12px', backgroundColor: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '1rem', fontWeight: 700, cursor: isLoggingOut ? 'not-allowed' : 'pointer', transition: 'all 0.2s', opacity: isLoggingOut ? 0.7 : 1, display: 'flex', justifyContent: 'center' }}
+                            >
+                                {isLoggingOut ? <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> : 'Entrar novamente'}
+                            </button>
+                        </div>
+                    </div>
+                )}
 
             </div>
         </div>
