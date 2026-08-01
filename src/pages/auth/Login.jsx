@@ -15,14 +15,16 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
-    const [passwordChangeSuccess, setPasswordChangeSuccess] = useState(false);
+    const [passwordChangeSuccess, setPasswordChangeSuccess] = useState(
+        () => sessionStorage.getItem('gpi_password_change_success') === 'true'
+    );
 
     React.useEffect(() => {
         const consumePasswordChangeSuccess = () => {
             const hasSuccess = sessionStorage.getItem('gpi_password_change_success') === 'true';
-            if (!hasSuccess) return;
-            sessionStorage.removeItem('gpi_password_change_success');
-            setPasswordChangeSuccess(true);
+            if (hasSuccess) {
+                setPasswordChangeSuccess(true);
+            }
         };
 
         consumePasswordChangeSuccess();
@@ -37,6 +39,10 @@ const Login = () => {
     // Se já estiver logado e O CARREGAMENTO CONCLUIU, redireciona.
     // Isso impede falsos redirects enquanto IS_SUPERADMIN ainda estiver mascarado.
     React.useEffect(() => {
+        if (passwordChangeSuccess) {
+            return;
+        }
+
         if (isAuthenticated && !authLoading) {
             // PRIORIDADE ABSOLUTA: Marcio Humberto sempre vai para /home
             if (authUser?.email === 'marcio.humberto@gmail.com') {
@@ -55,7 +61,7 @@ const Login = () => {
                 navigate(path, { replace: true });
             }
         }
-    }, [isAuthenticated, authLoading, navigate, location, tenantLink, isSuperAdmin, accessibleModules, authUser]);
+    }, [isAuthenticated, authLoading, navigate, location, tenantLink, isSuperAdmin, accessibleModules, authUser, passwordChangeSuccess]);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -76,6 +82,10 @@ const Login = () => {
                 
                 try {
                     await authService.login(currentEmail, password);
+                    
+                    sessionStorage.removeItem('gpi_password_change_success');
+                    setPasswordChangeSuccess(false);
+                    
                     success = true;
                     console.log(`[AUTH DEBUG] Sucesso na tentativa com o email: ${currentEmail}`);
                     break; // Sucesso: listener do AuthContext atualizará o estado e disparará o redirect
