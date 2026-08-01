@@ -94,7 +94,6 @@ export const fetchLaboratorioUsers = async (tenantId) => {
 };
 
 export const createLaboratorioUser = async (tenantId, userData) => {
-    const tempPassword = 'Lab@123';
     let unitId = null;
     let secretariatId = null;
 
@@ -201,7 +200,6 @@ export const createLaboratorioUser = async (tenantId, userData) => {
     // 2. Se não existe, prosseguir com a criação via POST
     const payload = {
         email: userData.email,
-        password: tempPassword,
         name: userData.name,
         role: userData.profile,
         is_active: userData.status === 'ATIVO',
@@ -211,58 +209,36 @@ export const createLaboratorioUser = async (tenantId, userData) => {
         secretariat_id: secretariatId
     };
 
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !sessionData?.session?.access_token) {
+        throw new Error('Sua sessão expirou. Entre novamente para cadastrar o usuário.');
+    }
+
     const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-user`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-laboratorio-user`,
         {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                'Authorization': `Bearer ${sessionData.session.access_token}`
             },
             body: JSON.stringify(payload)
         }
     );
 
     const result = await response.json();
+    
     if (!response.ok) {
-        // Fallback catch em caso de existir no Auth mas não no tenant
-        if (result.error && result.error.includes('already been registered')) {
-             throw new Error('Este e-mail já pertence a outro usuário do sistema fora do seu ambiente.');
+        if (response.status === 401) {
+            throw new Error('Sua sessão expirou. Entre novamente para cadastrar o usuário.');
         }
-        throw new Error(result.error || 'Erro ao criar usuário');
-    }
-
-    // GARANTIR O VÍNCULO NO BANCO (MANUAL UPSERT)
-    const { data: modData } = await supabase.from('system_modules').select('id').eq('key', 'LABORATORIO').maybeSingle();
-    if (modData) {
-        const { data: checkScope } = await supabase
-            .from('user_access_scopes')
-            .select('id')
-            .eq('user_id', result.user_id)
-            .eq('tenant_id', tenantId)
-            .eq('module_id', modData.id)
-            .maybeSingle();
-            
-        if (checkScope) {
-            const { error: updErr } = await supabase.from('user_access_scopes').update({
-                is_active: true,
-                unit_id: unitId,
-                secretariat_id: secretariatId
-            }).eq('id', checkScope.id);
-            if (updErr) throw new Error('Falha ao atualizar user_access_scopes: ' + updErr.message);
-        } else {
-            const { error: insErr } = await supabase.from('user_access_scopes').insert({
-                user_id: result.user_id,
-                tenant_id: tenantId,
-                module_id: modData.id,
-                is_active: true,
-                unit_id: unitId,
-                secretariat_id: secretariatId
-            });
-            if (insErr) throw new Error('Falha ao inserir em user_access_scopes: ' + insErr.message);
+        if (response.status === 403) {
+            throw new Error('Você não possui permissão para cadastrar usuários do Laboratório.');
         }
-    } else {
-        throw new Error('Módulo LABORATORIO não encontrado na tabela system_modules.');
+        if (response.status === 409 || result.error === 'USER_ALREADY_EXISTS') {
+            throw new Error('Este e-mail já pertence a outro usuário do sistema. Verifique se ele deve ser vinculado ao Laboratório.');
+        }
+        throw new Error('Não foi possível criar o usuário do Laboratório.');
     }
 
     return { success: true, user_id: result.user_id };
