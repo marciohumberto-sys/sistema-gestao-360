@@ -31,7 +31,7 @@
     font-size: 0.9rem;
 }
 
-/* Modal e Toasts genéricos usados aqui */
+/* Modal e Toasts genÃ©ricos usados aqui */
 .laboratorio-mapas .lab-modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -385,7 +385,7 @@
 .laboratorio-mapas .lab-text-gray { color: #64748b; }
 .laboratorio-mapas .lab-text-success { color: #10b981; }
 
-/* Prévia de Impressão */
+/* PrÃ©via de ImpressÃ£o */
 .laboratorio-mapas .lab-print-preview-container {
     display: flex;
     flex-direction: column;
@@ -643,3 +643,148 @@
     background-color: #eff6ff !important;
     color: #1d4ed8 !important;
 }
+
+/* =========================================================
+   ESTILOS COMPACTOS PARA URINÁLISE (IMPRESSÃO MANUAL)
+   Objetivo: caber ~5 pacientes por folha A4
+========================================================= */
+.laboratorio-mapas .lab-urinalise-compact {
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    page-break-inside: avoid;
+    background: transparent;
+}
+
+.laboratorio-mapas .lab-urinalise-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background-color: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 6px 8px;
+    margin: -6px -8px 6px -8px;
+    border-radius: 5px 5px 0 0;
+    box-sizing: border-box;
+}
+
+.laboratorio-mapas .u-header-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 16px;
+    align-items: baseline;
+}
+
+.laboratorio-mapas .u-patient-identification {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.laboratorio-mapas .u-patient-demographics {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 14px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.laboratorio-mapas .u-code {
+    font-weight: 600;
+    font-size: 8.5px;
+    color: #475569;
+    white-space: nowrap;
+}
+
+.laboratorio-mapas .u-name {
+    font-weight: 700;
+    font-size: 9.5px;
+    color: #111827;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.laboratorio-mapas .u-age,
+.laboratorio-mapas .u-sex {
+    font-weight: 600;
+    font-size: 9.5px;
+    color: #111827;
+}
+
+.laboratorio-mapas .u-header-sub {
+    font-size: 8.5px;
+    line-height: 1.25;
+    color: #475569;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-weight: 400;
+}
+
+.laboratorio-mapas .u-sep {
+    color: #cbd5e1;
+}
+
+.laboratorio-mapas .u-exam-title {
+    font-weight: 700;
+    font-size: 10.5px;
+    text-align: center;
+    margin-bottom: 6px;
+    color: #111827;
+}
+
+.laboratorio-mapas .u-exam-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 12px;
+    row-gap: 4px;
+}
+
+.laboratorio-mapas .u-param-item {
+    display: flex;
+    align-items: flex-end;
+    font-size: 9px;
+    color: #000;
+    line-height: 1.1;
+}
+
+.laboratorio-mapas .u-param-obs {
+    grid-column: 1 / -1;
+    margin-top: 2px;
+}
+
+.laboratorio-mapas .u-param-label {
+    margin-right: 4px;
+    white-space: nowrap;
+}
+
+.laboratorio-mapas .u-param-line {
+    flex: 1;
+    border-bottom: 1px solid #94a3b8;
+    min-width: 20px;
+    position: relative;
+    top: -3px;
+}
+
+@media print {
+    .laboratorio-mapas .lab-urinalise-compact {
+        border-color: #cbd5e1 !important;
+        margin-bottom: 10px !important;
+    }
+    .laboratorio-mapas .lab-urinalise-header {
+        border-bottom-color: #cbd5e1 !important;
+    }
+    .laboratorio-mapas .u-header-main,
+    .laboratorio-mapas .u-header-sub,
+    .laboratorio-mapas .u-exam-title,
+    .laboratorio-mapas .u-param-item {
+        color: #000 !important;
+    }
+    .laboratorio-mapas .u-param-line {
+        border-bottom-color: #94a3b8 !important;
+    }
+}
+

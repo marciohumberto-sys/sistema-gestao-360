@@ -575,6 +575,23 @@ const LaboratorioMapas = () => {
             .hist-item { display: inline-block; white-space: nowrap; }
             
             .lab-paper-footer { margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 5px; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; }
+            
+            .lab-urinalise-compact { margin-bottom: 8px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; break-inside: avoid; page-break-inside: avoid; background: transparent; }
+            .lab-urinalise-header { display: flex; flex-direction: column; gap: 4px; background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 6px 8px; margin: -6px -8px 6px -8px; border-radius: 5px 5px 0 0; box-sizing: border-box; }
+            .u-header-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; align-items: baseline; }
+            .u-patient-identification { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+            .u-patient-demographics { display: flex; align-items: center; justify-content: flex-end; gap: 14px; flex-shrink: 0; white-space: nowrap; }
+            .u-code { font-weight: 600; font-size: 8.5px; color: #475569; white-space: nowrap; }
+            .u-name { font-weight: 700; font-size: 9.5px; color: #111827; white-space: normal; overflow-wrap: anywhere; }
+            .u-age, .u-sex { font-weight: 600; font-size: 9.5px; color: #111827; }
+            .u-header-sub { font-size: 8.5px; line-height: 1.25; color: #475569; display: flex; flex-wrap: wrap; gap: 8px; font-weight: 400; }
+            .u-sep { color: #cbd5e1; }
+            .u-exam-title { font-weight: 700; font-size: 10.5px; text-align: center; margin-bottom: 6px; color: #111827; }
+            .u-exam-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 12px; row-gap: 4px; }
+            .u-param-item { display: flex; align-items: flex-end; font-size: 9px; color: #000; line-height: 1.1; }
+            .u-param-obs { grid-column: 1 / -1; margin-top: 2px; }
+            .u-param-label { margin-right: 4px; white-space: nowrap; }
+            .u-param-line { flex: 1; border-bottom: 1px solid #94a3b8; min-width: 20px; position: relative; top: -3px; }
         `;
 
         const renderHistItemHTML = (histArray, index) => {
@@ -594,6 +611,8 @@ const LaboratorioMapas = () => {
         const isHematologia = sectorName.trim().toUpperCase() === 'HEMATOLOGIA';
 
         let bodyHtml = '';
+        const isUrinalise = sectorName.trim().toUpperCase() === 'URINÁLISE' || sectorName.trim().toUpperCase() === 'URINALISE';
+
         snapshot.patients.forEach(pat => {
             const examesVisiveis = isHematologia
                 ? (pat.exams || []).filter(exam => String(exam.code || '').trim().toUpperCase() !== 'HEMO')
@@ -601,73 +620,163 @@ const LaboratorioMapas = () => {
 
             if (examesVisiveis.length === 0) return;
 
-            let examsRows = '';
             const deduplicatedExams = deduplicateExamsForPrint(examesVisiveis);
-            deduplicatedExams.forEach(ex => {
-                let paramsHtml = '';
-                let hist1Html = '';
-                let hist2Html = '';
 
-                if (ex.parameters && ex.parameters.length > 0) {
-                    ex.parameters.forEach(p => {
-                        paramsHtml += `
+            if (isUrinalise) {
+                const obsText = (pat.observation || pat.obs || pat.observacao || '').trim();
+                let examsHtml = '';
+                deduplicatedExams.forEach(ex => {
+                    let gridHtml = '';
+                    if (ex.parameters && ex.parameters.length > 0) {
+                        const col1Keys = ['VOLUME', 'DENSIDADE', 'CORPO', 'CETONICO', 'CETÔNICO', 'BILIRRUBINA', 'EPITELIAIS', 'HEMÁCIAS', 'HEMACIAS', 'CRISTAIS'];
+                        const col2Keys = ['COR', 'PH', 'GLICOSE', 'SANGUE', 'HEMOGLOBINA', 'FILAMENTO', 'BACTÉRIA', 'BACTERIA', 'LEVEDUR'];
+                        const getCol = (name) => {
+                            const n = String(name || '').toUpperCase();
+                            if (n.includes('OBSERVA')) return 4;
+                            if (col1Keys.some(k => n.includes(k))) return 1;
+                            if (col2Keys.some(k => n.includes(k))) return 2;
+                            return 3;
+                        };
+                        const col1 = [], col2 = [], col3 = [], obs = [];
+                        ex.parameters.forEach(p => {
+                            const c = getCol(p.name);
+                            if (c === 1) col1.push(p);
+                            else if (c === 2) col2.push(p);
+                            else if (c === 4) obs.push(p);
+                            else col3.push(p);
+                        });
+                        const maxRows = Math.max(col1.length, col2.length, col3.length);
+                        const sortedParams = [];
+                        for (let i = 0; i < maxRows; i++) {
+                            if (col1[i]) sortedParams.push({ ...col1[i] }); else sortedParams.push({ name: '', _empty: true });
+                            if (col2[i]) sortedParams.push({ ...col2[i] }); else sortedParams.push({ name: '', _empty: true });
+                            if (col3[i]) sortedParams.push({ ...col3[i] }); else sortedParams.push({ name: '', _empty: true });
+                        }
+                        sortedParams.push(...obs);
+
+                        sortedParams.forEach((p, pIdx) => {
+                            if (p._empty) {
+                                gridHtml += `<div style="visibility: hidden"></div>`;
+                                return;
+                            }
+                            const isObs = String(p.name || '').toUpperCase().includes('OBSERVA');
+                            gridHtml += `
+                                <div class="u-param-item ${isObs ? 'u-param-obs' : ''}">
+                                    <span class="u-param-label">${escapeHtml(p.name)}:</span>
+                                    <div class="u-param-line"></div>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        gridHtml += `
+                            <div class="u-param-item u-param-obs">
+                                <span class="u-param-label">Resultado:</span>
+                                <div class="u-param-line"></div>
+                            </div>
+                        `;
+                    }
+
+                    examsHtml += `
+                        <div class="lab-urinalise-exam">
+                            <div class="u-exam-title">${escapeHtml(ex.name).toUpperCase()}</div>
+                            <div class="u-exam-grid">
+                                ${gridHtml}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                bodyHtml += `
+                    <div class="lab-urinalise-compact">
+                        <div class="lab-urinalise-header">
+                            <div class="u-header-main">
+                                <div class="u-patient-identification">
+                                    <span class="u-code">CÓD. ${escapeHtml(pat.code)}</span>
+                                    <span class="u-name">${escapeHtml(pat.name)}</span>
+                                </div>
+                                <div class="u-patient-demographics">
+                                    <span class="u-age">${escapeHtml(pat.age_at_generation)}</span>
+                                    <span class="u-sex">${escapeHtml(pat.sex)}</span>
+                                </div>
+                            </div>
+                            <div class="u-header-sub">
+                                <span>Origem: ${escapeHtml(pat.origin)}</span>
+                                <span class="u-sep">|</span>
+                                <span>Médico: ${escapeHtml(pat.doctor || 'NÃO INFORMADO')}</span>
+                                ${obsText ? `<span class="u-sep">|</span><span>Obs: ${escapeHtml(obsText)}</span>` : ''}
+                            </div>
+                        </div>
+                        ${examsHtml}
+                    </div>
+                `;
+            } else {
+                let examsRows = '';
+                deduplicatedExams.forEach(ex => {
+                    let paramsHtml = '';
+                    let hist1Html = '';
+                    let hist2Html = '';
+
+                    if (ex.parameters && ex.parameters.length > 0) {
+                        ex.parameters.forEach(p => {
+                            paramsHtml += `
+                                <div class="parameter-row">
+                                    <span>${escapeHtml(p.name || ':')}</span>
+                                    <div class="parameter-line"></div>
+                                </div>
+                            `;
+                            hist1Html += `<div class="hist-row-container">${renderHistItemHTML(p.history, 0)}</div>`;
+                            hist2Html += `<div class="hist-row-container">${renderHistItemHTML(p.history, 1)}</div>`;
+                        });
+                    } else {
+                        paramsHtml = `
                             <div class="parameter-row">
-                                <span>${escapeHtml(p.name || ':')}</span>
+                                <span>:</span>
                                 <div class="parameter-line"></div>
                             </div>
                         `;
-                        hist1Html += `<div class="hist-row-container">${renderHistItemHTML(p.history, 0)}</div>`;
-                        hist2Html += `<div class="hist-row-container">${renderHistItemHTML(p.history, 1)}</div>`;
-                    });
-                } else {
-                    paramsHtml = `
-                        <div class="parameter-row">
-                            <span>:</span>
-                            <div class="parameter-line"></div>
-                        </div>
-                    `;
-                    hist1Html = `<div class="hist-row-container">${renderHistItemHTML(ex.history, 0)}</div>`;
-                    hist2Html = `<div class="hist-row-container">${renderHistItemHTML(ex.history, 1)}</div>`;
-                }
+                        hist1Html = `<div class="hist-row-container">${renderHistItemHTML(ex.history, 0)}</div>`;
+                        hist2Html = `<div class="hist-row-container">${renderHistItemHTML(ex.history, 1)}</div>`;
+                    }
 
-                examsRows += `
-                    <tr>
-                        <td class="col-ex-main">
-                            <div class="exam-row">
-                                <div class="exam-code">${escapeHtml(ex.code)}</div>
-                                <div>
-                                    <div class="exam-name">${escapeHtml(ex.name)}</div>
-                                    <div>${paramsHtml}</div>
+                    examsRows += `
+                        <tr>
+                            <td class="col-ex-main">
+                                <div class="exam-row">
+                                    <div class="exam-code">${escapeHtml(ex.code)}</div>
+                                    <div>
+                                        <div class="exam-name">${escapeHtml(ex.name)}</div>
+                                        <div>${paramsHtml}</div>
+                                    </div>
                                 </div>
-                            </div>
-                        </td>
-                        <td class="col-ex-hist1">${hist1Html}</td>
-                        <td class="col-ex-hist2">${hist2Html}</td>
-                    </tr>
-                `;
-            });
+                            </td>
+                            <td class="col-ex-hist1">${hist1Html}</td>
+                            <td class="col-ex-hist2">${hist2Html}</td>
+                        </tr>
+                    `;
+                });
 
-            bodyHtml += `
-                <div class="patient-block">
-                    <div class="patient-header">
-                        <div style="word-break: break-word; color: #1e293b; width: 100%;">
-                            <span style="font-weight: 800;">CÓD. ${escapeHtml(pat.code)}</span> — <span>${escapeHtml(pat.name)}</span>
+                bodyHtml += `
+                    <div class="patient-block">
+                        <div class="patient-header">
+                            <div style="word-break: break-word; color: #1e293b; width: 100%;">
+                                <span style="font-weight: 800;">CÓD. ${escapeHtml(pat.code)}</span> — <span>${escapeHtml(pat.name)}</span>
+                            </div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: #475569;">
+                                <span>${escapeHtml(pat.age_at_generation)}</span>
+                                <span style="color: #94a3b8;">|</span>
+                                <span>${escapeHtml(pat.sex)}</span>
+                                <span style="color: #94a3b8;">|</span>
+                                <span>Origem: ${escapeHtml(pat.origin)}</span>
+                                <span style="color: #94a3b8;">|</span>
+                                <span>Médico: ${escapeHtml(pat.doctor)}</span>
+                            </div>
                         </div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: #475569;">
-                            <span>${escapeHtml(pat.age_at_generation)}</span>
-                            <span style="color: #94a3b8;">|</span>
-                            <span>${escapeHtml(pat.sex)}</span>
-                            <span style="color: #94a3b8;">|</span>
-                            <span>Origem: ${escapeHtml(pat.origin)}</span>
-                            <span style="color: #94a3b8;">|</span>
-                            <span>Médico: ${escapeHtml(pat.doctor)}</span>
-                        </div>
+                        <table class="lab-patient-exams">
+                            ${examsRows}
+                        </table>
                     </div>
-                    <table class="lab-patient-exams">
-                        ${examsRows}
-                    </table>
-                </div>
-            `;
+                `;
+            }
         });
 
         const htmlContent = `
@@ -1231,6 +1340,103 @@ const LaboratorioMapas = () => {
                                         if (examesVisiveis.length === 0) return null;
 
                                         const deduplicatedExams = deduplicateExamsForPrint(examesVisiveis);
+                                        const isUrinalise = (previewSnap.metadata?.sector?.name || '').trim().toUpperCase() === 'URINÁLISE' || (previewSnap.metadata?.sector?.name || '').trim().toUpperCase() === 'URINALISE';
+
+                                        if (isUrinalise) {
+                                            return (
+                                                <div key={idx} className="lab-patient-block lab-urinalise-compact">
+                                                    <div className="lab-urinalise-header">
+                                                        <div className="u-header-main">
+                                                            <div className="u-patient-identification">
+                                                                <span className="u-code">CÓD. {pat.code}</span>
+                                                                <span className="u-name">{pat.name}</span>
+                                                            </div>
+                                                            <div className="u-patient-demographics">
+                                                                <span className="u-age">{pat.age_at_generation}</span>
+                                                                <span className="u-sex">{pat.sex}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="u-header-sub">
+                                                            <span>Origem: {pat.origin}</span>
+                                                            <span className="u-sep">|</span>
+                                                            <span>Médico: {pat.doctor || 'NÃO INFORMADO'}</span>
+                                                            {(pat.observation || pat.obs || pat.observacao) && (
+                                                                <>
+                                                                    <span className="u-sep">|</span>
+                                                                    <span>Obs: {pat.observation || pat.obs || pat.observacao}</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {deduplicatedExams.map((ex, eIdx) => (
+                                                        <div key={eIdx} className="lab-urinalise-exam">
+                                                            <div className="u-exam-title">{ex.name.toUpperCase()}</div>
+                                                            <div className="u-exam-grid">
+                                                                {ex.parameters && ex.parameters.length > 0 ? (
+                                                                    (() => {
+                                                                        const col1Keys = ['VOLUME', 'DENSIDADE', 'CORPO', 'CETONICO', 'CETÔNICO', 'BILIRRUBINA', 'EPITELIAIS', 'HEMÁCIAS', 'HEMACIAS', 'CRISTAIS'];
+                                                                        const col2Keys = ['COR', 'PH', 'GLICOSE', 'SANGUE', 'HEMOGLOBINA', 'FILAMENTO', 'BACTÉRIA', 'BACTERIA', 'LEVEDUR'];
+                                                                        
+                                                                        const getCol = (name) => {
+                                                                            const n = String(name || '').toUpperCase();
+                                                                            if (n.includes('OBSERVA')) return 4;
+                                                                            if (col1Keys.some(k => n.includes(k))) return 1;
+                                                                            if (col2Keys.some(k => n.includes(k))) return 2;
+                                                                            return 3;
+                                                                        };
+
+                                                                        const col1 = [];
+                                                                        const col2 = [];
+                                                                        const col3 = [];
+                                                                        const obs = [];
+                                                                        
+                                                                        ex.parameters.forEach(p => {
+                                                                            const c = getCol(p.name);
+                                                                            if (c === 1) col1.push(p);
+                                                                            else if (c === 2) col2.push(p);
+                                                                            else if (c === 4) obs.push(p);
+                                                                            else col3.push(p);
+                                                                        });
+                                                                        
+                                                                        const maxRows = Math.max(col1.length, col2.length, col3.length);
+                                                                        const sortedParams = [];
+                                                                        for (let i = 0; i < maxRows; i++) {
+                                                                            if (col1[i]) sortedParams.push({ ...col1[i] });
+                                                                            else sortedParams.push({ name: '', _empty: true });
+                                                                            
+                                                                            if (col2[i]) sortedParams.push({ ...col2[i] });
+                                                                            else sortedParams.push({ name: '', _empty: true });
+                                                                            
+                                                                            if (col3[i]) sortedParams.push({ ...col3[i] });
+                                                                            else sortedParams.push({ name: '', _empty: true });
+                                                                        }
+                                                                        
+                                                                        sortedParams.push(...obs);
+                                                                        
+                                                                        return sortedParams.map((p, pIdx) => {
+                                                                            if (p._empty) return <div key={`empty-${pIdx}`} style={{ visibility: 'hidden' }}></div>;
+                                                                            const isObs = String(p.name || '').toUpperCase().includes('OBSERVA');
+                                                                            return (
+                                                                                <div key={pIdx} className={`u-param-item ${isObs ? 'u-param-obs' : ''}`}>
+                                                                                    <span className="u-param-label">{p.name}:</span>
+                                                                                    <div className="u-param-line"></div>
+                                                                                </div>
+                                                                            );
+                                                                        });
+                                                                    })()
+                                                                ) : (
+                                                                    <div className="u-param-item u-param-obs">
+                                                                        <span className="u-param-label">Resultado:</span>
+                                                                        <div className="u-param-line"></div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        }
+
                                         return (
                                             <div key={idx} className="lab-patient-block">
                                                 <div className="lab-patient-header" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
