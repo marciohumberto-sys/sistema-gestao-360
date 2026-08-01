@@ -10,7 +10,7 @@ import { jsPDF } from 'jspdf';
 import './LaboratorioConferencia.css';
 import './LaboratorioLaudos.css';
 import { laboratorioLaudosService } from '../../services/api/laboratorioLaudos.service';
-import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, parseHemoNumber, formatHemoResultValue, formatHemoReferenceText, resolveHemoReference } from '../../utils/laboratorioHelpers';
+import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, parseHemoNumber, formatHemoResultValue, formatHemoReferenceText, resolveHemoReference, expandHemogramaMorphologyAbbreviations } from '../../utils/laboratorioHelpers';
 
 const getLocalDateInputValue = (date = new Date()) => {
     const year = date.getFullYear();
@@ -26,7 +26,7 @@ const HEMO_GROUPS = {
   eritrograma: ['HEMACIAS', 'HEMOGLOBINA', 'HEMATOCRITO', 'HCM', 'VCM', 'CHCM', 'RDW'],
   leucograma: ['LEUCOCITOS', 'MIELOCITOS', 'METAMIELOCITOS', 'BASTONETES', 'SEGMENTADOS', 'EOSINOFILOS', 'BASOFILOS', 'LINFOCITOS_TIPICOS', 'LINFOCITOS_ATIPICOS', 'MONOCITOS', 'PLASMOCITOS'],
   plaquetas: ['PLAQUETAS'],
-  observacoes: ['OBS_ERITROGRAMA', 'SERIE_ERITROCITARIA', 'SERIE_LEUCOCITARIA', 'SERIE_PLAQUETARIA']
+  observacoes: ['OBS_ERITROGRAMA', 'OBSERVACOES_ERITROGRAMA', 'SERIE_ERITROCITARIA', 'S_ERITROCITARIA', 'SERIE_LEUCOCITARIA', 'S_LEUCOCITARIA', 'SERIE_PLAQUETARIA', 'S_PLAQUETARIA', 'OBS_MORFOLOGICAS', 'OBSERVACOES_MORFOLOGICAS', 'OBS_MORFOLOGIA', 'MORFOLOGIA']
 };
 
 const HEMO_PERCENTUAL_CODES = [
@@ -241,8 +241,12 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
 
     const findHemoTextParameter = (targetCode) => {
         return examDetails.find((item) => {
-            const code = String(item.parameter_code ?? '').trim().toUpperCase();
-            if (targetCode === 'OBS_ERITROGRAMA' && code === 'OBSERVACOES_ERITROGRAMA') return true;
+            const code = String(item.parameter_code ?? item.parameterCode ?? item.code ?? '').trim().toUpperCase();
+            if (targetCode === 'OBS_ERITROGRAMA' && (code === 'OBSERVACOES_ERITROGRAMA' || code === 'OBS_ERITROGRAMA')) return true;
+            if (targetCode === 'SERIE_ERITROCITARIA' && (code === 'SERIE_ERITROCITARIA' || code === 'S_ERITROCITARIA')) return true;
+            if (targetCode === 'SERIE_LEUCOCITARIA' && (code === 'SERIE_LEUCOCITARIA' || code === 'S_LEUCOCITARIA')) return true;
+            if (targetCode === 'SERIE_PLAQUETARIA' && (code === 'SERIE_PLAQUETARIA' || code === 'S_PLAQUETARIA')) return true;
+            if (targetCode === 'OBS_MORFOLOGICAS' && (code === 'OBS_MORFOLOGICAS' || code === 'OBSERVACOES_MORFOLOGICAS' || code === 'OBS_MORFOLOGIA' || code === 'MORFOLOGIA')) return true;
             return code === targetCode;
         });
     };
@@ -393,34 +397,41 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
             <div className="hemo-series-block" style={{ fontSize: '11px' }}>
                 {(() => {
                     const isValid = (val) => val && val !== '' && !val.includes('Campo livre') && !val.includes('Digite o resultado') && val !== '---';
+                    const obsMorf = getHemoTextResult('OBS_MORFOLOGICAS');
                     const obsEri = getHemoTextResult('OBS_ERITROGRAMA');
                     const serEri = getHemoTextResult('SERIE_ERITROCITARIA');
                     const serLeu = getHemoTextResult('SERIE_LEUCOCITARIA');
                     const serPlaq = getHemoTextResult('SERIE_PLAQUETARIA');
                     return (
                         <>
+                            {isValid(obsMorf) && (
+                                <div className="hemo-series-item">
+                                    <div className="hemo-series-title">OBSERVAÇÕES MORFOLÓGICAS:</div>
+                                    <div className="hemo-series-text" style={{ whiteSpace: 'pre-line' }}>{expandHemogramaMorphologyAbbreviations(obsMorf)}</div>
+                                </div>
+                            )}
                             {isValid(obsEri) && (
                                 <div className="hemo-series-item">
                                     <div className="hemo-series-title">OBSERVAÇÕES DO ERITROGRAMA:</div>
-                                    <div className="hemo-series-text">{obsEri}</div>
+                                    <div className="hemo-series-text" style={{ whiteSpace: 'pre-line' }}>{expandHemogramaMorphologyAbbreviations(obsEri)}</div>
                                 </div>
                             )}
                             {isValid(serEri) && (
                                 <div className="hemo-series-item">
                                     <div className="hemo-series-title">SÉRIE ERITROCITÁRIA:</div>
-                                    <div className="hemo-series-text">{serEri}</div>
+                                    <div className="hemo-series-text" style={{ whiteSpace: 'pre-line' }}>{expandHemogramaMorphologyAbbreviations(serEri)}</div>
                                 </div>
                             )}
                             {isValid(serLeu) && (
                                 <div className="hemo-series-item">
                                     <div className="hemo-series-title">SÉRIE LEUCOCITÁRIA:</div>
-                                    <div className="hemo-series-text">{serLeu}</div>
+                                    <div className="hemo-series-text" style={{ whiteSpace: 'pre-line' }}>{expandHemogramaMorphologyAbbreviations(serLeu)}</div>
                                 </div>
                             )}
                             {isValid(serPlaq) && (
                                 <div className="hemo-series-item">
                                     <div className="hemo-series-title">SÉRIE PLAQUETÁRIA:</div>
-                                    <div className="hemo-series-text">{serPlaq}</div>
+                                    <div className="hemo-series-text" style={{ whiteSpace: 'pre-line' }}>{expandHemogramaMorphologyAbbreviations(serPlaq)}</div>
                                 </div>
                             )}
                         </>
@@ -1410,11 +1421,14 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
                             }
 
                             if (isObservationParam) {
+                                const finalObsValue = (examCode === 'HEMO')
+                                    ? expandHemogramaMorphologyAbbreviations(displayValue)
+                                    : displayValue;
                                 return (
                                     <div key={param.id} className="hemo-series-block" style={{ borderTop: 'none', marginTop: '2px' }}>
                                         <div className="hemo-series-item">
                                             <div className="hemo-series-title">Observação:</div>
-                                            <div className="hemo-series-text" style={{ whiteSpace: 'pre-wrap' }}>{displayValue}</div>
+                                            <div className="hemo-series-text" style={{ whiteSpace: 'pre-wrap' }}>{finalObsValue}</div>
                                         </div>
                                     </div>
                                 );
@@ -2312,17 +2326,19 @@ const LaboratorioLaudos = () => {
 
     const isCompletePreviewReady =
         previewMode === 'complete' &&
-        selectedExamsForReport.length > 1 &&
+        selectedExamsForReport.length > 0 &&
         completePreviewExamData.length === selectedExamsForReport.length;
 
     const canPrintCompletePreview =
         previewMode === 'complete' &&
-        paginationStatus === 'ready' &&
-        isRenderedPaginationValidated === true &&
-        paginationPlan.length > 0;
+        Boolean(selectedProtocol) &&
+        selectedExamsForReport.length > 0 &&
+        completePreviewExamData.length === selectedExamsForReport.length &&
+        !loadingCompletePreview;
 
     const canDownloadCompletePreview =
-        canPrintCompletePreview;
+        canPrintCompletePreview &&
+        !generatingPdf;
 
     const paginationSelectionKey =
         completePreviewExamData
@@ -2679,7 +2695,7 @@ const LaboratorioLaudos = () => {
     useLayoutEffect(() => {
         if (
             previewMode !== 'complete' ||
-            paginationStatus !== 'ready' ||
+            (paginationStatus !== 'ready' && paginationStatus !== 'warning') ||
             paginationPlan.length === 0
         ) {
             return undefined;
@@ -3256,14 +3272,15 @@ const LaboratorioLaudos = () => {
             if (!canDownloadCompletePreview) {
                 setFeedbackMsg({
                     type: 'warning',
-                    text: 'Aguarde a validação completa das páginas antes de baixar o PDF.'
+                    text: 'Aguarde a preparação dos exames antes de baixar o PDF.'
                 });
 
                 return;
             }
 
             const root =
-                paginatedPreviewRef.current;
+                paginatedPreviewRef.current ||
+                completePreviewMeasureRef.current;
 
             if (!root) {
                 setFeedbackMsg({
@@ -3280,11 +3297,7 @@ const LaboratorioLaudos = () => {
                 )
             );
 
-            if (
-                pageElements.length === 0 ||
-                pageElements.length !==
-                    paginationPlan.length
-            ) {
+            if (pageElements.length === 0) {
                 setFeedbackMsg({
                     type: 'error',
                     text: 'As páginas do laudo ainda não estão prontas para download.'
@@ -3446,17 +3459,14 @@ const LaboratorioLaudos = () => {
                     }
                 }
 
-                const firstPageData =
-                    paginationPlan[0];
-
                 const firstExamData =
-                    firstPageData?.exams?.[0];
+                    paginationPlan?.[0]?.exams?.[0] || completePreviewExamData?.[0];
 
                 const rawPatientCode =
                     selectedProtocol?.pacienteCode || firstExamData?.exam?.pacienteCode || firstExamData?.exam?.patientCode;
 
                 const rawPatientName =
-                    firstExamData?.exam?.pacienteNome;
+                    selectedProtocol?.pacienteNome || firstExamData?.exam?.pacienteNome;
 
                 const sanitizeFilePart = value =>
                     String(value ?? '')
@@ -3927,9 +3937,9 @@ const LaboratorioLaudos = () => {
                                                         }
                                                     }}
                                                     disabled={
-                                                        (previewMode === 'complete'
-                                                            ? !canPrintCompletePreview
-                                                            : false) || isPrinting
+                                                        previewMode === 'complete'
+                                                            ? !canPrintCompletePreview || isPrinting
+                                                            : (!selectedExam || loadingDetails || isPrinting)
                                                     }
                                                     aria-label="Imprimir"
                                                     title="Imprimir"
@@ -3941,9 +3951,9 @@ const LaboratorioLaudos = () => {
                                                     className="laudos-action-btn laudos-action-btn-icon"
                                                     onClick={handleDownloadPdf}
                                                     disabled={
-                                                        (previewMode === 'complete'
-                                                            ? !canDownloadCompletePreview
-                                                            : (generatingPdf || previewMode === 'complete')) || generatingPdf
+                                                        previewMode === 'complete'
+                                                            ? !canDownloadCompletePreview || generatingPdf
+                                                            : (!selectedExam || loadingDetails || generatingPdf)
                                                     }
                                                     aria-label="Baixar PDF"
                                                     title="Baixar PDF"
@@ -4031,7 +4041,7 @@ const LaboratorioLaudos = () => {
 
                                 {/* Header do Laudo ou HEMO */}
                                 {isCompletePreviewReady ? (
-                                    paginationStatus === 'ready' ? (
+                                    paginationPlan.length > 0 ? (
                                         <div ref={paginatedPreviewRef} className="lab-complete-preview lab-complete-preview-paginated">
                                             {paginationPlan.map(page => (
                                                 <LaudoA4Page

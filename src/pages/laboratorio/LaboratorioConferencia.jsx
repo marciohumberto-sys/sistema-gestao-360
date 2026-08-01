@@ -696,8 +696,19 @@ const LaboratorioConferencia = () => {
                                     ) : (
                                         <div className="lab-review-params-list" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                                             {examDetails.map((param, index) => {
-                                                const displayValue = formatLabValue(param.parameter_code || param.code, param.result_type, param.value_numeric, param.value_text);
+                                                const displayValue = formatLabValue(
+                                                    param.parameter_code || param.code, 
+                                                    param.result_type, 
+                                                    param.value_numeric, 
+                                                    param.value_text,
+                                                    selectedExam?.exameCodigo,
+                                                    param.parameter_name
+                                                );
+                                                const rawParamValue = param.value_text !== null && param.value_text !== undefined 
+                                                    ? param.value_text 
+                                                    : (param.value_numeric !== null && param.value_numeric !== undefined ? String(param.value_numeric) : (displayValue || ''));
                                                 const abnormalStatus = isAbnormal(param.value_numeric, param.min_value, param.max_value);
+                                                const isLongText = param.result_type === 'TEXTO' || (typeof displayValue === 'string' && displayValue.length > 20);
                                                 
                                                 return (
                                                     <div key={param.id} style={{ display: 'flex', flexDirection: 'column', paddingBottom: index < examDetails.length - 1 ? '20px' : '0', borderBottom: index < examDetails.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
@@ -740,7 +751,7 @@ const LaboratorioConferencia = () => {
                                                                                         if (e.key === 'Escape') setEditingParam(null);
                                                                                     }}
                                                                                     disabled={saving}
-                                                                                    style={{ fontSize: '16px', fontWeight: '600', width: '80px', padding: '2px 6px', height: '28px', border: '1px solid #3b82f6', borderRadius: '4px', outline: 'none' }}
+                                                                                    style={{ fontSize: '16px', fontWeight: '600', width: isLongText ? '180px' : '80px', padding: '2px 6px', height: '28px', border: '1px solid #3b82f6', borderRadius: '4px', outline: 'none' }}
                                                                                 />
                                                                                 {param.unit && <span className="result-unit" style={{ color: '#64748b', fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap' }}>{param.unit}</span>}
                                                                             </div>
@@ -751,12 +762,12 @@ const LaboratorioConferencia = () => {
                                                                         </div>
                                                                     ) : (
                                                                         <>
-                                                                            <span className={`result-value ${abnormalStatus !== 'normal' && abnormalStatus !== false ? 'text-danger font-bold' : 'font-semibold'}`} style={{ fontSize: '24px', color: abnormalStatus !== 'normal' && abnormalStatus !== false ? '#ef4444' : '#0f172a' }}>
+                                                                            <span className={`result-value ${abnormalStatus !== 'normal' && abnormalStatus !== false ? 'text-danger font-bold' : 'font-semibold'}`} style={{ fontSize: isLongText ? '14px' : '24px', color: abnormalStatus !== 'normal' && abnormalStatus !== false ? '#ef4444' : '#0f172a', whiteSpace: 'pre-line', lineHeight: '1.4' }}>
                                                                                 {displayValue}
                                                                             </span>
                                                                             {param.unit && <span className="result-unit" style={{ color: '#64748b', fontSize: '14px', fontWeight: 500 }}>{param.unit}</span>}
                                                                             <button 
-                                                                                onClick={() => setEditingParam({ id: param.id, value: displayValue })}
+                                                                                onClick={() => setEditingParam({ id: param.id, value: rawParamValue })}
                                                                                 disabled={saving || editingParam}
                                                                                 style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px', marginLeft: '4px', borderRadius: '4px' }}
                                                                                 title="Editar valor"

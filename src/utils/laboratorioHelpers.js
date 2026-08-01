@@ -44,8 +44,130 @@ export function normalizeIntegerCountInput(rawValue) {
     return num;
 }
 
-export const formatLabValue = (code, resultType, numericValue, textValue) => {
-    if (resultType === 'TEXTO' || (numericValue === null && textValue)) return textValue || 'Não informado';
+export const HEMO_MORPHOLOGY_MAP = {
+    HNN: 'HEMÁCIAS NORMOCÍTICAS E NORMOCRÔMICAS.',
+    LMC: 'LEUCÓCITOS MORFOLOGICAMENTE CONSERVADOS.',
+    PMN: 'PLAQUETAS MORFOLOGICAMENTE CONSERVADAS.'
+};
+
+export function isHemoExam(examCode) {
+    return String(examCode || '').trim().toUpperCase() === 'HEMO';
+}
+
+export function isHemoMorphologyParameter(parameterCode, parameterName) {
+    const rawCode = String(parameterCode || '').trim().toUpperCase();
+    const MORPHOLOGY_CODES = new Set([
+        'OBSERVACOES_ERITROGRAMA',
+        'OBS_ERITROGRAMA',
+        'SERIE_ERITROCITARIA',
+        'S_ERITROCITARIA',
+        'SERIE_LEUCOCITARIA',
+        'S_LEUCOCITARIA',
+        'SERIE_PLAQUETARIA',
+        'S_PLAQUETARIA',
+        'OBS_MORFOLOGICAS',
+        'OBSERVACOES_MORFOLOGICAS',
+        'OBS_MORFOLOGIA',
+        'MORFOLOGIA'
+    ]);
+
+    if (MORPHOLOGY_CODES.has(rawCode)) {
+        return true;
+    }
+
+    if (parameterName) {
+        const normalizedName = String(parameterName)
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim()
+            .toUpperCase()
+            .replace(/\s+/g, ' ');
+
+        const MORPHOLOGY_NAMES = new Set([
+            'OBSERVACOES MORFOLOGICAS',
+            'OBSERVACAO MORFOLOGICA',
+            'OBSERVACOES DO ERITROGRAMA',
+            'OBSERVACOES ERITROGRAMA',
+            'SERIE ERITROCITARIA',
+            'SERIE LEUCOCITARIA',
+            'SERIE PLAQUETARIA'
+        ]);
+
+        if (MORPHOLOGY_NAMES.has(normalizedName)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+export function expandHemogramaMorphologyAbbreviations(value) {
+    if (value === null || value === undefined) return '';
+    const rawStr = String(value);
+    if (!rawStr.trim()) return rawStr;
+
+    // Se não contém nenhuma das siglas como token inteiro, retorna o texto original intacto
+    if (!/\b(HNN|LMC|PMN)\b/i.test(rawStr)) {
+        return rawStr;
+    }
+
+    // Dividir inicialmente por quebras de linha e/ou ponto-e-vírgula
+    const majorChunks = rawStr.split(/[\r\n;]+/);
+    const resultLines = [];
+
+    for (const majorChunk of majorChunks) {
+        const trimmedMajor = majorChunk.trim();
+        if (!trimmedMajor) continue;
+
+        // Se o bloco contém sigla e vírgula, dividimos por vírgula para processar múltiplos itens
+        if (/\b(HNN|LMC|PMN)\b/i.test(trimmedMajor) && trimmedMajor.includes(',')) {
+            const subParts = trimmedMajor.split(',');
+            for (const subPart of subParts) {
+                const trimmedSub = subPart.trim();
+                if (!trimmedSub) continue;
+
+                const cleanToken = trimmedSub.toUpperCase().replace(/^[.\s:;,-]+|[.\s:;,-]+$/g, '');
+                if (HEMO_MORPHOLOGY_MAP[cleanToken]) {
+                    resultLines.push(HEMO_MORPHOLOGY_MAP[cleanToken]);
+                } else if (/\b(HNN|LMC|PMN)\b/i.test(trimmedSub)) {
+                    let expanded = trimmedSub;
+                    for (const [abbr, expansion] of Object.entries(HEMO_MORPHOLOGY_MAP)) {
+                        const regex = new RegExp(`\\b${abbr}\\b`, 'gi');
+                        expanded = expanded.replace(regex, expansion);
+                    }
+                    resultLines.push(expanded.trim());
+                } else {
+                    resultLines.push(trimmedSub);
+                }
+            }
+        } else {
+            const cleanToken = trimmedMajor.toUpperCase().replace(/^[.\s:;,-]+|[.\s:;,-]+$/g, '');
+            if (HEMO_MORPHOLOGY_MAP[cleanToken]) {
+                resultLines.push(HEMO_MORPHOLOGY_MAP[cleanToken]);
+            } else if (/\b(HNN|LMC|PMN)\b/i.test(trimmedMajor)) {
+                let expanded = trimmedMajor;
+                for (const [abbr, expansion] of Object.entries(HEMO_MORPHOLOGY_MAP)) {
+                    const regex = new RegExp(`\\b${abbr}\\b`, 'gi');
+                    expanded = expanded.replace(regex, expansion);
+                }
+                resultLines.push(expanded.trim());
+            } else {
+                resultLines.push(trimmedMajor);
+            }
+        }
+    }
+
+    return resultLines.join('\n');
+}
+
+export const formatLabValue = (code, resultType, numericValue, textValue, examCode = null, parameterName = null) => {
+    if (resultType === 'TEXTO' || (numericValue === null && textValue)) {
+        if (!textValue) return 'Não informado';
+        if (isHemoExam(examCode) && isHemoMorphologyParameter(code, parameterName)) {
+            return expandHemogramaMorphologyAbbreviations(textValue);
+        }
+        return textValue;
+    }
     if (numericValue === null || numericValue === undefined) return 'Não informado';
     
     const uppercaseCode = String(code || '').toUpperCase();
@@ -108,10 +230,14 @@ export function parseHemoNumber(valueStr, parameterCode) {
     return parseFloat(str);
 }
 
-export function formatHemoResultValue(valueStr, parameterCode) {
+export function formatHemoResultValue(valueStr, parameterCode, parameterName = null) {
     if (valueStr === null || valueStr === undefined || valueStr === '') return '';
     let str = String(valueStr).trim();
     if (str === '') return '';
+
+    if (isHemoMorphologyParameter(parameterCode, parameterName)) {
+        return expandHemogramaMorphologyAbbreviations(str);
+    }
 
     if (HEMO_INTEGER_COUNT_CODES.has(parameterCode)) {
         const num = parseInt(str.replace(/[\.,]/g, ''), 10);
