@@ -49,6 +49,37 @@ const LaboratorioConferencia = () => {
     const [pendingAction, setPendingAction] = useState(null);
     const [showCancelModal, setShowCancelModal] = useState(false);
 
+    const activeExamTabRef = useRef(null);
+    const handleConfirmarConferenciaRef = useRef(null);
+    const examTabsRef = useRef(null);
+    const [tabScrollState, setTabScrollState] = useState({
+        hasOverflow: false,
+        canScrollLeft: false,
+        canScrollRight: false
+    });
+
+    const checkTabsScroll = () => {
+        const el = examTabsRef.current;
+        if (!el) return;
+        const hasOverflow = el.scrollWidth > el.clientWidth + 2;
+        const canScrollLeft = hasOverflow && el.scrollLeft > 5;
+        const canScrollRight = hasOverflow && el.scrollLeft + el.clientWidth < el.scrollWidth - 5;
+        setTabScrollState({
+            hasOverflow,
+            canScrollLeft,
+            canScrollRight
+        });
+    };
+
+    const handleScrollTabs = (direction) => {
+        const el = examTabsRef.current;
+        if (!el) return;
+        el.scrollBy({
+            left: direction * 250,
+            behavior: 'smooth'
+        });
+    };
+
     // Initial load
     useEffect(() => {
         handleSearch();
@@ -58,11 +89,49 @@ const LaboratorioConferencia = () => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
                 if (showReturnModal && !returning) setShowReturnModal(false);
+                if (showCancelModal && !canceling) setShowCancelModal(false);
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                if (showReturnModal || showCancelModal || showUnsavedModal) return;
+                if (!selectedExam || saving || canceling || returning || loadingDetails) return;
+                e.preventDefault();
+                handleConfirmarConferenciaRef.current?.();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showReturnModal, saving, returning]);
+    }, [showReturnModal, showCancelModal, showUnsavedModal, selectedExam, saving, canceling, returning, loadingDetails]);
+
+    useEffect(() => {
+        const el = examTabsRef.current;
+        if (!el) return;
+
+        checkTabsScroll();
+
+        const onScroll = () => checkTabsScroll();
+        el.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll);
+
+        let ro = null;
+        if (typeof ResizeObserver !== 'undefined') {
+            ro = new ResizeObserver(() => checkTabsScroll());
+            ro.observe(el);
+        }
+
+        return () => {
+            el.removeEventListener('scroll', onScroll);
+            window.removeEventListener('resize', onScroll);
+            if (ro) ro.disconnect();
+        };
+    }, [selectedProtocol?.protocolo, selectedProtocol?.exams]);
+
+    useEffect(() => {
+        if (activeExamTabRef.current) {
+            activeExamTabRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+            const timer = setTimeout(checkTabsScroll, 350);
+            return () => clearTimeout(timer);
+        }
+    }, [selectedExam?.id]);
 
     const handleFilterKeyDown = (event) => {
         if (event.key === 'Enter') {
@@ -348,6 +417,7 @@ const LaboratorioConferencia = () => {
             setSaving(false);
         }
     };
+    handleConfirmarConferenciaRef.current = handleConfirmarConferencia;
 
     const handleCancelar = () => {
         if (!selectedExam || saving) return;
@@ -497,7 +567,7 @@ const LaboratorioConferencia = () => {
             </div>
 
             {/* Layout Principal */}
-            <div className="lab-conf-layout conferencia-workspace" style={{ height: 'calc(100vh - 210px)', minHeight: 0, overflow: 'hidden', alignItems: 'stretch' }}>
+            <div className="lab-conf-layout conferencia-workspace" style={{ height: 'calc(100vh - 210px)', minHeight: 0, minWidth: 0, overflow: 'hidden', alignItems: 'stretch' }}>
                 
                 {/* Coluna Esquerda: Fila */}
                 <div className="lab-conf-sidebar" style={{ position: 'relative', top: 'auto', height: '100%', minHeight: '0' }}>
@@ -587,7 +657,7 @@ const LaboratorioConferencia = () => {
                 </div>
 
                 {/* Coluna Direita: Painel de Revisão */}
-                <div className="lab-conf-main" style={{ height: '100%', minHeight: '0' }}>
+                <div className="lab-conf-main" style={{ height: '100%', minHeight: '0', minWidth: '0', overflow: 'hidden' }}>
                     
                     {!selectedProtocol && (
                         <div className="lab-card flex flex-col items-center justify-center p-8 text-center h-full" style={{ minHeight: '400px' }}>
@@ -601,28 +671,31 @@ const LaboratorioConferencia = () => {
                     )}
 
                     {selectedExam && (
-                            <div className="lab-card" style={{ padding: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', minHeight: '0', overflowY: 'auto' }}>
+                            <div className="lab-card" style={{ padding: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', minHeight: '0', minWidth: '0', height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
                                 
                                 {/* CABEÇALHO STICKY: ATENDIMENTO E ABAS */}
-                                <div style={{ position: 'sticky', top: '-1px', zIndex: 10, background: '#fff', margin: 0, borderTop: 'none', borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ position: 'sticky', top: '-1px', zIndex: 10, background: '#fff', margin: 0, borderTop: 'none', borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', display: 'flex', flexDirection: 'column', minWidth: '0', width: '100%', overflow: 'hidden', flexShrink: 0 }}>
                                 
                                 {/* 1. CABEÇALHO COMPACTO DO ATENDIMENTO */}
-                                <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                                        <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '19px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <User size={18} className="text-primary" /> CÓD. {selectedProtocol?.pacienteCode || 'Não informado'} — {selectedProtocol?.pacienteNome}
+                                <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', minWidth: '0', width: '100%', boxSizing: 'border-box' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px', gap: '12px', minWidth: '0' }}>
+                                        <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '19px', display: 'flex', alignItems: 'center', gap: '8px', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 auto' }}>
+                                            <User size={18} className="text-primary" style={{ flexShrink: 0 }} />
+                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                CÓD. {selectedProtocol?.pacienteCode || 'Não informado'} — {selectedProtocol?.pacienteNome}
+                                            </span>
                                         </div>
-                                        <div className="lab-header-actions" style={{ position: 'relative', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <div className="lab-header-actions" style={{ position: 'relative', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
                                             {feedbackMsg && (
                                                 <div style={{ position: 'absolute', top: '50%', right: '100%', transform: 'translateY(-50%)', marginRight: '1rem', background: feedbackMsg.type === 'success' ? '#d1fae5' : '#fee2e2', color: feedbackMsg.type === 'success' ? '#047857' : '#b91c1c', border: `1px solid ${feedbackMsg.type === 'success' ? '#10b981' : '#ef4444'}`, padding: '6px 12px', borderRadius: '6px', fontWeight: '600', fontSize: '13px', zIndex: 10, whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                                                     {feedbackMsg.text}
                                                 </div>
                                             )}
-                                            <button className="lab-btn lab-btn-outline" onClick={handleCancelar} disabled={saving || returning} style={{ padding: '0 12px', height: '36px', fontSize: '14px', color: '#b91c1c', borderColor: '#fecaca', whiteSpace: 'nowrap' }}>
+                                            <button className="lab-btn lab-btn-outline" onClick={handleCancelar} disabled={saving || returning} style={{ padding: '0 12px', height: '36px', fontSize: '14px', color: '#b91c1c', borderColor: '#fecaca', whiteSpace: 'nowrap', flexShrink: 0 }}>
                                                 <XCircle size={14} style={{ marginRight: '4px' }} />
                                                 Cancelar
                                             </button>
-                                            <button className="lab-btn lab-btn-success" onClick={handleConfirmarConferencia} disabled={saving || returning} style={{ padding: '0 12px', height: '36px', fontSize: '14px', whiteSpace: 'nowrap' }}>
+                                            <button className="lab-btn lab-btn-success" onClick={handleConfirmarConferencia} disabled={saving || returning} style={{ padding: '0 12px', height: '36px', fontSize: '14px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                                                 {saving ? <Loader2 size={14} className="spin" style={{ marginRight: '4px' }} /> : <CheckCircle2 size={14} style={{ marginRight: '4px' }} />}
                                                 {saving ? 'Confirmando...' : 'Confirmar'}
                                             </button>
@@ -638,30 +711,168 @@ const LaboratorioConferencia = () => {
                                     </div>
                                 </div>
 
-                                {/* 2. ABAS DOS EXAMES */}
-                                <div style={{ padding: '10px 20px', display: 'flex', flexWrap: 'nowrap', overflowX: 'auto', gap: '8px', background: '#fff' }}>
-                                    {selectedProtocol?.exams.map(ex => (
-                                        <button 
-                                            key={ex.id}
-                                            onClick={() => handleSelectExamWithCheck(ex)}
+                                {/* 2. ABAS DOS EXAMES COM NAVEGAÇÃO LATERAL DISCRETA */}
+                                <div style={{ position: 'relative', background: '#fff', minWidth: '0', width: '100%' }}>
+                                    <style>{`
+                                        .lab-conf-exam-tabs::-webkit-scrollbar {
+                                            display: none !important;
+                                            width: 0 !important;
+                                            height: 0 !important;
+                                        }
+                                    `}</style>
+
+                                    {/* Seta Esquerda */}
+                                    {tabScrollState.hasOverflow && tabScrollState.canScrollLeft && (
+                                        <div
                                             style={{
-                                                height: '36px',
-                                                padding: '0 14px',
-                                                borderRadius: '6px',
-                                                fontSize: '14px',
-                                                fontWeight: '600',
-                                                border: selectedExam?.id === ex.id ? '1px solid #2563eb' : '1px solid #cbd5e1',
-                                                backgroundColor: selectedExam?.id === ex.id ? '#eff6ff' : '#fff',
-                                                color: selectedExam?.id === ex.id ? '#1d4ed8' : '#475569',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s',
-                                                whiteSpace: 'nowrap',
-                                                flexShrink: 0
+                                                position: 'absolute',
+                                                left: 0,
+                                                top: 0,
+                                                bottom: 0,
+                                                width: '54px',
+                                                background: 'linear-gradient(to right, rgba(255,255,255,0.95) 55%, rgba(255,255,255,0))',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                paddingLeft: '10px',
+                                                zIndex: 5,
+                                                pointerEvents: 'none'
                                             }}
                                         >
-                                            {ex.exameCodigo}
-                                        </button>
-                                    ))}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleScrollTabs(-1)}
+                                                title="Rolar exames para a esquerda"
+                                                aria-label="Rolar exames para a esquerda"
+                                                style={{
+                                                    width: '30px',
+                                                    height: '30px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    background: '#ffffff',
+                                                    border: '1px solid #cbd5e1',
+                                                    borderRadius: '6px',
+                                                    color: '#475569',
+                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                                    cursor: 'pointer',
+                                                    pointerEvents: 'auto',
+                                                    padding: 0,
+                                                    transition: 'all 0.15s ease'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = '#f8fafc';
+                                                    e.currentTarget.style.color = '#1e293b';
+                                                    e.currentTarget.style.borderColor = '#94a3b8';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = '#ffffff';
+                                                    e.currentTarget.style.color = '#475569';
+                                                    e.currentTarget.style.borderColor = '#cbd5e1';
+                                                }}
+                                            >
+                                                <ChevronLeft size={16} />
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Faixa de Exames */}
+                                    <div 
+                                        ref={examTabsRef}
+                                        className="lab-conf-exam-tabs" 
+                                        style={{ 
+                                            padding: '10px 20px', 
+                                            display: 'flex', 
+                                            flexWrap: 'nowrap', 
+                                            overflowX: 'auto', 
+                                            overflowY: 'hidden', 
+                                            gap: '8px', 
+                                            background: '#fff', 
+                                            minWidth: '0', 
+                                            width: '100%', 
+                                            boxSizing: 'border-box',
+                                            scrollbarWidth: 'none',
+                                            msOverflowStyle: 'none'
+                                        }}
+                                    >
+                                        {selectedProtocol?.exams.map(ex => (
+                                            <button 
+                                                key={ex.id}
+                                                ref={selectedExam?.id === ex.id ? activeExamTabRef : null}
+                                                onClick={() => handleSelectExamWithCheck(ex)}
+                                                style={{
+                                                    height: '36px',
+                                                    padding: '0 14px',
+                                                    borderRadius: '6px',
+                                                    fontSize: '14px',
+                                                    fontWeight: '600',
+                                                    border: selectedExam?.id === ex.id ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                                                    backgroundColor: selectedExam?.id === ex.id ? '#eff6ff' : '#fff',
+                                                    color: selectedExam?.id === ex.id ? '#1d4ed8' : '#475569',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s',
+                                                    whiteSpace: 'nowrap',
+                                                    flexShrink: 0
+                                                }}
+                                            >
+                                                {ex.exameCodigo}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Seta Direita */}
+                                    {tabScrollState.hasOverflow && tabScrollState.canScrollRight && (
+                                        <div
+                                            style={{
+                                                position: 'absolute',
+                                                right: 0,
+                                                top: 0,
+                                                bottom: 0,
+                                                width: '54px',
+                                                background: 'linear-gradient(to left, rgba(255,255,255,0.95) 55%, rgba(255,255,255,0))',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'flex-end',
+                                                paddingRight: '10px',
+                                                zIndex: 5,
+                                                pointerEvents: 'none'
+                                            }}
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={() => handleScrollTabs(1)}
+                                                title="Rolar exames para a direita"
+                                                aria-label="Rolar exames para a direita"
+                                                style={{
+                                                    width: '30px',
+                                                    height: '30px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    background: '#ffffff',
+                                                    border: '1px solid #cbd5e1',
+                                                    borderRadius: '6px',
+                                                    color: '#475569',
+                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                                    cursor: 'pointer',
+                                                    pointerEvents: 'auto',
+                                                    padding: 0,
+                                                    transition: 'all 0.15s ease'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = '#f8fafc';
+                                                    e.currentTarget.style.color = '#1e293b';
+                                                    e.currentTarget.style.borderColor = '#94a3b8';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = '#ffffff';
+                                                    e.currentTarget.style.color = '#475569';
+                                                    e.currentTarget.style.borderColor = '#cbd5e1';
+                                                }}
+                                            >
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                                 </div>
 

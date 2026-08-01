@@ -47,7 +47,7 @@ export function normalizeIntegerCountInput(rawValue) {
 export const HEMO_MORPHOLOGY_MAP = {
     HNN: 'HEMÁCIAS NORMOCÍTICAS E NORMOCRÔMICAS.',
     LMC: 'LEUCÓCITOS MORFOLOGICAMENTE CONSERVADOS.',
-    PMN: 'PLAQUETAS MORFOLOGICAMENTE CONSERVADAS.'
+    PMN: 'PLAQUETAS MORFOLOGICAMENTE NORMAIS.'
 };
 
 export function isHemoExam(examCode) {
