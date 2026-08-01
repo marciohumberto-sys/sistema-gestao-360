@@ -1,5 +1,52 @@
 import { supabase } from '../lib/supabase';
 
+// Helper de parsing seguro de data/hora em America/Recife (UTC-3)
+function parseRecifeDateTime(dateStr, timeStr) {
+    if (!dateStr || !timeStr) return null;
+    const cleanTime = String(timeStr).trim();
+    const formattedTime = cleanTime.length === 5 ? `${cleanTime}:00` : cleanTime;
+    const isoWithOffset = `${dateStr}T${formattedTime}-03:00`;
+    const timestamp = new Date(isoWithOffset).getTime();
+    if (isNaN(timestamp)) return null;
+    return timestamp;
+}
+
+// Helper para formatar durações em minutos para apresentação (ex: 4 min, 1h 05min)
+export function formatDurationMinutes(minutes) {
+    if (minutes === null || minutes === undefined || isNaN(minutes) || minutes < 0) {
+        return '—';
+    }
+    const roundedMinutes = Math.round(minutes);
+    if (roundedMinutes < 60) {
+        return `${roundedMinutes} min`;
+    }
+    const hours = Math.floor(roundedMinutes / 60);
+    const mins = roundedMinutes % 60;
+    return `${hours}h ${String(mins).padStart(2, '0')}min`;
+}
+
+// Helper para formatar tempo relativo (ex: Há 8 minutos, Há 1 hora, Agora)
+export function formatRelativeTime(isoString) {
+    if (!isoString) return '';
+    const now = Date.now();
+    const eventTime = new Date(isoString).getTime();
+    if (isNaN(eventTime)) return '';
+    
+    const diffMs = now - eventTime;
+    if (diffMs < 0) return 'Agora';
+    
+    const diffMin = Math.floor(diffMs / (1000 * 60));
+    if (diffMin < 1) return 'Agora';
+    if (diffMin === 1) return 'Há 1 minuto';
+    if (diffMin < 60) return `Há ${diffMin} minutos`;
+    
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours === 1) return 'Há 1 hora';
+    if (diffHours < 24) return `Há ${diffHours} horas`;
+    
+    return 'Ontem';
+}
+
 class LaboratorioDashboardService {
     // Definimos o mesmo TENANT_ID usado no laboratório
     static TENANT_ID = '6e9e8e54-c9ec-42cf-a2a2-6f5e0ae8d832';
@@ -14,6 +61,10 @@ class LaboratorioDashboardService {
             const parts = formatter.formatToParts(new Date());
             const localDateStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
 
+            const startOfDayIso = new Date(`${localDateStr}T00:00:00.000-03:00`).toISOString();
+            const endOfDayIso = new Date(`${localDateStr}T23:59:59.999-03:00`).toISOString();
+            const since24hIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
             const resultData = {
                 cards: {
                     pacientesHoje: 0,
@@ -23,13 +74,24 @@ class LaboratorioDashboardService {
                     taxaLiberacaoHoje: 0
                 },
                 producaoPorSetor: [],
-                statusExames: []
+                statusExames: [],
+                indicadoresOperacionais: {
+                    tempoMedioColeta: null,
+                    tempoMedioColetaFormatted: '—',
+                    tempoMedioLiberacao: null,
+                    tempoMedioLiberacaoFormatted: '—',
+                    examesUrgentesPendentes: 0,
+                    tempoMedioConferencia: null,
+                    tempoMedioConferenciaFormatted: '—'
+                },
+                atividadesRecentes: [],
+                atividadesError: false
             };
 
-            // 2. Atendimentos do Dia
+            // 2. Atendimentos do Dia (com attendance_time e attendance_origin para indicadores)
             const { data: attendances, error: attError } = await supabase
                 .from('lab_attendances')
-                .select('id, patient_id, attendance_date')
+                .select('id, patient_id, attendance_date, attendance_time, attendance_origin')
                 .eq('tenant_id', tenantId)
                 .eq('attendance_date', localDateStr);
 
@@ -44,6 +106,7 @@ class LaboratorioDashboardService {
             let examesHoje = 0;
             let examesLiberadosHoje = 0;
             const sectorCounts = {};
+            let examesSolicitados = [];
 
             if (attendanceIds.length > 0) {
                 // 3. Exames Solicitados Hoje
@@ -55,7 +118,7 @@ class LaboratorioDashboardService {
 
                 if (attExamsError) throw attExamsError;
 
-                const examesSolicitados = attExams || [];
+                examesSolicitados = attExams || [];
                 examesHoje = examesSolicitados.length;
                 resultData.cards.examesHoje = examesHoje;
 
@@ -252,6 +315,375 @@ class LaboratorioDashboardService {
                 });
 
                 resultData.producaoPorSetor = producao;
+            }
+
+            // =========================================================
+            // 8. INDICADORES OPERACIONAIS
+            // =========================================================
+
+            // 8.1 Tempo médio até coleta
+            // Universo: atendimentos do dia local com attendance_date e attendance_time válidos.
+            // Para cada atendimento, encontrar a coleta mais antiga válida entre seus exames.
+            // Média por atendimento (soma / total atendimentos com coleta).
+            let totalColetaDiffMinutes = 0;
+            let atendimentosComColetaValida = 0;
+
+            const examsByAttendance = {};
+            examesSolicitados.forEach(ex => {
+                if (!examsByAttendance[ex.attendance_id]) {
+                    examsByAttendance[ex.attendance_id] = [];
+                }
+                examsByAttendance[ex.attendance_id].push(ex);
+            });
+
+            attData.forEach(att => {
+                const openingMs = parseRecifeDateTime(att.attendance_date, att.attendance_time);
+                if (!openingMs) return;
+
+                const attExamsList = examsByAttendance[att.id] || [];
+                let earliestCollectionMs = null;
+
+                attExamsList.forEach(ex => {
+                    const colMs = parseRecifeDateTime(ex.collection_date, ex.collection_time);
+                    if (colMs) {
+                        if (earliestCollectionMs === null || colMs < earliestCollectionMs) {
+                            earliestCollectionMs = colMs;
+                        }
+                    }
+                });
+
+                if (earliestCollectionMs !== null && earliestCollectionMs >= openingMs) {
+                    const diffMin = (earliestCollectionMs - openingMs) / (1000 * 60);
+                    totalColetaDiffMinutes += diffMin;
+                    atendimentosComColetaValida++;
+                }
+            });
+
+            if (atendimentosComColetaValida > 0) {
+                const avgColetaMin = totalColetaDiffMinutes / atendimentosComColetaValida;
+                resultData.indicadoresOperacionais.tempoMedioColeta = avgColetaMin;
+                resultData.indicadoresOperacionais.tempoMedioColetaFormatted = formatDurationMinutes(avgColetaMin);
+            }
+
+            // 8.2 Tempo médio até liberação
+            // Universo: resultados liberados no dia local (released_at no dia local).
+            // Regra: released_at - (collection_date + collection_time)
+            // Relacionamento por attendance_id + exam_id.
+            try {
+                const { data: releasedTodayResults, error: relError } = await supabase
+                    .from('lab_results')
+                    .select('id, attendance_id, exam_id, released_at')
+                    .eq('tenant_id', tenantId)
+                    .eq('status', 'LIBERADO')
+                    .gte('released_at', startOfDayIso)
+                    .lte('released_at', endOfDayIso);
+
+                if (relError) throw relError;
+
+                const relResults = releasedTodayResults || [];
+                if (relResults.length > 0) {
+                    // Mapear os exames de atendimento necessários para obter a coleta
+                    const neededAttIds = [...new Set(relResults.map(r => r.attendance_id))];
+                    
+                    // Reutilizar examesSolicitados se possível, ou buscar em lote
+                    let allRelAttExams = examesSolicitados;
+                    const missingAttIds = neededAttIds.filter(id => !attendanceIds.includes(id));
+                    
+                    if (missingAttIds.length > 0) {
+                        const { data: extraExams, error: extraExError } = await supabase
+                            .from('lab_attendance_exams')
+                            .select('attendance_id, exam_id, collection_date, collection_time')
+                            .eq('tenant_id', tenantId)
+                            .in('attendance_id', missingAttIds);
+                        if (!extraExError && extraExams) {
+                            allRelAttExams = [...allRelAttExams, ...extraExams];
+                        }
+                    }
+
+                    const examColetaMap = {};
+                    allRelAttExams.forEach(ex => {
+                        const key = `${ex.attendance_id}::${ex.exam_id}`;
+                        examColetaMap[key] = ex;
+                    });
+
+                    let totalLiberacaoDiffMinutes = 0;
+                    let liberadosComColetaValida = 0;
+
+                    relResults.forEach(r => {
+                        const key = `${r.attendance_id}::${r.exam_id}`;
+                        const ex = examColetaMap[key];
+                        if (!ex || !ex.collection_date || !ex.collection_time) return;
+
+                        const colMs = parseRecifeDateTime(ex.collection_date, ex.collection_time);
+                        const relMs = new Date(r.released_at).getTime();
+
+                        if (colMs && relMs && relMs >= colMs) {
+                            const diffMin = (relMs - colMs) / (1000 * 60);
+                            totalLiberacaoDiffMinutes += diffMin;
+                            liberadosComColetaValida++;
+                        }
+                    });
+
+                    if (liberadosComColetaValida > 0) {
+                        const avgLiberacaoMin = totalLiberacaoDiffMinutes / liberadosComColetaValida;
+                        resultData.indicadoresOperacionais.tempoMedioLiberacao = avgLiberacaoMin;
+                        resultData.indicadoresOperacionais.tempoMedioLiberacaoFormatted = formatDurationMinutes(avgLiberacaoMin);
+                    }
+                }
+            } catch (errLiberacao) {
+                console.error('[LaboratorioDashboardService] Erro ao calcular tempo médio até liberação:', errLiberacao);
+            }
+
+            // 8.3 Exames urgentes pendentes
+            // Universo: atendimentos com origem normalizada === 'URGENCIA'.
+            // Exames vinculados que não estejam concluídos (não possuem resultado, ou resultado PENDENTE, DIGITADO ou CONFERIDO).
+            try {
+                const { data: urgentAttendances, error: urgAttError } = await supabase
+                    .from('lab_attendances')
+                    .select('id, attendance_origin')
+                    .eq('tenant_id', tenantId)
+                    .ilike('attendance_origin', '%urg%');
+
+                if (urgAttError) throw urgAttError;
+
+                const filteredUrgentAtts = (urgentAttendances || []).filter(att => {
+                    const norm = (att.attendance_origin || '')
+                        .trim()
+                        .toUpperCase()
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '');
+                    return norm === 'URGENCIA';
+                });
+
+                const urgentAttIds = filteredUrgentAtts.map(a => a.id);
+
+                if (urgentAttIds.length > 0) {
+                    const [urgExamsRes, urgResultsRes] = await Promise.all([
+                        supabase
+                            .from('lab_attendance_exams')
+                            .select('attendance_id, exam_id')
+                            .eq('tenant_id', tenantId)
+                            .in('attendance_id', urgentAttIds),
+                        supabase
+                            .from('lab_results')
+                            .select('attendance_id, exam_id, status')
+                            .eq('tenant_id', tenantId)
+                            .in('attendance_id', urgentAttIds)
+                    ]);
+
+                    if (urgExamsRes.error) throw urgExamsRes.error;
+                    if (urgResultsRes.error) throw urgResultsRes.error;
+
+                    const urgResultsMap = {};
+                    (urgResultsRes.data || []).forEach(r => {
+                        const key = `${r.attendance_id}::${r.exam_id}`;
+                        urgResultsMap[key] = r;
+                    });
+
+                    // Deduplicar exames por attendance_id + exam_id
+                    const seenUrgentKeys = new Set();
+                    let pendingUrgentCount = 0;
+
+                    (urgExamsRes.data || []).forEach(ex => {
+                        const key = `${ex.attendance_id}::${ex.exam_id}`;
+                        if (seenUrgentKeys.has(key)) return;
+                        seenUrgentKeys.add(key);
+
+                        const r = urgResultsMap[key];
+                        // Considerado pendente se: sem resultado, PENDENTE, DIGITADO ou CONFERIDO
+                        if (!r || r.status === 'PENDENTE' || r.status === 'DIGITADO' || r.status === 'CONFERIDO') {
+                            pendingUrgentCount++;
+                        }
+                    });
+
+                    resultData.indicadoresOperacionais.examesUrgentesPendentes = pendingUrgentCount;
+                } else {
+                    resultData.indicadoresOperacionais.examesUrgentesPendentes = 0;
+                }
+            } catch (errUrg) {
+                console.error('[LaboratorioDashboardService] Erro ao buscar exames urgentes pendentes:', errUrg);
+            }
+
+            // 8.4 Tempo médio de conferência
+            // Universo: resultados conferidos no dia local (checked_at no dia local).
+            // Regra: checked_at - typed_at
+            try {
+                const { data: checkedTodayResults, error: checkError } = await supabase
+                    .from('lab_results')
+                    .select('id, typed_at, checked_at')
+                    .eq('tenant_id', tenantId)
+                    .not('checked_at', 'is', null)
+                    .not('typed_at', 'is', null)
+                    .gte('checked_at', startOfDayIso)
+                    .lte('checked_at', endOfDayIso);
+
+                if (checkError) throw checkError;
+
+                const confResults = checkedTodayResults || [];
+                let totalConferenciaDiffMinutes = 0;
+                let conferidosValidos = 0;
+
+                confResults.forEach(r => {
+                    const checkMs = new Date(r.checked_at).getTime();
+                    const typeMs = new Date(r.typed_at).getTime();
+
+                    if (checkMs && typeMs && checkMs >= typeMs) {
+                        const diffMin = (checkMs - typeMs) / (1000 * 60);
+                        totalConferenciaDiffMinutes += diffMin;
+                        conferidosValidos++;
+                    }
+                });
+
+                if (conferidosValidos > 0) {
+                    const avgConfMin = totalConferenciaDiffMinutes / conferidosValidos;
+                    resultData.indicadoresOperacionais.tempoMedioConferencia = avgConfMin;
+                    resultData.indicadoresOperacionais.tempoMedioConferenciaFormatted = formatDurationMinutes(avgConfMin);
+                }
+            } catch (errConf) {
+                console.error('[LaboratorioDashboardService] Erro ao calcular tempo médio de conferência:', errConf);
+            }
+
+            // =========================================================
+            // 9. ATIVIDADES RECENTES (Últimas 24 horas, máx 8 eventos)
+            // =========================================================
+            try {
+                const [typedRes, checkedRes, releasedRes] = await Promise.all([
+                    supabase
+                        .from('lab_results')
+                        .select('id, attendance_id, exam_id, typed_at')
+                        .eq('tenant_id', tenantId)
+                        .not('typed_at', 'is', null)
+                        .gte('typed_at', since24hIso)
+                        .order('typed_at', { ascending: false })
+                        .limit(8),
+                    supabase
+                        .from('lab_results')
+                        .select('id, attendance_id, exam_id, checked_at')
+                        .eq('tenant_id', tenantId)
+                        .not('checked_at', 'is', null)
+                        .gte('checked_at', since24hIso)
+                        .order('checked_at', { ascending: false })
+                        .limit(8),
+                    supabase
+                        .from('lab_results')
+                        .select('id, attendance_id, exam_id, released_at')
+                        .eq('tenant_id', tenantId)
+                        .not('released_at', 'is', null)
+                        .gte('released_at', since24hIso)
+                        .order('released_at', { ascending: false })
+                        .limit(8)
+                ]);
+
+                const rawEvents = [];
+
+                (typedRes.data || []).forEach(r => {
+                    if (r.typed_at) {
+                        rawEvents.push({
+                            id: `typed_${r.id}_${r.typed_at}`,
+                            type: 'DIGITADO',
+                            title: 'Resultado digitado',
+                            timestamp: r.typed_at,
+                            attendance_id: r.attendance_id,
+                            exam_id: r.exam_id
+                        });
+                    }
+                });
+
+                (checkedRes.data || []).forEach(r => {
+                    if (r.checked_at) {
+                        rawEvents.push({
+                            id: `checked_${r.id}_${r.checked_at}`,
+                            type: 'CONFERIDO',
+                            title: 'Resultado conferido',
+                            timestamp: r.checked_at,
+                            attendance_id: r.attendance_id,
+                            exam_id: r.exam_id
+                        });
+                    }
+                });
+
+                (releasedRes.data || []).forEach(r => {
+                    if (r.released_at) {
+                        rawEvents.push({
+                            id: `released_${r.id}_${r.released_at}`,
+                            type: 'LIBERADO',
+                            title: 'Exame liberado',
+                            timestamp: r.released_at,
+                            attendance_id: r.attendance_id,
+                            exam_id: r.exam_id
+                        });
+                    }
+                });
+
+                // Ordenar decrescente por timestamp e pegar top 8
+                rawEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                const top8Events = rawEvents.slice(0, 8);
+
+                if (top8Events.length > 0) {
+                    const eventAttIds = [...new Set(top8Events.map(e => e.attendance_id).filter(Boolean))];
+                    const eventExamIds = [...new Set(top8Events.map(e => e.exam_id).filter(Boolean))];
+
+                    const [eventsAttsRes, eventsExamsRes] = await Promise.all([
+                        eventAttIds.length > 0
+                            ? supabase.from('lab_attendances').select('id, patient_id').in('id', eventAttIds)
+                            : Promise.resolve({ data: [] }),
+                        eventExamIds.length > 0
+                            ? supabase.from('lab_exams').select('id, code, name').in('id', eventExamIds)
+                            : Promise.resolve({ data: [] })
+                    ]);
+
+                    const eventAtts = eventsAttsRes.data || [];
+                    const eventExams = eventsExamsRes.data || [];
+
+                    const eventPatientIds = [...new Set(eventAtts.map(a => a.patient_id).filter(Boolean))];
+                    const eventPatientsRes = eventPatientIds.length > 0
+                        ? await supabase.from('lab_patients').select('id, code, full_name').in('id', eventPatientIds)
+                        : { data: [] };
+
+                    const eventPatients = eventPatientsRes.data || [];
+
+                    const attMap = Object.fromEntries(eventAtts.map(a => [a.id, a]));
+                    const examMap = Object.fromEntries(eventExams.map(e => [e.id, e]));
+                    const patMap = Object.fromEntries(eventPatients.map(p => [p.id, p]));
+
+                    const formattedActivities = top8Events.map(ev => {
+                        const examObj = examMap[ev.exam_id];
+                        const examCode = examObj?.code || 'EXAME';
+                        const examName = examObj?.name || 'Exame';
+                        const examLabel = `${examCode} — ${examName}`;
+
+                        const attObj = attMap[ev.attendance_id];
+                        const patientObj = attObj ? patMap[attObj.patient_id] : null;
+
+                        let patientLabel = '';
+                        if (patientObj?.full_name) {
+                            patientLabel = patientObj.full_name;
+                        } else if (patientObj?.code) {
+                            patientLabel = `Cód. paciente ${patientObj.code}`;
+                        } else {
+                            patientLabel = 'Paciente';
+                        }
+
+                        const description = `${examLabel} · ${patientLabel}`;
+                        const relativeTime = formatRelativeTime(ev.timestamp);
+
+                        return {
+                            id: ev.id,
+                            type: ev.type,
+                            title: ev.title,
+                            description,
+                            timestamp: ev.timestamp,
+                            relativeTime
+                        };
+                    });
+
+                    resultData.atividadesRecentes = formattedActivities;
+                } else {
+                    resultData.atividadesRecentes = [];
+                }
+            } catch (errAtiv) {
+                console.error('[LaboratorioDashboardService] Erro ao buscar atividades recentes:', errAtiv);
+                resultData.atividadesError = true;
             }
 
             return resultData;

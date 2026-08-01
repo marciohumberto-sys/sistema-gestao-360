@@ -9,8 +9,8 @@ import {
     Clock, 
     CheckCircle2, 
     AlertCircle, 
-    TrendingUp,
-    RefreshCw
+    RefreshCw,
+    FileEdit
 } from 'lucide-react';
 import { laboratorioDashboardService } from '../../services/laboratorioDashboard.service';
 import './LaboratorioDashboard.css';
@@ -30,7 +30,16 @@ const LaboratorioDashboard = () => {
             examesLiberadosHoje: 0,
             taxaLiberacaoHoje: 0
         },
-        producaoPorSetor: []
+        producaoPorSetor: [],
+        statusExames: [],
+        indicadoresOperacionais: {
+            tempoMedioColetaFormatted: '—',
+            tempoMedioLiberacaoFormatted: '—',
+            examesUrgentesPendentes: 0,
+            tempoMedioConferenciaFormatted: '—'
+        },
+        atividadesRecentes: [],
+        atividadesError: false
     });
 
     const loadData = async () => {
@@ -82,21 +91,45 @@ const LaboratorioDashboard = () => {
         );
     }
 
-    const { cards, producaoPorSetor, statusExames } = data;
+    const { cards, producaoPorSetor, statusExames, indicadoresOperacionais, atividadesRecentes, atividadesError } = data;
 
     const kpis = [
         { label: 'Pacientes do dia', value: cards.pacientesHoje, icon: Users, color: '#0ea5e9', trendText: 'Hoje' },
         { label: 'Exames hoje', value: cards.examesHoje, icon: TestTubes, color: '#8b5cf6', trendText: 'Hoje' },
-        { label: 'Aguardando conferência', value: cards.aguardandoConferencia, icon: CheckSquare, color: '#f59e0b', trendText: 'Pendência atual' },
-        { label: 'Exames liberados hoje', value: cards.examesLiberadosHoje, icon: ClipboardCheck, color: '#10b981', trendText: 'Hoje' },
+        { label: 'Aguardando conferência', value: cards.aguardandoConferencia, icon: CheckSquare, color: '#f59e0b', trendText: 'Fila atual do laboratório' },
+        { label: 'Exames de hoje liberados', value: cards.examesLiberadosHoje, icon: ClipboardCheck, color: '#10b981', trendText: 'Dos exames solicitados hoje' },
         { label: 'Taxa de liberação', value: `${cards.taxaLiberacaoHoje}%`, icon: Activity, color: '#ec4899', trendText: 'dos exames solicitados hoje' },
     ];
 
     const indicadoresOp = [
-        { label: 'Tempo médio de coleta', val: 'Não disponível', icon: Clock, color: '#0ea5e9' },
-        { label: 'Tempo médio de liberação', val: 'Não disponível', icon: CheckCircle2, color: '#10b981' },
-        { label: 'Exames urgentes pendentes', val: '—', icon: AlertCircle, color: '#ef4444' },
-        { label: 'Amostras rejeitadas hoje', val: 'Não disponível', icon: Activity, color: '#f59e0b' },
+        { 
+            label: 'Tempo médio até coleta', 
+            val: indicadoresOperacionais?.tempoMedioColetaFormatted || '—', 
+            subtitle: 'Atendimentos de hoje',
+            icon: Clock, 
+            color: '#0ea5e9' 
+        },
+        { 
+            label: 'Tempo médio até liberação', 
+            val: indicadoresOperacionais?.tempoMedioLiberacaoFormatted || '—', 
+            subtitle: 'Exames liberados hoje',
+            icon: CheckCircle2, 
+            color: '#10b981' 
+        },
+        { 
+            label: 'Exames urgentes pendentes', 
+            val: indicadoresOperacionais?.examesUrgentesPendentes ?? '—', 
+            subtitle: 'Fila atual',
+            icon: AlertCircle, 
+            color: '#ef4444' 
+        },
+        { 
+            label: 'Tempo médio de conferência', 
+            val: indicadoresOperacionais?.tempoMedioConferenciaFormatted || '—', 
+            subtitle: 'Resultados conferidos hoje',
+            icon: ClipboardCheck, 
+            color: '#8b5cf6' 
+        },
     ];
 
     return (
@@ -138,10 +171,13 @@ const LaboratorioDashboard = () => {
                 {/* Produção por Setor */}
                 <div className="lab-panel lab-panel-producao">
                     <div className="lab-panel-header">
-                        <h3 className="lab-panel-title">
-                            <BarChart3 size={20} color="#0ea5e9" />
-                            Produção por Setor
-                        </h3>
+                        <div className="lab-panel-header-titles">
+                            <h3 className="lab-panel-title">
+                                <BarChart3 size={20} color="#0ea5e9" />
+                                Produção por Setor
+                            </h3>
+                            <span className="lab-panel-subtitle">Exames solicitados hoje</span>
+                        </div>
                     </div>
                     <div className="lab-sectors-list">
                         {producaoPorSetor.length === 0 ? (
@@ -170,10 +206,13 @@ const LaboratorioDashboard = () => {
                 {/* Status dos Exames */}
                 <div className="lab-panel">
                     <div className="lab-panel-header">
-                        <h3 className="lab-panel-title">
-                            <Clock size={20} color="#f59e0b" />
-                            Status dos Exames
-                        </h3>
+                        <div className="lab-panel-header-titles">
+                            <h3 className="lab-panel-title">
+                                <Clock size={20} color="#f59e0b" />
+                                Status dos Exames
+                            </h3>
+                            <span className="lab-panel-subtitle">Exames dos atendimentos de hoje</span>
+                        </div>
                     </div>
                     <div className="lab-status-list">
                         {!statusExames || statusExames.length === 0 || cards.examesHoje === 0 ? (
@@ -207,24 +246,67 @@ const LaboratorioDashboard = () => {
                 {/* Atividades Recentes (Timeline) */}
                 <div className="lab-panel">
                     <div className="lab-panel-header">
-                        <h3 className="lab-panel-title">
-                            <Activity size={20} color="#8b5cf6" />
-                            Atividades Recentes
-                        </h3>
+                        <div className="lab-panel-header-titles">
+                            <h3 className="lab-panel-title">
+                                <Activity size={20} color="#8b5cf6" />
+                                Atividades Recentes
+                            </h3>
+                            <span className="lab-panel-subtitle">Últimas 24 horas · 5 mais recentes</span>
+                        </div>
                     </div>
-                    <div className="lab-empty-state">
-                        <span style={{ fontSize: '15px', fontWeight: 500, color: '#334155' }}>Nenhuma atividade consolidada disponível.</span>
-                        <span style={{ fontSize: '13px', marginTop: '8px' }}>O histórico operacional será integrado em uma próxima etapa.</span>
-                    </div>
+                    {atividadesError ? (
+                        <div className="lab-empty-state">
+                            <span style={{ fontSize: '14px', color: '#ef4444' }}>Não foi possível carregar as atividades recentes.</span>
+                        </div>
+                    ) : !atividadesRecentes || atividadesRecentes.length === 0 ? (
+                        <div className="lab-empty-state">
+                            <span style={{ fontSize: '14px', color: '#64748b' }}>Nenhuma atividade registrada nas últimas 24 horas.</span>
+                        </div>
+                    ) : (
+                        <div className="lab-timeline">
+                            {atividadesRecentes.slice(0, 5).map(ativ => {
+                                let iconColor = '#8b5cf6';
+                                let iconBg = '#8b5cf615';
+                                let IconComp = FileEdit;
+                                if (ativ.type === 'CONFERIDO') {
+                                    iconColor = '#0ea5e9';
+                                    iconBg = '#0ea5e915';
+                                    IconComp = ClipboardCheck;
+                                } else if (ativ.type === 'LIBERADO') {
+                                    iconColor = '#10b981';
+                                    iconBg = '#10b98115';
+                                    IconComp = CheckCircle2;
+                                }
+                                return (
+                                    <div key={ativ.id} className="lab-timeline-item">
+                                        <div className="lab-timeline-icon" style={{ backgroundColor: iconBg, color: iconColor }}>
+                                            <IconComp size={16} strokeWidth={2.5} />
+                                        </div>
+                                        <div className="lab-timeline-content">
+                                            <div className="lab-timeline-header">
+                                                <span className="lab-timeline-title">{ativ.title}</span>
+                                                <span className="lab-timeline-time" title={ativ.timestamp ? new Date(ativ.timestamp).toLocaleString('pt-BR') : ''}>
+                                                    {ativ.relativeTime}
+                                                </span>
+                                            </div>
+                                            <span className="lab-timeline-desc" title={ativ.description}>{ativ.description}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
 
                 {/* Indicadores Operacionais */}
                 <div className="lab-panel lab-panel-indicadores">
                     <div className="lab-panel-header">
-                        <h3 className="lab-panel-title">
-                            <CheckCircle2 size={20} color="#10b981" />
-                            Indicadores Operacionais
-                        </h3>
+                        <div className="lab-panel-header-titles">
+                            <h3 className="lab-panel-title">
+                                <CheckCircle2 size={20} color="#10b981" />
+                                Indicadores Operacionais
+                            </h3>
+                        </div>
                     </div>
                     <div className="lab-indicadores-grid">
                         {indicadoresOp.map((ind, idx) => {
@@ -232,11 +314,12 @@ const LaboratorioDashboard = () => {
                             return (
                                 <div key={idx} className="lab-indicador-card">
                                     <div className="lab-indicador-icon" style={{ backgroundColor: `${ind.color}10`, color: ind.color }}>
-                                        <Icon size={24} strokeWidth={2} />
+                                        <Icon size={20} strokeWidth={2.2} />
                                     </div>
                                     <div className="lab-indicador-info">
-                                        <span className="lab-indicador-val" style={{ fontSize: ind.val === '—' ? '24px' : '15px', color: ind.val === 'Não disponível' ? '#94a3b8' : '#1e293b' }}>{ind.val}</span>
+                                        <span className="lab-indicador-val">{ind.val}</span>
                                         <span className="lab-indicador-label">{ind.label}</span>
+                                        <span className="lab-indicador-subtitle">{ind.subtitle}</span>
                                     </div>
                                 </div>
                             );

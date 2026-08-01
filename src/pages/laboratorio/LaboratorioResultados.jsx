@@ -10,6 +10,57 @@ import './LaboratorioResultados.css';
 import { laboratorioResultadosService } from '../../services/api/laboratorioResultados.service';
 import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue } from '../../utils/laboratorioHelpers';
 
+// Códigos dos parâmetros percentuais do Leucograma (HEMO)
+const HEMO_LEUCOGRAMA_PERCENTUAL_CODES = new Set([
+    'MIELOCITOS', 'METAMIELOCITOS', 'BASTONETES', 'SEGMENTADOS',
+    'EOSINOFILOS', 'BASOFILOS', 'LINFOCITOS_TIPICOS', 'LINFOCITOS_ATIPICOS',
+    'MONOCITOS', 'PLASMOCITOS'
+]);
+
+// Configuração da máscara real do Eritrograma (HEMO)
+const HEMO_ERITROGRAMA_CONFIG = {
+    'HEMACIAS': { maxIntDigits: 1, decimals: 2, maxTotalDigits: 3 },
+    'HEMOGLOBINA': { maxIntDigits: 2, decimals: 1, maxTotalDigits: 3 },
+    'HEMATOCRITO': { maxIntDigits: 2, decimals: 1, maxTotalDigits: 3 },
+    'HCM': { maxIntDigits: 2, decimals: 1, maxTotalDigits: 3 },
+    'VCM': { maxIntDigits: 3, decimals: 1, maxTotalDigits: 4 },
+    'CHCM': { maxIntDigits: 2, decimals: 1, maxTotalDigits: 3 },
+    'RDW': { maxIntDigits: 2, decimals: 1, maxTotalDigits: 3 }
+};
+
+const formatEritrogramaMask = (rawValue, config) => {
+    if (rawValue === null || rawValue === undefined) return '';
+    const str = String(rawValue).trim();
+    if (str === '') return '';
+
+    // Extrai apenas dígitos
+    const rawDigits = str.replace(/\D/g, '');
+    if (!rawDigits) return '';
+
+    // Remove zeros à esquerda a menos que seja apenas zero
+    let digits = '';
+    if (/^0+$/.test(rawDigits)) {
+        digits = '0';
+    } else {
+        digits = rawDigits.replace(/^0+/, '');
+    }
+
+    if (!digits) return '';
+
+    // Limita à quantidade máxima de dígitos da máscara
+    if (digits.length > config.maxTotalDigits) {
+        digits = digits.slice(0, config.maxTotalDigits);
+    }
+
+    // Preenche à esquerda até o tamanho mínimo (decimais + 1)
+    const minLength = config.decimals + 1;
+    const padded = digits.padStart(minLength, '0');
+    const intPart = padded.slice(0, padded.length - config.decimals).replace(/^0+(?=\d)/, '') || '0';
+    const decPart = padded.slice(padded.length - config.decimals);
+
+    return `${intPart},${decPart}`;
+};
+
 const getLocalDateInputValue = (date = new Date()) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -173,6 +224,18 @@ const LaboratorioResultados = () => {
     const [searchResults, setSearchResults] = useState(null);
     const [selectedAttendance, setSelectedAttendance] = useState(null);
 
+    const currentAttendance = attendances[0] || {};
+    const resultados = currentAttendance.resultados || [];
+    const attendanceExams = resultados;
+    const currentExamIndex = attendanceExams.findIndex(exam => exam.id === selectedExamId);
+    const selectedResult = resultados.find(r => r.id === selectedExamId) || {};
+    const statusSelectedResult = String(selectedResult.status || '').toUpperCase();
+    const normalizedStatus = String(selectedResult.status || '').trim().toUpperCase();
+    const isPendente = normalizedStatus === 'PENDENTE';
+    const isDigitado = normalizedStatus === 'DIGITADO';
+    const canEditResult = isPendente || isDigitado;
+    const isReadOnly = !canEditResult;
+
     useEffect(() => {
         if (location.state?.protocolNumber) {
             handleSearch(location.state.attendanceDate, location.state.protocolNumber);
@@ -229,7 +292,45 @@ const LaboratorioResultados = () => {
 
     const handleSelectAttendance = async (att) => {
         setSelectedAttendance(att);
-        await carregarDados(att.protocol_number);
+        
+        const hadSpecificPatientFilter = Boolean(
+            (searchFilters.patient && searchFilters.patient.trim()) ||
+            (searchFilters.patient_code && searchFilters.patient_code.trim())
+        );
+
+        // Limpa somente Código do paciente e Paciente
+        setSearchFilters(prev => ({
+            ...prev,
+            patient: '',
+            patient_code: ''
+        }));
+
+        const loadDadosPromise = carregarDados(att.protocol_number);
+
+        if (hadSpecificPatientFilter) {
+            try {
+                const filtrosAmpliados = {
+                    dataInicial: searchFilters.date,
+                    paciente: '',
+                    patient_code: undefined,
+                    status: searchFilters.status,
+                    attendance_origin: searchFilters.attendance_origin
+                };
+
+                const expandedList = await laboratorioResultadosService.buscarAtendimentos(filtrosAmpliados);
+                if (expandedList && expandedList.length > 0) {
+                    setSearchResults(expandedList);
+                    const foundInExpanded = expandedList.find(a => a.id === att.id);
+                    if (foundInExpanded) {
+                        setSelectedAttendance(foundInExpanded);
+                    }
+                }
+            } catch (err) {
+                console.error('[LaboratorioResultados] Erro ao carregar fila ampliada:', err);
+            }
+        }
+
+        await loadDadosPromise;
     };
 
     const carregarDados = async (protocol, currentSelectedId = selectedExamId, targetExamCode = null) => {
@@ -458,11 +559,45 @@ const LaboratorioResultados = () => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape' && showUnsavedModal) {
                 cancelNavigation();
+                return;
+            }
+
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                if (showUnsavedModal) return;
+
+                // Proteção durante a digitação: não navegar se o foco estiver em elementos editáveis
+                const target = e.target;
+                const tagName = target?.tagName?.toLowerCase();
+                const isEditable =
+                    tagName === 'input' ||
+                    tagName === 'textarea' ||
+                    tagName === 'select' ||
+                    Boolean(target?.isContentEditable);
+
+                if (isEditable) return;
+
+                // Só navega se houver um atendimento aberto e uma fila com mais de 1 paciente
+                if (!selectedAttendance || !searchResults || searchResults.length <= 1) return;
+
+                const currentIndex = searchResults.findIndex(a => a.id === selectedAttendance.id);
+                if (currentIndex === -1) return;
+
+                if (e.key === 'ArrowLeft') {
+                    if (currentIndex > 0) {
+                        e.preventDefault();
+                        handleNavigatePatient('prev');
+                    }
+                } else if (e.key === 'ArrowRight') {
+                    if (currentIndex < searchResults.length - 1) {
+                        e.preventDefault();
+                        handleNavigatePatient('next');
+                    }
+                }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showUnsavedModal]);
+    }, [showUnsavedModal, selectedAttendance, searchResults, loading, saving, formValues, initialFormValues, selectedResult]);
 
     const handleTooltipEnter = (e, paramName, applicableRefText, allRefText) => {
         if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
@@ -489,10 +624,6 @@ const LaboratorioResultados = () => {
         window.addEventListener('keydown', handleKeyDownTooltip);
         return () => window.removeEventListener('keydown', handleKeyDownTooltip);
     }, [activeTooltip]);
-
-    const currentAttendance = attendances[0] || {};
-    const attendanceExams = currentAttendance ? currentAttendance.resultados || [] : [];
-    const currentExamIndex = attendanceExams.findIndex(exam => exam.id === selectedExamId);
 
     const goToPreviousExam = () => {
         if (currentExamIndex <= 0) return;
@@ -588,6 +719,34 @@ const LaboratorioResultados = () => {
                 setTimeout(() => setFeedbackMsg(null), 4000);
                 setSaveStatus('error');
                 return false;
+            }
+
+            // Validação do Leucograma — exclusiva para exame HEMO
+            const isHemoExam = String(selectedResult?.exameCodigo || '').trim().toUpperCase() === 'HEMO';
+            if (isHemoExam) {
+                const leucoTotal = Object.values(formValues).reduce((sum, v) => {
+                    const code = String(v.parameter_code || v.code || '').toUpperCase();
+                    if (!HEMO_LEUCOGRAMA_PERCENTUAL_CODES.has(code)) return sum;
+                    const raw = v.value_numeric;
+                    if (raw === null || raw === undefined || raw === '') return sum;
+                    const num = parseInt(String(raw).replace(',', '.'), 10);
+                    return isNaN(num) ? sum : sum + num;
+                }, 0);
+
+                if (leucoTotal !== 100) {
+                    const diff = leucoTotal - 100;
+                    const diffMsg = diff < 0
+                        ? `Faltam ${Math.abs(diff)}%.`
+                        : `O total excede 100% em ${diff}%.`;
+                    setFeedbackMsg({
+                        type: 'error',
+                        text: `Leucograma inválido. A soma dos percentuais deve ser exatamente 100%. Total informado: ${leucoTotal}%. ${diffMsg}`
+                    });
+                    setTimeout(() => setFeedbackMsg(null), 6000);
+                    setSaveStatus('error');
+                    setSaving(false);
+                    return false;
+                }
             }
 
             // Validate mandatory
@@ -732,17 +891,6 @@ const LaboratorioResultados = () => {
         if (saveStatus === 'error') return <AlertCircle size={16} />;
         return <Save size={16} />;
     };
-
-    const resultados = currentAttendance.resultados || [];
-    const selectedResult = resultados.find(r => r.id === selectedExamId) || {};
-    const statusSelectedResult = String(selectedResult.status || '').toUpperCase();
-    
-    const normalizedStatus = String(selectedResult.status || '').trim().toUpperCase();
-    const isPendente = normalizedStatus === 'PENDENTE';
-    const isDigitado = normalizedStatus === 'DIGITADO';
-    
-    const canEditResult = isPendente || isDigitado;
-    const isReadOnly = !canEditResult;
 
     const getReadOnlyMessage = (status) => {
         if (status === 'CONFERIDO' || status === 'AGUARDANDO_LIBERACAO' || status === 'AGUARDANDO LIBERACAO') {
@@ -1149,13 +1297,48 @@ const LaboratorioResultados = () => {
 
                                         const renderContainerPadding = isCompactRef || isObservation ? '0.25rem' : '0.75rem';
 
+                                        // Indicador em tempo real do total do Leucograma
+                                        let leucoIndicator = null;
+                                        if (isHemo && code === 'LEUCOCITOS') {
+                                            const leucoTotal = Object.values(formValues).reduce((sum, v) => {
+                                                const vCode = String(v.parameter_code || v.code || '').toUpperCase();
+                                                if (!HEMO_LEUCOGRAMA_PERCENTUAL_CODES.has(vCode)) return sum;
+                                                const raw = v.value_numeric;
+                                                if (raw === null || raw === undefined || raw === '') return sum;
+                                                const num = parseInt(String(raw).replace(',', '.'), 10);
+                                                return isNaN(num) ? sum : sum + num;
+                                            }, 0);
+
+                                            let leucoColor = '#64748b';
+                                            let leucoIcon = '';
+                                            let leucoMsg = '';
+                                            if (leucoTotal === 100) {
+                                                leucoColor = '#16a34a';
+                                                leucoIcon = '✓';
+                                                leucoMsg = `Total do leucograma: ${leucoTotal}% ${leucoIcon}`;
+                                            } else if (leucoTotal < 100) {
+                                                leucoColor = '#d97706';
+                                                leucoMsg = `Total do leucograma: ${leucoTotal}% — faltam ${100 - leucoTotal}%.`;
+                                            } else {
+                                                leucoColor = '#dc2626';
+                                                leucoMsg = `Total do leucograma: ${leucoTotal}% — excede ${leucoTotal - 100}%.`;
+                                            }
+
+                                            leucoIndicator = (
+                                                <div style={{ marginTop: '4px', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, color: leucoColor }}>
+                                                    {leucoMsg}
+                                                </div>
+                                            );
+                                        }
+
                                         return (
                                             <React.Fragment key={param.id}>
                                                 {sectionHeader && (
-                                                    <div style={{ marginTop: '1.25rem', marginBottom: '0.75rem', paddingBottom: '0.25rem', borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                                                    <div style={{ marginTop: '1.25rem', marginBottom: '0.5rem', paddingBottom: '0.25rem', borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase' }}>
                                                         {sectionHeader}
                                                     </div>
                                                 )}
+                                                {leucoIndicator}
                                                 <div className="lab-typing-parameter-block" style={{ marginBottom: renderContainerPadding, paddingBottom: renderContainerPadding, borderBottom: '1px solid #f1f5f9' }}>
                                                     <div className="lab-typing-result-row" style={{ alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', display: 'flex' }}>
                                                         <div className="lab-typing-input-group" style={{ flex: isCompactRef ? '0 0 58%' : 1, minWidth: isCompactRef ? '300px' : '300px', display: 'flex', alignItems: isPCRExam ? 'flex-start' : 'center', gap: '0.75rem' }}>
@@ -1258,7 +1441,9 @@ const LaboratorioResultados = () => {
                                                                         onChange={(e) => {
                                                                             if (isCalculatedIndex) return;
                                                                             let val = e.target.value;
-                                                                            if (isNumeric && HEMO_INTEGER_COUNT_CODES.has(code)) {
+                                                                            if (isHemo && isNumeric && HEMO_ERITROGRAMA_CONFIG[code]) {
+                                                                                val = formatEritrogramaMask(val, HEMO_ERITROGRAMA_CONFIG[code]);
+                                                                            } else if (isNumeric && HEMO_INTEGER_COUNT_CODES.has(code)) {
                                                                                 if (/^[\d.]+$/.test(val)) {
                                                                                     const digits = val.replace(/\./g, '');
                                                                                     val = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
