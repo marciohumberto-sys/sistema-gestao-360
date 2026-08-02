@@ -284,7 +284,7 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
                 <div className="hemo-header-center">
                     <h2>
                         LABORATÓRIO MUNICIPAL<br/>
-                        LINDBERG CÂNDIDO DE SOUZA
+                        LINDOBERG CÂNDIDO DE SOUZA
                     </h2>
                     <p>Sistema Gestão Pública Inteligente</p>
                 </div>
@@ -573,7 +573,7 @@ const LaudoURI = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
                         <img src="/logo-laboratorio.png" alt="Logo" onError={(e) => { e.target.style.display = 'none'; }} />
                     </div>
                     <div className="hemo-header-center">
-                        <h2>LABORATÓRIO MUNICIPAL<br/>LINDBERG CÂNDIDO DE SOUZA</h2>
+                        <h2>LABORATÓRIO MUNICIPAL<br/>LINDOBERG CÂNDIDO DE SOUZA</h2>
                         <p>Sistema Gestão Pública Inteligente</p>
                     </div>
                     <div className="hemo-header-right">
@@ -734,7 +734,7 @@ const LaudoPAR = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
                         <img src="/logo-laboratorio.png" alt="Logo" onError={(e) => { e.target.style.display = 'none'; }} />
                     </div>
                     <div className="hemo-header-center">
-                        <h2>LABORATÓRIO MUNICIPAL<br/>LINDBERG CÂNDIDO DE SOUZA</h2>
+                        <h2>LABORATÓRIO MUNICIPAL<br/>LINDOBERG CÂNDIDO DE SOUZA</h2>
                         <p>Sistema Gestão Pública Inteligente</p>
                     </div>
                     <div className="hemo-header-right">
@@ -1267,7 +1267,7 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
                     <div className="hemo-header-center">
                         <h2>
                             LABORATÓRIO MUNICIPAL<br/>
-                            LINDBERG CÂNDIDO DE SOUZA
+                            LINDOBERG CÂNDIDO DE SOUZA
                         </h2>
                         <p>Sistema Gestão Pública Inteligente</p>
                     </div>
@@ -1781,7 +1781,7 @@ const LaudoA4Page = ({ pageExamData, pageNumber, patientCode, selectedProtocol, 
                     <img src="/logo-laboratorio.png" alt="Logo" onError={(e) => { e.target.style.display = 'none'; }} />
                 </div>
                 <div className="hemo-header-center">
-                    <h2>LABORATÓRIO MUNICIPAL<br/>LINDBERG CÂNDIDO DE SOUZA</h2>
+                    <h2>LABORATÓRIO MUNICIPAL<br/>LINDOBERG CÂNDIDO DE SOUZA</h2>
                     <p>Sistema Gestão Pública Inteligente</p>
                 </div>
                 <div className="hemo-header-right">
