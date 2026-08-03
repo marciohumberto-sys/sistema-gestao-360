@@ -280,6 +280,21 @@ class LaboratorioResultadosService {
         // updatedValues = array de objetos formatados no componente UI
         if (!resultId || !updatedValues || updatedValues.length === 0) return;
 
+        // Proteção contra alteração acidental de exames já conferidos/liberados.
+        // A reabertura deve acontecer antes, pela RPC específica.
+        const { data: currentResult, error: currentResultError } = await supabase
+            .from('lab_results')
+            .select('status')
+            .eq('id', resultId)
+            .single();
+
+        if (currentResultError) throw currentResultError;
+
+        const currentStatus = String(currentResult?.status || '').trim().toUpperCase();
+        if (!['PENDENTE', 'DIGITADO'].includes(currentStatus)) {
+            throw new Error('Este exame precisa ser reaberto para correção antes de ser salvo.');
+        }
+
         for (let i = 0; i < updatedValues.length; i++) {
             const v = updatedValues[i];
             
@@ -367,6 +382,32 @@ class LaboratorioResultadosService {
         if (errUpdateResult) throw errUpdateResult;
         
         return true;
+    }
+
+    async reabrirResultadoParaCorrecao(resultId) {
+        if (!resultId) {
+            throw new Error('Resultado não informado.');
+        }
+
+        const { data, error } = await supabase.rpc('reopen_lab_result_for_correction', {
+            p_result_id: resultId
+        });
+
+        if (error) {
+            const message = String(error.message || '').toLowerCase();
+
+            if (error.code === '42501' || message.includes('permiss')) {
+                throw new Error('Você não possui permissão para reabrir este resultado.');
+            }
+
+            if (message.includes('não está liberado') || message.includes('nao esta liberado')) {
+                throw new Error('Este exame não está mais liberado. Atualize a tela e tente novamente.');
+            }
+
+            throw new Error('Não foi possível reabrir o exame para correção.');
+        }
+
+        return Array.isArray(data) ? data[0] : data;
     }
 
     }

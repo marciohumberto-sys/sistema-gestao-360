@@ -4,10 +4,11 @@ import { useLocation } from 'react-router-dom';
 import { formatCpf } from '../../utils/formatters';
 import { 
     TriangleAlert, Search, CheckCircle2, Clock, ChevronLeft, ChevronRight, Save, Activity, User, FileText,
-    History, AlertCircle, Info, Loader2
+    History, AlertCircle, Info, Loader2, RotateCcw
 } from 'lucide-react';
 import './LaboratorioResultados.css';
 import { laboratorioResultadosService } from '../../services/api/laboratorioResultados.service';
+import { useAuth } from '../../context/AuthContext';
 import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue } from '../../utils/laboratorioHelpers';
 
 // Códigos dos parâmetros percentuais do Leucograma (HEMO)
@@ -206,11 +207,18 @@ const LaboratorioResultados = () => {
     const [activeTooltip, setActiveTooltip] = useState(null);
     const tooltipTimeoutRef = useRef(null);
     const [missingFields, setMissingFields] = useState([]);
+    const [showReopenModal, setShowReopenModal] = useState(false);
+    const [reopeningResult, setReopeningResult] = useState(false);
     const inputRefs = useRef([]);
     const shouldScrollToTopRef = useRef(false);
     const examTopRef = useRef(null);
 
     const location = useLocation();
+    const { tenantLink } = useAuth();
+    const currentUserRole = String(tenantLink?.role || tenantLink?.profile || '').trim().toUpperCase();
+    const canReopenReleasedResult = [
+        'SUPERADMIN', 'ADMIN', 'GESTOR', 'ADMINISTRADOR', 'RECEPCAO'
+    ].includes(currentUserRole);
     
     const [searchFilters, setSearchFilters] = useState({
         date: location.state?.attendanceDate || '',
@@ -547,6 +555,11 @@ const LaboratorioResultados = () => {
 
     useEffect(() => {
         const handleKeyDown = (e) => {
+            if (e.key === 'Escape' && showReopenModal && !reopeningResult) {
+                setShowReopenModal(false);
+                return;
+            }
+
             if (e.key === 'Escape' && showUnsavedModal) {
                 cancelNavigation();
                 return;
@@ -587,7 +600,7 @@ const LaboratorioResultados = () => {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showUnsavedModal, selectedAttendance, searchResults, loading, saving, formValues, initialFormValues, selectedResult]);
+    }, [showUnsavedModal, showReopenModal, reopeningResult, selectedAttendance, searchResults, loading, saving, formValues, initialFormValues, selectedResult]);
 
     const handleTooltipEnter = (e, paramName, applicableRefText, allRefText) => {
         if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
@@ -644,7 +657,53 @@ const LaboratorioResultados = () => {
         });
     };
 
+    const handleOpenReopenModal = () => {
+        if (normalizedStatus !== 'LIBERADO' || !canReopenReleasedResult || reopeningResult) return;
+        setShowReopenModal(true);
+    };
+
+    const handleConfirmReopen = async () => {
+        if (!selectedResult?.id || reopeningResult) return;
+
+        try {
+            setReopeningResult(true);
+            setFeedbackMsg(null);
+
+            await laboratorioResultadosService.reabrirResultadoParaCorrecao(selectedResult.id);
+            setShowReopenModal(false);
+
+            await carregarDados(
+                selectedAttendance?.protocol_number || currentAttendance?.protocol_number,
+                selectedResult.id
+            );
+
+            setFeedbackMsg({
+                type: 'success',
+                text: 'Exame reaberto para correção. Após salvar, ele deverá ser conferido novamente.'
+            });
+            setTimeout(() => setFeedbackMsg(null), 5000);
+        } catch (error) {
+            console.error('[LaboratorioResultados] Erro ao reabrir resultado:', error);
+            setFeedbackMsg({
+                type: 'error',
+                text: error?.message || 'Não foi possível reabrir o exame para correção.'
+            });
+            setTimeout(() => setFeedbackMsg(null), 6000);
+        } finally {
+            setReopeningResult(false);
+        }
+    };
+
     const salvarExameAtual = async () => {
+        if (isReadOnly) {
+            setFeedbackMsg({
+                type: 'error',
+                text: 'Este exame está bloqueado. Reabra-o para correção antes de salvar.'
+            });
+            setTimeout(() => setFeedbackMsg(null), 4000);
+            return false;
+        }
+
         try {
             const wasDigitado = String(selectedResult?.status || '').trim().toUpperCase() === 'DIGITADO';
             
@@ -1197,9 +1256,39 @@ const LaboratorioResultados = () => {
                             <div className="lab-typing-body">
 
                                 {isReadOnly && (
-                                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e40af', fontSize: '0.9rem', fontWeight: 500 }}>
-                                        <Info size={18} />
-                                        <span>{getReadOnlyMessage(normalizedStatus)}</span>
+                                    <div style={{
+                                        background: '#eff6ff',
+                                        border: '1px solid #bfdbfe',
+                                        borderRadius: '8px',
+                                        padding: '0.75rem',
+                                        marginBottom: '1rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '0.75rem',
+                                        flexWrap: 'wrap',
+                                        color: '#1e40af',
+                                        fontSize: '0.9rem',
+                                        fontWeight: 500
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1 }}>
+                                            <Info size={18} style={{ flexShrink: 0 }} />
+                                            <span>{getReadOnlyMessage(normalizedStatus)}</span>
+                                        </div>
+
+                                        {normalizedStatus === 'LIBERADO' && canReopenReleasedResult && (
+                                            <button
+                                                type="button"
+                                                className="lab-btn lab-btn-outline"
+                                                onClick={handleOpenReopenModal}
+                                                disabled={reopeningResult || saving}
+                                                style={{ whiteSpace: 'nowrap', background: '#fff' }}
+                                                title="Reabrir este exame para correção e nova conferência"
+                                            >
+                                                {reopeningResult ? <Loader2 className="animate-spin" size={16} /> : <RotateCcw size={16} />}
+                                                Corrigir resultado
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                                 
@@ -1500,14 +1589,16 @@ const LaboratorioResultados = () => {
                                     <button className="lab-btn lab-btn-outline" disabled={currentExamIndex < 0 || currentExamIndex >= attendanceExams.length - 1} onClick={goToNextExam}>{'Pr\u00f3ximo'} <ChevronRight size={16} /></button>
                                 </div>
                                 <div className="lab-save-buttons">
-                                    <button 
-                                        className={`lab-btn ${saveStatus === 'success' ? 'lab-btn-success' : saveStatus === 'error' ? 'lab-btn-outline' : 'lab-btn-primary'}`} 
-                                        onClick={salvarExameAtual} 
-                                        disabled={saving || saveStatus === 'success'}
-                                    >
-                                        {getSaveButtonIcon()}
-                                        {getSaveButtonText('Salvar este exame')}
-                                    </button>
+                                    {!isReadOnly && (
+                                        <button 
+                                            className={`lab-btn ${saveStatus === 'success' ? 'lab-btn-success' : saveStatus === 'error' ? 'lab-btn-outline' : 'lab-btn-primary'}`} 
+                                            onClick={salvarExameAtual} 
+                                            disabled={saving || saveStatus === 'success'}
+                                        >
+                                            {getSaveButtonIcon()}
+                                            {getSaveButtonText('Salvar este exame')}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1559,6 +1650,58 @@ const LaboratorioResultados = () => {
                 </div>
             )}
             
+            {/* Modal de reabertura de resultado liberado */}
+            {showReopenModal && (
+                <div
+                    className="unsaved-result-modal-overlay"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="reopen-result-modal-title"
+                >
+                    <div className="unsaved-result-modal">
+                        <div className="unsaved-result-modal-header">
+                            <div className="unsaved-result-modal-icon" style={{ color: '#b45309', background: '#fef3c7' }}>
+                                <RotateCcw size={24} />
+                            </div>
+                            <div>
+                                <h2 id="reopen-result-modal-title" className="unsaved-result-modal-title">
+                                    Corrigir resultado liberado
+                                </h2>
+                                <p className="unsaved-result-modal-subtitle">
+                                    {selectedResult?.exameCodigo} — {selectedResult?.exameNome}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="unsaved-result-modal-body" style={{ lineHeight: 1.5 }}>
+                            Os valores atuais serão preservados. O exame voltará para <strong>DIGITADO</strong>,
+                            ficará disponível para correção e precisará ser conferido e liberado novamente pelo biomédico.
+                        </div>
+
+                        <div className="unsaved-result-modal-footer">
+                            <button
+                                type="button"
+                                className="unsaved-btn-neutral"
+                                onClick={() => setShowReopenModal(false)}
+                                disabled={reopeningResult}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                className="lab-btn lab-btn-primary"
+                                onClick={handleConfirmReopen}
+                                disabled={reopeningResult}
+                                style={{ minWidth: '150px', justifyContent: 'center' }}
+                            >
+                                {reopeningResult ? <Loader2 className="animate-spin" size={16} /> : <RotateCcw size={16} />}
+                                {reopeningResult ? 'Reabrindo...' : 'Reabrir exame'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <LabRefTooltip 
                 isOpen={!!activeTooltip} 
                 anchorEl={activeTooltip?.anchorEl} 
