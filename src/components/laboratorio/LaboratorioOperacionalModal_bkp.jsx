@@ -52,37 +52,6 @@ const POSTOS_UNIDADES_ORDENADOS = [...POSTOS_UNIDADES].sort((a, b) =>
 
 const TODAS_ORIGENS = [...ATTENDANCE_ORIGINS, ...POSTOS_UNIDADES_ORDENADOS];
 
-const LAST_ATTENDANCE_ORIGIN_STORAGE_KEY = 'gpi:laboratorio:last-attendance-origin';
-
-const getCachedAttendanceOrigin = () => {
-    if (typeof window === 'undefined') return '';
-
-    try {
-        const cachedOrigin = window.localStorage.getItem(LAST_ATTENDANCE_ORIGIN_STORAGE_KEY) || '';
-        const isValidOrigin = TODAS_ORIGENS.some(origin => origin.value === cachedOrigin);
-
-        if (!isValidOrigin && cachedOrigin) {
-            window.localStorage.removeItem(LAST_ATTENDANCE_ORIGIN_STORAGE_KEY);
-        }
-
-        return isValidOrigin ? cachedOrigin : '';
-    } catch (error) {
-        console.warn('Não foi possível recuperar a última origem do atendimento:', error);
-        return '';
-    }
-};
-
-const saveCachedAttendanceOrigin = (origin) => {
-    if (typeof window === 'undefined') return;
-    if (!TODAS_ORIGENS.some(item => item.value === origin)) return;
-
-    try {
-        window.localStorage.setItem(LAST_ATTENDANCE_ORIGIN_STORAGE_KEY, origin);
-    } catch (error) {
-        console.warn('Não foi possível guardar a última origem do atendimento:', error);
-    }
-};
-
 const normalizeString = (str) => {
     if (!str) return '';
     return str.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
@@ -120,7 +89,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
     const [attendanceData, setAttendanceData] = useState({
         attendance_date: getLocalDateInputValue(),
         attendance_time: getLocalTimeInputValue(),
-        attendance_origin: getCachedAttendanceOrigin(),
+        attendance_origin: 'CENTRAL',
         requesting_doctor: '',
         expected_delivery_date: '',
         fasting: '',
@@ -166,7 +135,6 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
     const savingRef = useRef(false);
     const isSuccessRef = useRef(false);
     const autoFocusRunRef = useRef(false);
-    const initialAttendanceOriginRef = useRef(getCachedAttendanceOrigin());
 
     useEffect(() => {
         if (isOpen && !loading && !autoFocusRunRef.current) {
@@ -202,14 +170,11 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
             autoFocusRunRef.current = false;
             setOriginSearchText('');
             setOriginHighlightedIndex(-1);
-
-            const cachedAttendanceOrigin = getCachedAttendanceOrigin();
-            initialAttendanceOriginRef.current = cachedAttendanceOrigin;
             
             setAttendanceData({
                 attendance_date: getLocalDateInputValue(),
                 attendance_time: getLocalTimeInputValue(),
-                attendance_origin: cachedAttendanceOrigin,
+                attendance_origin: 'CENTRAL',
                 requesting_doctor: '',
                 expected_delivery_date: '',
                 fasting: '',
@@ -292,7 +257,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
         return (
             hasPatientChanges() ||
             examesSolicitados.length > 0 ||
-            attendanceData.attendance_origin !== initialAttendanceOriginRef.current ||
+            attendanceData.attendance_origin !== 'CENTRAL' ||
             attendanceData.requesting_doctor !== '' ||
             attendanceData.expected_delivery_date !== '' ||
             attendanceData.fasting !== '' ||
@@ -612,10 +577,6 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
             };
 
             const result = await laboratorioAtendimentoService.salvarAtendimentoTransacional(payload, examesSolicitados);
-
-            // Memorizar a origem somente depois que o atendimento for salvo com sucesso.
-            saveCachedAttendanceOrigin(attendanceData.attendance_origin);
-            initialAttendanceOriginRef.current = attendanceData.attendance_origin;
             
             if (onSuccess) {
                 isSuccessRef.current = true;
@@ -1380,7 +1341,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                         {confirmModal.type === 'save' && (
                             <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
                                 <div style={{ marginBottom: '0.5rem' }}><strong>Paciente:</strong> {patientData.full_name || 'Novo Paciente'}</div>
-                                <div style={{ marginBottom: '0.5rem' }}><strong>Origem:</strong> {TODAS_ORIGENS.find(o => o.value === attendanceData.attendance_origin)?.label || attendanceData.attendance_origin || 'Não informada'}</div>
+                                <div style={{ marginBottom: '0.5rem' }}><strong>Origem:</strong> {ATTENDANCE_ORIGINS.find(o => o.value === attendanceData.attendance_origin)?.label}</div>
                                 <div style={{ marginBottom: '0.5rem' }}><strong>Data/Hora:</strong> {new Date(`${attendanceData.attendance_date}T00:00:00`).toLocaleDateString('pt-BR')} às {attendanceData.attendance_time}</div>
                                 <div style={{ marginBottom: '0.5rem' }}><strong>Qtd. Exames:</strong> {examesSolicitados.length}</div>
                             </div>
