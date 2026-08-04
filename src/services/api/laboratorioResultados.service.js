@@ -59,16 +59,52 @@ class LaboratorioResultadosService {
             const attendanceIds = attendances.map(a => a.id);
             const uniquePatientIds = [...new Set(attendances.map(a => a.patient_id))];
 
-            const { data: patients } = await supabase
-                .from('lab_patients')
-                .select('*')
-                .in('id', uniquePatientIds);
-            const pacientesMap = Object.fromEntries((patients || []).map(p => [p.id, p]));
+            // ── Busca de pacientes em lotes para evitar filtro IN excessivo ──
+            const CHUNK_SIZE = 25;
+            const PAGE_SIZE = 1000;
 
-            const { data: results } = await supabase
-                .from('lab_results')
-                .select('id, attendance_id, status')
-                .in('attendance_id', attendanceIds);
+            const allPatients = [];
+            for (let i = 0; i < uniquePatientIds.length; i += CHUNK_SIZE) {
+                const chunk = uniquePatientIds.slice(i, i + CHUNK_SIZE);
+                const { data: patChunk, error: errPatChunk } = await supabase
+                    .from('lab_patients')
+                    .select('*')
+                    .in('id', chunk);
+                if (errPatChunk) throw errPatChunk;
+                if (patChunk) allPatients.push(...patChunk);
+            }
+            const pacientesMap = Object.fromEntries(allPatients.map(p => [p.id, p]));
+
+            // ── Busca de resultados em lotes + paginação por chunk ──
+            const seenResultIds = new Set();
+            const allResults = [];
+
+            for (let i = 0; i < attendanceIds.length; i += CHUNK_SIZE) {
+                const chunk = attendanceIds.slice(i, i + CHUNK_SIZE);
+                let page = 0;
+                let continuar = true;
+                while (continuar) {
+                    const from = page * PAGE_SIZE;
+                    const to = from + PAGE_SIZE - 1;
+                    const { data: pageData, error: errPage } = await supabase
+                        .from('lab_results')
+                        .select('id, attendance_id, status')
+                        .in('attendance_id', chunk)
+                        .order('id', { ascending: true })
+                        .range(from, to);
+                    if (errPage) throw errPage;
+                    const rows = pageData || [];
+                    for (const row of rows) {
+                        if (!seenResultIds.has(row.id)) {
+                            seenResultIds.add(row.id);
+                            allResults.push(row);
+                        }
+                    }
+                    continuar = rows.length === PAGE_SIZE;
+                    page++;
+                }
+            }
+            const results = allResults;
 
             return attendances.map(att => {
                 const paciente = pacientesMap[att.patient_id] || {};
