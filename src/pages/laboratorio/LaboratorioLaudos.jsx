@@ -175,7 +175,10 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
                     <div className="hemo-col-ref-group">
                         <div className="hemo-sex-reference-grid">
                             {singleLine ? (
-                                <div className="hemo-col-ref-single">{singleLine.text}</div>
+                                <>
+                                    <div className={`hemo-col-ref-male ${sexGroup === 'MALE' ? 'hemo-highlight' : ''}`}>{singleLine.text}</div>
+                                    <div className={`hemo-col-ref-female ${sexGroup === 'FEMALE' ? 'hemo-highlight' : ''}`}>{singleLine.text}</div>
+                                </>
                             ) : (
                                 <>
                                     <div className={`hemo-col-ref-male ${maleLine?.highlight ? 'hemo-highlight' : ''}`}>{maleLine?.text || ''}</div>
