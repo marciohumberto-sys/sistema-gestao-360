@@ -1110,9 +1110,10 @@ const LaboratorioResultados = () => {
                                             <Activity size={16} /> Abrir Atendimento
                                         </button>
                                     </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', fontSize: '0.9rem', color: '#64748b' }}>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.1rem', fontSize: '0.82rem', color: '#64748b' }}>
                                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><User size={14} /> Idade: <strong style={{ color: '#334155', fontWeight: 500 }}>{att.pacienteIdade}</strong></span>
                                         <span>Sexo: <strong style={{ color: '#334155', fontWeight: 500 }}>{att.pacienteSexo}</strong></span>
+                                        <span>Origem: <strong style={{ color: '#334155', fontWeight: 500 }}>{formatAttendanceOrigin(att.attendance_origin) || att.attendance_origin || 'Não informada'}</strong></span>
                                         <span>CNS: <strong style={{ color: '#334155', fontWeight: 500 }}>{att.pacienteCns || '---'}</strong></span>
                                         <span>CPF: <strong style={{ color: '#334155', fontWeight: 500 }}>{formatCpf(att.pacienteCpf)}</strong></span>
                                         {renderExamsSummary(att)}
