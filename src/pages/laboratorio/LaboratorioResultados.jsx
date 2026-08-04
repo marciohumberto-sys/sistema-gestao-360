@@ -1192,12 +1192,14 @@ const LaboratorioResultados = () => {
                                 <div className="lab-ps-item" style={{ flex: 1 }}><span className="lab-ps-label">Paciente:</span> <span className="lab-ps-val text-primary" style={{ fontSize: '1.15rem', fontWeight: '600' }}>{currentAttendance.pacienteNome}</span></div>
                             </div>
                             
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', alignItems: 'center' }}>
-                                <div className="lab-ps-item"><span className="lab-ps-label">Idade:</span> <span className="lab-ps-val">{currentAttendance.pacienteIdade}</span></div>
-                                <div className="lab-ps-item"><span className="lab-ps-label">Sexo:</span> <span className="lab-ps-val">{currentAttendance.pacienteSexo}</span></div>
-                                <div className="lab-ps-item"><span className="lab-ps-label">Origem:</span> <span className="lab-ps-val">{formatAttendanceOrigin(currentAttendance.attendance_origin)}</span></div>
-                                <div className="lab-ps-item"><span className="lab-ps-label">Médico:</span> <span className="lab-ps-val">{currentAttendance.requesting_doctor || 'Não informado'}</span></div>
-                                <div className="lab-ps-item" style={{ marginLeft: 'auto' }}>
+                            <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '1rem', alignItems: 'center', fontSize: '0.85rem', width: '100%', overflow: 'hidden' }}>
+                                <div className="lab-ps-item" style={{ whiteSpace: 'nowrap' }}><span className="lab-ps-label">Idade:</span> <span className="lab-ps-val">{currentAttendance.pacienteIdade}</span></div>
+                                <div className="lab-ps-item" style={{ whiteSpace: 'nowrap' }}><span className="lab-ps-label">Sexo:</span> <span className="lab-ps-val">{currentAttendance.pacienteSexo}</span></div>
+                                <div className="lab-ps-item" style={{ whiteSpace: 'nowrap' }}><span className="lab-ps-label">Origem:</span> <span className="lab-ps-val">{formatAttendanceOrigin(currentAttendance.attendance_origin) || currentAttendance.attendance_origin || 'Não informada'}</span></div>
+                                <div className="lab-ps-item" style={{ whiteSpace: 'nowrap' }}><span className="lab-ps-label">Data:</span> <span className="lab-ps-val">{currentAttendance.attendance_date ? currentAttendance.attendance_date.split('-').reverse().join('/') : 'Não informada'}</span></div>
+                                <div className="lab-ps-item" style={{ whiteSpace: 'nowrap' }}><span className="lab-ps-label">Exames:</span> <span className="lab-ps-val">{resultados.length}</span></div>
+                                <div className="lab-ps-item" style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><span className="lab-ps-label">Médico:</span> <span className="lab-ps-val">{currentAttendance.requesting_doctor || 'Não informado'}</span></div>
+                                <div className="lab-ps-item" style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}>
                                     <span className={`lab-status-tag ${statusGeral.cssClass}`}>{statusGeral.label}</span>
                                 </div>
                             </div>
