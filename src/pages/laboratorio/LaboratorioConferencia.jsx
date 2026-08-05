@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { formatCpf } from '../../utils/formatters';
 import { 
-    CheckCircle2, AlertTriangle, XCircle, Search, RefreshCw, 
+    CheckCircle2, AlertTriangle, Search, RefreshCw, 
     Activity, Clock, ShieldCheck, User, Eye, 
     ChevronLeft, ChevronRight, Info, ListChecks, Loader2
 } from 'lucide-react';
@@ -38,7 +38,6 @@ const LaboratorioConferencia = () => {
     const [loadingDetails, setLoadingDetails] = useState(false);
     
     const [saving, setSaving] = useState(false);
-    const [canceling, setCanceling] = useState(false);
     const [returning, setReturning] = useState(false);
     const [feedbackMsg, setFeedbackMsg] = useState(null);
     const [showReturnModal, setShowReturnModal] = useState(false); // Mantido apenas para ref se necessário
@@ -47,7 +46,6 @@ const LaboratorioConferencia = () => {
     const [editingParam, setEditingParam] = useState(null);
     const [showUnsavedModal, setShowUnsavedModal] = useState(false);
     const [pendingAction, setPendingAction] = useState(null);
-    const [showCancelModal, setShowCancelModal] = useState(false);
 
     const activeExamTabRef = useRef(null);
     const handleConfirmarConferenciaRef = useRef(null);
@@ -89,18 +87,17 @@ const LaboratorioConferencia = () => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
                 if (showReturnModal && !returning) setShowReturnModal(false);
-                if (showCancelModal && !canceling) setShowCancelModal(false);
             }
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                if (showReturnModal || showCancelModal || showUnsavedModal) return;
-                if (!selectedExam || saving || canceling || returning || loadingDetails) return;
+                if (showReturnModal || showUnsavedModal) return;
+                if (!selectedExam || saving || returning || loadingDetails) return;
                 e.preventDefault();
                 handleConfirmarConferenciaRef.current?.();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showReturnModal, showCancelModal, showUnsavedModal, selectedExam, saving, canceling, returning, loadingDetails]);
+    }, [showReturnModal, showUnsavedModal, selectedExam, saving, returning, loadingDetails]);
 
     useEffect(() => {
         const el = examTabsRef.current;
@@ -419,58 +416,6 @@ const LaboratorioConferencia = () => {
     };
     handleConfirmarConferenciaRef.current = handleConfirmarConferencia;
 
-    const handleCancelar = () => {
-        if (!selectedExam || saving) return;
-        if (editingParam) {
-            setPendingAction(() => () => setShowCancelModal(true));
-            setShowUnsavedModal(true);
-            return;
-        }
-        setShowCancelModal(true);
-    };
-
-    const confirmCancelAction = async () => {
-        if (!selectedExam || canceling) return;
-        
-        try {
-            setCanceling(true);
-            await laboratorioConferenciaService.cancelarExame(selectedExam.id);
-            setFeedbackMsg({ type: 'success', text: 'Exame cancelado com sucesso.' });
-            
-            const currentIndex = selectedProtocol.exams.findIndex(e => e.id === selectedExam.id);
-            const updatedExams = selectedProtocol.exams.map(e => e.id === selectedExam.id ? { ...e, status: 'CANCELADO' } : e);
-            setSelectedProtocol(prev => ({ ...prev, exams: updatedExams }));
-
-            const nextExam = updatedExams.find((e, idx) => idx > currentIndex && e.status !== 'CONFIRMADO' && e.status !== 'CANCELADO');
-            const fallbackExam = updatedExams.find(e => e.id !== selectedExam.id && e.status !== 'CONFIRMADO' && e.status !== 'CANCELADO');
-            const targetExam = nextExam || fallbackExam;
-
-            if (targetExam) {
-                handleSelectExam(targetExam);
-                setTimeout(() => {
-                    const el = document.querySelector('.lab-review-panel');
-                    if (el) el.scrollTop = 0;
-                }, 100);
-            } else {
-                setSearchResults(prev => prev.filter(ex => ex.protocolo !== selectedProtocol.protocolo));
-                setSelectedProtocol(null);
-                setSelectedExam(null);
-                setExamDetails([]);
-            }
-
-            setTimeout(() => {
-                setFeedbackMsg(null);
-            }, 3000);
-        } catch (error) {
-            console.error('[Conferência] Erro ao cancelar exame:', error);
-            setFeedbackMsg({ type: 'error', text: 'Não foi possível cancelar o exame.' });
-            setTimeout(() => setFeedbackMsg(null), 4000);
-        } finally {
-            setCanceling(false);
-            setShowCancelModal(false);
-        }
-    };
-
     const isAbnormal = (val_num, min, max) => {
         if (val_num === null || val_num === undefined || val_num === '') return false;
         const num = parseFloat(val_num);
@@ -691,10 +636,6 @@ const LaboratorioConferencia = () => {
                                                     {feedbackMsg.text}
                                                 </div>
                                             )}
-                                            <button className="lab-btn lab-btn-outline" onClick={handleCancelar} disabled={saving || returning} style={{ padding: '0 12px', height: '36px', fontSize: '14px', color: '#b91c1c', borderColor: '#fecaca', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                                <XCircle size={14} style={{ marginRight: '4px' }} />
-                                                Cancelar
-                                            </button>
                                             <button className="lab-btn lab-btn-success" onClick={handleConfirmarConferencia} disabled={saving || returning} style={{ padding: '0 12px', height: '36px', fontSize: '14px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                                                 {saving ? <Loader2 size={14} className="spin" style={{ marginRight: '4px' }} /> : <CheckCircle2 size={14} style={{ marginRight: '4px' }} />}
                                                 {saving ? 'Confirmando...' : 'Confirmar'}
@@ -1015,29 +956,6 @@ const LaboratorioConferencia = () => {
                 </div>
             </div>
             
-
-            {/* Modal Cancelar Conferência */}
-            {showCancelModal && (
-                <div className="unsaved-result-modal-overlay" role="dialog" aria-modal="true">
-                    <div className="unsaved-result-modal" style={{ maxWidth: '450px' }}>
-                        <div className="unsaved-result-modal-header" style={{ paddingBottom: '12px' }}>
-                            <div className="unsaved-result-modal-icon" style={{ background: '#fee2e2', color: '#dc2626' }}>
-                                <AlertTriangle size={24} />
-                            </div>
-                            <div>
-                                <h2 className="unsaved-result-modal-title">Cancelar conferência?</h2>
-                                <p className="unsaved-result-modal-subtitle">A conferência deste atendimento será interrompida. Nenhum resultado será excluído ou confirmado.</p>
-                            </div>
-                        </div>
-                        <div className="unsaved-result-modal-footer">
-                            <button className="unsaved-btn-neutral" onClick={() => setShowCancelModal(false)}>Continuar conferindo</button>
-                            <button className="lab-btn-danger" style={{ height: '46px', padding: '0 20px', borderRadius: '10px', border: 'none', background: '#ef4444', color: '#fff', fontWeight: 600, cursor: 'pointer', opacity: canceling ? 0.7 : 1 }} onClick={confirmCancelAction} disabled={canceling}>
-                                {canceling ? 'Cancelando...' : 'Cancelar conferência'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Modal Alteração Não Salva */}
             {showUnsavedModal && (
