@@ -10,7 +10,7 @@ import { jsPDF } from 'jspdf';
 import './LaboratorioConferencia.css';
 import './LaboratorioLaudos.css';
 import { laboratorioLaudosService } from '../../services/api/laboratorioLaudos.service';
-import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, parseHemoNumber, formatHemoResultValue, formatHemoReferenceText, resolveHemoReference, expandHemogramaMorphologyAbbreviations } from '../../utils/laboratorioHelpers';
+import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, parseHemoNumber, formatHemoResultValue, formatHemoReferenceText, resolveHemoReference, expandHemogramaMorphologyAbbreviations, formatDateTimeRecife, formatDateOnlyBR, formatTimeOnly } from '../../utils/laboratorioHelpers';
 
 const getLocalDateInputValue = (date = new Date()) => {
     const year = date.getFullYear();
@@ -303,7 +303,7 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
                     <div><span className="hemo-lbl">Médico:</span> {selectedExam.medico || 'NÃO INFORMADO'}</div>
                     <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam.pacienteCode || selectedExam.patientCode || '---'}</div>
                     <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam.pacienteDataNascimento}</div>
-                    <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeH(selectedExam.dataAtendimentoRaw)}</div>
+                    <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(selectedExam?.attendance_created_at || selectedExam?.created_at)}</div>
                 </div>
                 <div className="hemo-patient-col right">
                     <div><span className="hemo-lbl">Idade:</span> {selectedExam.pacienteIdade}</div>
@@ -321,14 +321,16 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
                 <div className="hemo-collection-info">
                     <span className="hemo-collection-label">Data da Coleta:</span>
                     {(() => {
-                        const cDate = selectedExam?.collection_date ?? selectedExam?.attendance_exam?.collection_date;
-                        const cTime = selectedExam?.collection_time ?? selectedExam?.attendance_exam?.collection_time;
-                        if (cDate) {
+                        const cDate = selectedExam?.collection_date ?? selectedExam?.attendance_date ?? selectedExam?.attendance_exam?.collection_date;
+                        const cTime = selectedExam?.collection_time ?? selectedExam?.attendance_time ?? selectedExam?.attendance_exam?.collection_time;
+                        const dateBR = formatDateOnlyBR(cDate);
+                        const timeBR = formatTimeOnly(cTime);
+                        if (dateBR !== '--') {
                             return (
                                 <>
-                                    <span className="hemo-collection-date">{cDate.split('-').reverse().join('/')}</span>
-                                    {cTime && <span className="hemo-collection-separator">às</span>}
-                                    {cTime && <span className="hemo-collection-time">{cTime.slice(0, 5)}h</span>}
+                                    <span className="hemo-collection-date">{dateBR}</span>
+                                    {timeBR && <span className="hemo-collection-separator">às</span>}
+                                    {timeBR && <span className="hemo-collection-time">{timeBR}h</span>}
                                 </>
                             );
                         }
@@ -590,7 +592,7 @@ const LaudoURI = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
                         <div><span className="hemo-lbl">Médico:</span> {selectedExam?.medico || 'NÃO INFORMADO'}</div>
                         <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam?.pacienteCode || selectedExam?.patientCode || '---'}</div>
                         <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam?.pacienteDataNascimento}</div>
-                        <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.dataAtendimentoRaw) : ''}</div>
+                        <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(selectedExam?.attendance_created_at || selectedExam?.created_at)}</div>
                     </div>
                     <div className="hemo-patient-col right">
                         <div><span className="hemo-lbl">Idade:</span> {selectedExam?.pacienteIdade}</div>
@@ -606,15 +608,22 @@ const LaudoURI = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
                     <h3>URI - Urina Tipo I</h3>
                     <div className="hemo-collection-info">
                         <span className="hemo-collection-label">Data da Coleta:</span>
-                        {selectedExam?.collection_date ? (
-                            <>
-                                <span className="hemo-collection-date">{selectedExam.collection_date.split('-').reverse().join('/')}</span>
-                                {selectedExam.collection_time && <span className="hemo-collection-separator">às</span>}
-                                {selectedExam.collection_time && <span className="hemo-collection-time">{selectedExam.collection_time.slice(0, 5)}h</span>}
-                            </>
-                        ) : (
-                            <span className="hemo-collection-date">---</span>
-                        )}
+                        {(() => {
+                            const cDate = selectedExam?.collection_date ?? selectedExam?.attendance_date ?? selectedExam?.attendance_exam?.collection_date;
+                            const cTime = selectedExam?.collection_time ?? selectedExam?.attendance_time ?? selectedExam?.attendance_exam?.collection_time;
+                            const dateBR = formatDateOnlyBR(cDate);
+                            const timeBR = formatTimeOnly(cTime);
+                            if (dateBR !== '--') {
+                                return (
+                                    <>
+                                        <span className="hemo-collection-date">{dateBR}</span>
+                                        {timeBR && <span className="hemo-collection-separator">às</span>}
+                                        {timeBR && <span className="hemo-collection-time">{timeBR}h</span>}
+                                    </>
+                                );
+                            }
+                            return <span className="hemo-collection-date">---</span>;
+                        })()}
                     </div>
                 </div>
 
@@ -751,7 +760,7 @@ const LaudoPAR = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
                         <div><span className="hemo-lbl">Médico:</span> {selectedExam?.medico || 'NÃO INFORMADO'}</div>
                         <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam?.pacienteCode || selectedExam?.patientCode || '---'}</div>
                         <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam?.pacienteDataNascimento}</div>
-                        <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.dataAtendimentoRaw) : ''}</div>
+                        <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(selectedExam?.attendance_created_at || selectedExam?.created_at)}</div>
                     </div>
                     <div className="hemo-patient-col right">
                         <div><span className="hemo-lbl">Idade:</span> {selectedExam?.pacienteIdade}</div>
@@ -767,15 +776,22 @@ const LaudoPAR = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
                     <h3>PAR - Parasitológico de Fezes</h3>
                     <div className="hemo-collection-info">
                         <span className="hemo-collection-label">Data da Coleta:</span>
-                        {selectedExam?.collection_date ? (
-                            <>
-                                <span className="hemo-collection-date">{selectedExam.collection_date.split('-').reverse().join('/')}</span>
-                                {selectedExam.collection_time && <span className="hemo-collection-separator">às</span>}
-                                {selectedExam.collection_time && <span className="hemo-collection-time">{selectedExam.collection_time.slice(0, 5)}h</span>}
-                            </>
-                        ) : (
-                            <span className="hemo-collection-date">---</span>
-                        )}
+                        {(() => {
+                            const cDate = selectedExam?.collection_date ?? selectedExam?.attendance_date ?? selectedExam?.attendance_exam?.collection_date;
+                            const cTime = selectedExam?.collection_time ?? selectedExam?.attendance_time ?? selectedExam?.attendance_exam?.collection_time;
+                            const dateBR = formatDateOnlyBR(cDate);
+                            const timeBR = formatTimeOnly(cTime);
+                            if (dateBR !== '--') {
+                                return (
+                                    <>
+                                        <span className="hemo-collection-date">{dateBR}</span>
+                                        {timeBR && <span className="hemo-collection-separator">às</span>}
+                                        {timeBR && <span className="hemo-collection-time">{timeBR}h</span>}
+                                    </>
+                                );
+                            }
+                            return <span className="hemo-collection-date">---</span>;
+                        })()}
                     </div>
                 </div>
 
@@ -1073,8 +1089,8 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
         
         if (allowedHistoryExams.includes(examCode) && selectedExam?.patient_id && selectedExam?.id) {
             
-            const currCDate = selectedExam.collection_date ?? selectedExam.attendance_exam?.collection_date;
-            const currCTime = selectedExam.collection_time ?? selectedExam.attendance_exam?.collection_time;
+            const currCDate = selectedExam.collection_date ?? selectedExam.attendance_date ?? selectedExam.attendance_exam?.collection_date;
+            const currCTime = selectedExam.collection_time ?? selectedExam.attendance_time ?? selectedExam.attendance_exam?.collection_time;
             let currentTimestamp = null;
             if (currCDate) {
                 currentTimestamp = currCTime ? `${currCDate}T${currCTime}` : `${currCDate}T00:00:00`;
@@ -1147,12 +1163,10 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
     }, [selectedExam?.id, selectedExam?.patient_id, examDetails]);
 
     // Format Collection Date
-    let collectionFormatted = '';
-    const cDate = selectedExam?.collection_date ?? selectedExam?.attendance_exam?.collection_date;
-    const cTime = selectedExam?.collection_time ?? selectedExam?.attendance_exam?.collection_time;
-    if (cDate) {
-        collectionFormatted = cDate.split('-').reverse().join('/');
-    }
+    const cDate = selectedExam?.collection_date ?? selectedExam?.attendance_date ?? selectedExam?.attendance_exam?.collection_date;
+    const cTime = selectedExam?.collection_time ?? selectedExam?.attendance_time ?? selectedExam?.attendance_exam?.collection_time;
+    const dateBR = formatDateOnlyBR(cDate);
+    const timeBR = formatTimeOnly(cTime);
 
     // General Observation Filtering
     let generalObs = (selectedExam?.observacaoGeral || '').trim();
@@ -1286,7 +1300,7 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
                         <div><span className="hemo-lbl">Médico:</span> {selectedExam?.medico || 'NÃO INFORMADO'}</div>
                         <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam?.pacienteCode || selectedExam?.patientCode || '---'}</div>
                         <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam?.pacienteDataNascimento}</div>
-                        <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.dataAtendimentoRaw) : ''}</div>
+                        <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(selectedExam?.attendance_created_at || selectedExam?.created_at)}</div>
                     </div>
                     <div className="hemo-patient-col right">
                         <div><span className="hemo-lbl">Idade:</span> {selectedExam?.pacienteIdade}</div>
@@ -1303,11 +1317,11 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
                     <h3>{selectedExam?.exameCodigo} - {selectedExam?.exameNome}</h3>
                     <div className="hemo-collection-info">
                         <span className="hemo-collection-label">Data da Coleta:</span>
-                        {cDate ? (
+                        {dateBR !== '--' ? (
                             <>
-                                <span className="hemo-collection-date">{collectionFormatted}</span>
-                                {cTime && <span className="hemo-collection-separator">às</span>}
-                                {cTime && <span className="hemo-collection-time">{cTime.slice(0, 5)}h</span>}
+                                <span className="hemo-collection-date">{dateBR}</span>
+                                {timeBR && <span className="hemo-collection-separator">às</span>}
+                                {timeBR && <span className="hemo-collection-time">{timeBR}h</span>}
                             </>
                         ) : (
                             <span className="hemo-collection-date">---</span>
@@ -1798,7 +1812,7 @@ const LaudoA4Page = ({ pageExamData, pageNumber, patientCode, selectedProtocol, 
                     <div><span className="hemo-lbl">Médico:</span> {firstExam?.medico || 'NÃO INFORMADO'}</div>
                     <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || firstExam?.pacienteCode || firstExam?.patientCode || '---'}</div>
                     <div><span className="hemo-lbl">Data Nasc.:</span> {firstExam?.pacienteDataNascimento}</div>
-                    <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeH ? formatDateTimeH(firstExam?.dataAtendimentoRaw) : ''}</div>
+                    <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(firstExam?.attendance_created_at || firstExam?.created_at)}</div>
                 </div>
                 <div className="hemo-patient-col right">
                     <div><span className="hemo-lbl">Idade:</span> {firstExam?.pacienteIdade}</div>
@@ -1969,6 +1983,10 @@ const LaboratorioLaudos = () => {
                     pacienteCode: ex.pacienteCodigo,
                     dataAtendimento: ex.dataAtendimento,
                     dataAtendimentoRaw: ex.dataAtendimentoRaw,
+                    attendance_date: ex.attendance_date,
+                    attendance_time: ex.attendance_time,
+                    attendance_created_at: ex.attendance_created_at,
+                    created_at: ex.created_at,
                     pacienteNome: ex.pacienteNome,
                     pacienteIdade: ex.pacienteIdade,
                     pacienteSexo: ex.pacienteSexo,

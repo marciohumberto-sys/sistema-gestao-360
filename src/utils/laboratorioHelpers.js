@@ -428,3 +428,70 @@ export function resolveHemoReference(parameterCode, referenceText, patientAgeDay
     
     return { text: finalRefStr, valid: false, isText: false };
 }
+
+/**
+ * Formata um valor TIMESTAMPTZ (ex: created_at) no fuso America/Recife.
+ * Retorna no padrão 'DD/MM/YYYY às HH:MMh'.
+ */
+export function formatDateTimeRecife(value) {
+    if (!value) return '--';
+
+    try {
+        const parts = new Intl.DateTimeFormat('pt-BR', {
+            timeZone: 'America/Recife',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+        }).formatToParts(new Date(value));
+
+        const getPart = (type) =>
+            parts.find((part) => part.type === type)?.value || '';
+
+        const day = getPart('day');
+        const month = getPart('month');
+        const year = getPart('year');
+        const hour = getPart('hour');
+        const minute = getPart('minute');
+
+        if (!day || !month || !year || !hour || !minute) {
+            return '--';
+        }
+
+        return `${day}/${month}/${year} às ${hour}:${minute}h`;
+    } catch {
+        return '--';
+    }
+}
+
+/**
+ * Formata um campo DATE (YYYY-MM-DD) diretamente para DD/MM/YYYY sem conversão de fuso.
+ */
+export function formatDateOnlyBR(value) {
+    if (!value) return '--';
+
+    const datePart = String(value).slice(0, 10);
+    const [year, month, day] = datePart.split('-');
+
+    if (!year || !month || !day) {
+        return '--';
+    }
+
+    return `${day}/${month}/${year}`;
+}
+
+/**
+ * Formata um campo TIME (HH:MM:SS) diretamente para HH:MM sem conversão de fuso.
+ */
+export function formatTimeOnly(value) {
+    if (!value) return '';
+
+    const time = String(value).trim();
+
+    if (!time) return '';
+
+    return time.slice(0, 5);
+}
+

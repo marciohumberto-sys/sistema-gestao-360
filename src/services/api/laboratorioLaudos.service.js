@@ -12,7 +12,7 @@ export const laboratorioLaudosService = {
 
     buscarLaudos: async (filters = {}) => {
         try {
-            let attendancesQuery = supabase.from('lab_attendances').select('id, protocol_number, patient_id, attendance_date, created_at, requesting_doctor, delivery_location, agreement, attendance_origin, lab_attendance_exams(exam_id, collection_date, collection_time)');
+            let attendancesQuery = supabase.from('lab_attendances').select('id, protocol_number, patient_id, attendance_date, attendance_time, created_at, requesting_doctor, delivery_location, agreement, attendance_origin, lab_attendance_exams(exam_id, collection_date, collection_time)');
             
             if (filters.protocol) {
                 attendancesQuery = attendancesQuery.ilike('protocol_number', `%${filters.protocol}%`);
@@ -171,9 +171,12 @@ export const laboratorioLaudosService = {
                     printsOnReport: ex.prints_on_report !== false,
                     dataAtendimento: laboratorioLaudosService.formatDateOnly(att.attendance_date),
                     dataAtendimentoRaw: att.attendance_date,
+                    attendance_date: att.attendance_date,
+                    attendance_time: att.attendance_time,
                     attendance_created_at: att.created_at,
-                    collection_date: attExam?.collection_date || null,
-                    collection_time: attExam?.collection_time || null,
+                    created_at: att.created_at,
+                    collection_date: attExam?.collection_date || att.attendance_date || null,
+                    collection_time: attExam?.collection_time || att.attendance_time || null,
                     status: r.status,
                     observacaoGeral: r.general_observation,
                     result_created_at: r.created_at,
