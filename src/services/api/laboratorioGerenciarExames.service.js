@@ -663,6 +663,108 @@ class LaboratorioGerenciarExamesService {
             sectorName: ex.lab_exam_sectors?.name || null,
         }));
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Função pública: adiciona exames ao atendimento via RPC transacional
+    // ─────────────────────────────────────────────────────────────────────────
+    async adicionarExamesAoAtendimento(attendanceId, examIds) {
+        if (!attendanceId) {
+            throw new Error('[LaboratorioGerenciarExamesService] attendanceId é obrigatório.');
+        }
+        if (!Array.isArray(examIds) || examIds.length === 0) {
+            throw new Error('[LaboratorioGerenciarExamesService] examIds deve ser um array não vazio.');
+        }
+
+        // Sanitização: remove IDs nulos/vazios e duplicidades
+        const sanitizedExamIds = [...new Set(examIds.filter(id => id && typeof id === 'string' && id.trim() !== ''))];
+
+        if (sanitizedExamIds.length === 0) {
+            throw new Error('[LaboratorioGerenciarExamesService] Nenhum exame válido informado para inclusão.');
+        }
+
+        console.debug('[LaboratorioGerenciarExamesService] adicionarExamesAoAtendimento', {
+            attendanceId,
+            examIdsCount: sanitizedExamIds.length
+        });
+
+        const { data, error } = await supabase.rpc('rpc_lab_add_exams_to_attendance', {
+            p_attendance_id: attendanceId,
+            p_exam_ids: sanitizedExamIds
+        });
+
+        if (error) {
+            throw new Error(formatarErroLaboratorio(error, 'adicionarExamesAoAtendimento'));
+        }
+
+        return data;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Função pública: cancela exame do atendimento via RPC segura
+    // ─────────────────────────────────────────────────────────────────────────
+    async cancelarExameDoAtendimento(attendanceExamId, reason) {
+        if (!attendanceExamId || typeof attendanceExamId !== 'string' || attendanceExamId.trim() === '') {
+            throw new Error('[LaboratorioGerenciarExamesService] attendanceExamId é obrigatório.');
+        }
+
+        const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+        if (!trimmedReason) {
+            throw new Error('O motivo do cancelamento é obrigatório.');
+        }
+        if (trimmedReason.length < 5) {
+            throw new Error('O motivo do cancelamento deve conter no mínimo 5 caracteres.');
+        }
+        if (trimmedReason.length > 500) {
+            throw new Error('O motivo do cancelamento não pode exceder 500 caracteres.');
+        }
+
+        console.debug('[LaboratorioGerenciarExamesService] cancelarExameDoAtendimento', {
+            attendanceExamId,
+            reasonLength: trimmedReason.length
+        });
+
+        const { data, error } = await supabase.rpc('rpc_lab_cancel_attendance_exam', {
+            p_attendance_exam_id: attendanceExamId.trim(),
+            p_reason: trimmedReason
+        });
+
+        if (error) {
+            const err = new Error(formatarErroLaboratorio(error, 'cancelarExameDoAtendimento'));
+            err.hint = error.hint;
+            err.details = error.details;
+            err.code = error.code;
+            throw err;
+        }
+
+        return data;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Função pública: restaura exame cancelado do atendimento via RPC segura
+    // ─────────────────────────────────────────────────────────────────────────
+    async restaurarExameDoAtendimento(attendanceExamId) {
+        if (!attendanceExamId || typeof attendanceExamId !== 'string' || attendanceExamId.trim() === '') {
+            throw new Error('[LaboratorioGerenciarExamesService] attendanceExamId é obrigatório.');
+        }
+
+        console.debug('[LaboratorioGerenciarExamesService] restaurarExameDoAtendimento', {
+            attendanceExamId: attendanceExamId.trim()
+        });
+
+        const { data, error } = await supabase.rpc('rpc_lab_restore_attendance_exam', {
+            p_attendance_exam_id: attendanceExamId.trim()
+        });
+
+        if (error) {
+            const err = new Error(formatarErroLaboratorio(error, 'restaurarExameDoAtendimento'));
+            err.hint = error.hint;
+            err.details = error.details;
+            err.code = error.code;
+            throw err;
+        }
+
+        return data;
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

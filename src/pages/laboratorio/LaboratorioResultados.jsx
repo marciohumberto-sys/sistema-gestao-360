@@ -230,8 +230,16 @@ const LaboratorioResultados = () => {
         sector: '',
         attendance_origin: ''
     });
+    const activeSearchFiltersRef = useRef(searchFilters);
     const [searchResults, setSearchResults] = useState(null);
     const [selectedAttendance, setSelectedAttendance] = useState(null);
+    const [nextCursor, setNextCursor] = useState(0);
+    const [hasMore, setHasMore] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [loadMoreError, setLoadMoreError] = useState(null);
+    const [loadingSearch, setLoadingSearch] = useState(false);
+    const sentinelRef = useRef(null);
+    const resultsListRef = useRef(null);
 
     const currentTenantId = tenantLink?.tenant_id || tenantLink?.id || selectedAttendance?.tenant_id || attendances[0]?.tenant_id;
     const currentAttendance = attendances[0] || {};
@@ -262,43 +270,132 @@ const LaboratorioResultados = () => {
         }
     };
 
-    const handleSearch = async (overrideDate, overrideProtocol) => {
+    const executeSearch = async ({ overrideDate, keepSelectedAttendance = false, filtersOverride = null } = {}) => {
         try {
-            setLoading(true);
-            
-            // Impede que overrideDate receba o objeto de evento do onClick do React
-            const isEvent = overrideDate && typeof overrideDate === 'object' && 'nativeEvent' in overrideDate;
-            const finalDate = (overrideDate !== undefined && !isEvent) ? overrideDate : searchFilters.date;
+            setLoadingSearch(true);
+            setLoadMoreError(null);
+            if (!keepSelectedAttendance) {
+                setLoading(true);
+            }
+
+            const activeFilters = filtersOverride || searchFilters;
+            const finalDate = overrideDate !== undefined ? overrideDate : activeFilters.date;
 
             const filtros = {
                 dataInicial: finalDate,
+                paciente: activeFilters.patient,
+                patient_code: activeFilters.patient_code ? activeFilters.patient_code.trim() : undefined,
+                status: activeFilters.status,
+                attendance_origin: activeFilters.attendance_origin
+            };
+
+            activeSearchFiltersRef.current = filtros;
+
+            console.debug('[LAB][RESULTADOS] Executando busca progressiva inicial', filtros);
+
+            const result = await laboratorioResultadosService.buscarAtendimentosProgressivos({
+                filtros,
+                cursor: 0,
+                limit: 20
+            });
+
+            const items = result?.items || [];
+            setSearchResults(items);
+            setNextCursor(result?.nextCursor || 0);
+            setHasMore(!!result?.hasMore);
+
+            if (!keepSelectedAttendance) {
+                setSelectedAttendance(null);
+                setAttendances([]);
+                setSelectedExamId(null);
+                setFormValues({});
+            }
+
+            return result;
+        } catch (error) {
+            console.error("Erro ao buscar atendimentos", error);
+            setFeedbackMsg({ type: 'error', text: 'Não foi possível buscar os atendimentos. Tente novamente.' });
+            setTimeout(() => setFeedbackMsg(null), 3000);
+            setSearchResults([]);
+            setHasMore(false);
+        } finally {
+            setLoadingSearch(false);
+            setLoading(false);
+        }
+    };
+
+    const handleSearch = (overrideDate) => {
+        const isEvent = overrideDate && typeof overrideDate === 'object' && 'nativeEvent' in overrideDate;
+        const finalDate = (overrideDate !== undefined && !isEvent) ? overrideDate : undefined;
+        executeSearch({ overrideDate: finalDate, keepSelectedAttendance: false });
+    };
+
+    const handleLoadMore = async () => {
+        if (loadingSearch || loadingMore || !hasMore || loadMoreError) return;
+        if (!searchResults || searchResults.length === 0) return;
+
+        try {
+            setLoadingMore(true);
+            setLoadMoreError(null);
+
+            const filtros = activeSearchFiltersRef.current || {
+                dataInicial: searchFilters.date,
                 paciente: searchFilters.patient,
                 patient_code: searchFilters.patient_code ? searchFilters.patient_code.trim() : undefined,
                 status: searchFilters.status,
                 attendance_origin: searchFilters.attendance_origin
             };
 
-            console.debug('[LAB][RESULTADOS] Filtros enviados', {
-              dataInicial: filtros.dataInicial,
-              dataInicialTipo: typeof filtros.dataInicial,
-              paciente: filtros.paciente,
-              status: filtros.status,
+            const result = await laboratorioResultadosService.buscarAtendimentosProgressivos({
+                filtros,
+                cursor: nextCursor,
+                limit: 20
             });
 
-            const results = await laboratorioResultadosService.buscarAtendimentos(filtros);
-            setSearchResults(results);
-            setSelectedAttendance(null);
-            setAttendances([]);
-            setSelectedExamId(null);
-            setFormValues({});
+            const newItems = result?.items || [];
+            setSearchResults(prev => {
+                const currentList = prev || [];
+                const existingIds = new Set(currentList.map(item => item.id));
+                const filteredNew = newItems.filter(item => !existingIds.has(item.id));
+                return [...currentList, ...filteredNew];
+            });
+
+            setNextCursor(result?.nextCursor || 0);
+            setHasMore(!!result?.hasMore);
         } catch (error) {
-            console.error("Erro ao buscar atendimentos", error);
-            setFeedbackMsg({ type: 'error', text: 'Não foi possível buscar os atendimentos. Tente novamente.' });
-            setTimeout(() => setFeedbackMsg(null), 3000);
+            console.error("Erro ao carregar mais atendimentos:", error);
+            setLoadMoreError('Não foi possível carregar mais atendimentos.');
         } finally {
-            setLoading(false);
+            setLoadingMore(false);
         }
     };
+
+    useEffect(() => {
+        const sentinelEl = sentinelRef.current;
+        if (!sentinelEl) return;
+        if (loadingSearch || loadingMore || !hasMore || loadMoreError) return;
+        if (!searchResults || searchResults.length === 0) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const first = entries[0];
+                if (first && first.isIntersecting) {
+                    handleLoadMore();
+                }
+            },
+            {
+                root: null,
+                rootMargin: '300px',
+                threshold: 0.1
+            }
+        );
+
+        observer.observe(sentinelEl);
+
+        return () => {
+            observer.disconnect();
+        };
+    }, [loadingSearch, loadingMore, hasMore, loadMoreError, searchResults, nextCursor]);
 
     const handleSelectAttendance = async (att) => {
         setSelectedAttendance(att);
@@ -327,10 +424,14 @@ const LaboratorioResultados = () => {
                     attendance_origin: searchFilters.attendance_origin
                 };
 
-                const expandedList = await laboratorioResultadosService.buscarAtendimentos(filtrosAmpliados);
-                if (expandedList && expandedList.length > 0) {
-                    setSearchResults(expandedList);
-                    const foundInExpanded = expandedList.find(a => a.id === att.id);
+                const res = await executeSearch({
+                    targetPage: 1,
+                    keepSelectedAttendance: true,
+                    filtersOverride: { ...searchFilters, ...filtrosAmpliados }
+                });
+
+                if (res?.items && res.items.length > 0) {
+                    const foundInExpanded = res.items.find(a => a.id === att.id);
                     if (foundInExpanded) {
                         setSelectedAttendance(foundInExpanded);
                     }
@@ -350,7 +451,7 @@ const LaboratorioResultados = () => {
             setAttendances(data);
             
             // Se já tem um selecionado e ele existe, mantém. Se não, pega o primeiro.
-            if (data.length > 0 && data[0].resultados.length > 0) {
+            if (data.length > 0 && data[0].resultados && data[0].resultados.length > 0) {
                 let toSelect = data[0].resultados[0];
                 if (targetExamCode) {
                     const found = data[0].resultados.find(r => r.exameCodigo === targetExamCode);
@@ -360,6 +461,10 @@ const LaboratorioResultados = () => {
                     if (found) toSelect = found;
                 }
                 selecionarExame(toSelect);
+            } else {
+                setSelectedExamId(null);
+                setFormValues({});
+                setInitialFormValues({});
             }
             
             return data;
@@ -443,6 +548,51 @@ const LaboratorioResultados = () => {
         return next;
     };
 
+    const parseBilNumber = (val) => {
+        if (val === null || val === undefined || val === '') return null;
+        const str = String(val).trim().replace(',', '.');
+        if (str === '') return null;
+        const num = parseFloat(str);
+        return isNaN(num) || !isFinite(num) ? null : num;
+    };
+
+    const applyBilCalculations = (formState) => {
+        const next = { ...formState };
+        
+        const paramsByCode = {};
+        const paramIdsByCode = {};
+        
+        Object.values(next).forEach(p => {
+            const code = String(p.parameter_code || p.code || '').toUpperCase();
+            paramsByCode[code] = p;
+            paramIdsByCode[code] = p.parameter_id || p.id || p.parameterId;
+        });
+        
+        const totalParam = paramsByCode['BILIRRUBINA_TOTAL'];
+        const diretaParam = paramsByCode['BILIRRUBINA_DIRETA'];
+        const indiretaId = paramIdsByCode['BILIRRUBINA_INDIRETA'];
+        
+        if (indiretaId) {
+            const valTotal = parseBilNumber(totalParam?.value_numeric);
+            const valDireta = parseBilNumber(diretaParam?.value_numeric);
+            
+            let calculatedIndireta = '';
+            if (valTotal !== null && valDireta !== null) {
+                if (valDireta <= valTotal) {
+                    const diff = Math.round((valTotal - valDireta + Number.EPSILON) * 100) / 100;
+                    calculatedIndireta = String(diff).replace('.', ',');
+                }
+            }
+            
+            next[indiretaId] = {
+                ...next[indiretaId],
+                value_numeric: calculatedIndireta
+            };
+        }
+        
+        return next;
+    };
+
     const selecionarExame = (result) => {
         setSelectedExamId(result.id);
         
@@ -461,8 +611,11 @@ const LaboratorioResultados = () => {
         }
         
         let activeForm = { ...initialForm };
-        if (String(result?.exameCodigo || '').toUpperCase() === 'HEMO') {
+        const examCode = String(result?.exameCodigo || '').toUpperCase();
+        if (examCode === 'HEMO') {
             activeForm = applyHemoCalculations(activeForm);
+        } else if (examCode === 'BIL') {
+            activeForm = applyBilCalculations(activeForm);
         }
         
         setFormValues(activeForm);
@@ -519,13 +672,19 @@ const LaboratorioResultados = () => {
             setPendingNavigation('back_to_search');
             setShowUnsavedModal(true);
         } else {
-            handleSearch();
+            setSelectedAttendance(null);
+            setAttendances([]);
+            setSelectedExamId(null);
+            setFormValues({});
         }
     };
 
     const confirmNavigation = () => {
         if (pendingNavigation === 'back_to_search') {
-            handleSearch();
+            setSelectedAttendance(null);
+            setAttendances([]);
+            setSelectedExamId(null);
+            setFormValues({});
         } else if (pendingNavigation?.type === 'patient') {
             executePatientNavigation(pendingNavigation.targetAttendance, pendingNavigation.targetExamCode);
         } else if (pendingNavigation) {
@@ -652,8 +811,11 @@ const LaboratorioResultados = () => {
             };
             
             const isHemo = String(selectedResult?.exameCodigo || '').toUpperCase() === 'HEMO';
+            const isBil = String(selectedResult?.exameCodigo || '').toUpperCase() === 'BIL';
             if (isHemo && field === 'value_numeric') {
                 next = applyHemoCalculations(next);
+            } else if (isBil && field === 'value_numeric') {
+                next = applyBilCalculations(next);
             }
             
             return next;
@@ -795,6 +957,29 @@ const LaboratorioResultados = () => {
                         text: `Leucograma inválido. A soma dos percentuais deve ser exatamente 100%. Total informado: ${leucoTotal}%. ${diffMsg}`
                     });
                     setTimeout(() => setFeedbackMsg(null), 6000);
+                    setSaveStatus('error');
+                    setSaving(false);
+                    return false;
+                }
+            }
+
+            // Validação do Exame BIL (Bilirrubina) — Direta não pode ser maior que Total
+            const isBilExam = String(selectedResult?.exameCodigo || '').trim().toUpperCase() === 'BIL';
+            if (isBilExam) {
+                const paramsByCode = {};
+                Object.values(formValues).forEach(p => {
+                    const code = String(p.parameter_code || p.code || '').toUpperCase();
+                    paramsByCode[code] = p;
+                });
+                const valTotal = parseBilNumber(paramsByCode['BILIRRUBINA_TOTAL']?.value_numeric);
+                const valDireta = parseBilNumber(paramsByCode['BILIRRUBINA_DIRETA']?.value_numeric);
+
+                if (valTotal !== null && valDireta !== null && valDireta > valTotal) {
+                    setFeedbackMsg({
+                        type: 'error',
+                        text: 'A Bilirrubina Direta não pode ser maior que a Bilirrubina Total.'
+                    });
+                    setTimeout(() => setFeedbackMsg(null), 5000);
                     setSaveStatus('error');
                     setSaving(false);
                     return false;
@@ -989,15 +1174,52 @@ const LaboratorioResultados = () => {
 
     const renderExamsSummary = (att) => {
         const parts = [];
-        if (att.examesLiberados > 0) parts.push(<span key="lib" style={{ color: '#059669', fontWeight: 500 }}>{att.examesLiberados} liberados</span>);
-        if (att.examesConferidos > 0) parts.push(<span key="conf" style={{ color: '#2563eb', fontWeight: 500 }}>{att.examesConferidos} conferidos</span>);
-        if (att.examesDigitados > 0) parts.push(<span key="dig" style={{ color: '#0284c7', fontWeight: 500 }}>{att.examesDigitados} digitados</span>);
-        if (att.examesPendentes > 0) parts.push(<span key="pend" style={{ color: '#d97706', fontWeight: 500 }}>{att.examesPendentes} pendentes</span>);
-        if (att.examesCancelados > 0) parts.push(<span key="canc" style={{ color: '#ef4444', fontWeight: 500 }}>{att.examesCancelados} cancelado(s)</span>);
+        if (att.examesLiberados > 0) {
+            parts.push(
+                <span key="lib" style={{ color: '#059669', fontWeight: 500 }}>
+                    {att.examesLiberados} {att.examesLiberados === 1 ? 'liberado' : 'liberados'}
+                </span>
+            );
+        }
+        if (att.examesConferidos > 0) {
+            parts.push(
+                <span key="conf" style={{ color: '#2563eb', fontWeight: 500 }}>
+                    {att.examesConferidos} {att.examesConferidos === 1 ? 'conferido' : 'conferidos'}
+                </span>
+            );
+        }
+        if (att.examesDigitados > 0) {
+            parts.push(
+                <span key="dig" style={{ color: '#0284c7', fontWeight: 500 }}>
+                    {att.examesDigitados} {att.examesDigitados === 1 ? 'digitado' : 'digitados'}
+                </span>
+            );
+        }
+        if (att.examesPendentes > 0) {
+            parts.push(
+                <span key="pend" style={{ color: '#d97706', fontWeight: 500 }}>
+                    {att.examesPendentes} {att.examesPendentes === 1 ? 'pendente' : 'pendentes'}
+                </span>
+            );
+        }
+        if (att.examesCancelados > 0) {
+            parts.push(
+                <span key="canc" style={{ color: '#dc2626', fontWeight: 500 }}>
+                    {att.examesCancelados} {att.examesCancelados === 1 ? 'cancelado' : 'cancelados'}
+                </span>
+            );
+        }
+        if (att.examesRevisao > 0) {
+            parts.push(
+                <span key="rev" style={{ color: '#b45309', fontWeight: 500 }}>
+                    {att.examesRevisao} {att.examesRevisao === 1 ? 'revisão' : 'revisões'}
+                </span>
+            );
+        }
 
         return (
             <span>
-                Exames: <strong style={{ color: '#334155', fontWeight: 500 }}>{att.examesTotal}</strong> 
+                Exames: <strong style={{ color: '#334155', fontWeight: 500 }}>{att.examesTotal || 0}</strong> 
                 {parts.length > 0 && (
                     <> (
                         {parts.map((part, index) => (
@@ -1087,9 +1309,28 @@ const LaboratorioResultados = () => {
 
             {/* Lista de Resultados da Busca */}
             {!selectedAttendance && searchResults !== null && !loading && (
-                <div className="lab-search-results" style={{ marginTop: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', color: '#1e293b', marginBottom: '1rem', fontWeight: '700' }}>Atendimentos Encontrados ({searchResults.length})</h3>
-                    {searchResults.length === 0 ? (
+                <div ref={resultsListRef} className="lab-search-results" style={{ marginTop: '1.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                        <h3 style={{ fontSize: '1.1rem', color: '#1e293b', margin: 0, fontWeight: '700' }}>
+                            {!hasMore 
+                                ? (searchResults.length === 1 
+                                    ? '1 atendimento encontrado' 
+                                    : `Atendimentos Encontrados (${searchResults.length})`)
+                                : 'Atendimentos Encontrados'
+                            }
+                        </h3>
+                        {hasMore && searchResults.length > 0 && (
+                            <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500, background: '#f1f5f9', padding: '0.25rem 0.65rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                {searchResults.length} carregados
+                            </span>
+                        )}
+                    </div>
+
+                    {loadingSearch ? (
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '3.5rem' }}>
+                            <Loader2 className="animate-spin" size={30} color="#3b82f6" />
+                        </div>
+                    ) : searchResults.length === 0 ? (
                         <div className="lab-empty-state" style={{ textAlign: 'center', padding: '4rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                             <Search size={48} color="#cbd5e1" style={{ margin: '0 auto 1rem auto', display: 'block' }} />
                             <h3 style={{ fontSize: '1.2rem', color: '#334155', marginBottom: '0.5rem', fontWeight: '700' }}>
@@ -1126,6 +1367,42 @@ const LaboratorioResultados = () => {
                                 );
                             })}
                         </div>
+                    )}
+
+                    {/* Indicador de carregamento adicional */}
+                    {loadingMore && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1.25rem 0', color: '#64748b', fontSize: '0.875rem' }}>
+                            <Loader2 className="animate-spin" size={18} color="#3b82f6" />
+                            <span>Carregando mais atendimentos...</span>
+                        </div>
+                    )}
+
+                    {/* Tratamento de erro ao carregar mais */}
+                    {loadMoreError && (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1.25rem 0', color: '#dc2626', fontSize: '0.875rem' }}>
+                            <span>{loadMoreError}</span>
+                            <button
+                                type="button"
+                                className="lab-btn lab-btn-secondary"
+                                onClick={handleLoadMore}
+                                style={{ fontSize: '0.8rem', padding: '0.35rem 0.85rem' }}
+                            >
+                                <RotateCcw size={14} />
+                                Tentar novamente
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Mensagem discreta ao esgotar a lista */}
+                    {!hasMore && !loadingMore && !loadMoreError && searchResults && searchResults.length > 0 && (
+                        <div style={{ textAlign: 'center', padding: '1.25rem 0 0.5rem 0', color: '#94a3b8', fontSize: '0.82rem', fontWeight: 500 }}>
+                            Todos os atendimentos foram carregados.
+                        </div>
+                    )}
+
+                    {/* Sentinela do IntersectionObserver */}
+                    {hasMore && !loadMoreError && (
+                        <div ref={sentinelRef} style={{ height: '4px', width: '100%', pointerEvents: 'none' }} aria-hidden="true" />
                     )}
                 </div>
             )}
@@ -1327,6 +1604,7 @@ const LaboratorioResultados = () => {
                                     let pSex = String(currentAttendance?.pacienteSexo || '').toUpperCase();
                                     let patientSexGroup = pSex.startsWith('M') ? 'MALE' : pSex.startsWith('F') ? 'FEMALE' : 'UNKNOWN';
                                     const isHemo = String(selectedResult?.exameCodigo || '').toUpperCase() === 'HEMO';
+                                    const isBil = String(selectedResult?.exameCodigo || '').toUpperCase() === 'BIL';
                                     const obsCodes = new Set(['OBSERVACOES_ERITROGRAMA', 'OBS_ERITROGRAMA', 'SERIE_ERITROCITARIA', 'S_ERITROCITARIA', 'SERIE_LEUCOCITARIA', 'S_LEUCOCITARIA', 'SERIE_PLAQUETARIA', 'S_PLAQUETARIA']);
 
                                     return (selectedResult.structuredValues || []).map((param, index) => {
@@ -1378,6 +1656,10 @@ const LaboratorioResultados = () => {
                                                 }
                                             }
                                             if (code === 'VCM' || code === 'HCM' || code === 'CHCM') {
+                                                isCalculatedIndex = true;
+                                            }
+                                        } else if (isBil) {
+                                            if (code === 'BILIRRUBINA_INDIRETA') {
                                                 isCalculatedIndex = true;
                                             }
                                         }
@@ -1734,6 +2016,12 @@ const LaboratorioResultados = () => {
                     tenantId={currentTenantId}
                     attendance={currentAttendance}
                     onClose={() => setShowGerenciarExamesModal(false)}
+                    onChanged={async () => {
+                        const protocol = currentAttendance?.protocol_number || selectedAttendance?.protocol_number;
+                        if (protocol) {
+                            await carregarDados(protocol, selectedExamId);
+                        }
+                    }}
                 />
             )}
         </div>
