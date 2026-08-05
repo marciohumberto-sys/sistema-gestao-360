@@ -572,3 +572,43 @@
 
 /* Novas Classes de Status Adicionais para Laboratório */
 .status-aguardando-lib { background: #f3e8ff !important; color: #6b21a8 !important; border-color: #d8b4fe !important; }
+
+/* Botão Secundário Discreto Gerenciar Exames */
+.lab-btn-manage-exams {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 30px;
+    padding: 0 0.65rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #334155;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.lab-btn-manage-exams:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+.lab-btn-manage-exams:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 1px;
+}
+
+.lab-btn-manage-exams svg {
+    color: #64748b;
+    transition: color 0.15s ease;
+}
+
+.lab-btn-manage-exams:hover svg {
+    color: #3b82f6;
+}
+

@@ -4,10 +4,11 @@ import { useLocation } from 'react-router-dom';
 import { formatCpf } from '../../utils/formatters';
 import { 
     TriangleAlert, Search, CheckCircle2, Clock, ChevronLeft, ChevronRight, Save, Activity, User, FileText,
-    History, AlertCircle, Info, Loader2, RotateCcw
+    History, AlertCircle, Info, Loader2, RotateCcw, Layers
 } from 'lucide-react';
 import './LaboratorioResultados.css';
 import { laboratorioResultadosService } from '../../services/api/laboratorioResultados.service';
+import LaboratorioGerenciarExamesModal from '../../components/laboratorio/LaboratorioGerenciarExamesModal';
 import { useAuth } from '../../context/AuthContext';
 import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue } from '../../utils/laboratorioHelpers';
 
@@ -209,6 +210,7 @@ const LaboratorioResultados = () => {
     const [missingFields, setMissingFields] = useState([]);
     const [showReopenModal, setShowReopenModal] = useState(false);
     const [reopeningResult, setReopeningResult] = useState(false);
+    const [showGerenciarExamesModal, setShowGerenciarExamesModal] = useState(false);
     const inputRefs = useRef([]);
     const shouldScrollToTopRef = useRef(false);
     const examTopRef = useRef(null);
@@ -231,6 +233,7 @@ const LaboratorioResultados = () => {
     const [searchResults, setSearchResults] = useState(null);
     const [selectedAttendance, setSelectedAttendance] = useState(null);
 
+    const currentTenantId = tenantLink?.tenant_id || tenantLink?.id || selectedAttendance?.tenant_id || attendances[0]?.tenant_id;
     const currentAttendance = attendances[0] || {};
     const resultados = currentAttendance.resultados || [];
     const attendanceExams = resultados;
@@ -1141,7 +1144,7 @@ const LaboratorioResultados = () => {
                                 <ChevronLeft size={16} /> Voltar para busca
                             </button>
                             
-                            <div className="lab-header-actions" style={{ position: 'relative', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <div className="lab-header-actions" style={{ position: 'relative', display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
                                 {feedbackMsg && (
                                     <div style={{
                                         position: 'absolute', top: '50%', right: '100%', 
@@ -1158,9 +1161,19 @@ const LaboratorioResultados = () => {
                                     </div>
                                 )}
 
+                                <button
+                                    type="button"
+                                    className="lab-btn-manage-exams"
+                                    onClick={() => setShowGerenciarExamesModal(true)}
+                                    title="Gerenciar exames do atendimento"
+                                >
+                                    <Layers size={14} />
+                                    <span>Gerenciar exames</span>
+                                </button>
+
                                 {searchResults && selectedAttendance && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginLeft: '1rem' }}>
-                                        <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600, marginRight: '0.5rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.25rem' }}>
+                                        <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600, marginRight: '0.4rem' }}>
                                             {searchResults.findIndex(a => a.id === selectedAttendance.id) + 1} de {searchResults.length}
                                         </span>
                                         <button 
@@ -1713,6 +1726,16 @@ const LaboratorioResultados = () => {
                 allRefText={activeTooltip?.allRefText} 
                 onClose={handleTooltipLeave} 
             />
+
+            {showGerenciarExamesModal && (
+                <LaboratorioGerenciarExamesModal
+                    isOpen={showGerenciarExamesModal}
+                    attendanceId={selectedAttendance?.id || currentAttendance?.id}
+                    tenantId={currentTenantId}
+                    attendance={currentAttendance}
+                    onClose={() => setShowGerenciarExamesModal(false)}
+                />
+            )}
         </div>
     );
 };
