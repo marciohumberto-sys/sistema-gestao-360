@@ -1,17 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, Filter, MapPin, Landmark, Target, Activity, CheckCircle, AlertTriangle, ChevronRight, X, Compass, Users, HeartPulse, GraduationCap, TrendingUp, Building2, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calendar, Filter, MapPin, Landmark, Target, Activity, CheckCircle, AlertTriangle, ChevronRight, X, Users, HeartPulse, GraduationCap, TrendingUp, Building2, ShieldCheck, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
 import { useAuth } from '../../context/AuthContext';
 import { planejamentoService } from '../../services/api/planejamento.service';
+import DistribuicaoAnualChart from './components/DistribuicaoAnualChart';
 import './PlanejamentoEstrategico.css';
 
-const strategicTimelineMockData = [
-    { year: 2025, active: true, badges: [{ text: '32 objetivos em andamento', color: 'blue' }, { text: '8 entregas concluídas', color: 'green' }] },
-    { year: 2026, active: false, badges: [{ text: '28 objetivos planejados', color: 'gray' }, { text: '0 entregas', color: 'gray' }] },
-    { year: 2027, active: false, badges: [{ text: '22 objetivos planejados', color: 'gray' }, { text: '0 entregas', color: 'gray' }] },
-    { year: 2028, active: false, badges: [{ text: '12 objetivos planejados', color: 'gray' }, { text: '0 entregas', color: 'gray' }] }
-];
+const TIMELINE_YEARS = [2024, 2025, 2026, 2027, 2028];
 
 const PlanejamentoEstrategico = () => {
     const { tenantLink, scopes } = useAuth();
@@ -21,13 +17,24 @@ const PlanejamentoEstrategico = () => {
     const [activeEixo, setActiveEixo] = useState(null);
     const [expandedObjectiveId, setExpandedObjectiveId] = useState(null);
     const [showEmptyObjectives, setShowEmptyObjectives] = useState(false);
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+    const contextPlanejamento = getPlanejamentoContext(tenantLink?.role, scopes);
+
+    const [filters, setFilters] = useState({
+        periodo: 'todos',
+        eixoId: 'todos',
+        secretariaId: contextPlanejamento.hasMultipleRestrictedSecretariats
+            ? 'todas_minhas'
+            : (contextPlanejamento.hasRestrictedAccess ? (contextPlanejamento.primarySecretariatId || 'nenhuma') : 'todas'),
+        allowedSecretariatIds: contextPlanejamento.allowedSecretariatIds
+    });
 
     useEffect(() => {
-        const planejamentoContext = getPlanejamentoContext(tenantLink?.role, scopes);
-        if (planejamentoContext.hasRestrictedAccess) {
+        if (contextPlanejamento.hasRestrictedAccess && !contextPlanejamento.hasMultipleRestrictedSecretariats && !contextPlanejamento.primarySecretariatId) {
             navigate('/planejamento/dashboard', { replace: true });
         }
-    }, [tenantLink, scopes, navigate]);
+    }, [contextPlanejamento, navigate]);
 
     const formatPercent = (value) => {
         if (value === null || value === undefined || isNaN(value)) return "0";
@@ -60,6 +67,14 @@ const PlanejamentoEstrategico = () => {
         }
     };
 
+    const getYear = (dateStr) => {
+        if (!dateStr) return null;
+        const match = String(dateStr).match(/^(\d{4})/);
+        if (match) return parseInt(match[1], 10);
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? null : d.getFullYear();
+    };
+
     useEffect(() => {
         const loadData = async () => {
             if (!tenantLink?.tenant_id) return;
@@ -76,97 +91,7 @@ const PlanejamentoEstrategico = () => {
         loadData();
     }, [tenantLink]);
 
-    if (loading) {
-        return (
-            <div className="plano-estrategico-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', color: '#64748b' }}>
-                    <div className="spinner" style={{ width: '40px', height: '40px', border: '4px solid #f1f5f9', borderTopColor: '#00967d', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-                    <p style={{ fontWeight: 600 }}>Carregando Plano Estratégico...</p>
-                    <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-                </div>
-            </div>
-        );
-    }
-
-    if (!data) {
-        return (
-            <div className="plano-estrategico-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-                <p style={{ color: '#ef4444', fontWeight: 600 }}>Não foi possível carregar os dados.</p>
-            </div>
-        );
-    }
-
-    let { kpis, eixos, compromissos, actions } = data;
-
-    const USE_PLANO_ESTRATEGICO_MOCK = false;
-
-    // MOCK TEMPORÁRIO - manter apenas para testes visuais
-    if (USE_PLANO_ESTRATEGICO_MOCK) {
-        kpis = {
-            totalObjetivos: 221,
-            totalAcoes: 140,
-            execucaoGeral: 61,
-            entregasConcluidas: 18,
-            acoesEmRisco: 5
-        };
-
-        const mockEixosData = [
-            { name: 'Governo e Transparência', objetivos: 43, acoesVinculadas: 18, progress: 80 },
-            { name: 'Proteção Social', objetivos: 21, acoesVinculadas: 14, progress: 65 },
-            { name: 'Saúde', objetivos: 17, acoesVinculadas: 26, progress: 60 },
-            { name: 'Educação', objetivos: 26, acoesVinculadas: 32, progress: 48 },
-            { name: 'Oportunidade e Desenvolvimento Cultural e Econômico', objetivos: 20, acoesVinculadas: 20, progress: 55 },
-            { name: 'Cidade e Território', objetivos: 43, acoesVinculadas: 18, progress: 40 },
-            { name: 'Segurança Pública e Qualidade de Vida', objetivos: 51, acoesVinculadas: 12, progress: 50 }
-        ];
-
-        eixos = mockEixosData.map((m, idx) => {
-            const eixoId = `mock-eixo-${idx}`;
-            
-            const objComAcao = Array.from({length: 3}).map((_, i) => ({
-                id: `${eixoId}-obj-c-${i}`,
-                title: m.name === 'Educação' && i === 0 ? 'Ampliar a rede de Educação Integral, Escola Viva' : 
-                       m.name === 'Educação' && i === 1 ? 'Melhorar a infraestrutura das escolas' : 
-                       m.name === 'Educação' && i === 2 ? 'Implantar avaliações periódicas dos estudantes' : 
-                       m.name === 'Saúde' && i === 0 ? 'Ampliar a rede de atendimento materno infantil' : 
-                       m.name === 'Saúde' && i === 1 ? 'Implantar novas tecnologias na saúde municipal' : 
-                       m.name === 'Saúde' && i === 2 ? 'Qualificar o sistema de regulação' : 
-                       `Objetivo estratégico ${i+1} focado na expansão de ${m.name}`,
-                acoesVinculadas: i === 0 ? 2 : 1,
-                progress_percent: i === 0 ? 70 : i === 1 ? 45 : 0,
-                acoes: [
-                    { id: `${eixoId}-acao-c-${i}-1`, title: 
-                       m.name === 'Educação' && i === 0 ? 'Reforma da Escola Municipal José de Góes' : 
-                       m.name === 'Educação' && i === 1 ? 'Requalificação de unidades escolares' : 
-                       m.name === 'Educação' && i === 2 ? 'Painel de acompanhamento pedagógico' : 
-                       m.name === 'Saúde' && i === 0 ? 'Nova Maternidade Municipal' : 
-                       m.name === 'Saúde' && i === 1 ? 'Telemedicina nas unidades de saúde' : 
-                       m.name === 'Saúde' && i === 2 ? 'Painel de absenteísmo e regulação' : 
-                       `Iniciativa principal ${i+1}`, status: i === 2 ? 'NAO_INICIADA' : i === 1 ? 'ATENCAO' : 'EM_ANDAMENTO', progress_percent: i === 2 ? 0 : i === 1 ? 45 : 80 },
-                    ...(i === 0 ? [{ id: `${eixoId}-acao-c-${i}-2`, title: m.name === 'Educação' ? 'Ampliação de salas de aula' : `Iniciativa secundária de ampliação ${i+1}`, status: 'EM_ANDAMENTO', progress_percent: 55 }] : [])
-                ]
-            }));
-
-            const objSemAcao = Array.from({length: 3}).map((_, i) => ({
-                id: `${eixoId}-obj-s-${i}`,
-                title: `Meta estruturante para o futuro de ${m.name} ${i+1}`,
-                acoesVinculadas: 0,
-                progress_percent: 0,
-                acoes: []
-            }));
-
-            return {
-                id: eixoId,
-                name: m.name,
-                objetivosVinculados: m.objetivos,
-                acoesVinculadas: m.acoesVinculadas,
-                progresso: m.progress,
-                objetivos: [...objComAcao, ...objSemAcao]
-            };
-        });
-    }
-
-    // --- Aplicar cores fixas e ícones nos eixos ---
+    // Cores e ícones dos eixos estratégicos
     const axisColors = [
         '#3b82f6', // 01 Governo e Transparência = Azul
         '#8b5cf6', // 02 Proteção Social = Roxo
@@ -205,127 +130,306 @@ const PlanejamentoEstrategico = () => {
         };
     };
 
-    let compromissosList = data.compromissos || data.compromissosPrioritarios || [];
-    
-    // MOCK TEMPORÁRIO - manter apenas para testes visuais
-    if (USE_PLANO_ESTRATEGICO_MOCK && compromissosList.length < 4) {
-        const MOCK_COMPROMISSOS = [
-            { id: 'mock-1', title: 'Nova Maternidade Municipal', eixoName: 'Saúde', objetivoName: 'Ampliar a rede de atendimento materno infantil', status: 'EM_ANDAMENTO', progresso: 72 },
-            { id: 'mock-2', title: 'Escola Integral em Tempo Integral', eixoName: 'Educação', objetivoName: 'Ampliar a rede de Educação Integral, Escola Viva', status: 'EM_ANDAMENTO', progresso: 80 },
-            { id: 'mock-3', title: 'Plano de Mobilidade Urbana', eixoName: 'Cidade e Território', objetivoName: 'Elaborar e executar um Plano de Mobilidade', status: 'ATENCAO', progresso: 45 },
-            { id: 'mock-4', title: 'Geração de Emprego e Renda', eixoName: 'Oportunidade e Desenvolvimento', objetivoName: 'Ampliar programas de qualificação e empregabilidade', status: 'EM_ANDAMENTO', progresso: 58 }
-        ];
-        
-        // Evitar duplicar mock se já houver ações reais misturadas
-        const existingTitles = compromissosList.map(c => c.title);
-        const mocksToAdd = MOCK_COMPROMISSOS.filter(m => !existingTitles.includes(m.title));
-        
-        compromissosList = [...compromissosList, ...mocksToAdd].slice(0, 4);
-    }
+    // Ações filtradas pelos dropdowns de cabeçalho
+    const filteredActions = useMemo(() => {
+        if (!data?.actions) return [];
+        let list = data.actions;
 
-    const getYear = (dateStr) => {
-        if (!dateStr) return null;
-        const d = new Date(dateStr);
-        return isNaN(d.getTime()) ? null : d.getFullYear();
-    };
+        // Filtro por Eixo
+        if (filters.eixoId && filters.eixoId !== 'todos') {
+            list = list.filter(a => a.axis_id === filters.eixoId);
+        }
 
-    let strategicTimelineRealData = strategicTimelineMockData;
-    
-    if (actions && actions.length > 0) {
-        const timelineByYear = {
-            2025: { year: 2025, NAO_INICIADA: 0, EM_ANDAMENTO: 0, CONCLUIDA: 0 },
-            2026: { year: 2026, NAO_INICIADA: 0, EM_ANDAMENTO: 0, CONCLUIDA: 0 },
-            2027: { year: 2027, NAO_INICIADA: 0, EM_ANDAMENTO: 0, CONCLUIDA: 0 },
-            2028: { year: 2028, NAO_INICIADA: 0, EM_ANDAMENTO: 0, CONCLUIDA: 0 }
-        };
-
-        actions.forEach(a => {
-            const dateStr = a.due_date || a.start_date || a.created_at;
-            const year = getYear(dateStr);
-            if (!year) return;
-
-            if (!timelineByYear[year]) {
-                timelineByYear[year] = { year, NAO_INICIADA: 0, EM_ANDAMENTO: 0, CONCLUIDA: 0 };
+        // Filtro por Secretaria (secretaria principal)
+        if (filters.secretariaId && filters.secretariaId !== 'todas') {
+            if (filters.secretariaId === 'todas_minhas' && Array.isArray(filters.allowedSecretariatIds)) {
+                list = list.filter(a => filters.allowedSecretariatIds.includes(a.secretariat_id));
+            } else {
+                list = list.filter(a => a.secretariat_id === filters.secretariaId);
             }
+        }
 
-            if (a.status === 'NAO_INICIADA') timelineByYear[year].NAO_INICIADA++;
-            else if (a.status === 'EM_ANDAMENTO') timelineByYear[year].EM_ANDAMENTO++;
-            else if (a.status === 'CONCLUIDA') timelineByYear[year].CONCLUIDA++;
-        });
+        // Filtro por Período / Ano
+        if (filters.periodo && filters.periodo !== 'todos') {
+            const filterYear = parseInt(filters.periodo, 10);
+            list = list.filter(a => {
+                const sY = getYear(a.start_date);
+                const dY = getYear(a.due_date);
+                const cY = (a.status === 'CONCLUIDA' && a.completion_date) ? getYear(a.completion_date) : null;
+                return sY === filterYear || dY === filterYear || cY === filterYear || (sY !== null && sY <= filterYear && (!cY || cY >= filterYear));
+            });
+        }
 
-        const sortedYears = Object.keys(timelineByYear).sort((a, b) => parseInt(a) - parseInt(b));
-        
-        strategicTimelineRealData = sortedYears.map(yearStr => {
-            const stats = timelineByYear[yearStr];
+        return list;
+    }, [data?.actions, filters]);
+
+    // Estatísticas da Linha do Tempo e Gráfico Anual calculadas estritamente por AÇÃO com regra temporal
+    const timelineAndYearStats = useMemo(() => {
+        const statsByYear = {};
+
+        TIMELINE_YEARS.forEach(yr => {
+            let emAndamento = 0;
+            let concluidas = 0;
+            let concluidasNoAno = 0;
+            let naoIniciadas = 0;
+            let previstasTermino = 0;
+            let iniciadasNoAno = 0;
+
+            filteredActions.forEach(a => {
+                const startYr = getYear(a.start_date);
+                const dueYr = getYear(a.due_date);
+                const isConcluida = a.status === 'CONCLUIDA';
+                const compYr = isConcluida && a.completion_date ? getYear(a.completion_date) : null;
+
+                // Métrica adicional: Iniciadas no ano analisado
+                if (startYr === yr) {
+                    iniciadasNoAno++;
+                }
+
+                // Métrica adicional: Previstas para término no ano analisado (baseada em due_date)
+                if (dueYr === yr) {
+                    previstasTermino++;
+                }
+
+                // 1. NÃO INICIADAS / FUTURAS NO ANO (Regra temporal estrita):
+                // Ação sem start_date OU com start_date maior que o ano analisado
+                const isNaoIniciada = !a.start_date || startYr === null || startYr > yr;
+
+                if (isNaoIniciada) {
+                    naoIniciadas++;
+                    return;
+                }
+
+                // 2. CONCLUÍDAS ATÉ O ANO ANALISADO:
+                // Ação com status CONCLUIDA cuja data de conclusão é até o ano yr
+                const isConcluidaAteAno = isConcluida && (
+                    (compYr !== null && compYr <= yr) ||
+                    (compYr === null && startYr !== null && startYr <= yr)
+                );
+
+                if (isConcluidaAteAno) {
+                    concluidas++;
+                    if ((compYr !== null && compYr === yr) || (compYr === null && dueYr === yr) || (compYr === null && !dueYr && startYr === yr)) {
+                        concluidasNoAno++;
+                    }
+                    return;
+                }
+
+                // 3. EM ANDAMENTO NO ANO ANALISADO:
+                // Ação que iniciou até o ano yr e ainda não havia sido concluída até aquele ano
+                emAndamento++;
+            });
+
+            const total = emAndamento + concluidas + naoIniciadas;
+
             const badges = [];
-            
-            if (stats.EM_ANDAMENTO > 0) {
-                badges.push({ text: `${stats.EM_ANDAMENTO} ações em andamento`, color: 'blue' });
+            if (emAndamento > 0) {
+                badges.push({ text: `${emAndamento} em andamento`, color: 'blue' });
             }
-            if (stats.CONCLUIDA > 0) {
-                badges.push({ text: `${stats.CONCLUIDA} entregas concluídas`, color: 'green' });
+            if (concluidasNoAno > 0) {
+                badges.push({ text: `${concluidasNoAno} ${concluidasNoAno === 1 ? 'concluída no ano' : 'concluídas no ano'}`, color: 'green' });
+            } else if (concluidas > 0) {
+                badges.push({ text: `${concluidas} ${concluidas === 1 ? 'concluída' : 'concluídas'}`, color: 'green' });
             }
-            if (stats.NAO_INICIADA > 0) {
-                badges.push({ text: `${stats.NAO_INICIADA} ações planejadas`, color: 'gray' });
+            if (previstasTermino > 0) {
+                badges.push({ text: `${previstasTermino} ${previstasTermino === 1 ? 'prevista' : 'previstas'} p/ término`, color: 'amber' });
             }
-            
+            if (naoIniciadas > 0) {
+                badges.push({ text: `${naoIniciadas} ${naoIniciadas === 1 ? 'não iniciada' : 'não iniciadas'}`, color: 'gray' });
+            }
             if (badges.length === 0) {
-                badges.push({ text: `Sem ações cadastradas`, color: 'gray' });
+                badges.push({ text: 'Sem ações', color: 'gray' });
             }
 
-            return {
-                year: parseInt(yearStr),
-                active: stats.EM_ANDAMENTO > 0 || stats.CONCLUIDA > 0,
+            statsByYear[yr] = {
+                year: yr,
+                total,
+                emAndamento,
+                concluidas,
+                concluidasNoAno,
+                naoIniciadas,
+                previstasTermino,
+                iniciadasNoAno,
+                active: (emAndamento > 0 || concluidas > 0 || iniciadasNoAno > 0),
                 badges
             };
         });
+
+        return statsByYear;
+    }, [filteredActions]);
+
+    // Recálculo dinâmico dos KPIs da página baseado nos filtros
+    const dynamicKpis = useMemo(() => {
+        if (!data) return { totalObjetivos: 0, totalAcoes: 0, execucaoGeral: 0, entregasConcluidas: 0, acoesEmRisco: 0 };
         
-        if (strategicTimelineRealData.length > 4) {
-            const currentYear = new Date().getFullYear();
-            let startIdx = strategicTimelineRealData.findIndex(d => d.year >= currentYear);
-            if (startIdx === -1) startIdx = strategicTimelineRealData.length - 4;
-            if (startIdx > strategicTimelineRealData.length - 4) startIdx = strategicTimelineRealData.length - 4;
-            startIdx = Math.max(0, startIdx);
-            
-            strategicTimelineRealData = strategicTimelineRealData.slice(startIdx, startIdx + 4);
-        }
-    }
-
-    eixos = eixos.map((e, idx) => {
-        const totalObjetivos = e.objetivosVinculados || (e.objetivos ? e.objetivos.length : 0);
-        const objComAcao = e.objetivos ? e.objetivos.filter(obj => obj.acoesVinculadas > 0 || (obj.acoes && obj.acoes.length > 0)).length : 0;
-        const novoProgresso = totalObjetivos > 0 ? (objComAcao / totalObjetivos) * 100 : 0;
-
+        const totalAcoes = filteredActions.length;
+        const sumProgresso = filteredActions.reduce((acc, a) => acc + (a.progress_percent || 0), 0);
+        const execucaoGeral = totalAcoes > 0 ? parseFloat((sumProgresso / totalAcoes).toFixed(2)) : 0;
+        const entregasConcluidas = filteredActions.filter(a => a.status === 'CONCLUIDA').length;
+        const acoesEmRisco = filteredActions.filter(a => a.status === 'EM_RISCO').length;
 
         return {
-            ...e,
-            progresso: novoProgresso,
-            color: axisColors[idx] || e.color || '#3b82f6',
-            IconComponent: axisIcons[idx] || Target
+            totalObjetivos: data.kpis?.totalObjetivos || 0,
+            totalAcoes,
+            execucaoGeral,
+            entregasConcluidas,
+            acoesEmRisco
         };
-    });
+    }, [data, filteredActions]);
 
-    // Update activeEixo reference if it is open
-    const currentActiveEixo = activeEixo ? eixos.find(e => e.id === activeEixo.id) : null;
+    // Eixos compilados
+    const compiledEixos = useMemo(() => {
+        if (!data?.eixos) return [];
+        return data.eixos.map((e, idx) => {
+            const totalObjetivos = e.objetivosVinculados || (e.objetivos ? e.objetivos.length : 0);
+            const objComAcao = e.objetivos ? e.objetivos.filter(obj => obj.acoesVinculadas > 0 || (obj.acoes && obj.acoes.length > 0)).length : 0;
+            const novoProgresso = totalObjetivos > 0 ? (objComAcao / totalObjetivos) * 100 : 0;
+
+            return {
+                ...e,
+                progresso: novoProgresso,
+                color: axisColors[idx] || e.color || '#3b82f6',
+                IconComponent: axisIcons[idx] || Target
+            };
+        });
+    }, [data?.eixos]);
+
+    // Compromissos prioritários / Ações em destaque filtradas
+    const dynamicCompromissos = useMemo(() => {
+        if (!filteredActions || filteredActions.length === 0) return [];
+        const prioridadeStatus = {
+            'EM_RISCO': 1,
+            'PARALISADA': 2,
+            'EM_ANDAMENTO': 3,
+            'CONCLUIDA': 4,
+            'NAO_INICIADA': 5,
+            'CANCELADA': 6
+        };
+
+        return [...filteredActions]
+            .sort((a, b) => {
+                const pA = prioridadeStatus[a.status] || 99;
+                const pB = prioridadeStatus[b.status] || 99;
+                if (pA !== pB) return pA - pB;
+                return (b.progress_percent || 0) - (a.progress_percent || 0);
+            })
+            .slice(0, 5)
+            .map(a => {
+                const eixo = data?.eixos?.find(ex => ex.id === a.axis_id);
+                return {
+                    id: a.id,
+                    title: a.title,
+                    status: a.status,
+                    progresso: a.progress_percent || 0,
+                    eixoName: eixo?.name || 'Planejamento Estratégico',
+                    objetivoName: a.objective_title || 'Meta do Plano de Governo'
+                };
+            });
+    }, [filteredActions, data?.eixos]);
+
+    if (loading) {
+        return (
+            <div className="plano-estrategico-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', color: '#64748b' }}>
+                    <div className="spinner" style={{ width: '40px', height: '40px', border: '4px solid #f1f5f9', borderTopColor: '#00967d', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                    <p style={{ fontWeight: 600 }}>Carregando Plano Estratégico...</p>
+                    <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                </div>
+            </div>
+        );
+    }
+
+    if (!data) {
+        return (
+            <div className="plano-estrategico-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                <p style={{ color: '#ef4444', fontWeight: 600 }}>Não foi possível carregar os dados.</p>
+            </div>
+        );
+    }
+
+    const currentActiveEixo = activeEixo ? compiledEixos.find(e => e.id === activeEixo.id) : null;
+    const selectedYearMetrics = timelineAndYearStats[selectedYear] || {
+        total: 0,
+        emAndamento: 0,
+        concluidas: 0,
+        naoIniciadas: 0,
+        previstasTermino: 0,
+        iniciadasNoAno: 0
+    };
 
     return (
         <div className="plano-estrategico-container">
-            {/* Header */}
+            {/* Header com Filtros Dinâmicos */}
             <header className="pe-header">
                 <div className="pe-title-group">
                     <h1>Plano Estratégico 2025–2028</h1>
                     <p>Visão estratégica da gestão com base nos eixos do Plano de Governo.</p>
                 </div>
+
                 <div className="pe-filters">
-                    <button className="pe-filter-btn">
-                        <Calendar size={16} /> Período
-                    </button>
-                    <button className="pe-filter-btn">
-                        <Filter size={16} /> Eixo Estratégico
-                    </button>
-                    <button className="pe-filter-btn">
-                        <MapPin size={16} /> Secretaria
-                    </button>
+                    {/* Filtro por Período */}
+                    <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: '10px', pointerEvents: 'none', color: '#64748b', display: 'flex' }}>
+                            <Calendar size={16} />
+                        </div>
+                        <select 
+                            className="pe-filter-select"
+                            value={filters.periodo}
+                            onChange={(e) => setFilters(f => ({ ...f, periodo: e.target.value }))}
+                        >
+                            <option value="todos">Todos os Anos</option>
+                            {TIMELINE_YEARS.map(yr => (
+                                <option key={yr} value={yr.toString()}>{yr}</option>
+                            ))}
+                        </select>
+                        <div style={{ position: 'absolute', right: '10px', pointerEvents: 'none', color: '#64748b', fontSize: '0.6rem' }}>▼</div>
+                    </div>
+
+                    {/* Filtro por Eixo */}
+                    <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: '10px', pointerEvents: 'none', color: '#64748b', display: 'flex' }}>
+                            <Filter size={16} />
+                        </div>
+                        <select 
+                            className="pe-filter-select"
+                            value={filters.eixoId}
+                            onChange={(e) => setFilters(f => ({ ...f, eixoId: e.target.value }))}
+                        >
+                            <option value="todos">Todos os Eixos</option>
+                            {data?.eixos?.map(a => (
+                                <option key={a.id} value={a.id}>{a.name}</option>
+                            ))}
+                        </select>
+                        <div style={{ position: 'absolute', right: '10px', pointerEvents: 'none', color: '#64748b', fontSize: '0.6rem' }}>▼</div>
+                    </div>
+
+                    {/* Filtro por Secretaria */}
+                    <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: '10px', pointerEvents: 'none', color: '#64748b', display: 'flex' }}>
+                            <MapPin size={16} />
+                        </div>
+                        <select 
+                            className="pe-filter-select"
+                            style={{ 
+                                cursor: (contextPlanejamento.hasRestrictedAccess && !contextPlanejamento.hasMultipleRestrictedSecretariats) ? 'not-allowed' : 'pointer', 
+                                opacity: (contextPlanejamento.hasRestrictedAccess && !contextPlanejamento.hasMultipleRestrictedSecretariats) ? 0.7 : 1 
+                            }}
+                            value={filters.secretariaId}
+                            onChange={(e) => setFilters(f => ({ ...f, secretariaId: e.target.value }))}
+                            disabled={contextPlanejamento.hasRestrictedAccess && !contextPlanejamento.hasMultipleRestrictedSecretariats}
+                        >
+                            {!contextPlanejamento.hasRestrictedAccess && <option value="todas">Todas as Secretarias</option>}
+                            {contextPlanejamento.hasMultipleRestrictedSecretariats && <option value="todas_minhas">Todas as minhas secretarias</option>}
+                            {contextPlanejamento.hasRestrictedAccess && !contextPlanejamento.hasMultipleRestrictedSecretariats && !contextPlanejamento.primarySecretariatId && <option value="nenhuma">Sem Secretaria</option>}
+                            {[...(data?.secretariats || [])]
+                                .sort((a, b) => (a.name || a.sigla || '').localeCompare(b.name || b.sigla || '', 'pt-BR', { sensitivity: 'base' }))
+                                .map(s => {
+                                    if (contextPlanejamento.hasRestrictedAccess && !(contextPlanejamento.allowedSecretariatIds || []).includes(s.id)) return null;
+                                    return <option key={s.id} value={s.id}>{s.name || s.sigla}</option>;
+                            })}
+                        </select>
+                        <div style={{ position: 'absolute', right: '10px', pointerEvents: 'none', color: '#64748b', fontSize: '0.6rem' }}>▼</div>
+                    </div>
                 </div>
             </header>
 
@@ -340,64 +444,37 @@ const PlanejamentoEstrategico = () => {
                     </div>
                     <div className="pe-visao-illustration" style={{ position: 'absolute', right: '10px', bottom: '-5px', width: '180px', height: '90px', pointerEvents: 'none' }}>
                         <svg width="100%" height="100%" viewBox="0 0 240 120" preserveAspectRatio="xMaxYMax meet" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            {/* Montanha/Colina preenchida */}
                             <path d="M 120 110 Q 160 40 220 50 Q 235 60 240 110 Z" fill="#bbf7d0" opacity="0.6" stroke="#0f766e" strokeWidth="1" strokeLinejoin="round" />
-                            
-                            {/* Colina Esquerda */}
                             <path d="M 10 110 Q 30 80 60 110 Z" fill="#bbf7d0" opacity="0.4" stroke="#0f766e" strokeWidth="1" strokeLinejoin="round" />
-                            
-                            {/* Nuvens */}
-                            {/* Nuvem Superior */}
                             <path d="M 170 30 Q 170 20 180 20 Q 185 10 195 10 Q 205 10 210 20 Q 220 20 220 30 Z" fill="white" stroke="#0f766e" strokeWidth="1" strokeLinejoin="round" />
                             <line x1="160" y1="30" x2="230" y2="30" stroke="#0f766e" strokeWidth="1" strokeLinecap="round" />
-                            
-                            {/* Nuvem Esquerda (parcial) */}
                             <path d="M 130 50 Q 130 40 140 40 Q 150 40 155 50" fill="none" stroke="#0f766e" strokeWidth="1" strokeLinecap="round" />
-                            
-                            {/* Prédio Principal (Igreja/Prefeitura) */}
-                            {/* Base */}
                             <rect x="80" y="80" width="30" height="30" fill="white" stroke="#0f766e" strokeWidth="1" />
-                            {/* Porta */}
                             <path d="M 90 110 V 95 A 5 5 0 0 1 100 95 V 110" fill="white" stroke="#0f766e" strokeWidth="1" />
-                            {/* Janela redonda */}
                             <circle cx="95" cy="88" r="3" fill="none" stroke="#0f766e" strokeWidth="1" />
-                            {/* Torre */}
                             <rect x="85" y="50" width="20" height="30" fill="white" stroke="#0f766e" strokeWidth="1" />
                             <rect x="88" y="55" width="4" height="8" fill="none" stroke="#0f766e" strokeWidth="1" />
                             <rect x="98" y="55" width="4" height="8" fill="none" stroke="#0f766e" strokeWidth="1" />
-                            {/* Cúpula / Telhado da Torre */}
                             <path d="M 85 50 L 95 25 L 105 50 Z" fill="white" stroke="#0f766e" strokeWidth="1" strokeLinejoin="round" />
-                            {/* Cruz no topo */}
                             <line x1="95" y1="15" x2="95" y2="25" stroke="#0f766e" strokeWidth="1" />
                             <line x1="92" y1="20" x2="98" y2="20" stroke="#0f766e" strokeWidth="1" />
-                            
-                            {/* Prédio Esquerdo */}
                             <rect x="50" y="90" width="20" height="20" fill="white" stroke="#0f766e" strokeWidth="1" />
                             <path d="M 50 90 L 60 75 L 70 90 Z" fill="white" stroke="#0f766e" strokeWidth="1" strokeLinejoin="round" />
                             <line x1="60" y1="65" x2="60" y2="75" stroke="#0f766e" strokeWidth="1" />
-                            {/* Janelas */}
                             <rect x="54" y="95" width="3" height="5" fill="none" stroke="#0f766e" strokeWidth="1" />
                             <rect x="63" y="95" width="3" height="5" fill="none" stroke="#0f766e" strokeWidth="1" />
                             <path d="M 56 110 V 105 H 64 V 110" fill="none" stroke="#0f766e" strokeWidth="1" />
-                            {/* Conector Esquerdo */}
                             <rect x="70" y="95" width="10" height="15" fill="white" stroke="#0f766e" strokeWidth="1" />
-
-                            {/* Prédio Direito */}
                             <rect x="110" y="90" width="20" height="20" fill="white" stroke="#0f766e" strokeWidth="1" />
                             <path d="M 110 90 L 120 75 L 130 90 Z" fill="white" stroke="#0f766e" strokeWidth="1" strokeLinejoin="round" />
                             <line x1="120" y1="65" x2="120" y2="75" stroke="#0f766e" strokeWidth="1" />
-                            {/* Janelas */}
                             <rect x="114" y="95" width="3" height="5" fill="none" stroke="#0f766e" strokeWidth="1" />
                             <rect x="123" y="95" width="3" height="5" fill="none" stroke="#0f766e" strokeWidth="1" />
                             <path d="M 116 110 V 105 H 124 V 110" fill="none" stroke="#0f766e" strokeWidth="1" />
-                            
-                            {/* Prédio Extrema Direita */}
                             <path d="M 130 100 L 145 90 L 160 100 V 110 H 130 Z" fill="white" stroke="#0f766e" strokeWidth="1" strokeLinejoin="round" />
                             <rect x="135" y="100" width="5" height="10" fill="none" stroke="#0f766e" strokeWidth="1" />
                             <rect x="145" y="100" width="10" height="10" fill="none" stroke="#0f766e" strokeWidth="1" />
                             <path d="M 148 110 V 102 H 152 V 110" fill="none" stroke="#0f766e" strokeWidth="1" />
-                            
-                            {/* Linha Base */}
                             <line x1="0" y1="110" x2="240" y2="110" stroke="#0f766e" strokeWidth="1" strokeLinecap="round" />
                         </svg>
                     </div>
@@ -407,35 +484,35 @@ const PlanejamentoEstrategico = () => {
                         <div className="pe-kpi-icon" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
                             <Target size={20} />
                         </div>
-                        <div className="pe-kpi-value">{kpis.totalObjetivos}</div>
+                        <div className="pe-kpi-value">{dynamicKpis.totalObjetivos}</div>
                         <div className="pe-kpi-label">Objetivos<br/>Estratégicos</div>
                     </div>
                     <div className="pe-kpi-card">
                         <div className="pe-kpi-icon" style={{ background: 'rgba(139,92,246,0.1)', color: '#8b5cf6' }}>
                             <Activity size={20} />
                         </div>
-                        <div className="pe-kpi-value">{kpis.totalAcoes}</div>
+                        <div className="pe-kpi-value">{dynamicKpis.totalAcoes}</div>
                         <div className="pe-kpi-label">Ações<br/>Vinculadas</div>
                     </div>
                     <div className="pe-kpi-card" title="Média de execução considerando apenas ações já vinculadas a objetivos estratégicos.">
                         <div className="pe-kpi-icon" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>
                             <CheckCircle size={20} />
                         </div>
-                        <div className="pe-kpi-value">{formatPercent(kpis.execucaoGeral)}%</div>
+                        <div className="pe-kpi-value">{formatPercent(dynamicKpis.execucaoGeral)}%</div>
                         <div className="pe-kpi-label">Execução das<br/>Ações Vinculadas</div>
                     </div>
                     <div className="pe-kpi-card">
                         <div className="pe-kpi-icon" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
-                            <Target size={20} /> {/* Can use Medal or Award later */}
+                            <Target size={20} />
                         </div>
-                        <div className="pe-kpi-value">{kpis.entregasConcluidas}</div>
+                        <div className="pe-kpi-value">{dynamicKpis.entregasConcluidas}</div>
                         <div className="pe-kpi-label">Entregas<br/>Concluídas</div>
                     </div>
                     <div className="pe-kpi-card">
                         <div className="pe-kpi-icon" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
                             <AlertTriangle size={20} />
                         </div>
-                        <div className="pe-kpi-value" style={{ color: kpis.acoesEmRisco > 0 ? '#ef4444' : 'inherit' }}>{kpis.acoesEmRisco}</div>
+                        <div className="pe-kpi-value" style={{ color: dynamicKpis.acoesEmRisco > 0 ? '#ef4444' : 'inherit' }}>{dynamicKpis.acoesEmRisco}</div>
                         <div className="pe-kpi-label">Ações<br/>em Risco</div>
                     </div>
                 </div>
@@ -446,7 +523,7 @@ const PlanejamentoEstrategico = () => {
             <div className="pe-section-subtitle">Clique em um eixo para ver seus objetivos e ações vinculadas.</div>
             
             <div className="pe-eixos-grid">
-                {eixos.map((eixo, index) => {
+                {compiledEixos.map((eixo, index) => {
                     const idxStr = String(index + 1).padStart(2, '0');
                     const isActive = activeEixo?.id === eixo.id;
                     return (
@@ -628,30 +705,42 @@ const PlanejamentoEstrategico = () => {
                 </div>
             )}
 
-            {/* Linha 2: Timeline e Entregas */}
-            <div className="pe-bottom-row">
-                
-                {/* Linha do Tempo */}
-                <div className="pe-panel pe-timeline-panel">
-                    <h3 className="pe-section-title" style={{ fontSize: '1.1rem' }}>Linha do Tempo Estratégica</h3>
-                    
-                    <div className="pe-legend">
-                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#cbd5e1' }}></div> Planejado</div>
-                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#3b82f6' }}></div> Em andamento</div>
-                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#10b981' }}></div> Concluído</div>
-                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#ef4444' }}></div> Atrasado</div>
+            {/* Linha do Tempo Estratégica Completa (2024–2028) */}
+            <div className="pe-panel pe-timeline-panel" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
+                    <div>
+                        <h3 className="pe-section-title" style={{ fontSize: '1.1rem', margin: 0 }}>Linha do Tempo Estratégica</h3>
+                        <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0 0' }}>
+                            Evolução temporal das ações ao longo do ciclo de governo (clique em um ano para inspecionar).
+                        </p>
                     </div>
 
-                    {/* Linha do tempo baseada nas ações ativas */}
-                    <div className="pe-timeline-wrapper">
-                        <div className="pe-timeline-line"></div>
-                        <div className="pe-timeline-container">
-                            {strategicTimelineRealData.map((step, idx) => (
-                                <div key={idx} className="pe-timeline-step">
-                                    <div className="pe-timeline-year">{step.year}</div>
-                                    <div className={`pe-timeline-dot ${step.active ? 'active' : ''}`}></div>
-                                    <div className="pe-timeline-content">
-                                        <div className="pe-timeline-badges" style={{ flexDirection: 'column', width: '100%', gap: '8px' }}>
+                    <div className="pe-legend" style={{ margin: 0 }}>
+                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#3b82f6' }}></div> Em andamento</div>
+                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#10b981' }}></div> Concluídas</div>
+                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#f59e0b' }}></div> Previstas p/ término</div>
+                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#94a3b8' }}></div> Não iniciadas</div>
+                    </div>
+                </div>
+
+                <div className="pe-timeline-wrapper">
+                    <div className="pe-timeline-line"></div>
+                    <div className="pe-timeline-container">
+                        {TIMELINE_YEARS.map((yr) => {
+                            const step = timelineAndYearStats[yr];
+                            const isSelected = selectedYear === yr;
+
+                            return (
+                                <div 
+                                    key={yr} 
+                                    className={`pe-timeline-step ${isSelected ? 'selected' : ''}`}
+                                    onClick={() => setSelectedYear(yr)}
+                                    title={`Clique para visualizar o detalhamento de ${yr}`}
+                                >
+                                    <div className={`pe-timeline-year ${isSelected ? 'selected-year' : ''}`}>{yr}</div>
+                                    <div className={`pe-timeline-dot ${step.active ? 'active' : ''} ${isSelected ? 'selected-dot' : ''}`}></div>
+                                    <div className={`pe-timeline-content ${isSelected ? 'selected-content' : ''}`}>
+                                        <div className="pe-timeline-badges" style={{ flexDirection: 'column', width: '100%', gap: '6px' }}>
                                             {step.badges.map((badge, bIdx) => (
                                                 <span key={bIdx} className={`pe-timeline-badge ${badge.color}`} style={{ width: '100%' }}>
                                                     {badge.text}
@@ -660,48 +749,93 @@ const PlanejamentoEstrategico = () => {
                                         </div>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
+                            );
+                        })}
                     </div>
                 </div>
+            </div>
 
-                {/* Ações em Destaque */}
-                <div className="pe-panel">
-                    <h3 className="pe-section-title" style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Ações em Destaque</h3>
+            {/* Painel Inferior: Gráfico Anual de Distribuição + Ações em Destaque */}
+            <div className="pe-bottom-grid">
+                {/* 1. Novo Gráfico Anual de Distribuição */}
+                <DistribuicaoAnualChart
+                    selectedYear={selectedYear}
+                    onSelectYear={(yr) => setSelectedYear(yr)}
+                    availableYears={TIMELINE_YEARS}
+                    metrics={selectedYearMetrics}
+                />
+
+                {/* 2. Ações em Destaque (Compromissos Prioritários) */}
+                <div className="pe-panel pe-compromissos-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                    <div style={{ marginBottom: '1rem' }}>
+                        <h3 className="pe-section-title" style={{ fontSize: '1.1rem', margin: 0 }}>Ações em Destaque</h3>
+                        <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0 0' }}>
+                            Principais iniciativas em execução prioritária no plano
+                        </p>
+                    </div>
                     
-                    {compromissosList.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Nenhuma ação cadastrada.</div>
+                    {dynamicCompromissos.length === 0 ? (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                            Nenhuma ação encontrada para os filtros aplicados.
+                        </div>
                     ) : (
-                        <div className="pe-compromissos-list-exec">
-                            {compromissosList.map(comp => {
-                                const { color: eixoColor, Icon: EixoIcon } = getEixoColorAndIcon(comp.eixoName);
-                                return (
-                                    <div key={comp.id} className="pe-compromisso-exec-item">
-                                        <div className="pe-comp-icon" style={{ background: `${eixoColor}15`, color: eixoColor }}>
-                                            <EixoIcon size={16} />
-                                        </div>
-                                        <div className="pe-comp-main">
-                                            <h4 className="pe-comp-title" title={comp.title}>{comp.title}</h4>
-                                            <p className="pe-comp-meta" title={`${comp.eixoName} • ${comp.objetivoName}`}>
-                                                <span className="pe-comp-eixo">{comp.eixoName}</span> <span className="pe-comp-dot">•</span> {comp.objetivoName}
-                                            </p>
-                                        </div>
-                                        <span className={`pe-badge pe-comp-badge ${comp.status}`}>
-                                            {formatStatusLabel(comp.status)}
-                                        </span>
-                                        <div className="pe-comp-progress-compact">
-                                            <span className="pe-comp-progress-val">{formatPercent(comp.progresso)}%</span>
-                                            <div className="pe-comp-pbar">
-                                                <div className="pe-comp-pfill" style={{ width: `${formatPercent(comp.progresso)}%`, background: getProgressColor(comp.status) }}></div>
+                        <>
+                            <div className="pe-compromissos-list-exec" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', gap: '10px' }}>
+                                {dynamicCompromissos.map(comp => {
+                                    const { color: eixoColor, Icon: EixoIcon } = getEixoColorAndIcon(comp.eixoName);
+                                    return (
+                                        <div key={comp.id} className="pe-compromisso-exec-item">
+                                            <div className="pe-comp-icon" style={{ background: `${eixoColor}15`, color: eixoColor }}>
+                                                <EixoIcon size={16} />
+                                            </div>
+                                            <div className="pe-comp-main">
+                                                <h4 className="pe-comp-title" title={comp.title}>{comp.title}</h4>
+                                                <p className="pe-comp-meta" title={`${comp.eixoName} • ${comp.objetivoName}`}>
+                                                    <span className="pe-comp-eixo">{comp.eixoName}</span> <span className="pe-comp-dot">•</span> {comp.objetivoName}
+                                                </p>
+                                            </div>
+                                            <span className={`pe-badge pe-comp-badge ${comp.status}`}>
+                                                {formatStatusLabel(comp.status)}
+                                            </span>
+                                            <div className="pe-comp-progress-compact">
+                                                <span className="pe-comp-progress-val">{formatPercent(comp.progresso)}%</span>
+                                                <div className="pe-comp-pbar">
+                                                    <div className="pe-comp-pfill" style={{ width: `${formatPercent(comp.progresso)}%`, background: getProgressColor(comp.status) }}></div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Link/Botão Discreto de Rodapé */}
+                            <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/planejamento/acoes')}
+                                    className="pe-ver-todas-btn"
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#0f766e',
+                                        fontSize: '0.82rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        padding: '4px 8px',
+                                        borderRadius: '6px',
+                                        transition: 'all 0.15s ease'
+                                    }}
+                                >
+                                    Ver todas as ações
+                                    <ChevronRight size={14} />
+                                </button>
+                            </div>
+                        </>
                     )}
                 </div>
-
             </div>
 
         </div>

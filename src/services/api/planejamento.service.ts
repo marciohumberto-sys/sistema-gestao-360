@@ -402,23 +402,27 @@ class PlanejamentoService {
             { data: axes, error: errAxes },
             { data: objectives, error: errObj },
             { data: actions, error: errActions },
-            { data: actionObjectives, error: errActionObj }
+            { data: actionObjectives, error: errActionObj },
+            { data: secretariats, error: errSecs }
         ] = await Promise.all([
             supabase.from('planning_axes').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('display_order', { ascending: true }),
             supabase.from('planning_objectives').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('display_order', { ascending: true }),
-            supabase.from('planning_actions').select('*').eq('tenant_id', tenantId).eq('module_id', MODULE_ID).not('objective_id', 'is', null),
-            supabase.from('planning_action_objectives').select('*') // Buscando vínculos de múltiplos objetivos
+            supabase.from('planning_actions').select('*').eq('tenant_id', tenantId).eq('module_id', MODULE_ID),
+            supabase.from('planning_action_objectives').select('*'), // Buscando vínculos de múltiplos objetivos
+            supabase.from('secretariats').select('*').eq('tenant_id', tenantId)
         ]);
 
         if (errAxes) { console.error('Erro axes:', errAxes); throw errAxes; }
         if (errObj) { console.error('Erro objectives:', errObj); throw errObj; }
         if (errActions) { console.error('Erro actions:', errActions); throw errActions; }
         if (errActionObj) { console.error('Erro action objectives:', errActionObj); }
+        if (errSecs) { console.error('Erro secretariats:', errSecs); }
 
         const safeAxes = axes || [];
         const safeObjectives = objectives || [];
         const safeActions = actions || [];
         const safeActionObjectives = actionObjectives || [];
+        const safeSecretariats = secretariats || [];
 
         // --- KPIs Gerais ---
         const totalObjetivos = safeObjectives.length;
@@ -531,7 +535,8 @@ class PlanejamentoService {
             kpis,
             eixos: eixosCompilados,
             compromissos: compromissosPrioritarios,
-            actions: safeActions
+            actions: safeActions,
+            secretariats: safeSecretariats
         };
     }
 }
