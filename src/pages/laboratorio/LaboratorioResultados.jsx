@@ -11,6 +11,15 @@ import { laboratorioResultadosService } from '../../services/api/laboratorioResu
 import LaboratorioGerenciarExamesModal from '../../components/laboratorio/LaboratorioGerenciarExamesModal';
 import { useAuth } from '../../context/AuthContext';
 import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue } from '../../utils/laboratorioHelpers';
+import {
+    isUriExam,
+    getUriParameterDisplayName,
+    hasPersistedUriResults,
+    applyUriInitialValues,
+    expandUriFieldValue,
+    normalizeUriFormValuesBeforeSave
+} from '../../utils/uriHelpers';
+
 
 // Códigos dos parâmetros percentuais do Leucograma (HEMO)
 const HEMO_LEUCOGRAMA_PERCENTUAL_CODES = new Set([
@@ -616,6 +625,10 @@ const LaboratorioResultados = () => {
             activeForm = applyHemoCalculations(activeForm);
         } else if (examCode === 'BIL') {
             activeForm = applyBilCalculations(activeForm);
+        } else if (isUriExam(examCode)) {
+            if (!hasPersistedUriResults(result)) {
+                activeForm = applyUriInitialValues(activeForm, result?.structuredValues || []);
+            }
         }
         
         setFormValues(activeForm);
@@ -880,7 +893,17 @@ const LaboratorioResultados = () => {
             let hasInvalidInteger = false;
             let hasInvalidPcr = false;
             const isPCRExam = String(selectedResult?.exameCodigo || '').trim().toUpperCase() === 'PCR';
-            const valuesToSave = Object.values(formValues).map(v => {
+            const isUri = isUriExam(selectedResult?.exameCodigo);
+
+            const normalizedFormValues = isUri
+                ? normalizeUriFormValuesBeforeSave(formValues, selectedResult?.structuredValues || [])
+                : formValues;
+
+            if (isUri) {
+                setFormValues(normalizedFormValues);
+            }
+
+            const valuesToSave = Object.values(normalizedFormValues).map(v => {
                 let vToSend = { ...v, _isPCRExam: isPCRExam };
                 if (isPCRExam) {
                     const rawVal = vToSend.value_text || '';
@@ -990,6 +1013,8 @@ const LaboratorioResultados = () => {
             const OPCIONAIS_HEMO = ['OBS_ERITROGRAMA', 'SERIE_ERITROCITARIA', 'SERIE_LEUCOCITARIA', 'SERIE_PLAQUETARIA', 'OBS_GERAL'];
             
             const missingRequiredParameters = valuesToSave.filter(v => {
+                if (isUri) return false;
+
                 const code = String(v.parameter_code || v.code || '').toUpperCase();
                 
                 if (OPCIONAIS_HEMO.includes(code)) return false;
@@ -1092,6 +1117,21 @@ const LaboratorioResultados = () => {
         if (event.key !== 'Enter') return;
         if (saving) return;
         event.preventDefault();
+
+        const isUri = isUriExam(selectedResult?.exameCodigo);
+        if (isUri && selectedResult?.structuredValues) {
+            const param = selectedResult.structuredValues[index];
+            if (param) {
+                const paramId = param.id || param.parameter_id;
+                const currentVal = formValues[paramId]?.value_text;
+                if (typeof currentVal === 'string' && currentVal.trim() !== '') {
+                    const expanded = expandUriFieldValue(param, currentVal);
+                    if (expanded !== currentVal) {
+                        handleValueChange(paramId, 'value_text', expanded);
+                    }
+                }
+            }
+        }
         
         let nextInputIndex = index + 1;
         while (nextInputIndex < inputRefs.current.length) {
@@ -1605,6 +1645,7 @@ const LaboratorioResultados = () => {
                                     let patientSexGroup = pSex.startsWith('M') ? 'MALE' : pSex.startsWith('F') ? 'FEMALE' : 'UNKNOWN';
                                     const isHemo = String(selectedResult?.exameCodigo || '').toUpperCase() === 'HEMO';
                                     const isBil = String(selectedResult?.exameCodigo || '').toUpperCase() === 'BIL';
+                                    const isUri = isUriExam(selectedResult?.exameCodigo);
                                     const obsCodes = new Set(['OBSERVACOES_ERITROGRAMA', 'OBS_ERITROGRAMA', 'SERIE_ERITROCITARIA', 'S_ERITROCITARIA', 'SERIE_LEUCOCITARIA', 'S_LEUCOCITARIA', 'SERIE_PLAQUETARIA', 'S_PLAQUETARIA']);
 
                                     return (selectedResult.structuredValues || []).map((param, index) => {
@@ -1719,9 +1760,14 @@ const LaboratorioResultados = () => {
                                                 <div className="lab-typing-parameter-block" style={{ marginBottom: renderContainerPadding, paddingBottom: renderContainerPadding, borderBottom: '1px solid #f1f5f9' }}>
                                                     <div className="lab-typing-result-row" style={{ alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', display: 'flex' }}>
                                                         <div className="lab-typing-input-group" style={{ flex: isCompactRef ? '0 0 58%' : 1, minWidth: isCompactRef ? '300px' : '300px', display: 'flex', alignItems: isPCRExam ? 'flex-start' : 'center', gap: '0.75rem' }}>
-                                                            <label style={{ color: isMissing ? '#ef4444' : undefined, flex: isCompactRef ? '0 0 35%' : 'none', minWidth: isCompactRef ? '120px' : undefined, margin: 0, fontSize: isCompactRef ? '0.9rem' : undefined, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: isPCRExam ? 'none' : undefined }} title={param.name || 'Parâmetro'}>
-                                                                {param.name || 'Parâmetro'}
-                                                            </label>
+                                                            {(() => {
+                                                                const displayName = isUri ? getUriParameterDisplayName(param) : (param.name || 'Parâmetro');
+                                                                return (
+                                                                    <label style={{ color: isMissing ? '#ef4444' : undefined, flex: isCompactRef ? '0 0 35%' : 'none', minWidth: isCompactRef ? '120px' : undefined, margin: 0, fontSize: isCompactRef ? '0.9rem' : undefined, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: isPCRExam ? 'none' : undefined }} title={displayName}>
+                                                                        {displayName}
+                                                                    </label>
+                                                                );
+                                                            })()}
                                                             <div className="lab-input-wrapper" style={{ display: 'flex', alignItems: 'stretch', flex: 1 }}>
                                                                 {isPCRExam ? (() => {
                                                                     let pcrDil = '';
@@ -1827,6 +1873,17 @@ const LaboratorioResultados = () => {
                                                                                 }
                                                                             }
                                                                             handleValueChange(param.id, isNumeric ? 'value_numeric' : 'value_text', val);
+                                                                        }}
+                                                                        onBlur={() => {
+                                                                            if (isUri) {
+                                                                                const currentVal = formState.value_text;
+                                                                                if (typeof currentVal === 'string' && currentVal.trim() !== '') {
+                                                                                    const expanded = expandUriFieldValue(param, currentVal);
+                                                                                    if (expanded !== currentVal) {
+                                                                                        handleValueChange(param.id, 'value_text', expanded);
+                                                                                    }
+                                                                                }
+                                                                            }
                                                                         }}
                                                                         disabled={isReadOnly || saving}
                                                                         readOnly={isCalculatedIndex}
