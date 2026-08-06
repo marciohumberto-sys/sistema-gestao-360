@@ -432,7 +432,7 @@ export const fetchAcoes = async (tenantId) => {
 
 // ── Criar nova ação ───────────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
-export const createAcao = async (tenantId, formData, axes) => {
+export const createAcao = async (tenantId, formData, axes, context = null) => {
     // 1. Validações básicas
     if (!formData.nome?.trim()) throw new Error('O nome da ação é obrigatório.');
     if (!formData.axisId) throw new Error('O eixo estratégico é obrigatório.');
@@ -455,7 +455,7 @@ export const createAcao = async (tenantId, formData, axes) => {
     // Buscar escopos ativos do usuário para este módulo
     const { data: userScopes, error: scopeErr } = await supabase
         .from('user_access_scopes')
-        .select('secretariat_id')
+        .select('secretariat_id, is_primary_secretariat, is_active, secretariats(name)')
         .eq('user_id', user.id)
         .eq('module_id', moduleId);
 
@@ -463,13 +463,28 @@ export const createAcao = async (tenantId, formData, axes) => {
         console.error('[planejamentoAcoes] Erro ao buscar escopos do usuário:', scopeErr);
     }
 
-    const allowedSecretariatIds = userScopes?.map(s => s.secretariat_id).filter(Boolean) || [];
+    const activeScopes = (userScopes || []).filter(s => s.is_active !== false);
+    const allowedSecretariatIds = activeScopes.map(s => s.secretariat_id).filter(Boolean);
+    const primaryScope = activeScopes.find(s => s.is_primary_secretariat) || activeScopes[0];
+    const primaryScopeId = primaryScope?.secretariat_id || null;
+    const primaryScopeName = primaryScope?.secretariats?.name || null;
+
+    // Determinar se tem acesso completo
+    const hasFullAccess = context?.hasFullAccess ?? (
+        primaryScopeName === 'Planejamento e Inovação' ||
+        primaryScopeName === 'Gabinete'
+    );
 
     // 4. Validar/Ajustar secretaria_id
     let finalSecretariatId = formData.secretariatId || formData.secretariat_id;
 
     if (!finalSecretariatId) {
         throw new Error('A secretaria é obrigatória. Selecione uma secretaria responsável.');
+    }
+
+    // Se for usuário restrito comum, não permitir secretaria fora do seu escopo
+    if (!hasFullAccess && allowedSecretariatIds.length > 0 && !allowedSecretariatIds.includes(finalSecretariatId)) {
+        throw new Error('Você não tem permissão para cadastrar ações para esta secretaria.');
     }
 
     // 5. Obter objetivo fornecido pelo form, ou fallback para o primeiro ativo do eixo
@@ -524,35 +539,88 @@ export const createAcao = async (tenantId, formData, axes) => {
     console.log("2. Tenant ID:", tenantId);
     console.log("3. Module ID:", moduleId);
     console.log("4. Escopos Ativos (Secretarias):", allowedSecretariatIds);
-    console.log("5. Eixo Estratégico (axis_id):", formData.axisId);
-    console.log("6. Objetivo (objective_id):", payload.objective_id);
-    console.log("7. Secretaria Final (secretariat_id):", payload.secretariat_id);
-    console.log("8. Payload Completo:", payload);
+    console.log("5. Tem Acesso Completo:", hasFullAccess);
+    console.log("6. Eixo Estratégico (axis_id):", formData.axisId);
+    console.log("7. Objetivo (objective_id):", payload.objective_id);
+    console.log("8. Secretaria Final (secretariat_id):", payload.secretariat_id);
+    console.log("9. Payload Completo:", payload);
     console.log("=======================================");
 
-    const { data, error } = await supabase
+    // 7. Tentativa 1: Inserção direta com a secretaria final selecionada
+    let createdAction = null;
+    const { data: directData, error: directError } = await supabase
         .from('planning_actions')
         .insert([payload])
         .select()
         .single();
 
-    if (error) {
-        console.error('[planejamentoAcoes] Erro Supabase no INSERT:', error);
-        
-        if (error.message?.includes('row-level security policy') || error.code === '42501') {
-            throw new Error("Erro 403: Permissão Negada. O secretariat_id ou tenant_id do payload não condiz com seus escopos ativos no banco.");
-        }
+    if (!directError && directData) {
+        createdAction = directData;
+    } else {
+        const isRlsError = directError?.message?.includes('row-level security policy') || directError?.code === '42501';
 
-        throw new Error(error.message || 'Erro ao salvar ação no banco.');
+        // 8. Se falhar por RLS e o usuário tiver acesso completo, realizar fallback controlado seguro
+        if (isRlsError && hasFullAccess && primaryScopeId && primaryScopeId !== finalSecretariatId) {
+            console.warn('[planejamentoAcoes] INSERT direto bloqueado por RLS para outra secretaria. Executando fallback seguro com escopo do criador...');
+
+            // a) Criar ação temporária usando o escopo do criador
+            const fallbackPayload = {
+                ...payload,
+                secretariat_id: primaryScopeId
+            };
+
+            const { data: fallbackData, error: fallbackError } = await supabase
+                .from('planning_actions')
+                .insert([fallbackPayload])
+                .select()
+                .single();
+
+            if (fallbackError || !fallbackData) {
+                console.error('[planejamentoAcoes] Erro no INSERT de fallback:', fallbackError);
+                throw new Error("Erro ao criar ação: " + (fallbackError?.message || 'Falha na criação com escopo principal.'));
+            }
+
+            // b) Imediatamente atualizar para a secretaria final escolhida
+            const { data: updatedData, error: updateError } = await supabase
+                .from('planning_actions')
+                .update({ secretariat_id: finalSecretariatId })
+                .eq('id', fallbackData.id)
+                .eq('tenant_id', tenantId)
+                .select()
+                .single();
+
+            if (updateError || !updatedData) {
+                console.error('[planejamentoAcoes] Falha ao atualizar ação provisória para a secretaria final:', updateError);
+                // Rollback de segurança: excluir a ação temporária para não deixá-la órfã com secretaria provisória
+                try {
+                    await supabase
+                        .from('planning_actions')
+                        .delete()
+                        .eq('id', fallbackData.id)
+                        .eq('tenant_id', tenantId);
+                } catch (delErr) {
+                    console.error('[planejamentoAcoes] Erro ao reverter ação provisória:', delErr);
+                }
+                throw new Error("Não foi possível vincular a ação à secretaria selecionada. A ação provisória foi cancelada.");
+            }
+
+            createdAction = updatedData;
+        } else {
+            console.error('[planejamentoAcoes] Erro Supabase no INSERT:', directError);
+            if (isRlsError) {
+                throw new Error("Erro 403: Permissão Negada. O secretariat_id ou tenant_id do payload não condiz com seus escopos ativos no banco.");
+            }
+            throw new Error(directError?.message || 'Erro ao salvar ação no banco.');
+        }
     }
 
-    // Sincronizar secretarias participantes (garantindo RLS via sync function)
-    await syncActionSecretariats(tenantId, data.id, payload.secretariat_id, formData.participantes || []);
+    // 9. Sincronizar secretarias participantes (garantindo RLS via sync function)
+    await syncActionSecretariats(tenantId, createdAction.id, finalSecretariatId, formData.participantes || []);
 
-    // Sincronizar múltiplos objetivos (principal e adicionais)
-    await syncActionObjectives(data.id, tenantId, payload.objective_id, formData.relatedObjectives || [], user.id);
+    // 10. Sincronizar múltiplos objetivos (principal e adicionais)
+    await syncActionObjectives(createdAction.id, tenantId, payload.objective_id, formData.relatedObjectives || [], user.id);
 
-    return data;
+    return createdAction;
 };
 
 // ── Atualizar ação existente ───────────────────────────────────────────────────

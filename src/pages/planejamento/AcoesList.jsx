@@ -574,13 +574,18 @@ const AcoesList = () => {
             }).catch(console.warn);
         } else {
             setEditingAcao(null);
-            const firstSec = secretariats[0];
+            const defaultSecId = (contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats)
+                ? (contextoPlanejamento.primarySecretariatId || '')
+                : '';
+            const defaultSecName = defaultSecId
+                ? (secretariats.find(s => s.id === defaultSecId)?.name || contextoPlanejamento.primarySecretariatName || '')
+                : '';
             setFormData({
                 ...emptyForm,
                 axisId: '',
                 eixo: '',
-                secretariatId: firstSec?.id || '',
-                secretaria: firstSec?.name || '',
+                secretariatId: defaultSecId,
+                secretaria: defaultSecName,
                 progresso: 0
             });
         }
@@ -881,6 +886,21 @@ const AcoesList = () => {
         if (contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats && contextoPlanejamento.primarySecretariatId) {
             finalData.secretariatId = contextoPlanejamento.primarySecretariatId;
         }
+
+        if (!finalData.secretariatId) {
+            setSaveError('A secretaria responsável é obrigatória. Selecione uma secretaria.');
+            return;
+        }
+
+        if (contextoPlanejamento.hasRestrictedAccess && contextoPlanejamento.hasMultipleRestrictedSecretariats && !(contextoPlanejamento.allowedSecretariatIds || []).includes(finalData.secretariatId)) {
+            setSaveError('Secretaria selecionada não permitida para o seu perfil.');
+            return;
+        }
+
+        if (finalData.data_inicio && finalData.prazo && finalData.prazo < finalData.data_inicio) {
+            setSaveError('A data de término não pode ser anterior à data de início.');
+            return;
+        }
         if (finalData.action_type === 'ACAO_PONTUAL') {
             if (!finalData.custom_stages || finalData.custom_stages.length < 2) {
                 setSaveError('Selecione a quantidade de etapas e configure-as.');
@@ -928,7 +948,7 @@ const AcoesList = () => {
                         .catch(err => console.warn('[AcoesList] Histórico não registrado:', err));
                 }
             } else {
-                await createAcao(tenantId, finalData, axes);
+                await createAcao(tenantId, finalData, axes, contextoPlanejamento);
                 setToast('Ação criada com sucesso.');
             }
             closeModal();
@@ -2745,8 +2765,8 @@ const AcoesList = () => {
                                             <input type="date" className="farmacia-form-input" value={formData.data_inicio} onChange={e => setFormData({ ...formData, data_inicio: e.target.value })} required={!editingAcao} />
                                         </div>
                                         <div className="farmacia-form-group">
-                                            <label className="farmacia-form-label">Data Término {!editingAcao && <span style={{color: '#ef4444'}}>*</span>}</label>
-                                            <input type="date" className="farmacia-form-input" value={formData.prazo} onChange={e => setFormData({ ...formData, prazo: e.target.value })} required={!editingAcao} />
+                                            <label className="farmacia-form-label">Data Término</label>
+                                            <input type="date" className="farmacia-form-input" value={formData.prazo} onChange={e => setFormData({ ...formData, prazo: e.target.value })} />
                                         </div>
                                     </div>
                                 </div>
