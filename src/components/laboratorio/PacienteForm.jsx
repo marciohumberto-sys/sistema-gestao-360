@@ -130,6 +130,52 @@ const hasRealString = (val) => val && val.trim().length > 0;
 const hasCustomCity = (val) => val && val.trim().toUpperCase() !== 'BEZERROS' && val.trim().length > 0;
 const hasCustomState = (val) => val && val.trim().toUpperCase() !== 'PE' && val.trim().length > 0;
 
+const calculateAge = (birthDateStr) => {
+    if (!birthDateStr || typeof birthDateStr !== 'string') return '';
+    const match = birthDateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return '';
+    
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const day = parseInt(match[3], 10);
+    
+    if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) return '';
+    
+    // Validar se a data civil realmente existe
+    const testDate = new Date(year, month - 1, day);
+    if (
+        testDate.getFullYear() !== year || 
+        testDate.getMonth() !== month - 1 || 
+        testDate.getDate() !== day
+    ) {
+        return '';
+    }
+    
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+    
+    // Rejeitar data futura
+    if (
+        year > currentYear || 
+        (year === currentYear && month > currentMonth) || 
+        (year === currentYear && month === currentMonth && day > currentDay)
+    ) {
+        return '';
+    }
+    
+    let age = currentYear - year;
+    if (currentMonth < month || (currentMonth === month && currentDay < day)) {
+        age--;
+    }
+    
+    if (age < 0) return '';
+    if (age === 0) return '0 anos';
+    if (age === 1) return '1 ano';
+    return `${age} anos`;
+};
+
 const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = false, patientRefs = {} }) => {
     const [predictedCode, setPredictedCode] = React.useState('');
     const [activeTab, setActiveTab] = React.useState(null);
@@ -180,6 +226,8 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = fal
         pointerEvents: readOnly ? 'none' : 'auto' 
     };
 
+    const ageText = calculateAge(formData.birth_date);
+
     const renderTab = (id, title, hasData) => {
         const isActive = activeTab === id;
         return (
@@ -227,7 +275,8 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = fal
             
             {/* IDENTIFICAÇÃO (Sempre visível) */}
             <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', background: '#fff', padding: '0.75rem 1rem' }}>
-                <div className="lab-pac-form-grid lab-identificacao-grid" style={{ gap: '1rem' }}>
+                <div className="lab-pac-form-grid lab-identificacao-grid" style={{ gap: '0.75rem' }}>
+                    {/* 1. CÓDIGO DO PACIENTE */}
                     <div className="lab-pac-form-group">
                         <label className="lab-pac-form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', whiteSpace: 'nowrap' }}>
                             <span>{formData.code ? 'CÓDIGO DO PACIENTE' : 'COD. PACIENTE'}</span>
@@ -245,16 +294,15 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = fal
                             style={!formData.code ? { background: '#f8fafc', color: '#64748b' } : { fontWeight: 'bold' }}
                         />
                     </div>
-                    <div className="lab-pac-form-group" style={{ gridColumn: 'span 2' }}>
+
+                    {/* 2. NOME COMPLETO */}
+                    <div className="lab-pac-form-group">
                         <label className="lab-pac-form-label">Nome completo *</label>
                         <input type="text" name="full_name" className="lab-pac-form-input" placeholder="Ex: Maria da Silva" value={formData.full_name} onChange={onChange} autoFocus={!readOnly} disabled={isSaving} readOnly={readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
                         {formErrors?.full_name && <span className="lab-pac-form-error">{formErrors.full_name}</span>}
                     </div>
-                    <div className="lab-pac-form-group">
-                        <label className="lab-pac-form-label">Data de nascimento *</label>
-                        <input type="date" name="birth_date" className="lab-pac-form-input" value={formData.birth_date} onChange={onChange} max={new Date().toISOString().split('T')[0]} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
-                        {formErrors?.birth_date && <span className="lab-pac-form-error">{formErrors.birth_date}</span>}
-                    </div>
+
+                    {/* 3. SEXO */}
                     <div className="lab-pac-form-group">
                         <label className="lab-pac-form-label">Sexo *</label>
                         <select name="sex" className="lab-pac-form-select" value={formData.sex} onChange={onChange} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}}>
@@ -263,6 +311,37 @@ const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = fal
                             <option value="MASCULINO">Masculino</option>
                         </select>
                         {formErrors?.sex && <span className="lab-pac-form-error">{formErrors.sex}</span>}
+                    </div>
+
+                    {/* 4. DATA DE NASCIMENTO */}
+                    <div className="lab-pac-form-group">
+                        <label className="lab-pac-form-label">Data de nascimento *</label>
+                        <input type="date" name="birth_date" className="lab-pac-form-input" value={formData.birth_date} onChange={onChange} max={new Date().toISOString().split('T')[0]} disabled={isSaving || readOnly} tabIndex={readOnly ? -1 : 0} style={readOnly ? readOnlyStyle : {}} />
+                        {formErrors?.birth_date && <span className="lab-pac-form-error">{formErrors.birth_date}</span>}
+                    </div>
+
+                    {/* 5. IDADE (INFORMATIVA - BOX PERMANENTE) */}
+                    <div className="lab-pac-form-group lab-pac-form-group-age">
+                        <label className="lab-pac-form-label">Idade</label>
+                        <div 
+                            className="lab-pac-age-info" 
+                            style={{
+                                height: '38px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: '#f1f5f9',
+                                borderRadius: '6px',
+                                color: '#334155',
+                                fontWeight: 600,
+                                fontSize: '0.85rem',
+                                whiteSpace: 'nowrap',
+                                padding: '0 0.5rem',
+                                userSelect: 'none'
+                            }}
+                        >
+                            {ageText}
+                        </div>
                     </div>
                 </div>
             </div>

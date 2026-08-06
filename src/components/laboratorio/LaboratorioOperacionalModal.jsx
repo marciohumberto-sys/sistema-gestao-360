@@ -787,12 +787,16 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                     let nextEl = null;
                     
                     if (elName === 'full_name') {
-                        nextEl = document.getElementsByName('birth_date')[0];
-                    } else if (elName === 'birth_date') {
                         nextEl = document.getElementsByName('sex')[0];
                     } else if (elName === 'sex') {
                         if (!patientData.sex) {
                             setFeedback({ type: 'error', text: 'Informe o sexo.' });
+                            return;
+                        }
+                        nextEl = document.getElementsByName('birth_date')[0];
+                    } else if (elName === 'birth_date') {
+                        if (!patientData.birth_date) {
+                            setFeedback({ type: 'error', text: 'Informe a data de nascimento.' });
                             return;
                         }
                         if (btnDocumentosRef.current && !cpfRef.current) {

@@ -563,12 +563,10 @@
         overflow-y: visible !important;
     }
     
-    /* Identificação em uma única linha */
+    /* Identificação em uma única linha com 5 colunas */
     .lab-identificacao-grid {
-        grid-template-columns: minmax(160px, 0.9fr) minmax(280px, 1.8fr) minmax(180px, 1fr) minmax(180px, 1fr) !important;
-    }
-    .lab-identificacao-grid > div:nth-child(2) {
-        grid-column: span 1 !important;
+        grid-template-columns: minmax(130px, 0.75fr) minmax(260px, 2fr) minmax(130px, 0.85fr) minmax(160px, 1fr) minmax(85px, 0.5fr) !important;
+        gap: 0.75rem !important;
     }
     
     /* Reduz espaçamentos gerais no topo e base do corpo do modal */

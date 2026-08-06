@@ -533,6 +533,13 @@
     grid-template-columns: 1fr;
 }
 
+.lab-identificacao-grid {
+    display: grid !important;
+    grid-template-columns: minmax(130px, 0.75fr) minmax(260px, 2fr) minmax(130px, 0.85fr) minmax(160px, 1fr) minmax(85px, 0.5fr) !important;
+    gap: 0.75rem !important;
+    align-items: start !important;
+}
+
 @media (max-width: 900px) {
     .lab-pac-form-grid {
         grid-template-columns: repeat(2, 1fr);
