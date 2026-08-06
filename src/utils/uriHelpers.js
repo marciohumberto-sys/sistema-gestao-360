@@ -205,6 +205,20 @@ export function getUriParameterDisplayName(param) {
     return param.name || param.parameter_name || 'Parâmetro';
 }
 
+const URI_SECTION_START_HEADERS = {
+    [URI_PARAM_CANONICAL_KEYS.VOLUME]: 'EXAME FÍSICO',
+    [URI_PARAM_CANONICAL_KEYS.PROTEINAS]: 'EXAME QUÍMICO',
+    [URI_PARAM_CANONICAL_KEYS.CELULAS_EPITELIAIS]: 'SEDIMENTOSCOPIA'
+};
+
+/**
+ * Retorna o título da seção para o início de bloco no exame URI (função pura).
+ */
+export function getUriSectionHeader(param) {
+    const parameterKey = getUriParameterKey(param);
+    return (parameterKey && URI_SECTION_START_HEADERS[parameterKey]) || null;
+}
+
 /**
  * Verifica se um resultado de exame URI possui ao menos um valor efetivamente persistido/digitado.
  */

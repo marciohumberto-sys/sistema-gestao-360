@@ -14,6 +14,7 @@ import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, normalizeLabNumericInput, i
 import {
     isUriExam,
     getUriParameterDisplayName,
+    getUriSectionHeader,
     hasPersistedUriResults,
     applyUriInitialValues,
     expandUriFieldValue,
@@ -256,6 +257,10 @@ const LaboratorioResultados = () => {
     const attendanceExams = resultados;
     const currentExamIndex = attendanceExams.findIndex(exam => exam.id === selectedExamId);
     const selectedResult = resultados.find(r => r.id === selectedExamId) || {};
+    const selectedExamCode = String(selectedResult.exameCodigo || '').trim().toUpperCase();
+    const isHemo = selectedExamCode === 'HEMO';
+    const isUri = isUriExam(selectedExamCode);
+    const isCompactExam = Boolean(selectedResult.id) && !isHemo;
     const statusSelectedResult = String(selectedResult.status || '').toUpperCase();
     const normalizedStatus = String(selectedResult.status || '').trim().toUpperCase();
     const isPendente = normalizedStatus === 'PENDENTE';
@@ -1571,7 +1576,7 @@ const LaboratorioResultados = () => {
                 <div className="lab-res-main">
                     {/* Painel de Digitação */}
                     {selectedResult.id && (
-                        <div className="lab-card lab-typing-card" style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}>
+                        <div className={`lab-card lab-typing-card ${isCompactExam ? 'resultados-exame--compacto' : ''} ${isUri ? 'resultados-exame--uri' : ''}`} style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}>
                             <div className="lab-typing-header">
                                 <div className="lab-typing-title">
                                     <h2>{selectedResult.exameCodigo} — {selectedResult.exameNome}</h2>
@@ -1711,6 +1716,8 @@ const LaboratorioResultados = () => {
                                             else if (code === 'LEUCOCITOS') sectionHeader = 'LEUCOGRAMA';
                                             else if (code === 'PLAQUETAS') sectionHeader = 'SÉRIE PLAQUETÁRIA';
                                             else if (code === 'SERIE_ERITROCITARIA' || code === 'S_ERITROCITARIA') sectionHeader = 'OBSERVAÇÕES MORFOLÓGICAS';
+                                        } else if (isUri) {
+                                            sectionHeader = getUriSectionHeader(param);
                                         }
 
                                         const renderContainerPadding = isCompactRef || isObservation ? '0.25rem' : '0.75rem';
@@ -1752,8 +1759,19 @@ const LaboratorioResultados = () => {
                                         return (
                                             <React.Fragment key={param.id}>
                                                 {sectionHeader && (
-                                                    <div style={{ marginTop: '1.25rem', marginBottom: '0.5rem', paddingBottom: '0.25rem', borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase' }}>
-                                                        {sectionHeader}
+                                                    <div 
+                                                        className={isUri ? "lab-uri-section-header" : "lab-section-header"} 
+                                                        style={!isUri ? { marginTop: '1.25rem', marginBottom: '0.5rem', paddingBottom: '0.25rem', borderBottom: '2px solid #e2e8f0', color: '#64748b', fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase' } : undefined}
+                                                    >
+                                                        {isUri ? (
+                                                            <div className="lab-uri-section-grid">
+                                                                <span className="lab-uri-section-title">{sectionHeader}</span>
+                                                                <span className="lab-uri-column-title">RESULTADO</span>
+                                                                <span className="lab-uri-column-title">VALOR DE REFERÊNCIA</span>
+                                                            </div>
+                                                        ) : (
+                                                            sectionHeader
+                                                        )}
                                                     </div>
                                                 )}
                                                 {leucoIndicator}

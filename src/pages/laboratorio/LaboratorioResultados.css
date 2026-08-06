@@ -650,3 +650,231 @@
     outline-offset: 1px;
 }
 
+/* ==========================================================================
+   COMPACTAÇÃO VISUAL DA DIGITAÇÃO DE RESULTADOS (EXCETO HEMO)
+   Escopado estritamente por .resultados-exame--compacto
+   ========================================================================== */
+
+.resultados-exame--compacto.lab-typing-card {
+    padding: 0.75rem 1rem !important;
+}
+
+.resultados-exame--compacto .lab-typing-header {
+    padding-bottom: 0.4rem !important;
+    margin-bottom: 0.5rem !important;
+}
+
+.resultados-exame--compacto .lab-typing-title h2 {
+    font-size: 1.25rem !important;
+    margin: 0 0 0.25rem 0 !important;
+}
+
+.resultados-exame--compacto .lab-typing-badges .lab-badge {
+    font-size: 0.75rem !important;
+    padding: 0.15rem 0.5rem !important;
+}
+
+.resultados-exame--compacto .lab-typing-body {
+    gap: 0.35rem !important;
+    margin-bottom: 0.5rem !important;
+}
+
+.resultados-exame--compacto .lab-typing-parameter-block {
+    margin-bottom: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+}
+
+.resultados-exame--compacto .lab-typing-result-row {
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+}
+
+.resultados-exame--compacto .lab-typing-input-group {
+    align-items: flex-start !important;
+}
+
+.resultados-exame--compacto .lab-typing-input-group label {
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    line-height: 1.25 !important;
+    color: #334155;
+    margin: 0 !important;
+    padding-top: 8px !important;
+    white-space: normal !important;
+    word-break: break-word;
+}
+
+.resultados-exame--compacto .lab-input-field {
+    height: 38px !important;
+    padding: 0.35rem 0.65rem !important;
+    font-size: 0.95rem !important;
+    border-radius: 6px !important;
+}
+
+.resultados-exame--compacto textarea.lab-input-field {
+    height: auto !important;
+    min-height: 55px !important;
+    padding: 0.4rem 0.6rem !important;
+    font-size: 0.9rem !important;
+}
+
+.resultados-exame--compacto .lab-typing-ref-box {
+    padding: 0.35rem 0.6rem !important;
+    border-radius: 6px !important;
+    min-width: 220px;
+    flex: 1;
+}
+
+.resultados-exame--compacto .lab-typing-ref-box .lab-ref-label {
+    font-size: 0.68rem !important;
+    margin-bottom: 0.15rem !important;
+    color: #64748b;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.resultados-exame--compacto .lab-typing-ref-box .lab-ref-value {
+    font-size: 0.8rem !important;
+    line-height: 1.3 !important;
+    color: #334155;
+    font-weight: 400;
+    white-space: pre-wrap !important;
+}
+
+.resultados-exame--compacto .pcr-field input {
+    height: 38px !important;
+    font-size: 0.95rem !important;
+    padding: 0.35rem 0.65rem !important;
+    border-radius: 6px !important;
+}
+
+.resultados-exame--compacto .pcr-result-input-group input {
+    border-radius: 6px 0 0 6px !important;
+}
+
+.resultados-exame--compacto .pcr-unit {
+    font-size: 0.82rem !important;
+    padding: 0 0.6rem !important;
+    border-radius: 0 6px 6px 0 !important;
+}
+
+.resultados-exame--compacto .pcr-field label {
+    font-size: 0.7rem !important;
+    margin: 0 !important;
+}
+
+.resultados-exame--compacto .lab-typing-text-row {
+    margin-top: 0.35rem !important;
+}
+
+.resultados-exame--compacto .lab-text-group label {
+    font-size: 0.78rem !important;
+    margin-bottom: 0.2rem !important;
+    color: #475569;
+    font-weight: 600;
+}
+
+.resultados-exame--compacto .lab-text-group textarea {
+    height: 60px !important;
+    min-height: 60px !important;
+    padding: 0.4rem 0.6rem !important;
+    font-size: 0.85rem !important;
+    border-radius: 6px !important;
+}
+
+.resultados-exame--compacto .lab-typing-footer {
+    padding-top: 0.5rem !important;
+}
+
+/* ==========================================================================
+   ESTILOS EXCLUSIVOS DO EXAME URI (URINA TIPO I / SUMÁRIO DE URINA)
+   ========================================================================== */
+
+.resultados-exame--uri .lab-uri-section-header {
+    margin-top: 0.85rem !important;
+    margin-bottom: 0.35rem !important;
+    padding-bottom: 0.3rem !important;
+    border-bottom: 1.5px solid #e2e8f0 !important;
+}
+
+.resultados-exame--uri .lab-uri-section-grid {
+    display: grid !important;
+    grid-template-columns: minmax(185px, 205px) minmax(220px, 0.85fr) minmax(260px, 1.15fr) !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+}
+
+.resultados-exame--uri .lab-uri-section-title {
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    color: #1e293b !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+}
+
+.resultados-exame--uri .lab-uri-column-title {
+    font-size: 0.68rem !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+}
+
+.resultados-exame--uri .lab-typing-result-row {
+    display: grid !important;
+    grid-template-columns: minmax(185px, 205px) minmax(220px, 0.85fr) minmax(260px, 1.15fr) !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+}
+
+.resultados-exame--uri .lab-typing-input-group {
+    display: contents !important;
+}
+
+.resultados-exame--uri .lab-typing-input-group label {
+    grid-column: 1 !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    color: #1e293b !important;
+    margin: 0 !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+}
+
+.resultados-exame--uri .lab-typing-input-group .lab-input-wrapper {
+    grid-column: 2 !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+
+.resultados-exame--uri .lab-typing-input-group .lab-input-wrapper input {
+    height: 38px !important;
+    font-size: 0.95rem !important;
+    padding: 0.35rem 0.65rem !important;
+    border-radius: 6px !important;
+    width: 100% !important;
+}
+
+.resultados-exame--uri .lab-typing-ref-box {
+    grid-column: 3 !important;
+    margin: 0 !important;
+    padding: 0.35rem 0.6rem !important;
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 6px !important;
+}
+
+.resultados-exame--uri .lab-typing-ref-box .lab-ref-label {
+    display: none !important;
+}
+
+.resultados-exame--uri .lab-typing-ref-box .lab-ref-value {
+    font-size: 0.8rem !important;
+    color: #475569 !important;
+    line-height: 1.35 !important;
+    white-space: pre-wrap !important;
+}
+
+
+
