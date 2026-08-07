@@ -89,14 +89,54 @@ const normalizeString = (str) => {
 };
 const calculateAge = (birthDateStr) => {
     if (!birthDateStr) return '';
+    const dateStr = String(birthDateStr).slice(0, 10);
+    const parts = dateStr.split('-');
+    if (parts.length < 3) return '';
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return '';
+
     const today = new Date();
-    const birthDate = new Date(birthDateStr);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const m = today.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+
+    if (
+        year > currentYear ||
+        (year === currentYear && month > currentMonth) ||
+        (year === currentYear && month === currentMonth && day > currentDay)
+    ) {
+        return '';
     }
-    return `${age} anos`;
+
+    let years = currentYear - year;
+    let months = currentMonth - month;
+    let days = currentDay - day;
+
+    if (days < 0) {
+        months--;
+    }
+
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+
+    if (years < 0) return '';
+
+    if (years >= 1) {
+        return years === 1 ? '1 ano' : `${years} anos`;
+    }
+
+    if (months <= 0) {
+        return '0 meses';
+    }
+    if (months === 1) {
+        return '1 mês';
+    }
+    return `${months} meses`;
 };
 
 const formatCpf = (cpf) => {
@@ -1255,7 +1295,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                 </div>
 
                                 {/* BARRA LATERAL - SUMÁRIO */}
-                                <div className="lab-card lab-summary-card" style={{ position: 'sticky', top: '2rem' }}>
+                                <div className="lab-card lab-summary-card" style={{ position: 'sticky', top: '0.75rem' }}>
                                     <div className="lab-card-header">
                                         <h3 className="lab-card-title"><Activity size={18} /> Resumo</h3>
                                     </div>
@@ -1275,26 +1315,32 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="lab-summary-actions" style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <div className="lab-summary-actions" style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                         <button 
-                                            className="lab-btn lab-btn-success lab-btn-block" 
+                                            className="lab-btn lab-btn-success lab-btn-block lab-btn-salvar-tudo" 
                                             onClick={prepararSalvamento} 
                                             disabled={isSaving || isEditingPatientCadastro} 
                                             style={{ 
-                                                padding: '0.85rem', 
+                                                minHeight: '44px',
+                                                padding: '0.35rem 0.75rem', 
                                                 display: 'flex', 
                                                 flexDirection: 'column', 
                                                 alignItems: 'center', 
-                                                gap: '0.1rem',
+                                                justifyContent: 'center',
+                                                gap: '2px',
                                                 opacity: isEditingPatientCadastro ? 0.5 : 1
                                             }}
                                             title={isEditingPatientCadastro ? "Salve ou cancele a edição do paciente primeiro" : ""}
                                         >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                                {isSaving ? <Loader2 size={18} className="spin" /> : <Save size={18} />} 
-                                                {isSaving ? 'Salvando...' : 'Salvar Tudo'}
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', lineHeight: 1.2 }}>
+                                                {isSaving ? <Loader2 size={16} className="spin" /> : <Save size={16} />} 
+                                                <span style={{ fontSize: '0.9rem', fontWeight: 600, lineHeight: 1.2 }}>{isSaving ? 'Salvando...' : 'Salvar Tudo'}</span>
                                             </div>
-                                            {!isSaving && <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 400 }}>Ctrl + Enter</span>}
+                                            {!isSaving && (
+                                                <span style={{ fontSize: '0.7rem', opacity: 0.85, fontWeight: 500, lineHeight: 1, letterSpacing: '0.02em' }}>
+                                                    Ctrl + Enter
+                                                </span>
+                                            )}
                                         </button>
                                         <button className="lab-btn lab-btn-outline lab-btn-block" data-tooltip="Esc" onClick={handleCloseModal} disabled={isSaving}>
                                             <X size={18} /> Cancelar

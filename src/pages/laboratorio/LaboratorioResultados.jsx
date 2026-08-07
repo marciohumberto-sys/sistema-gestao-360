@@ -10,7 +10,7 @@ import './LaboratorioResultados.css';
 import { laboratorioResultadosService } from '../../services/api/laboratorioResultados.service';
 import LaboratorioGerenciarExamesModal from '../../components/laboratorio/LaboratorioGerenciarExamesModal';
 import { useAuth } from '../../context/AuthContext';
-import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue } from '../../utils/laboratorioHelpers';
+import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue, expandRcText, isHemoMorphologyParameter } from '../../utils/laboratorioHelpers';
 import {
     isUriExam,
     getUriParameterDisplayName,
@@ -28,6 +28,18 @@ const HEMO_LEUCOGRAMA_PERCENTUAL_CODES = new Set([
     'EOSINOFILOS', 'BASOFILOS', 'LINFOCITOS_TIPICOS', 'LINFOCITOS_ATIPICOS',
     'MONOCITOS', 'PLASMOCITOS'
 ]);
+
+// Função auxiliar para calcular a soma percentual do Leucograma (HEMO)
+const calculateLeucogramaTotal = (formValuesState) => {
+    return Object.values(formValuesState || {}).reduce((sum, v) => {
+        const code = String(v.parameter_code || v.code || '').toUpperCase();
+        if (!HEMO_LEUCOGRAMA_PERCENTUAL_CODES.has(code)) return sum;
+        const raw = v.value_numeric;
+        if (raw === null || raw === undefined || raw === '') return sum;
+        const num = parseInt(String(raw).replace(',', '.'), 10);
+        return isNaN(num) ? sum : sum + num;
+    }, 0);
+};
 
 // Configuração da máscara real do Eritrograma (HEMO)
 const HEMO_ERITROGRAMA_CONFIG = {
@@ -221,6 +233,9 @@ const LaboratorioResultados = () => {
     const [showReopenModal, setShowReopenModal] = useState(false);
     const [reopeningResult, setReopeningResult] = useState(false);
     const [showGerenciarExamesModal, setShowGerenciarExamesModal] = useState(false);
+    const [generalObservation, setGeneralObservation] = useState('');
+    const [initialGeneralObservation, setInitialGeneralObservation] = useState('');
+    const generalObsRef = useRef(null);
     const inputRefs = useRef([]);
     const shouldScrollToTopRef = useRef(false);
     const examTopRef = useRef(null);
@@ -461,7 +476,11 @@ const LaboratorioResultados = () => {
     const carregarDados = async (protocol, currentSelectedId = selectedExamId, targetExamCode = null) => {
         try {
             setLoading(true);
-            const data = await laboratorioResultadosService.getResultadosPendentes(protocol || searchProtocol);
+            const protocolToSearch = protocol || selectedAttendance?.protocol_number || currentAttendance?.protocol_number;
+            if (!protocolToSearch) {
+                return [];
+            }
+            const data = await laboratorioResultadosService.getResultadosPendentes(protocolToSearch);
             setAttendances(data);
             
             // Se já tem um selecionado e ele existe, mantém. Se não, pega o primeiro.
@@ -609,6 +628,7 @@ const LaboratorioResultados = () => {
 
     const selecionarExame = (result) => {
         setSelectedExamId(result.id);
+        inputRefs.current = [];
         
         const initialForm = {};
         if (result && result.structuredValues) {
@@ -636,13 +656,17 @@ const LaboratorioResultados = () => {
             }
         }
         
+        const obs = result?.general_observation || '';
+        setGeneralObservation(obs);
+        setInitialGeneralObservation(obs);
+
         setFormValues(activeForm);
         setInitialFormValues(activeForm);
     };
 
     
     const checkUnsavedChanges = () => {
-        return JSON.stringify(formValues) !== JSON.stringify(initialFormValues);
+        return JSON.stringify(formValues) !== JSON.stringify(initialFormValues) || generalObservation !== initialGeneralObservation;
     };
 
     const executePatientNavigation = async (targetAttendance, targetExamCode) => {
@@ -694,6 +718,9 @@ const LaboratorioResultados = () => {
             setAttendances([]);
             setSelectedExamId(null);
             setFormValues({});
+            setInitialFormValues({});
+            setGeneralObservation('');
+            setInitialGeneralObservation('');
         }
     };
 
@@ -703,6 +730,9 @@ const LaboratorioResultados = () => {
             setAttendances([]);
             setSelectedExamId(null);
             setFormValues({});
+            setInitialFormValues({});
+            setGeneralObservation('');
+            setInitialGeneralObservation('');
         } else if (pendingNavigation?.type === 'patient') {
             executePatientNavigation(pendingNavigation.targetAttendance, pendingNavigation.targetExamCode);
         } else if (pendingNavigation) {
@@ -832,12 +862,24 @@ const LaboratorioResultados = () => {
             const isBil = String(selectedResult?.exameCodigo || '').toUpperCase() === 'BIL';
             if (isHemo && field === 'value_numeric') {
                 next = applyHemoCalculations(next);
+                
+                // Se a soma do leucograma atingiu 100%, limpa aviso anterior de leucograma
+                const leucoTotal = calculateLeucogramaTotal(next);
+                if (leucoTotal === 100) {
+                    setFeedbackMsg(prevMsg => (prevMsg?.text?.includes('leucograma') || prevMsg?.text?.includes('Leucograma')) ? null : prevMsg);
+                    setSaveStatus(prevStatus => prevStatus === 'error' ? 'idle' : prevStatus);
+                }
             } else if (isBil && field === 'value_numeric') {
                 next = applyBilCalculations(next);
             }
             
             return next;
         });
+
+        // Se o usuário altera qualquer valor após erro, restaura o status de salvamento para idle
+        if (saveStatus === 'error') {
+            setSaveStatus('idle');
+        }
     };
 
     const handleOpenReopenModal = () => {
@@ -904,12 +946,11 @@ const LaboratorioResultados = () => {
                 ? normalizeUriFormValuesBeforeSave(formValues, selectedResult?.structuredValues || [])
                 : formValues;
 
-            if (isUri) {
-                setFormValues(normalizedFormValues);
-            }
-
             const valuesToSave = Object.values(normalizedFormValues).map(v => {
                 let vToSend = { ...v, _isPCRExam: isPCRExam };
+                if (vToSend.value_text) {
+                    vToSend.value_text = expandRcText(vToSend.value_text);
+                }
                 if (isPCRExam) {
                     const rawVal = vToSend.value_text || '';
                     if (rawVal) {
@@ -939,9 +980,9 @@ const LaboratorioResultados = () => {
                     }
                     
                     // Mantém o valor original se for inválido, para que o erro seja reportado
-                    return { ...v, value_numeric: normalized !== null ? normalized : v.value_numeric };
+                    return { ...vToSend, value_numeric: normalized !== null ? normalized : v.value_numeric };
                 }
-                return v;
+                return vToSend;
             });
             
             if (hasInvalidInteger) {
@@ -966,14 +1007,7 @@ const LaboratorioResultados = () => {
             // Validação do Leucograma — exclusiva para exame HEMO
             const isHemoExam = String(selectedResult?.exameCodigo || '').trim().toUpperCase() === 'HEMO';
             if (isHemoExam) {
-                const leucoTotal = Object.values(formValues).reduce((sum, v) => {
-                    const code = String(v.parameter_code || v.code || '').toUpperCase();
-                    if (!HEMO_LEUCOGRAMA_PERCENTUAL_CODES.has(code)) return sum;
-                    const raw = v.value_numeric;
-                    if (raw === null || raw === undefined || raw === '') return sum;
-                    const num = parseInt(String(raw).replace(',', '.'), 10);
-                    return isNaN(num) ? sum : sum + num;
-                }, 0);
+                const leucoTotal = calculateLeucogramaTotal(formValues);
 
                 if (leucoTotal !== 100) {
                     const diff = leucoTotal - 100;
@@ -982,10 +1016,10 @@ const LaboratorioResultados = () => {
                         : `O total excede 100% em ${diff}%.`;
                     setFeedbackMsg({
                         type: 'error',
-                        text: `Leucograma inválido. A soma dos percentuais deve ser exatamente 100%. Total informado: ${leucoTotal}%. ${diffMsg}`
+                        text: `A soma percentual do leucograma deve ser 100%. Total atual: ${leucoTotal}%. ${diffMsg}`
                     });
                     setTimeout(() => setFeedbackMsg(null), 6000);
-                    setSaveStatus('error');
+                    setSaveStatus('idle');
                     setSaving(false);
                     return false;
                 }
@@ -1015,7 +1049,13 @@ const LaboratorioResultados = () => {
             }
 
             // Validate mandatory
-            const OPCIONAIS_HEMO = ['OBS_ERITROGRAMA', 'SERIE_ERITROCITARIA', 'SERIE_LEUCOCITARIA', 'SERIE_PLAQUETARIA', 'OBS_GERAL'];
+            const OPCIONAIS_HEMO = [
+                'OBS_ERITROGRAMA', 'OBSERVACOES_ERITROGRAMA', 
+                'SERIE_ERITROCITARIA', 'S_ERITROCITARIA', 
+                'SERIE_LEUCOCITARIA', 'S_LEUCOCITARIA', 
+                'SERIE_PLAQUETARIA', 'S_PLAQUETARIA', 
+                'OBS_GERAL', 'OBS_MORFOLOGICAS', 'OBSERVACOES_MORFOLOGICAS', 'OBS_MORFOLOGIA', 'MORFOLOGIA'
+            ];
             
             const missingRequiredParameters = valuesToSave.filter(v => {
                 if (isUri) return false;
@@ -1023,6 +1063,7 @@ const LaboratorioResultados = () => {
                 const code = String(v.parameter_code || v.code || '').toUpperCase();
                 
                 if (OPCIONAIS_HEMO.includes(code)) return false;
+                if (isHemoExam && isHemoMorphologyParameter(code, v.name)) return false;
                 
                 if (v.result_type === 'TEXTO' && (v.name || '').toUpperCase().includes('OBSERVA')) return false;
 
@@ -1066,12 +1107,19 @@ const LaboratorioResultados = () => {
 
             setMissingFields([]);
 
-            await laboratorioResultadosService.salvarResultados(selectedExamId, valuesToSave);
+            const finalGeneralObs = expandRcText(generalObservation);
+            if (finalGeneralObs !== generalObservation) {
+                setGeneralObservation(finalGeneralObs);
+            }
+
+            await laboratorioResultadosService.salvarResultados(selectedExamId, valuesToSave, finalGeneralObs);
             
-            const updatedData = await carregarDados(selectedAttendance ? selectedAttendance.protocol_number : searchFilters.protocol, selectedExamId);
+            const protocolToReload = selectedAttendance?.protocol_number || currentAttendance?.protocol_number;
+            const updatedData = await carregarDados(protocolToReload, selectedExamId);
             
             // Sincronizar estado após sucesso
             setInitialFormValues({ ...formValues });
+            setInitialGeneralObservation(finalGeneralObs);
             
             setSaveStatus('success');
 
@@ -1118,26 +1166,7 @@ const LaboratorioResultados = () => {
     
     
         
-    const handleResultKeyDown = async (event, index) => {
-        if (event.key !== 'Enter') return;
-        if (saving) return;
-        event.preventDefault();
-
-        const isUri = isUriExam(selectedResult?.exameCodigo);
-        if (isUri && selectedResult?.structuredValues) {
-            const param = selectedResult.structuredValues[index];
-            if (param) {
-                const paramId = param.id || param.parameter_id;
-                const currentVal = formValues[paramId]?.value_text;
-                if (typeof currentVal === 'string' && currentVal.trim() !== '') {
-                    const expanded = expandUriFieldValue(param, currentVal);
-                    if (expanded !== currentVal) {
-                        handleValueChange(paramId, 'value_text', expanded);
-                    }
-                }
-            }
-        }
-        
+    const advanceToNextInput = (index) => {
         let nextInputIndex = index + 1;
         while (nextInputIndex < inputRefs.current.length) {
             const nextInput = inputRefs.current[nextInputIndex];
@@ -1155,7 +1184,83 @@ const LaboratorioResultados = () => {
             nextInputIndex++;
         }
         
-        await salvarExameAtual();
+        // Se não há mais parâmetros editáveis, foca na Observação Geral do Exame
+        if (generalObsRef.current && !generalObsRef.current.disabled) {
+            generalObsRef.current.focus({ preventScroll: true });
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    generalObsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                }, 10);
+            });
+        }
+    };
+
+    const handleResultKeyDown = async (event, index) => {
+        if (event.key !== 'Enter') return;
+        if (saving) return;
+        event.preventDefault();
+
+        const isHemo = String(selectedResult?.exameCodigo || '').toUpperCase() === 'HEMO';
+        const isUri = isUriExam(selectedResult?.exameCodigo);
+        if (isUri && selectedResult?.structuredValues) {
+            const param = selectedResult.structuredValues[index];
+            if (param) {
+                const paramId = param.id || param.parameter_id;
+                const currentVal = formValues[paramId]?.value_text;
+                if (typeof currentVal === 'string' && currentVal.trim() !== '') {
+                    const expanded = expandUriFieldValue(param, currentVal);
+                    if (expanded !== currentVal) {
+                        handleValueChange(paramId, 'value_text', expanded);
+                    }
+                }
+            }
+        }
+        
+        // No HEMO, se estiver no final do leucograma ou em plaquetas e a soma for inválida, alertar o operador
+        if (isHemo && selectedResult?.structuredValues) {
+            const param = selectedResult.structuredValues[index];
+            const code = String(param?.parameter_code || param?.code || '').toUpperCase();
+            const isLeucoEndOrPlaq = code === 'PLAQUETAS' || code === 'PLASMOCITOS' || code === 'MONOCITOS';
+            if (isLeucoEndOrPlaq) {
+                const leucoTotal = calculateLeucogramaTotal(formValues);
+                if (leucoTotal !== 100) {
+                    const diff = leucoTotal - 100;
+                    const diffMsg = diff < 0 ? `Faltam ${Math.abs(diff)}%.` : `O total excede 100% em ${diff}%.`;
+                    setFeedbackMsg({
+                        type: 'error',
+                        text: `A soma percentual do leucograma deve ser 100%. Total atual: ${leucoTotal}%. ${diffMsg}`
+                    });
+                    setTimeout(() => setFeedbackMsg(null), 6000);
+                }
+            }
+        }
+        
+        advanceToNextInput(index);
+    };
+
+    const handleObservationKeyDown = (event, index, paramId) => {
+        if (event.key !== 'Enter') return;
+        if (event.shiftKey) {
+            // Shift + Enter permite nova linha normal no textarea
+            return;
+        }
+        event.preventDefault();
+        if (saving) return;
+
+        // Se o valor for "RC", expande imediatamente
+        const currentVal = formValues[paramId]?.value_text;
+        if (typeof currentVal === 'string' && currentVal.trim().toUpperCase() === 'RC') {
+            handleValueChange(paramId, 'value_text', 'Repetido e confirmado');
+        }
+
+        advanceToNextInput(index);
+    };
+
+    const handleObservationBlur = (paramId) => {
+        const currentVal = formValues[paramId]?.value_text;
+        if (typeof currentVal === 'string' && currentVal.trim().toUpperCase() === 'RC') {
+            handleValueChange(paramId, 'value_text', 'Repetido e confirmado');
+        }
     };
 
     const getSaveButtonText = (defaultText) => {
@@ -1725,14 +1830,7 @@ const LaboratorioResultados = () => {
                                         // Indicador em tempo real do total do Leucograma
                                         let leucoIndicator = null;
                                         if (isHemo && code === 'LEUCOCITOS') {
-                                            const leucoTotal = Object.values(formValues).reduce((sum, v) => {
-                                                const vCode = String(v.parameter_code || v.code || '').toUpperCase();
-                                                if (!HEMO_LEUCOGRAMA_PERCENTUAL_CODES.has(vCode)) return sum;
-                                                const raw = v.value_numeric;
-                                                if (raw === null || raw === undefined || raw === '') return sum;
-                                                const num = parseInt(String(raw).replace(',', '.'), 10);
-                                                return isNaN(num) ? sum : sum + num;
-                                            }, 0);
+                                            const leucoTotal = calculateLeucogramaTotal(formValues);
 
                                             let leucoColor = '#64748b';
                                             let leucoIcon = '';
@@ -1740,18 +1838,31 @@ const LaboratorioResultados = () => {
                                             if (leucoTotal === 100) {
                                                 leucoColor = '#16a34a';
                                                 leucoIcon = '✓';
-                                                leucoMsg = `Total do leucograma: ${leucoTotal}% ${leucoIcon}`;
+                                                leucoMsg = `Soma do leucograma: ${leucoTotal}% (Esperado: 100%) ${leucoIcon}`;
                                             } else if (leucoTotal < 100) {
                                                 leucoColor = '#d97706';
-                                                leucoMsg = `Total do leucograma: ${leucoTotal}% — faltam ${100 - leucoTotal}%.`;
+                                                leucoMsg = `Soma do leucograma: ${leucoTotal}% (Esperado: 100%) — Faltam ${100 - leucoTotal}%.`;
                                             } else {
                                                 leucoColor = '#dc2626';
-                                                leucoMsg = `Total do leucograma: ${leucoTotal}% — excede ${leucoTotal - 100}%.`;
+                                                leucoMsg = `Soma do leucograma: ${leucoTotal}% (Esperado: 100%) — Excede ${leucoTotal - 100}%.`;
                                             }
 
                                             leucoIndicator = (
-                                                <div style={{ marginTop: '4px', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, color: leucoColor }}>
-                                                    {leucoMsg}
+                                                <div style={{
+                                                    marginTop: '4px',
+                                                    marginBottom: '8px',
+                                                    padding: '6px 12px',
+                                                    borderRadius: '6px',
+                                                    backgroundColor: leucoTotal === 100 ? '#f0fdf4' : '#fffbeb',
+                                                    border: `1px solid ${leucoTotal === 100 ? '#bbf7d0' : '#fde68a'}`,
+                                                    fontSize: '0.85rem',
+                                                    fontWeight: 600,
+                                                    color: leucoColor,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                }}>
+                                                    <span>{leucoMsg}</span>
                                                 </div>
                                             );
                                         }
@@ -1843,6 +1954,7 @@ const LaboratorioResultados = () => {
                                                                     );
                                                                 })() : isObservation && !isNumeric ? (
                                                                     <textarea
+                                                                        ref={(el) => inputRefs.current[index] = el}
                                                                         className="lab-input-field"
                                                                         style={{
                                                                             flex: 1,
@@ -1858,6 +1970,8 @@ const LaboratorioResultados = () => {
                                                                         placeholder="Observações..."
                                                                         value={formState.value_text || ''}
                                                                         onChange={(e) => handleValueChange(param.id, 'value_text', e.target.value)}
+                                                                        onBlur={() => handleObservationBlur(param.id)}
+                                                                        onKeyDown={(e) => handleObservationKeyDown(e, index, param.id)}
                                                                         disabled={isReadOnly || saving}
                                                                     />
                                                                 ) : (
@@ -1951,10 +2065,52 @@ const LaboratorioResultados = () => {
                                 <div className="lab-typing-text-row" style={{ marginTop: '0.5rem' }}>
                                     <div className="lab-text-group" style={{ gridColumn: 'span 2' }}>
                                         <label>Observação Geral do Exame</label>
-                                        <textarea placeholder="Adicionar comentário ao laudo (apenas para suporte, gravado no primeiro parâmetro se necessário)..." disabled={isReadOnly || saving}></textarea>
+                                        <textarea
+                                            ref={generalObsRef}
+                                            placeholder="Adicionar comentário ao laudo..."
+                                            disabled={isReadOnly || saving}
+                                            value={generalObservation}
+                                            onChange={(e) => setGeneralObservation(e.target.value)}
+                                            onBlur={() => {
+                                                if (typeof generalObservation === 'string' && generalObservation.trim().toUpperCase() === 'RC') {
+                                                    setGeneralObservation('Repetido e confirmado');
+                                                }
+                                            }}
+                                            onKeyDown={async (e) => {
+                                                if (e.key === 'Enter') {
+                                                    if (e.shiftKey) return;
+                                                    e.preventDefault();
+                                                    if (saving) return;
+                                                    if (typeof generalObservation === 'string' && generalObservation.trim().toUpperCase() === 'RC') {
+                                                        setGeneralObservation('Repetido e confirmado');
+                                                    }
+                                                    await salvarExameAtual();
+                                                }
+                                            }}
+                                            style={{ minHeight: '60px', resize: 'vertical' }}
+                                        />
                                     </div>
                                 </div>
                             </div>
+
+                            {feedbackMsg && (
+                                <div style={{
+                                    margin: '0.75rem 1rem 0 1rem',
+                                    padding: '0.65rem 1rem',
+                                    borderRadius: '8px',
+                                    background: feedbackMsg.type === 'success' ? '#d1fae5' : '#fee2e2',
+                                    color: feedbackMsg.type === 'success' ? '#047857' : '#b91c1c',
+                                    border: `1px solid ${feedbackMsg.type === 'success' ? '#10b981' : '#ef4444'}`,
+                                    fontWeight: 600,
+                                    fontSize: '0.9rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem'
+                                }}>
+                                    {feedbackMsg.type === 'success' ? <CheckCircle2 size={18} style={{ flexShrink: 0 }} /> : <AlertCircle size={18} style={{ flexShrink: 0 }} />}
+                                    <span>{feedbackMsg.text}</span>
+                                </div>
+                            )}
 
                             <div className="lab-typing-footer">
                                 <div className="lab-nav-buttons">

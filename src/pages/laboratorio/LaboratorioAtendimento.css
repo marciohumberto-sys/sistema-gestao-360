@@ -486,6 +486,16 @@
     gap: 0.5rem;
 }
 
+.lab-summary-actions .lab-btn-salvar-tudo {
+    min-height: 44px;
+    padding: 0.35rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
 /* Override global do page-wrapper apenas quando estiver na tela de Atendimento/Coleta */
 .page-wrapper:has(.lab-atend-container) {
     max-width: 100% !important;
@@ -576,6 +586,35 @@
     }
 
     #operacional-modal-content .lab-pac-modal-body > div:last-child {
-        padding: 1rem 1.5rem !important;
+        padding: 0.75rem 1.5rem !important;
+    }
+
+    .lab-summary-card {
+        top: 0.5rem !important;
+        padding: 0.75rem 1rem !important;
+    }
+
+    .lab-summary-stats {
+        margin-bottom: 0.5rem !important;
+    }
+
+    .lab-summary-actions {
+        margin-top: 0.75rem !important;
+        gap: 0.4rem !important;
+    }
+
+    .lab-summary-actions .lab-btn {
+        padding: 0.55rem 0.75rem !important;
+    }
+
+    .lab-summary-actions .lab-btn-salvar-tudo {
+        min-height: 44px !important;
+        padding: 0.35rem 0.75rem !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 2px !important;
     }
 }
+

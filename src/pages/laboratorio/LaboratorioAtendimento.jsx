@@ -8,14 +8,54 @@ import './LaboratorioAtendimento.css';
 
 const calculateAge = (birthDateStr) => {
     if (!birthDateStr) return '';
+    const dateStr = String(birthDateStr).slice(0, 10);
+    const parts = dateStr.split('-');
+    if (parts.length < 3) return '';
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return '';
+
     const today = new Date();
-    const birthDate = new Date(birthDateStr);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const m = today.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+
+    if (
+        year > currentYear ||
+        (year === currentYear && month > currentMonth) ||
+        (year === currentYear && month === currentMonth && day > currentDay)
+    ) {
+        return '';
     }
-    return `${age} anos`;
+
+    let years = currentYear - year;
+    let months = currentMonth - month;
+    let days = currentDay - day;
+
+    if (days < 0) {
+        months--;
+    }
+
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+
+    if (years < 0) return '';
+
+    if (years >= 1) {
+        return years === 1 ? '1 ano' : `${years} anos`;
+    }
+
+    if (months <= 0) {
+        return '0 meses';
+    }
+    if (months === 1) {
+        return '1 mês';
+    }
+    return `${months} meses`;
 };
 
 const formatCpf = (cpf) => {

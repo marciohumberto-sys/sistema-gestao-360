@@ -495,3 +495,72 @@ export function formatTimeOnly(value) {
     return time.slice(0, 5);
 }
 
+/**
+ * Calcula a idade a partir da data de nascimento (YYYY-MM-DD).
+ * Se menor que 1 ano, retorna em meses ('0 meses', '1 mês', 'X meses').
+ * Se 1 ano ou mais, retorna em anos ('1 ano', 'X anos').
+ */
+export function calculateAge(birthDateStr) {
+    if (!birthDateStr) return '';
+    const dateStr = String(birthDateStr).slice(0, 10);
+    const parts = dateStr.split('-');
+    if (parts.length < 3) return '';
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return '';
+
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+
+    if (
+        year > currentYear ||
+        (year === currentYear && month > currentMonth) ||
+        (year === currentYear && month === currentMonth && day > currentDay)
+    ) {
+        return '';
+    }
+
+    let years = currentYear - year;
+    let months = currentMonth - month;
+    let days = currentDay - day;
+
+    if (days < 0) {
+        months--;
+    }
+
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+
+    if (years < 0) return '';
+
+    if (years >= 1) {
+        return years === 1 ? '1 ano' : `${years} anos`;
+    }
+
+    if (months <= 0) {
+        return '0 meses';
+    }
+    if (months === 1) {
+        return '1 mês';
+    }
+    return `${months} meses`;
+}
+
+/**
+ * Expande atalho de observação 'RC' (case-insensitive, trim) para 'Repetido e confirmado'.
+ */
+export function expandRcText(text) {
+    if (typeof text !== 'string') return text;
+    if (text.trim().toUpperCase() === 'RC') {
+        return 'Repetido e confirmado';
+    }
+    return text;
+}
+
+

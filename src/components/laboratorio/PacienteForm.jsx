@@ -165,15 +165,31 @@ const calculateAge = (birthDateStr) => {
         return '';
     }
     
-    let age = currentYear - year;
-    if (currentMonth < month || (currentMonth === month && currentDay < day)) {
-        age--;
+    let years = currentYear - year;
+    let months = currentMonth - month;
+    let days = currentDay - day;
+
+    if (days < 0) {
+        months--;
     }
-    
-    if (age < 0) return '';
-    if (age === 0) return '0 anos';
-    if (age === 1) return '1 ano';
-    return `${age} anos`;
+
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+
+    if (years < 0) return '';
+    if (years >= 1) {
+        return years === 1 ? '1 ano' : `${years} anos`;
+    }
+
+    if (months <= 0) {
+        return '0 meses';
+    }
+    if (months === 1) {
+        return '1 mês';
+    }
+    return `${months} meses`;
 };
 
 const PacienteForm = ({ formData, formErrors, onChange, isSaving, readOnly = false, patientRefs = {} }) => {

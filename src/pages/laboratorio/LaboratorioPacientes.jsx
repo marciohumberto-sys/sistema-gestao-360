@@ -9,22 +9,56 @@ import { laboratorioPacientesService } from '../../services/api/laboratorioPacie
 import PacienteFormModal from '../../components/laboratorio/PacienteFormModal';
 import './LaboratorioPacientes.css';
 
-const calculateAge = (birthDateString) => {
-    if (!birthDateString) return '---';
-    const birthDate = new Date(birthDateString);
-    if (isNaN(birthDate.getTime())) return '---';
+const calculateAge = (birthDateStr) => {
+    if (!birthDateStr) return '---';
+    const dateStr = String(birthDateStr).slice(0, 10);
+    const parts = dateStr.split('-');
+    if (parts.length < 3) return '---';
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return '---';
+
     const today = new Date();
-    const parts = birthDateString.split('-');
-    if (parts.length === 3) {
-        const bd = new Date(parts[0], parts[1] - 1, parts[2]);
-        let age = today.getFullYear() - bd.getFullYear();
-        const m = today.getMonth() - bd.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) {
-            age--;
-        }
-        return age;
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+
+    if (
+        year > currentYear ||
+        (year === currentYear && month > currentMonth) ||
+        (year === currentYear && month === currentMonth && day > currentDay)
+    ) {
+        return '---';
     }
-    return '---';
+
+    let years = currentYear - year;
+    let months = currentMonth - month;
+    let days = currentDay - day;
+
+    if (days < 0) {
+        months--;
+    }
+
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+
+    if (years < 0) return '---';
+
+    if (years >= 1) {
+        return years === 1 ? '1 ano' : `${years} anos`;
+    }
+
+    if (months <= 0) {
+        return '0 meses';
+    }
+    if (months === 1) {
+        return '1 mês';
+    }
+    return `${months} meses`;
 };
 
 const formatSex = (sex) => {
@@ -198,8 +232,7 @@ const LaboratorioPacientes = () => {
                                 </thead>
                                 <tbody style={{ opacity: loading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
                                     {patients.map(p => {
-                                        const ageVal = calculateAge(p.birth_date);
-                                        const ageDisplay = ageVal === '---' ? '---' : `${ageVal} ${ageVal === 1 ? 'ano' : 'anos'}`;
+                                        const ageDisplay = calculateAge(p.birth_date);
                                         return (
                                         <tr key={p.id} onClick={() => openEditModal(p)} className="lab-clickable-row">
                                             <td style={{ overflowWrap: 'anywhere' }}><span className="lab-pac-code">{p.code || '---'}</span></td>
