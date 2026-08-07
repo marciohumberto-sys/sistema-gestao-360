@@ -165,47 +165,59 @@ class PlanejamentoService {
             prazoVencido,
         };
 
-        // ── 4. Evolução da Execução (agrupamento por data de prazo/conclusão) ──────────
-        const monthsMap = new Map<string, any>();
-
-        safeActions.forEach(action => {
-            // Regra de data: due_date || start_date || created_at
-            const rawDate = action.due_date || action.start_date || action.created_at;
-            const date = new Date(rawDate);
-            if (isNaN(date.getTime())) return;
-
-            // Nome abreviado do mês + ano (ex: ago./24, jan./25)
-            const monthName = date.toLocaleDateString('pt-BR', { month: 'short' });
-            const yearShort = date.getFullYear().toString().slice(-2);
-            const label = `${monthName}/${yearShort}`;
-            
-            const year = date.getFullYear();
-            const sortKey = `${year}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-            if (!monthsMap.has(sortKey)) {
-                monthsMap.set(sortKey, {
-                    name: label,
-                    timestamp: new Date(year, date.getMonth(), 1).getTime(),
-                    NaoIniciadas: 0,
-                    EmAndamento: 0,
-                    Concluidas: 0,
-                });
+        // ── 4. Evolução do Plano (acumulado por semestre/ano) ─────────────────
+        const parseDateToTimestamp = (dateVal: any): number | null => {
+            if (!dateVal) return null;
+            if (typeof dateVal === 'string') {
+                const match = dateVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (match) {
+                    const [, y, m, d] = match;
+                    return new Date(Number(y), Number(m) - 1, Number(d), 23, 59, 59, 999).getTime();
+                }
             }
+            const dt = new Date(dateVal);
+            return isNaN(dt.getTime()) ? null : dt.getTime();
+        };
 
-            const m = monthsMap.get(sortKey);
-            const status = action.status;
+        const EVOLUCAO_PERIODOS = [
+            { name: '2024/S2', endTimestamp: new Date(2024, 11, 31, 23, 59, 59, 999).getTime() },
+            { name: '2025/S1', endTimestamp: new Date(2025, 5, 30, 23, 59, 59, 999).getTime() },
+            { name: '2025/S2', endTimestamp: new Date(2025, 11, 31, 23, 59, 59, 999).getTime() },
+            { name: '2026/S1', endTimestamp: new Date(2026, 5, 30, 23, 59, 59, 999).getTime() },
+            { name: '2026/S2', endTimestamp: new Date(2026, 11, 31, 23, 59, 59, 999).getTime() },
+            { name: '2027',    endTimestamp: new Date(2027, 11, 31, 23, 59, 59, 999).getTime() },
+            { name: '2028',    endTimestamp: new Date(2028, 11, 31, 23, 59, 59, 999).getTime() },
+        ];
 
-            if (status === 'NAO_INICIADA') {
-                m.NaoIniciadas++;
-            } else if (status === 'CONCLUIDA') {
-                m.Concluidas++;
-            } else if (['EM_ANDAMENTO', 'EM_RISCO', 'PARALISADA'].includes(status)) {
-                m.EmAndamento++;
-            }
+        const totalAcoesFiltradas = safeActions.length;
+
+        const execucao = EVOLUCAO_PERIODOS.map(p => {
+            let iniciadasAcumuladas = 0;
+            let concluidasAcumuladas = 0;
+
+            safeActions.forEach((action: any) => {
+                const startTime = parseDateToTimestamp(action.start_date);
+                if (startTime !== null && startTime <= p.endTimestamp) {
+                    iniciadasAcumuladas++;
+                }
+
+                const compDate = action.completion_date || action.completed_at;
+                const compTime = parseDateToTimestamp(compDate);
+                if (action.status === 'CONCLUIDA' && compTime !== null && compTime <= p.endTimestamp) {
+                    concluidasAcumuladas++;
+                }
+            });
+
+            const naoIniciadasRestantes = Math.max(0, totalAcoesFiltradas - iniciadasAcumuladas);
+
+            return {
+                name: p.name,
+                iniciadas: iniciadasAcumuladas,
+                concluidas: concluidasAcumuladas,
+                naoIniciadas: naoIniciadasRestantes,
+                total: totalAcoesFiltradas,
+            };
         });
-
-        const execucao = Array.from(monthsMap.values())
-            .sort((a, b) => a.timestamp - b.timestamp);
 
         // ── 5. Distribuição por Eixo ─────────────────────────────────────────
         const distribuicaoPorEixoMap = new Map();

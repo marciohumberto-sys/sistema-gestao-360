@@ -1,99 +1,66 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts';
+import { 
+    LineChart, 
+    Line, 
+    XAxis, 
+    YAxis, 
+    CartesianGrid, 
+    Tooltip, 
+    ResponsiveContainer, 
+    Legend 
+} from 'recharts';
 
 const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
-        // Inverte a ordem para mostrar Concluídas no topo (seguindo a pilha visual)
-        const sortedPayload = [...payload].reverse();
-
-        const getCategoryColor = (name) => {
-            if (name === 'Concluídas') return '#10b981'; // verde
-            if (name === 'Em Andamento') return '#8b5cf6'; // roxo
-            return '#475569'; // Não Iniciadas (cinza mais escuro para contraste)
-        };
-
         return (
-            <div className="custom-recharts-tooltip" style={{ 
-                background: '#f8fafc', 
-                border: '1px solid rgba(0, 0, 0, 0.05)',
-                borderRadius: '16px',
-                padding: '26px 28px',
-                boxShadow: '0 16px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.04)',
-                minWidth: '260px',
-                animation: 'tooltipIn 0.15s cubic-bezier(0.2, 0, 0, 1) forwards'
+            <div style={{
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)',
+                minWidth: '220px'
             }}>
-                <style>{`
-                    @keyframes tooltipIn {
-                        from { opacity: 0; transform: translateY(6px); }
-                        to { opacity: 1; transform: translateY(0); }
-                    }
-                `}</style>
-                <p style={{ 
-                    margin: '0', 
-                    fontSize: '1.15rem', 
-                    fontWeight: 700, 
-                    color: '#1f2937',
-                    textTransform: 'capitalize',
-                    letterSpacing: '-0.01em'
+                <div style={{
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    borderBottom: '1px solid #f1f5f9',
+                    paddingBottom: '6px',
+                    marginBottom: '8px'
                 }}>
-                    {label}
-                </p>
-                <div style={{ 
-                    height: '1px', 
-                    background: '#d1d5db', 
-                    margin: '24px 0' 
-                }}></div>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                    {sortedPayload.map((entry, index) => {
-                        const dotColor = getCategoryColor(entry.name);
-                        const isZero = entry.value === 0;
-                        
-                        return (
-                            <div key={`item-${index}`} style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'space-between', 
-                                gap: '24px',
-                                opacity: isZero ? 0.55 : 1,
-                                transition: 'opacity 0.2s ease'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <div style={{ 
-                                        width: '12px', 
-                                        height: '12px', 
-                                        backgroundColor: isZero ? '#d1d5db' : dotColor, 
-                                        borderRadius: '50%',
-                                        boxShadow: isZero ? 'none' : `0 0 12px ${dotColor}66`
-                                    }}></div>
-                                    <span style={{ 
-                                        fontSize: '0.8rem', 
-                                        fontWeight: 500, 
-                                        color: isZero ? '#9ca3af' : '#6b7280' 
-                                    }}>
-                                        {entry.name}
-                                    </span>
-                                </div>
-                                <span style={{ 
-                                    fontSize: '1.45rem', 
-                                    fontWeight: 700, 
-                                    color: isZero ? '#9ca3af' : dotColor, 
-                                    fontVariantNumeric: 'tabular-nums',
-                                    lineHeight: 1
-                                }}>
-                                    {entry.value}
+                    Período: {label}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {payload.map((entry, index) => (
+                        <div key={`tooltip-item-${index}`} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '16px'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{
+                                    width: '8px',
+                                    height: '8px',
+                                    borderRadius: '50%',
+                                    backgroundColor: entry.color,
+                                    display: 'inline-block'
+                                }}></span>
+                                <span style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 500 }}>
+                                    {entry.name}
                                 </span>
                             </div>
-                        );
-                    })}
-                    
-                    <div style={{ height: '1px', background: '#e2e8f0', marginTop: '4px', marginBottom: '4px' }}></div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '24px' }}>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#334155' }}>Total</span>
-                        <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-                            {payload.reduce((sum, entry) => sum + entry.value, 0)}
-                        </span>
-                    </div>
+                            <span style={{
+                                fontSize: '0.9rem',
+                                fontWeight: 700,
+                                color: '#0f172a',
+                                fontVariantNumeric: 'tabular-nums'
+                            }}>
+                                {entry.value}
+                            </span>
+                        </div>
+                    ))}
                 </div>
             </div>
         );
@@ -113,21 +80,20 @@ const ExecucaoChart = ({ data: execucao }) => {
                 border: '1px solid rgba(0,0,0,0.06)', 
                 boxShadow: '0 8px 24px -4px rgba(0,0,0,0.06)' 
             }}>
-                <h2 className="card-title">Evolução da Execução</h2>
+                <div style={{ marginBottom: '16px' }}>
+                    <h2 className="card-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                        Evolução Acumulada do Plano
+                    </h2>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 400 }}>
+                        Avanço acumulado das ações durante o ciclo do plano
+                    </p>
+                </div>
                 <div style={{ flex: 1, width: '100%', minHeight: 250, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
-                    Nenhuma atualização registrada.
+                    Nenhuma ação encontrada para os filtros selecionados.
                 </div>
             </div>
         );
     }
-
-    const dataWithTotal = execucao.map(item => ({
-        ...item,
-        Total: item.NaoIniciadas + item.EmAndamento + item.Concluidas
-    }));
-
-    const maxValue = Math.max(0, ...dataWithTotal.map(d => d.Total));
-    const yMax = Math.ceil((maxValue + 2) / 5) * 5;
 
     return (
         <div className="dashboard-card animate-fade-in-up delay-100" style={{ 
@@ -139,40 +105,79 @@ const ExecucaoChart = ({ data: execucao }) => {
             border: '1px solid rgba(0,0,0,0.06)', 
             boxShadow: '0 8px 24px -4px rgba(0,0,0,0.06)' 
         }}>
-            <h2 className="card-title" style={{ marginBottom: '16px', marginTop: 0 }}>Evolução da Execução</h2>
+            <div style={{ marginBottom: '16px' }}>
+                <h2 className="card-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                    Evolução Acumulada do Plano
+                </h2>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 400 }}>
+                    Avanço acumulado das ações durante o ciclo do plano
+                </p>
+            </div>
             <div style={{ flex: 1, width: '100%', minHeight: '260px' }}>
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dataWithTotal} margin={{ top: 25, right: 0, left: -20, bottom: -10 }} barCategoryGap="15%">
-                        <defs>
-                            <linearGradient id="gradNaoIniciadas" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#94a3b8" stopOpacity={1}/>
-                                <stop offset="100%" stopColor="#64748b" stopOpacity={1}/>
-                            </linearGradient>
-                            <linearGradient id="gradEmAndamento" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#a78bfa" stopOpacity={1}/>
-                                <stop offset="100%" stopColor="#8b5cf6" stopOpacity={1}/>
-                            </linearGradient>
-                            <linearGradient id="gradConcluidas" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#34d399" stopOpacity={1}/>
-                                <stop offset="100%" stopColor="#10b981" stopOpacity={1}/>
-                            </linearGradient>
-                        </defs>
+                    <LineChart 
+                        data={execucao} 
+                        margin={{ top: 15, right: 20, left: -20, bottom: 0 }}
+                    >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#475569', fontWeight: 500 }} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#475569', fontWeight: 500 }} domain={[0, yMax]} />
+                        <XAxis 
+                            dataKey="name" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fontSize: 12, fill: '#64748b', fontWeight: 500 }} 
+                        />
+                        <YAxis 
+                            axisLine={false} 
+                            tickLine={false} 
+                            allowDecimals={false}
+                            tick={{ fontSize: 12, fill: '#64748b', fontWeight: 500 }} 
+                        />
                         <Tooltip 
                             content={<CustomTooltip />} 
-                            cursor={{ fill: 'rgba(248, 250, 252, 0.5)' }} 
-                            isAnimationActive={true}
-                            animationDuration={200}
+                            cursor={{ stroke: '#e2e8f0', strokeWidth: 1, strokeDasharray: '4 4' }} 
                         />
-                        <Legend wrapperStyle={{ fontSize: '13px', paddingTop: '16px' }} verticalAlign="bottom" height={24} />
-                        <Bar dataKey="NaoIniciadas" name="Não Iniciadas" stackId="a" fill="url(#gradNaoIniciadas)" isAnimationActive={true} animationBegin={0} animationDuration={1500} animationEasing="ease-out" radius={[0, 0, 4, 4]} minPointSize={4} activeBar={{ filter: 'brightness(1.05)' }} />
-                        <Bar dataKey="EmAndamento" name="Em Andamento" stackId="a" fill="url(#gradEmAndamento)" isAnimationActive={true} animationBegin={200} animationDuration={1500} animationEasing="ease-out" minPointSize={4} activeBar={{ filter: 'brightness(1.05)' }} />
-                        <Bar dataKey="Concluidas" name="Concluídas" stackId="a" fill="url(#gradConcluidas)" isAnimationActive={true} animationBegin={400} animationDuration={1500} animationEasing="ease-out" radius={[4, 4, 0, 0]} minPointSize={4} activeBar={{ filter: 'brightness(1.05)' }}>
-                            <LabelList dataKey="Total" position="top" offset={10} style={{ fill: '#334155', fontSize: 12, fontWeight: 700 }} />
-                        </Bar>
-                    </BarChart>
+                        <Legend 
+                            verticalAlign="bottom" 
+                            height={30} 
+                            iconType="circle"
+                            iconSize={8}
+                            wrapperStyle={{ fontSize: '12px', color: '#475569', paddingTop: '8px' }} 
+                        />
+                        <Line 
+                            type="monotone" 
+                            dataKey="iniciadas" 
+                            name="Iniciadas acumuladas" 
+                            stroke="#2563eb" 
+                            strokeWidth={2.5} 
+                            dot={{ r: 4, fill: '#2563eb', strokeWidth: 2, stroke: '#ffffff' }}
+                            activeDot={{ r: 6, fill: '#2563eb', strokeWidth: 2, stroke: '#ffffff' }}
+                            isAnimationActive={true}
+                            animationDuration={1200}
+                        />
+                        <Line 
+                            type="monotone" 
+                            dataKey="concluidas" 
+                            name="Concluídas acumuladas" 
+                            stroke="#10b981" 
+                            strokeWidth={2.5} 
+                            dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#ffffff' }}
+                            activeDot={{ r: 6, fill: '#10b981', strokeWidth: 2, stroke: '#ffffff' }}
+                            isAnimationActive={true}
+                            animationDuration={1200}
+                        />
+                        <Line 
+                            type="monotone" 
+                            dataKey="naoIniciadas" 
+                            name="Não iniciadas restantes" 
+                            stroke="#94a3b8" 
+                            strokeWidth={2} 
+                            strokeDasharray="5 5"
+                            dot={{ r: 3.5, fill: '#94a3b8', strokeWidth: 1.5, stroke: '#ffffff' }}
+                            activeDot={{ r: 5.5, fill: '#94a3b8', strokeWidth: 2, stroke: '#ffffff' }}
+                            isAnimationActive={true}
+                            animationDuration={1200}
+                        />
+                    </LineChart>
                 </ResponsiveContainer>
             </div>
         </div>

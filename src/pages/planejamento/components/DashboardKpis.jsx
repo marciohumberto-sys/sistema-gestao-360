@@ -6,7 +6,7 @@ const DashboardKpis = ({ data: kpis }) => {
 
     const cards = [
         { label: 'Total de Ações', value: kpis.totalAcoes, icon: Target, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)' },
-        { label: 'Em Andamento', value: kpis.emAndamento, icon: TrendingUp, color: '#9f7aea', bg: 'rgba(159, 122, 234, 0.12)' },
+        { label: 'Em andamento atual', value: kpis.emAndamento, icon: TrendingUp, color: '#9f7aea', bg: 'rgba(159, 122, 234, 0.12)' },
         { label: 'Concluídas', value: kpis.concluidas, icon: CheckCircle, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
         { label: 'Ações em Risco', value: kpis.emRisco, icon: AlertTriangle, color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.08)' }
     ];
