@@ -1,14 +1,7 @@
 import React from 'react';
 const AcoesEmRisco = ({ data: acoesEmRisco }) => {
     if (!acoesEmRisco || acoesEmRisco.length === 0) {
-        return (
-            <div className="dashboard-card animate-fade-in-up delay-100" style={{ height: '100%' }}>
-                <h2 className="card-title">Ações em Risco</h2>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', color: '#94a3b8' }}>
-                    Nenhuma ação em risco encontrada.
-                </div>
-            </div>
-        );
+        return null;
     }
 
     const renderBadge = (status) => {

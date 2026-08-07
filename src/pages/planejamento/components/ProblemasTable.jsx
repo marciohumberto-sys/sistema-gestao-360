@@ -3,14 +3,7 @@ import { AlertTriangle, Clock } from 'lucide-react';
 
 const ProblemasTable = ({ data: problemasCriticos }) => {
     if (!problemasCriticos || problemasCriticos.length === 0) {
-        return (
-            <div className="dashboard-card animate-fade-in-up delay-200" style={{ height: '100%' }}>
-                <h2 className="card-title">Problemas Críticos</h2>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', color: '#94a3b8', fontSize: '0.9rem' }}>
-                    Nenhum problema crítico em aberto.
-                </div>
-            </div>
-        );
+        return null;
     }
 
     const renderBadge = (severidade) => {

@@ -57,6 +57,21 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
         });
     }
 
+    // 2.5 Buscar mapa de user_tenants para resolução segura de Auth User ID
+    const { data: userTenantsData } = await supabase
+        .from('user_tenants')
+        .select('id, user_id')
+        .eq('tenant_id', tenantId);
+
+    const userTenantMap = {};
+    if (userTenantsData) {
+        userTenantsData.forEach(ut => {
+            if (ut.id && ut.user_id) {
+                userTenantMap[ut.id] = ut.user_id;
+            }
+        });
+    }
+
     // 3. Chamar a RPC consolidada que retorna auth + tenants
     const { data, error } = await supabase.rpc('get_farmacia_users_with_auth', {
         p_tenant_id: tenantId
@@ -72,10 +87,18 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
     const uniqueUsers = new Map();
 
     data.forEach(row => {
-        const userId = row.user_id || row.id;
+        // Resolver o Auth User ID com máxima precisão
+        const resolvedAuthUserId = 
+            (row.user_id && planningUserIds.includes(row.user_id)) ? row.user_id :
+            (row.id && planningUserIds.includes(row.id)) ? row.id :
+            (row.user_tenant_id && userTenantMap[row.user_tenant_id]) ? userTenantMap[row.user_tenant_id] :
+            (row.id && userTenantMap[row.id]) ? userTenantMap[row.id] :
+            row.user_id || row.auth_user_id || (planningUserIds.includes(row.id) ? row.id : null) || row.id;
+
+        const userId = resolvedAuthUserId;
         
         // 4. FILTRAR: Só incluir se o usuário tiver escopo real no Planejamento
-        if (!planningUserIds.includes(userId)) return;
+        if (!planningUserIds.includes(userId) && !planningUserIds.includes(row.user_id) && !planningUserIds.includes(row.id)) return;
 
         // 5. REGRA: Excluir SUPERADMIN da listagem operacional do módulo
         const role = row.role || row.profile || 'OPERADOR';
@@ -107,7 +130,9 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
         if (!uniqueUsers.has(userId)) {
             uniqueUsers.set(userId, {
                 id: userId,
-                user_tenant_id: row.user_tenant_id || userId,
+                user_id: resolvedAuthUserId,
+                auth_user_id: resolvedAuthUserId,
+                user_tenant_id: row.user_tenant_id || row.id || userId,
                 name: row.full_name || row.name || 'Usuário Sem Nome',
                 email: row.email || '',
                 profile: role,

@@ -77,6 +77,9 @@ const PlanejamentoDashboard = () => {
         );
     }
 
+    const hasProblemasCriticos = Boolean(dashboardData.problemasCriticos && dashboardData.problemasCriticos.length > 0);
+    const hasAcoesEmRisco = Boolean(dashboardData.acoesEmRisco && dashboardData.acoesEmRisco.length > 0);
+
     return (
         <div className="planejamento-dashboard-container">
             {/* 1. Cabeçalho da Página */}
@@ -178,14 +181,20 @@ const PlanejamentoDashboard = () => {
             </div>
 
             {/* Linha 3: Gestão de Crises */}
-            <div className="dashboard-row">
-                <div className="col-span-6">
-                    <ProblemasTable data={dashboardData.problemasCriticos} />
+            {(hasProblemasCriticos || hasAcoesEmRisco) && (
+                <div className="dashboard-row">
+                    {hasProblemasCriticos && (
+                        <div className={hasAcoesEmRisco ? "col-span-6" : "col-span-12"}>
+                            <ProblemasTable data={dashboardData.problemasCriticos} />
+                        </div>
+                    )}
+                    {hasAcoesEmRisco && (
+                        <div className={hasProblemasCriticos ? "col-span-6" : "col-span-12"}>
+                            <AcoesEmRisco data={dashboardData.acoesEmRisco} />
+                        </div>
+                    )}
                 </div>
-                <div className="col-span-6">
-                    <AcoesEmRisco data={dashboardData.acoesEmRisco} />
-                </div>
-            </div>
+            )}
         </div>
     );
 };

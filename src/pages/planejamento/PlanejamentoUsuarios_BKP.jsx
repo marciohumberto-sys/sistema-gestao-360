@@ -252,7 +252,7 @@ const PlanejamentoUsuarios = () => {
 
         if (!userToReset) return;
 
-        const targetUserId = String(userToReset.auth_user_id || userToReset.user_id || '').trim();
+        const targetUserId = userToReset.auth_user_id || userToReset.user_id;
 
         if (!targetUserId) {
             alert('Usuário sem vínculo de autenticação encontrado. Não foi possível redefinir a senha.');
@@ -268,14 +268,25 @@ const PlanejamentoUsuarios = () => {
 
         if (isResetting) return;
 
+        console.log('[Planejamento][RedefinirSenha] Iniciando redefinição para:', {
+            targetUserId,
+            userName: userToReset.name,
+            userEmail: userToReset.email
+        });
+
         setIsResetting(true);
         try {
-            await resetUserTemporaryPassword(targetUserId, 'PLANEJAMENTO_ESTRATEGICO');
+            const result = await resetUserTemporaryPassword(targetUserId, 'PLANEJAMENTO_ESTRATEGICO');
+            console.log('[Planejamento][RedefinirSenha] Sucesso:', result);
             setToast('Senha redefinida com sucesso. O usuário deverá criar uma nova senha no próximo acesso.');
             setIsResetModalOpen(false);
             setUserToReset(null);
         } catch (e) {
-            console.error('Erro ao redefinir senha do usuário:', e);
+            console.error('[Planejamento][RedefinirSenha] Erro na redefinição:', {
+                targetUserId,
+                userName: userToReset?.name,
+                error: e
+            });
             alert(e.message || 'Não foi possível redefinir a senha deste usuário. Tente novamente.');
         } finally {
             setIsResetting(false);
@@ -704,32 +715,35 @@ const PlanejamentoUsuarios = () => {
 
             {/* ── Modal Redefinir Senha ─────────────────────────────── */}
             {isResetModalOpen && (
-                <div className="lab-modal-overlay">
-                    <div className="lab-modal-content" style={{ width: '450px', padding: '1.5rem', textAlign: 'center' }}>
+                <div className="farmacia-modal-confirm-overlay">
+                    <div className="farmacia-modal-confirm-card" style={{ width: '450px', textAlign: 'center' }}>
                         <div style={{ background: '#e0f2fe', color: '#0ea5e9', width: '48px', height: '48px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
                             <KeyRound size={24} />
                         </div>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.5rem', color: '#0f172a' }}>Redefinir senha</h3>
-                        <p style={{ color: '#64748b', margin: '0 0 1rem', lineHeight: 1.5, fontSize: '0.95rem' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.5rem', color: 'var(--text-primary)' }}>Redefinir senha</h3>
+                        <p style={{ color: '#64748b', fontSize: '0.95rem', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
                             A senha de <strong>{userToReset?.name}</strong> será redefinida para a senha temporária padrão. No próximo acesso, o usuário deverá criar uma nova senha pessoal.
                         </p>
                         <p style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600, margin: '0 0 1.5rem' }}>
                             Esta ação altera a senha de acesso ao GPI.
                         </p>
-                        <div style={{ display: 'flex', gap: '1rem' }}>
-                            <button 
-                                type="button"
-                                onClick={() => { setIsResetModalOpen(false); setUserToReset(null); }} 
-                                disabled={isResetting} 
-                                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#334155', fontWeight: 600, cursor: isResetting ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}
+                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                            <button
+                                onClick={() => { setIsResetModalOpen(false); setUserToReset(null); }}
+                                disabled={isResetting}
+                                className="btn-confirm-cancel"
+                                style={{ flex: 1 }}
                             >
                                 Cancelar
                             </button>
-                            <button 
-                                type="button"
-                                onClick={confirmReset} 
-                                disabled={isResetting} 
-                                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#0ea5e9', color: '#fff', fontWeight: 600, cursor: isResetting ? 'not-allowed' : 'pointer', transition: 'all 0.2s', opacity: isResetting ? 0.7 : 1 }}
+                            <button
+                                onClick={confirmReset}
+                                disabled={isResetting}
+                                style={{
+                                    flex: 1, padding: '10px 16px', borderRadius: '8px', border: 'none',
+                                    background: '#0ea5e9', color: '#fff', fontWeight: 600, cursor: isResetting ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.2s', opacity: isResetting ? 0.7 : 1
+                                }}
                             >
                                 {isResetting ? 'Redefinindo...' : 'Confirmar redefinição'}
                             </button>

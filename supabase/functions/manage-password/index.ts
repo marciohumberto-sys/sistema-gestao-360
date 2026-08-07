@@ -167,7 +167,7 @@ serve(async (req) => {
       });
 
     } else if (action === 'reset_user_password') {
-      const allowedFields = ['action', 'target_user_id'];
+      const allowedFields = ['action', 'target_user_id', 'module_key'];
       const extraFields = Object.keys(body).filter(k => !allowedFields.includes(k));
       if (extraFields.length > 0) {
         return new Response(JSON.stringify({ success: false, error: 'Invalid body structure' }), {
@@ -176,7 +176,7 @@ serve(async (req) => {
         });
       }
 
-      const { target_user_id } = body;
+      const { target_user_id, module_key } = body;
 
       if (!target_user_id || typeof target_user_id !== 'string') {
         return new Response(JSON.stringify({ success: false, error: 'Invalid target format' }), {
@@ -184,6 +184,17 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      if (module_key !== undefined && (typeof module_key !== 'string' || !module_key.trim())) {
+        return new Response(JSON.stringify({ success: false, error: 'Invalid module format' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const requestedModuleKey = (typeof module_key === 'string' && module_key.trim())
+        ? module_key.trim().toUpperCase()
+        : 'LABORATORIO';
 
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(target_user_id)) {
@@ -203,7 +214,7 @@ serve(async (req) => {
       const { data: moduleData, error: moduleError } = await supabaseAdmin
         .from('system_modules')
         .select('id')
-        .eq('key', 'LABORATORIO')
+        .eq('key', requestedModuleKey)
         .eq('is_active', true)
         .single();
 
@@ -220,7 +231,7 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const labModuleId = moduleData.id;
+      const targetModuleId = moduleData.id;
 
       const { data: requesterTenants, error: requesterTenantsError } = await supabaseAdmin
         .from('user_tenants')
@@ -246,7 +257,7 @@ serve(async (req) => {
         .from('user_access_scopes')
         .select('tenant_id')
         .eq('user_id', requesterId)
-        .eq('module_id', labModuleId)
+        .eq('module_id', targetModuleId)
         .eq('is_active', true);
 
       if (requesterScopesError) {
@@ -326,7 +337,7 @@ serve(async (req) => {
 
       if (!isGlobalSuperAdmin) {
         const hasOutsideTenants = (allTargetTenants || []).some(t => !authorizedTenants.has(t.tenant_id));
-        const hasOutsideModules = (allTargetScopes || []).some(s => s.module_id !== labModuleId);
+        const hasOutsideModules = (allTargetScopes || []).some(s => s.module_id !== targetModuleId);
         
         if (targetIsSuperAdminAnywhere || hasOutsideTenants || hasOutsideModules) {
           return new Response(JSON.stringify({ success: false, error: 'TARGET_REQUIRES_SUPERADMIN' }), {
@@ -338,7 +349,7 @@ serve(async (req) => {
 
       const validTenants = (allTargetTenants || []).filter(tt => 
         authorizedTenants.has(tt.tenant_id) && 
-        (allTargetScopes || []).some(ts => ts.tenant_id === tt.tenant_id && ts.module_id === labModuleId)
+        (allTargetScopes || []).some(ts => ts.tenant_id === tt.tenant_id && ts.module_id === targetModuleId)
       );
 
       if (validTenants.length === 0) {
