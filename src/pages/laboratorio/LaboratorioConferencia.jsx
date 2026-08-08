@@ -3,18 +3,68 @@ import { formatCpf } from '../../utils/formatters';
 import { 
     CheckCircle2, AlertTriangle, Search, RefreshCw, 
     Activity, Clock, ShieldCheck, User, Eye, 
-    ChevronLeft, ChevronRight, Info, ListChecks, Loader2
+    ChevronLeft, ChevronRight, ArrowLeft, Info, ListChecks, Loader2,
+    Edit2, Save, X, FileText
 } from 'lucide-react';
 import './LaboratorioConferencia.css';
 import { laboratorioConferenciaService } from '../../services/api/laboratorioConferencia.service';
 import { laboratorioResultadosService } from '../../services/api/laboratorioResultados.service';
-import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, formatLabValue } from '../../utils/laboratorioHelpers';
+import { 
+    ATTENDANCE_ORIGINS, 
+    formatAttendanceOrigin, 
+    formatLabValue, 
+    isHemoExam, 
+    isHemoMorphologyParameter, 
+    expandHemogramaMorphologyAbbreviations, 
+    resolveHemoReference, 
+    formatHemoReferenceText, 
+    expandRcText 
+} from '../../utils/laboratorioHelpers';
+import { 
+    isUriExam, 
+    getUriParameterKey, 
+    getUriParameterDisplayName, 
+    URI_PARAM_CANONICAL_KEYS, 
+    expandUriFieldValue 
+} from '../../utils/uriHelpers';
 
 const getLocalDateInputValue = (date = new Date()) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+};
+
+const getPatientAgeDays = (protocol) => {
+    if (!protocol) return 365 * 30;
+    if (protocol.pacienteDataNasc) {
+        const diff = Date.now() - new Date(protocol.pacienteDataNasc).getTime();
+        return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+    }
+    if (protocol.pacienteIdade) {
+        const str = String(protocol.pacienteIdade).toLowerCase();
+        if (str.includes('ano')) {
+            const y = parseInt(str, 10);
+            if (!isNaN(y)) return Math.floor(y * 365.25);
+        }
+        if (str.includes('mês') || str.includes('mes')) {
+            const m = parseInt(str, 10);
+            if (!isNaN(m)) return Math.floor(m * 30.4);
+        }
+        if (str.includes('dia')) {
+            const d = parseInt(str, 10);
+            if (!isNaN(d)) return d;
+        }
+    }
+    return 365 * 30;
+};
+
+const getPatientSexGroup = (protocol) => {
+    if (!protocol) return 'UNKNOWN';
+    const sex = String(protocol.pacienteSexo || protocol.pacienteSexoRaw || '').trim().toUpperCase();
+    if (sex === 'M' || sex.startsWith('MASC')) return 'MALE';
+    if (sex === 'F' || sex.startsWith('FEM')) return 'FEMALE';
+    return 'UNKNOWN';
 };
 
 const LaboratorioConferencia = () => {
@@ -27,8 +77,13 @@ const LaboratorioConferencia = () => {
     
     const [localSearch, setLocalSearch] = useState('');
     const [selectedProtocol, setSelectedProtocol] = useState(null);
-    const [keyboardSelectedIndex, setKeyboardSelectedIndex] = useState(-1);
-    const listRef = useRef(null);
+    
+    const queueListRef = useRef(null);
+    const queueScrollPosRef = useRef(0);
+    const sentinelRef = useRef(null);
+
+    const PAGE_SIZE = 25;
+    const [displayedCount, setDisplayedCount] = useState(PAGE_SIZE);
 
     const [loading, setLoading] = useState(false);
     const [searchResults, setSearchResults] = useState([]);
@@ -40,8 +95,6 @@ const LaboratorioConferencia = () => {
     const [saving, setSaving] = useState(false);
     const [returning, setReturning] = useState(false);
     const [feedbackMsg, setFeedbackMsg] = useState(null);
-    const [showReturnModal, setShowReturnModal] = useState(false); // Mantido apenas para ref se necessário
-    const [returnReason, setReturnReason] = useState('');
 
     const [editingParam, setEditingParam] = useState(null);
     const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -83,13 +136,16 @@ const LaboratorioConferencia = () => {
         handleSearch();
     }, []);
 
+    // Atalhos de teclado globais
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
-                if (showReturnModal && !returning) setShowReturnModal(false);
+                if (editingParam) {
+                    setEditingParam(null);
+                }
             }
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                if (showReturnModal || showUnsavedModal) return;
+                if (showUnsavedModal) return;
                 if (!selectedExam || saving || returning || loadingDetails) return;
                 e.preventDefault();
                 handleConfirmarConferenciaRef.current?.();
@@ -97,8 +153,9 @@ const LaboratorioConferencia = () => {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showReturnModal, showUnsavedModal, selectedExam, saving, returning, loadingDetails]);
+    }, [showUnsavedModal, selectedExam, saving, returning, loadingDetails, editingParam]);
 
+    // Scroll listeners das abas de exames no modo de conferência
     useEffect(() => {
         const el = examTabsRef.current;
         if (!el) return;
@@ -129,6 +186,18 @@ const LaboratorioConferencia = () => {
             return () => clearTimeout(timer);
         }
     }, [selectedExam?.id]);
+
+    // Restauração da posição de scroll ao voltar para a Fila
+    useEffect(() => {
+        if (!selectedProtocol && queueListRef.current) {
+            const timer = setTimeout(() => {
+                if (queueListRef.current) {
+                    queueListRef.current.scrollTop = queueScrollPosRef.current;
+                }
+            }, 30);
+            return () => clearTimeout(timer);
+        }
+    }, [selectedProtocol]);
 
     const handleFilterKeyDown = (event) => {
         if (event.key === 'Enter') {
@@ -168,9 +237,12 @@ const LaboratorioConferencia = () => {
                     pacienteCns: ex.pacienteCns,
                     pacienteCpf: ex.pacienteCpf,
                     pacienteCode: ex.pacienteCode,
+                    pacienteDataNasc: ex.pacienteDataNasc,
+                    pacienteSexoRaw: ex.pacienteSexoRaw,
                     convenio: ex.convenio,
                     medico: ex.medico,
                     local_entrega: ex.local_entrega,
+                    attendance_origin: ex.attendance_origin,
                     exams: []
                 };
             }
@@ -199,12 +271,46 @@ const LaboratorioConferencia = () => {
         });
     }, [filteredResults]);
 
+    // Lista paginada progressivamente (50 em 50)
+    const displayedProtocols = useMemo(() => {
+        return groupedProtocols.slice(0, displayedCount);
+    }, [groupedProtocols, displayedCount]);
+
+    // Reset da paginação ao filtrar localmente
     useEffect(() => {
-        if (groupedProtocols.length === 0) {
-            setSelectedProtocol(null);
-            setSelectedExam(null);
-            setExamDetails([]);
-        } else if (selectedProtocol) {
+        setDisplayedCount(PAGE_SIZE);
+    }, [localSearch]);
+
+    // Rolagem progressiva da fila (infinite scroll)
+    const handleQueueScroll = (e) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+        queueScrollPosRef.current = scrollTop;
+        if (scrollHeight - scrollTop - clientHeight < 280) {
+            if (displayedCount < groupedProtocols.length) {
+                setDisplayedCount(prev => Math.min(prev + PAGE_SIZE, groupedProtocols.length));
+            }
+        }
+    };
+
+    // Observer na sentinela para carregamento contínuo ao chegar ao fim da lista
+    useEffect(() => {
+        if (!sentinelRef.current) return;
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) {
+                setDisplayedCount(prev => Math.min(prev + PAGE_SIZE, groupedProtocols.length));
+            }
+        }, {
+            root: queueListRef.current,
+            rootMargin: '200px',
+            threshold: 0.1
+        });
+        observer.observe(sentinelRef.current);
+        return () => observer.disconnect();
+    }, [groupedProtocols.length, displayedCount]);
+
+    // Atualização do protocolo selecionado se os dados mudarem
+    useEffect(() => {
+        if (selectedProtocol) {
             const found = groupedProtocols.find(g => g.protocolo === selectedProtocol.protocolo);
             if (found) {
                 setSelectedProtocol(found);
@@ -222,46 +328,28 @@ const LaboratorioConferencia = () => {
                 setExamDetails([]);
             }
         }
-    }, [groupedProtocols, selectedProtocol, searchResults]); // depend on searchResults to force update
-
-    useEffect(() => {
-        if (selectedProtocol && selectedProtocol.exams.length > 0 && !selectedExam) {
-            handleSelectExam(selectedProtocol.exams[0]);
-        }
-    }, [selectedProtocol]);
-
-    const handleLocalSearchKeyDown = (e) => {
-        if (groupedProtocols.length === 0) return;
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            setKeyboardSelectedIndex(prev => Math.min(prev + 1, groupedProtocols.length - 1));
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            setKeyboardSelectedIndex(prev => Math.max(prev - 1, 0));
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            if (keyboardSelectedIndex >= 0 && keyboardSelectedIndex < groupedProtocols.length) {
-                setSelectedProtocol(groupedProtocols[keyboardSelectedIndex]);
-            } else if (groupedProtocols.length === 1) {
-                setSelectedProtocol(groupedProtocols[0]);
-            }
-        }
-    };
+    }, [groupedProtocols]);
 
     const handleSearch = async () => {
         try {
             setLoading(true);
+            setDisplayedCount(PAGE_SIZE);
+            queueScrollPosRef.current = 0;
+            if (queueListRef.current) {
+                queueListRef.current.scrollTop = 0;
+            }
             const data = await laboratorioConferenciaService.buscarExamesParaConferencia({
                 ...searchFilters,
                 dataInicial: searchFilters.date
             });
             setSearchResults(data);
+            setSelectedProtocol(null);
             setSelectedExam(null);
             setExamDetails([]);
             setFeedbackMsg(null);
         } catch (error) {
             console.error('Erro na busca', error);
-            setFeedbackMsg({ type: 'error', text: 'Erro ao buscar exames para conferência. Verifique os filtros e tente novamente.' });
+            setFeedbackMsg({ type: 'error', text: 'Erro ao buscar exames para conferência.' });
             setTimeout(() => setFeedbackMsg(null), 5000);
         } finally {
             setLoading(false);
@@ -272,6 +360,7 @@ const LaboratorioConferencia = () => {
         try {
             setSelectedExam(exam);
             setLoadingDetails(true);
+            setEditingParam(null);
             const detalhes = await laboratorioConferenciaService.carregarDetalhesResultado(exam.id);
             setExamDetails(detalhes);
             setFeedbackMsg(null);
@@ -293,17 +382,38 @@ const LaboratorioConferencia = () => {
         }
     };
 
-    const handleSelectProtocolWithCheck = (group, idx) => {
+    const handleOpenConference = (group) => {
         if (editingParam) {
-            setPendingAction(() => () => {
-                setSelectedProtocol(group);
-                setKeyboardSelectedIndex(idx);
-            });
+            setPendingAction(() => () => handleOpenConference(group));
             setShowUnsavedModal(true);
-        } else {
-            setSelectedProtocol(group);
-            setKeyboardSelectedIndex(idx);
+            return;
         }
+
+        // Salvar a posição atual de scroll da fila
+        if (queueListRef.current) {
+            queueScrollPosRef.current = queueListRef.current.scrollTop;
+        }
+
+        setSelectedProtocol(group);
+        if (group.exams && group.exams.length > 0) {
+            handleSelectExam(group.exams[0]);
+        } else {
+            setSelectedExam(null);
+            setExamDetails([]);
+        }
+    };
+
+    const handleBackToQueue = () => {
+        if (editingParam) {
+            setPendingAction(() => handleBackToQueue);
+            setShowUnsavedModal(true);
+            return;
+        }
+
+        setSelectedProtocol(null);
+        setSelectedExam(null);
+        setExamDetails([]);
+        setEditingParam(null);
     };
 
     const handleSearchWithCheck = () => {
@@ -326,20 +436,35 @@ const LaboratorioConferencia = () => {
 
         try {
             setSaving(true);
-            const value = editingParam.value;
+            const rawVal = editingParam.value;
             const updatedParam = { ...param, value_id: param.id };
             
-            if (param.value_numeric !== null || param.value_numeric !== undefined || !isNaN(value)) {
-                updatedParam.value_numeric = isNaN(parseFloat(value)) ? null : parseFloat(value);
-                updatedParam.value_text = isNaN(parseFloat(value)) ? value : null;
+            if (typeof rawVal === 'string') {
+                const normalizedStr = rawVal.trim().replace(',', '.');
+                const parsedNum = Number(normalizedStr);
+
+                if (rawVal.trim() !== '' && !isNaN(parsedNum) && isFinite(parsedNum) && !editingParam.isText) {
+                    updatedParam.value_numeric = parsedNum;
+                    updatedParam.value_text = null;
+                } else {
+                    updatedParam.value_text = rawVal;
+                    updatedParam.value_numeric = null;
+                }
+            } else if (rawVal !== null && rawVal !== undefined && !isNaN(rawVal)) {
+                updatedParam.value_numeric = Number(rawVal);
+                updatedParam.value_text = null;
             } else {
-                updatedParam.value_text = value;
+                updatedParam.value_text = rawVal || '';
                 updatedParam.value_numeric = null;
             }
             
             await laboratorioResultadosService.salvarResultados(selectedExam.id, [updatedParam]);
             
-            setExamDetails(prev => prev.map(p => p.id === param.id ? { ...p, value_numeric: updatedParam.value_numeric, value_text: updatedParam.value_text } : p));
+            setExamDetails(prev => prev.map(p => p.id === param.id ? { 
+                ...p, 
+                value_numeric: updatedParam.value_numeric, 
+                value_text: updatedParam.value_text 
+            } : p));
             setEditingParam(null);
             setFeedbackMsg({ type: 'success', text: 'Valor atualizado com sucesso.' });
             setTimeout(() => setFeedbackMsg(null), 3000);
@@ -367,39 +492,20 @@ const LaboratorioConferencia = () => {
             await laboratorioConferenciaService.confirmarConferencia(confirmedId);
             setFeedbackMsg({ type: 'success', text: 'Exame conferido com sucesso.' });
 
-            // 1. Remover o exame confirmado de searchResults (estado raiz que alimenta groupedProtocols)
             const updatedSearchResults = searchResults.filter(ex => ex.id !== confirmedId);
             setSearchResults(updatedSearchResults);
 
-            // 2. Calcular os exames restantes deste protocolo (somente DIGITADO)
             const remainingExamsInProtocol = updatedSearchResults.filter(
-                ex => ex.protocolo === selectedProtocol.protocolo && ex.status === 'DIGITADO'
+                ex => ex.protocolo === selectedProtocol?.protocolo && ex.status === 'DIGITADO'
             );
 
             if (remainingExamsInProtocol.length > 0) {
-                // Ainda há exames neste atendimento: selecionar o primeiro
                 const nextExam = remainingExamsInProtocol[0];
                 handleSelectExam(nextExam);
-                setTimeout(() => {
-                    const el = document.querySelector('.lab-review-panel');
-                    if (el) el.scrollTop = 0;
-                }, 100);
             } else {
-                // Último exame do atendimento confirmado: ir para o próximo paciente
-                const otherProtocols = updatedSearchResults
-                    .map(ex => ex.protocolo)
-                    .filter((p, i, arr) => p !== selectedProtocol.protocolo && arr.indexOf(p) === i);
-
-                if (otherProtocols.length > 0) {
-                    // Não força seleção aqui — o useEffect de groupedProtocols vai selecionar o primeiro disponível
-                    setSelectedProtocol(null);
-                    setSelectedExam(null);
-                    setExamDetails([]);
-                } else {
-                    setSelectedProtocol(null);
-                    setSelectedExam(null);
-                    setExamDetails([]);
-                }
+                setSelectedProtocol(null);
+                setSelectedExam(null);
+                setExamDetails([]);
             }
 
             setTimeout(() => {
@@ -421,561 +527,448 @@ const LaboratorioConferencia = () => {
         const num = parseFloat(val_num);
         if (isNaN(num)) return false;
         
-        if (min !== null && num < parseFloat(min)) return 'below';
-        if (max !== null && num > parseFloat(max)) return 'above';
+        if (min !== null && min !== undefined && num < parseFloat(min)) return 'below';
+        if (max !== null && max !== undefined && num > parseFloat(max)) return 'above';
         return 'normal';
     };
 
+    const isHemo = isHemoExam(selectedExam?.exameCodigo);
+    const isUri = isUriExam(selectedExam?.exameCodigo);
+
     return (
         <div className="lab-conf-container">
-            {/* Header */}
-            <header className="lab-conf-header">
-                <div>
-                    <h1 className="lab-title">Conferência</h1>
-                    <p className="lab-subtitle">Revisão técnica dos resultados antes da liberação do laudo</p>
-                </div>
-                <div className="lab-header-actions" style={{ position: 'relative' }}>
-                    {feedbackMsg && !selectedExam && (
-                        <div style={{
-                            position: 'absolute', top: '50%', right: '0', 
-                            transform: 'translateY(-50%)',
-                            background: feedbackMsg.type === 'success' ? '#d1fae5' : '#fee2e2',
-                            color: feedbackMsg.type === 'success' ? '#047857' : '#b91c1c',
-                            border: `1px solid ${feedbackMsg.type === 'success' ? '#10b981' : '#ef4444'}`,
-                            padding: '0.5rem 1rem', borderRadius: '8px',
-                            fontWeight: '600', fontSize: '0.85rem', zIndex: 10,
-                            whiteSpace: 'nowrap',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                        }}>
-                            {feedbackMsg.text}
+            {/* ============================================================== */}
+            {/* ESTADO 1: FILA DE CONFERÊNCIA (Quando nenhum atendimento está aberto) */}
+            {/* ============================================================== */}
+            {!selectedProtocol ? (
+                <>
+                    {/* Header da Página */}
+                    <header className="lab-conf-header">
+                        <div className="lab-conf-title-group">
+                            <h1 className="lab-title">
+                                <ListChecks size={20} className="text-primary" />
+                                Conferência
+                            </h1>
+                            <p className="lab-subtitle">Revisão técnica dos resultados antes da liberação do laudo</p>
                         </div>
-                    )}
-                </div>
-            </header>
+                    </header>
 
-            {/* Filtros */}
-            <div className={`lab-card lab-filters-card ${selectedExam ? 'compact' : ''}`}>
-                <div className="lab-filters-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 4fr 1.5fr 1.5fr auto', gap: '1rem', alignItems: 'flex-end', width: '100%' }}>
-                    <div className="lab-filter-item lab-filter-group">
-                        <label>Data</label>
-                        <input 
-                            type="date" 
-                            value={searchFilters.date}
-                            onChange={(e) => setSearchFilters({...searchFilters, date: e.target.value})}
-                            onKeyDown={handleFilterKeyDown}
-                        />
-                    </div>
+                    {/* Filtros da Fila - Padrão Resultados */}
+                    <div className="lab-filters-card lab-conf-filters-card">
+                        <div className="lab-filters-grid lab-conf-filters-grid">
+                            <div className="lab-filter-group">
+                                <label>Data</label>
+                                <input 
+                                    type="date" 
+                                    className="lab-input"
+                                    value={searchFilters.date}
+                                    onChange={(e) => setSearchFilters({...searchFilters, date: e.target.value})}
+                                    onKeyDown={handleFilterKeyDown}
+                                />
+                            </div>
 
-                    <div className="lab-filter-item lab-filter-group">
-                        <label>Paciente</label>
-                        <input 
-                            type="text" 
-                            placeholder="Nome do paciente..."
-                            value={searchFilters.patient}
-                            onChange={(e) => setSearchFilters({...searchFilters, patient: e.target.value})}
-                            onKeyDown={handleFilterKeyDown}
-                        />
-                    </div>
-                    <div className="lab-filter-item lab-filter-group">
-                        <label>CÓD. PACIENTE</label>
-                        <input 
-                            type="text" 
-                            placeholder="Ex.: 115003"
-                            value={searchFilters.patientCode}
-                            onChange={(e) => {
-                                const onlyNums = e.target.value.replace(/\D/g, '');
-                                setSearchFilters({...searchFilters, patientCode: onlyNums});
-                            }}
-                            onKeyDown={handleFilterKeyDown}
-                        />
-                    </div>
-                    <div className="lab-filter-item lab-filter-group">
-                        <label>Origem</label>
-                        <select 
-                            value={searchFilters.attendance_origin}
-                            onChange={(e) => setSearchFilters({...searchFilters, attendance_origin: e.target.value})}
-                        >
-                            <option value="">Todos</option>
-                            {ATTENDANCE_ORIGINS.map(origin => (
-                                <option key={origin.value} value={origin.value}>{origin.label}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="lab-filter-item lab-filter-group lab-filter-actions">
-                        <label className="filter-label-spacer" aria-hidden="true">Ação</label>
-                        <button className="lab-btn lab-btn-primary" onClick={handleSearchWithCheck} disabled={loading}>
-                            {loading ? <Loader2 size={16} className="spin" /> : <Search size={16} />}
-                            Buscar
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Layout Principal */}
-            <div className="lab-conf-layout conferencia-workspace" style={{ height: 'calc(100vh - 210px)', minHeight: 0, minWidth: 0, overflow: 'hidden', alignItems: 'stretch' }}>
-                
-                {/* Coluna Esquerda: Fila */}
-                <div className="lab-conf-sidebar" style={{ position: 'relative', top: 'auto', height: '100%', minHeight: '0' }}>
-                    <div className="lab-card lab-queue-card" style={{ flex: 1, minHeight: '0', maxHeight: 'none', padding: '0.75rem' }}>
-                        <div className="lab-card-header" style={{ paddingBottom: '0.5rem', marginBottom: '0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h3 className="lab-card-title" style={{ fontSize: '1rem', margin: 0 }}><Clock size={16} style={{marginRight: '6px'}} /> Resultados</h3>
-                            <span className="lab-badge lab-badge-primary" style={{ fontSize: '0.75rem', padding: '2px 6px' }}>{groupedProtocols.length} atends / {filteredResults.length} exames</span>
-                        </div>
-                        <div style={{ padding: '0.5rem 0', borderBottom: '1px solid #e2e8f0', marginBottom: '0.5rem' }}>
-                            <div style={{ position: 'relative' }}>
-                                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                            <div className="lab-filter-group">
+                                <label>CÓD. PACIENTE</label>
                                 <input 
                                     type="text" 
-                                    placeholder="Pesquisar nesta lista..." 
-                                    value={localSearch}
+                                    className="lab-input"
+                                    placeholder="Ex.: 115003"
+                                    value={searchFilters.patientCode}
                                     onChange={(e) => {
-                                        setLocalSearch(e.target.value);
-                                        setKeyboardSelectedIndex(-1);
+                                        const onlyNums = e.target.value.replace(/\D/g, '');
+                                        setSearchFilters({...searchFilters, patientCode: onlyNums});
                                     }}
-                                    onKeyDown={handleLocalSearchKeyDown}
-                                    style={{ width: '100%', padding: '0.5rem 0.5rem 0.5rem 2rem', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none' }}
+                                    onKeyDown={handleFilterKeyDown}
+                                />
+                            </div>
+
+                            <div className="lab-filter-group">
+                                <label>Paciente</label>
+                                <input 
+                                    type="text" 
+                                    className="lab-input"
+                                    placeholder="Nome do paciente..."
+                                    value={searchFilters.patient}
+                                    onChange={(e) => setSearchFilters({...searchFilters, patient: e.target.value})}
+                                    onKeyDown={handleFilterKeyDown}
+                                />
+                            </div>
+
+                            <div className="lab-filter-group">
+                                <label>Origem</label>
+                                <select 
+                                    className="lab-select"
+                                    value={searchFilters.attendance_origin}
+                                    onChange={(e) => setSearchFilters({...searchFilters, attendance_origin: e.target.value})}
+                                >
+                                    <option value="">Todos</option>
+                                    {ATTENDANCE_ORIGINS.map(origin => (
+                                        <option key={origin.value} value={origin.value}>{origin.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="lab-filter-group lab-filter-actions">
+                                <label className="filter-label-spacer" aria-hidden="true">Ação</label>
+                                <button 
+                                    className="lab-btn lab-btn-primary" 
+                                    style={{ width: '100%', justifyContent: 'center' }}
+                                    onClick={handleSearchWithCheck} 
+                                    disabled={loading}
+                                >
+                                    {loading ? <Loader2 className="animate-spin" size={16} /> : <Search size={16} />}
+                                    Buscar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Fila de Atendimentos */}
+                    <div className="lab-conf-queue-view">
+                        <div className="lab-conf-queue-topbar">
+                            <div className="lab-conf-queue-title-box">
+                                <h3 className="lab-conf-queue-title">
+                                    Atendimentos para Conferência
+                                </h3>
+                                <span className="lab-conf-queue-count-badge">
+                                    {groupedProtocols.length} {groupedProtocols.length === 1 ? 'atendimento' : 'atendimentos'} • {filteredResults.length} {filteredResults.length === 1 ? 'exame pendente' : 'exames pendentes'}
+                                    {groupedProtocols.length > 0 && (
+                                        <span className="lab-conf-queue-loaded-tag">
+                                            ({displayedProtocols.length} carregados)
+                                        </span>
+                                    )}
+                                </span>
+                            </div>
+
+                            <div className="lab-conf-queue-search-box">
+                                <Search size={14} className="lab-conf-queue-search-icon" />
+                                <input 
+                                    type="text" 
+                                    className="lab-conf-queue-search-input"
+                                    placeholder="Filtrar nesta fila (paciente, código, protocolo)..." 
+                                    value={localSearch}
+                                    onChange={(e) => setLocalSearch(e.target.value)}
                                 />
                             </div>
                         </div>
-                        <div className="lab-queue-list" ref={listRef} style={{ flex: 1, minHeight: '0', overflowY: 'auto' }}>
-                            {groupedProtocols.length === 0 && !loading && (
-                                <div className="text-center p-4 text-gray-500 text-sm">
-                                    Nenhum item encontrado nesta lista.
+
+                        <div 
+                            className="lab-conf-queue-list-scroll" 
+                            ref={queueListRef}
+                            onScroll={handleQueueScroll}
+                        >
+                            {loading ? (
+                                <div className="lab-conf-empty">
+                                    <Loader2 size={26} className="spin text-primary" />
+                                    <p>Carregando fila de exames...</p>
+                                </div>
+                            ) : groupedProtocols.length === 0 ? (
+                                <div className="lab-conf-empty">
+                                    <Activity size={36} className="lab-conf-empty-icon" />
+                                    <h3>Nenhum exame pendente de conferência</h3>
+                                    <p>Não foram encontrados atendimentos com status DIGITADO para os filtros aplicados.</p>
+                                </div>
+                            ) : (
+                                <div className="lab-conf-queue-cards-wrapper">
+                                    {displayedProtocols.map((group) => {
+                                        const totalExames = group.exams.length;
+                                        const displayProtocolo = group.protocolo ? String(group.protocolo).replace(/^LAB-/i, '') : '';
+                                        return (
+                                            <div 
+                                                key={group.protocolo} 
+                                                className="lab-card lab-conf-attendance-card"
+                                                onClick={() => handleOpenConference(group)}
+                                            >
+                                                {/* Linha Superior: Nome do Paciente (Esq) + Badges e Botão (Dir) */}
+                                                <div className="lab-conf-card-top-row">
+                                                    <strong 
+                                                        title={group.pacienteNome} 
+                                                        className="lab-conf-card-patient-name"
+                                                    >
+                                                        {group.pacienteNome}
+                                                    </strong>
+
+                                                    <div className="lab-conf-card-right-group">
+                                                        <span className="lab-conf-card-badge">
+                                                            Cód. Paciente: {group.pacienteCode || 'N/I'}
+                                                        </span>
+                                                        <span className="lab-conf-card-badge">
+                                                            Protocolo: {displayProtocolo}
+                                                        </span>
+                                                        <span className="lab-conf-card-badge">
+                                                            Data: {group.dataAtendimento}
+                                                        </span>
+                                                        <button 
+                                                            type="button"
+                                                            className="lab-btn lab-btn-primary lab-conf-btn-open-attendance" 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenConference(group);
+                                                            }}
+                                                            title="Abrir conferência dos exames deste atendimento"
+                                                        >
+                                                            <Activity size={16} /> Abrir Conferência
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Linha Inferior: Informações Demográficas/Clínicas (Esq) + Resumo dos Exames (Dir, abaixo do botão) */}
+                                                <div className="lab-conf-card-bottom-row">
+                                                    <div className="lab-conf-card-patient-details">
+                                                        <span className="lab-conf-info-item">
+                                                            <User size={14} className="lab-conf-info-icon" />
+                                                            Idade: <strong>{group.pacienteIdade || 'Não informada'}</strong>
+                                                        </span>
+                                                        <span className="lab-conf-info-item">
+                                                            Sexo: <strong>{group.pacienteSexo || 'Não informado'}</strong>
+                                                        </span>
+                                                        <span className="lab-conf-info-item">
+                                                            Origem: <strong>{formatAttendanceOrigin(group.attendance_origin) || 'Não informada'}</strong>
+                                                        </span>
+                                                        {group.medico && (
+                                                            <span className="lab-conf-info-item">
+                                                                Médico: <strong>Dr(a) {group.medico}</strong>
+                                                            </span>
+                                                        )}
+                                                        <span className="lab-conf-info-item">
+                                                            CPF: <strong>{formatCpf(group.pacienteCpf)}</strong>
+                                                        </span>
+                                                        {group.pacienteCns && (
+                                                            <span className="lab-conf-info-item">
+                                                                CNS: <strong>{group.pacienteCns}</strong>
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="lab-conf-card-exams-summary">
+                                                        <span className="lab-conf-info-item lab-conf-info-exams">
+                                                            Exames: <strong>{totalExames}</strong>{' '}
+                                                            <span className="lab-conf-exams-pending-text">
+                                                                ({totalExames} {totalExames === 1 ? 'pendente' : 'pendentes'})
+                                                            </span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {displayedCount < groupedProtocols.length ? (
+                                        <div ref={sentinelRef} className="lab-conf-load-more-indicator">
+                                            <Loader2 size={16} className="spin text-primary" />
+                                            <span>Carregando mais atendimentos ({displayedProtocols.length} de {groupedProtocols.length})...</span>
+                                        </div>
+                                    ) : (
+                                        groupedProtocols.length > PAGE_SIZE && (
+                                            <div className="lab-conf-load-finished-indicator">
+                                                Todos os atendimentos foram carregados ({groupedProtocols.length}).
+                                            </div>
+                                        )
+                                    )}
                                 </div>
                             )}
-                            {groupedProtocols.map((group, idx) => {
-                                const isSelected = selectedProtocol?.protocolo === group.protocolo;
-                                const isKeyboardSelected = keyboardSelectedIndex === idx;
-                                return (
-                                    <div 
-                                        key={group.protocolo} 
-                                        className={`lab-queue-item ${isSelected ? 'active' : ''}`}
-                                        style={{ 
-                                            padding: '10px 12px', 
-                                            borderLeft: isSelected ? '4px solid #3b82f6' : '4px solid #e2e8f0',
-                                            borderTop: '1px solid #e2e8f0',
-                                            borderRight: '1px solid #e2e8f0',
-                                            borderBottom: '1px solid #e2e8f0',
-                                            borderRadius: '8px',
-                                            marginBottom: '8px',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '4px',
-                                            background: isSelected ? '#eff6ff' : '#fff',
-                                            boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!isSelected) {
-                                                e.currentTarget.style.background = '#f8fafc';
-                                                e.currentTarget.style.borderColor = '#cbd5e1';
-                                                e.currentTarget.style.borderLeftColor = '#cbd5e1';
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!isSelected) {
-                                                e.currentTarget.style.background = '#fff';
-                                                e.currentTarget.style.borderColor = '#e2e8f0';
-                                                e.currentTarget.style.borderLeftColor = '#e2e8f0';
-                                            }
-                                        }}
-                                        onClick={() => handleSelectProtocolWithCheck(group, idx)}
-                                    >
-                                        <div className="lab-qi-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>Cód. {group.pacienteCode || 'N/I'}</span>
-                                            <span style={{ fontSize: '13px', color: '#64748b' }}>{group.dataAtendimento}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '5px', gap: '8px' }}>
-                                            <div style={{ fontSize: '14.5px', fontWeight: '600', color: '#0f172a', lineHeight: '1.2', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', minWidth: '0' }}>
-                                                {group.pacienteNome}
-                                            </div>
-                                            <span style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'nowrap', paddingTop: '1px' }}>
-                                                {group.exams.length} {group.exams.length === 1 ? 'exame' : 'exames'}
-                                            </span>
-                                        </div>
+                        </div>
+                    </div>
+                </>
+            ) : (
+                /* ============================================================== */
+                /* ESTADO 2: MODO DE CONFERÊNCIA DO ATENDIMENTO (Área Ampla)     */
+                /* ============================================================== */
+                <div className="lab-conf-conference-view">
+                    {/* Cabeçalho Compacto e Organizado do Atendimento */}
+                    <div className="lab-conf-conference-header">
+                        <div className="lab-conf-top-action-bar">
+                            <div className="lab-conf-patient-identity">
+                                <button 
+                                    className="lab-conf-btn-back"
+                                    onClick={handleBackToQueue}
+                                    title="Voltar para a fila de atendimentos"
+                                >
+                                    <ArrowLeft size={14} />
+                                    Voltar para fila
+                                </button>
+                                <span className="lab-conf-patient-code-tag">
+                                    CÓD. {selectedProtocol.pacienteCode || 'N/I'}
+                                </span>
+                                <span className="lab-conf-patient-fullname" title={selectedProtocol.pacienteNome}>
+                                    {selectedProtocol.pacienteNome}
+                                </span>
+                            </div>
+
+                            <div className="lab-conf-header-actions">
+                                {feedbackMsg && (
+                                    <div className={`lab-conf-feedback-inline ${feedbackMsg.type}`}>
+                                        {feedbackMsg.text}
                                     </div>
+                                )}
+                                <button 
+                                    className="lab-conf-btn-confirm" 
+                                    onClick={handleConfirmarConferencia} 
+                                    disabled={saving || returning || !selectedExam}
+                                    title="Confirmar conferência deste exame (Ctrl + Enter)"
+                                >
+                                    {saving ? <Loader2 size={14} className="spin" /> : <CheckCircle2 size={14} />}
+                                    {saving ? 'Confirmando...' : 'Confirmar'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Linha 2 de Metadados Clínicos */}
+                        <div className="lab-conf-patient-row-meta">
+                            <span className="lab-conf-meta-item">{selectedProtocol.pacienteIdade || 'Idade N/I'}</span>
+                            <span className="lab-conf-meta-dot">•</span>
+                            <span className="lab-conf-meta-item">{selectedProtocol.pacienteSexo || 'Sexo N/I'}</span>
+                            <span className="lab-conf-meta-dot">•</span>
+                            <span className="lab-conf-meta-item"><strong>Origem:</strong> {formatAttendanceOrigin(selectedProtocol.attendance_origin)}</span>
+                            <span className="lab-conf-meta-dot">•</span>
+                            <span className="lab-conf-meta-item"><strong>Protocolo:</strong> {selectedProtocol.protocolo}</span>
+                            <span className="lab-conf-meta-dot">•</span>
+                            <span className="lab-conf-meta-item"><strong>Médico:</strong> {selectedProtocol.medico || 'Não informado'}</span>
+                            {selectedProtocol.pacienteCpf && (
+                                <>
+                                    <span className="lab-conf-meta-dot">•</span>
+                                    <span className="lab-conf-meta-item"><strong>CPF:</strong> {formatCpf(selectedProtocol.pacienteCpf)}</span>
+                                </>
+                            )}
+                            {selectedProtocol.pacienteCns && selectedProtocol.pacienteCns !== '---' && (
+                                <>
+                                    <span className="lab-conf-meta-dot">•</span>
+                                    <span className="lab-conf-meta-item"><strong>CNS:</strong> {selectedProtocol.pacienteCns}</span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Faixa de Abas dos Exames (Largura Completa) */}
+                    <div className="lab-conf-tabs-strip">
+                        {tabScrollState.hasOverflow && tabScrollState.canScrollLeft && (
+                            <button 
+                                type="button" 
+                                className="lab-conf-tab-nav-btn" 
+                                onClick={() => handleScrollTabs(-1)}
+                                title="Rolar exames para a esquerda"
+                            >
+                                <ChevronLeft size={14} />
+                            </button>
+                        )}
+
+                        <div className="lab-conf-tabs-scroll" ref={examTabsRef}>
+                            {selectedProtocol.exams.map(ex => {
+                                const isActive = selectedExam?.id === ex.id;
+                                return (
+                                    <button 
+                                        key={ex.id}
+                                        ref={isActive ? activeExamTabRef : null}
+                                        className={`lab-conf-tab-btn ${isActive ? 'active' : ''}`}
+                                        onClick={() => handleSelectExamWithCheck(ex)}
+                                    >
+                                        {ex.exameCodigo}
+                                        {ex.parametros > 0 && (
+                                            <span className="lab-conf-tab-badge">{ex.parametros}</span>
+                                        )}
+                                    </button>
                                 );
                             })}
                         </div>
-                    </div>
-                </div>
 
-                {/* Coluna Direita: Painel de Revisão */}
-                <div className="lab-conf-main" style={{ height: '100%', minHeight: '0', minWidth: '0', overflow: 'hidden' }}>
-                    
-                    {!selectedProtocol && (
-                        <div className="lab-card flex flex-col items-center justify-center p-8 text-center h-full" style={{ minHeight: '400px' }}>
-                            <Activity size={48} className="text-gray-300 mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-700">
-                                {groupedProtocols.length > 0 
-                                    ? 'Selecione um atendimento para continuar a conferência.' 
-                                    : 'Não há exames pendentes para conferência.'}
-                            </h3>
+                        {tabScrollState.hasOverflow && tabScrollState.canScrollRight && (
+                            <button 
+                                type="button" 
+                                className="lab-conf-tab-nav-btn" 
+                                onClick={() => handleScrollTabs(1)}
+                                title="Rolar exames para a direita"
+                            >
+                                <ChevronRight size={14} />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Sub-cabeçalho do Exame */}
+                    {selectedExam && (
+                        <div className="lab-conf-exam-subbar">
+                            <div className="lab-conf-exam-title-box">
+                                <span className="lab-conf-exam-name">
+                                    {selectedExam.exameCodigo} — {selectedExam.exameNome}
+                                </span>
+                                <span className="lab-conf-exam-metainfo">
+                                    (Material: {selectedExam.exameMaterial || 'Não inf.'} • Método: {selectedExam.exameMetodo || 'Não inf.'})
+                                </span>
+                            </div>
+                            <span className="lab-conf-status-tag digitado">
+                                {selectedExam.status}
+                            </span>
                         </div>
                     )}
 
-                    {selectedExam && (
-                            <div className="lab-card" style={{ padding: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', minHeight: '0', minWidth: '0', height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
-                                
-                                {/* CABEÇALHO STICKY: ATENDIMENTO E ABAS */}
-                                <div style={{ position: 'sticky', top: '-1px', zIndex: 10, background: '#fff', margin: 0, borderTop: 'none', borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', display: 'flex', flexDirection: 'column', minWidth: '0', width: '100%', overflow: 'hidden', flexShrink: 0 }}>
-                                
-                                {/* 1. CABEÇALHO COMPACTO DO ATENDIMENTO */}
-                                <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', minWidth: '0', width: '100%', boxSizing: 'border-box' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px', gap: '12px', minWidth: '0' }}>
-                                        <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '19px', display: 'flex', alignItems: 'center', gap: '8px', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 auto' }}>
-                                            <User size={18} className="text-primary" style={{ flexShrink: 0 }} />
-                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                CÓD. {selectedProtocol?.pacienteCode || 'Não informado'} — {selectedProtocol?.pacienteNome}
-                                            </span>
-                                        </div>
-                                        <div className="lab-header-actions" style={{ position: 'relative', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
-                                            {feedbackMsg && (
-                                                <div style={{ position: 'absolute', top: '50%', right: '100%', transform: 'translateY(-50%)', marginRight: '1rem', background: feedbackMsg.type === 'success' ? '#d1fae5' : '#fee2e2', color: feedbackMsg.type === 'success' ? '#047857' : '#b91c1c', border: `1px solid ${feedbackMsg.type === 'success' ? '#10b981' : '#ef4444'}`, padding: '6px 12px', borderRadius: '6px', fontWeight: '600', fontSize: '13px', zIndex: 10, whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                                                    {feedbackMsg.text}
-                                                </div>
-                                            )}
-                                            <button className="lab-btn lab-btn-success" onClick={handleConfirmarConferencia} disabled={saving || returning} style={{ padding: '0 12px', height: '36px', fontSize: '14px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                                {saving ? <Loader2 size={14} className="spin" style={{ marginRight: '4px' }} /> : <CheckCircle2 size={14} style={{ marginRight: '4px' }} />}
-                                                {saving ? 'Confirmando...' : 'Confirmar'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div style={{ fontSize: '13.5px', color: '#64748b', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                                        <span>{selectedProtocol?.pacienteIdade}</span>
-                                        <span>• {selectedProtocol?.pacienteSexo}</span>
-                                        <span>• Origem: {formatAttendanceOrigin(selectedProtocol?.attendance_origin)}</span>
-                                        {selectedProtocol?.pacienteCpf && <span>• CPF: {formatCpf(selectedProtocol?.pacienteCpf)}</span>}
-                                        {selectedProtocol?.pacienteCns && selectedProtocol?.pacienteCns !== '---' && <span>• CNS: {selectedProtocol?.pacienteCns}</span>}
-                                        <span>• Médico: {selectedProtocol?.medico || 'Não informado'}</span>
-                                    </div>
-                                </div>
-
-                                {/* 2. ABAS DOS EXAMES COM NAVEGAÇÃO LATERAL DISCRETA */}
-                                <div style={{ position: 'relative', background: '#fff', minWidth: '0', width: '100%' }}>
-                                    <style>{`
-                                        .lab-conf-exam-tabs::-webkit-scrollbar {
-                                            display: none !important;
-                                            width: 0 !important;
-                                            height: 0 !important;
-                                        }
-                                    `}</style>
-
-                                    {/* Seta Esquerda */}
-                                    {tabScrollState.hasOverflow && tabScrollState.canScrollLeft && (
-                                        <div
-                                            style={{
-                                                position: 'absolute',
-                                                left: 0,
-                                                top: 0,
-                                                bottom: 0,
-                                                width: '54px',
-                                                background: 'linear-gradient(to right, rgba(255,255,255,0.95) 55%, rgba(255,255,255,0))',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                paddingLeft: '10px',
-                                                zIndex: 5,
-                                                pointerEvents: 'none'
-                                            }}
-                                        >
-                                            <button
-                                                type="button"
-                                                onClick={() => handleScrollTabs(-1)}
-                                                title="Rolar exames para a esquerda"
-                                                aria-label="Rolar exames para a esquerda"
-                                                style={{
-                                                    width: '30px',
-                                                    height: '30px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    background: '#ffffff',
-                                                    border: '1px solid #cbd5e1',
-                                                    borderRadius: '6px',
-                                                    color: '#475569',
-                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                                                    cursor: 'pointer',
-                                                    pointerEvents: 'auto',
-                                                    padding: 0,
-                                                    transition: 'all 0.15s ease'
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    e.currentTarget.style.background = '#f8fafc';
-                                                    e.currentTarget.style.color = '#1e293b';
-                                                    e.currentTarget.style.borderColor = '#94a3b8';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    e.currentTarget.style.background = '#ffffff';
-                                                    e.currentTarget.style.color = '#475569';
-                                                    e.currentTarget.style.borderColor = '#cbd5e1';
-                                                }}
-                                            >
-                                                <ChevronLeft size={16} />
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {/* Faixa de Exames */}
-                                    <div 
-                                        ref={examTabsRef}
-                                        className="lab-conf-exam-tabs" 
-                                        style={{ 
-                                            padding: '10px 20px', 
-                                            display: 'flex', 
-                                            flexWrap: 'nowrap', 
-                                            overflowX: 'auto', 
-                                            overflowY: 'hidden', 
-                                            gap: '8px', 
-                                            background: '#fff', 
-                                            minWidth: '0', 
-                                            width: '100%', 
-                                            boxSizing: 'border-box',
-                                            scrollbarWidth: 'none',
-                                            msOverflowStyle: 'none'
-                                        }}
-                                    >
-                                        {selectedProtocol?.exams.map(ex => (
-                                            <button 
-                                                key={ex.id}
-                                                ref={selectedExam?.id === ex.id ? activeExamTabRef : null}
-                                                onClick={() => handleSelectExamWithCheck(ex)}
-                                                style={{
-                                                    height: '36px',
-                                                    padding: '0 14px',
-                                                    borderRadius: '6px',
-                                                    fontSize: '14px',
-                                                    fontWeight: '600',
-                                                    border: selectedExam?.id === ex.id ? '1px solid #2563eb' : '1px solid #cbd5e1',
-                                                    backgroundColor: selectedExam?.id === ex.id ? '#eff6ff' : '#fff',
-                                                    color: selectedExam?.id === ex.id ? '#1d4ed8' : '#475569',
-                                                    cursor: 'pointer',
-                                                    transition: 'all 0.2s',
-                                                    whiteSpace: 'nowrap',
-                                                    flexShrink: 0
-                                                }}
-                                            >
-                                                {ex.exameCodigo}
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    {/* Seta Direita */}
-                                    {tabScrollState.hasOverflow && tabScrollState.canScrollRight && (
-                                        <div
-                                            style={{
-                                                position: 'absolute',
-                                                right: 0,
-                                                top: 0,
-                                                bottom: 0,
-                                                width: '54px',
-                                                background: 'linear-gradient(to left, rgba(255,255,255,0.95) 55%, rgba(255,255,255,0))',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'flex-end',
-                                                paddingRight: '10px',
-                                                zIndex: 5,
-                                                pointerEvents: 'none'
-                                            }}
-                                        >
-                                            <button
-                                                type="button"
-                                                onClick={() => handleScrollTabs(1)}
-                                                title="Rolar exames para a direita"
-                                                aria-label="Rolar exames para a direita"
-                                                style={{
-                                                    width: '30px',
-                                                    height: '30px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    background: '#ffffff',
-                                                    border: '1px solid #cbd5e1',
-                                                    borderRadius: '6px',
-                                                    color: '#475569',
-                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                                                    cursor: 'pointer',
-                                                    pointerEvents: 'auto',
-                                                    padding: 0,
-                                                    transition: 'all 0.15s ease'
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    e.currentTarget.style.background = '#f8fafc';
-                                                    e.currentTarget.style.color = '#1e293b';
-                                                    e.currentTarget.style.borderColor = '#94a3b8';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    e.currentTarget.style.background = '#ffffff';
-                                                    e.currentTarget.style.color = '#475569';
-                                                    e.currentTarget.style.borderColor = '#cbd5e1';
-                                                }}
-                                            >
-                                                <ChevronRight size={16} />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                </div>
-
-                                {/* 3. CABEÇALHO DO EXAME */}
-                                <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                        <div>
-                                            <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: '0 0 5px 0' }}>
-                                                {selectedExam.exameCodigo} — {selectedExam.exameNome}
-                                            </h2>
-                                            <div style={{ fontSize: '13.5px', color: '#64748b', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                                <span>Material: {selectedExam.exameMaterial || 'Não inf.'}</span>
-                                                <span>•</span>
-                                                <span>Método: {selectedExam.exameMetodo || 'Não inf.'}</span>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <span className="lab-status-tag status-success" style={{ fontWeight: 600, padding: '2px 8px', fontSize: '12px' }}>{selectedExam.status}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* 4. RESULTADO E REFERÊNCIA */}
-                                <div className="lab-review-body" style={{ padding: '16px 20px 20px', minHeight: '0' }}>
-                                    {loadingDetails ? (
-                                        <div className="flex justify-center py-8 text-gray-500">
-                                            <Loader2 size={24} className="spin" />
-                                            <span className="ml-2">Carregando parâmetros...</span>
-                                        </div>
-                                    ) : examDetails.length === 0 ? (
-                                        <div className="text-center py-8 text-gray-500">Nenhum parâmetro encontrado para este exame.</div>
-                                    ) : (
-                                        <div className="lab-review-params-list" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                            {examDetails.map((param, index) => {
-                                                const displayValue = formatLabValue(
-                                                    param.parameter_code || param.code, 
-                                                    param.result_type, 
-                                                    param.value_numeric, 
-                                                    param.value_text,
-                                                    selectedExam?.exameCodigo,
-                                                    param.parameter_name
-                                                );
-                                                const rawParamValue = param.value_text !== null && param.value_text !== undefined 
-                                                    ? param.value_text 
-                                                    : (param.value_numeric !== null && param.value_numeric !== undefined ? String(param.value_numeric) : (displayValue || ''));
-                                                const abnormalStatus = isAbnormal(param.value_numeric, param.min_value, param.max_value);
-                                                const isLongText = param.result_type === 'TEXTO' || (typeof displayValue === 'string' && displayValue.length > 20);
-                                                
-                                                return (
-                                                    <div key={param.id} style={{ display: 'flex', flexDirection: 'column', paddingBottom: index < examDetails.length - 1 ? '20px' : '0', borderBottom: index < examDetails.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
-                                                        {(param.parameter_name && examDetails.length > 1) ? (
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', alignItems: 'center' }}>
-                                                                <strong style={{ color: '#1e293b', fontSize: '15px' }}>{param.parameter_name || param.parameter_code}</strong>
-                                                                <div style={{ display: 'flex', gap: '6px' }}>
-                                                                    {abnormalStatus === 'below' && <span className="lab-badge lab-badge-danger"><AlertTriangle size={12}/> Abaixo da ref.</span>}
-                                                                    {abnormalStatus === 'above' && <span className="lab-badge lab-badge-danger"><AlertTriangle size={12}/> Acima da ref.</span>}
-                                                                    {abnormalStatus === 'normal' && param.min_value !== null && <span className="lab-badge lab-badge-success"><CheckCircle2 size={12}/> Normal</span>}
-                                                                </div>
-                                                            </div>
-                                                        ) : null}
-                                                        
-                                                        <div className="lab-review-data-row" style={{ display: 'flex', gap: '0', flexWrap: 'nowrap' }}>
-                                                            {/* Coluna Esquerda: Valor Digitado (Aprox 28%) */}
-                                                            <div className="lab-review-result-box" style={{ width: '28%', paddingRight: '20px' }}>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                    <label style={{ fontSize: '12.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Valor Digitado</label>
-                                                                    {(examDetails.length === 1 || !param.parameter_name) && (
-                                                                        <div style={{ display: 'flex', gap: '4px' }}>
-                                                                            {abnormalStatus === 'below' && <span className="lab-badge lab-badge-danger" style={{ padding: '2px 6px', fontSize: '11px' }}><AlertTriangle size={10}/> Abaixo da ref.</span>}
-                                                                            {abnormalStatus === 'above' && <span className="lab-badge lab-badge-danger" style={{ padding: '2px 6px', fontSize: '11px' }}><AlertTriangle size={10}/> Acima da ref.</span>}
-                                                                            {abnormalStatus === 'normal' && param.min_value !== null && <span className="lab-badge lab-badge-success" style={{ padding: '2px 6px', fontSize: '11px' }}><CheckCircle2 size={10}/> Normal</span>}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                <div className="result-display" style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
-                                                                    {editingParam?.id === param.id ? (
-                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', paddingTop: '2px', paddingBottom: '4px' }}>
-                                                                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                                                                <input 
-                                                                                    type="text"
-                                                                                    value={editingParam.value}
-                                                                                    onChange={(e) => setEditingParam({ ...editingParam, value: e.target.value })}
-                                                                                    autoFocus
-                                                                                    onFocus={e => e.target.select()}
-                                                                                    onKeyDown={(e) => {
-                                                                                        if (e.key === 'Enter') handleSaveParam(param);
-                                                                                        if (e.key === 'Escape') setEditingParam(null);
-                                                                                    }}
-                                                                                    disabled={saving}
-                                                                                    style={{ fontSize: '16px', fontWeight: '600', width: isLongText ? '180px' : '80px', padding: '2px 6px', height: '28px', border: '1px solid #3b82f6', borderRadius: '4px', outline: 'none' }}
-                                                                                />
-                                                                                {param.unit && <span className="result-unit" style={{ color: '#64748b', fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap' }}>{param.unit}</span>}
-                                                                            </div>
-                                                                            <div style={{ display: 'flex', gap: '6px' }}>
-                                                                                <button className="lab-btn lab-btn-success" onClick={() => handleSaveParam(param)} disabled={saving} style={{ padding: '0', height: '26px', fontSize: '11.5px', whiteSpace: 'nowrap', flex: 1, minWidth: '0', justifyContent: 'center' }}>Salvar</button>
-                                                                                <button className="lab-btn lab-btn-outline" onClick={() => setEditingParam(null)} disabled={saving} style={{ padding: '0', height: '26px', fontSize: '11.5px', whiteSpace: 'nowrap', flex: 1, minWidth: '0', justifyContent: 'center' }}>Cancelar</button>
-                                                                            </div>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <>
-                                                                            <span className={`result-value ${abnormalStatus !== 'normal' && abnormalStatus !== false ? 'text-danger font-bold' : 'font-semibold'}`} style={{ fontSize: isLongText ? '14px' : '24px', color: abnormalStatus !== 'normal' && abnormalStatus !== false ? '#ef4444' : '#0f172a', whiteSpace: 'pre-line', lineHeight: '1.4' }}>
-                                                                                {displayValue}
-                                                                            </span>
-                                                                            {param.unit && <span className="result-unit" style={{ color: '#64748b', fontSize: '14px', fontWeight: 500 }}>{param.unit}</span>}
-                                                                            <button 
-                                                                                onClick={() => setEditingParam({ id: param.id, value: rawParamValue })}
-                                                                                disabled={saving || editingParam}
-                                                                                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px', marginLeft: '4px', borderRadius: '4px' }}
-                                                                                title="Editar valor"
-                                                                            >
-                                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-                                                                                <span style={{ fontSize: '12px', marginLeft: '4px', fontWeight: 500 }}>Editar</span>
-                                                                            </button>
-                                                                        </>
-                                                                    )}
-                                                                </div>
-                                                                {param.observation && (
-                                                                    <div style={{ marginTop: '10px', fontSize: '13px', color: '#64748b', background: '#f8fafc', padding: '8px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                                                        <strong>Obs:</strong> {param.observation}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            {/* Coluna Direita: Referência (Aprox 72%) */}
-                                                            <div className="lab-review-ref-box" style={{ width: '72%', borderLeft: '1px solid #e2e8f0', paddingLeft: '24px' }}>
-                                                                <label style={{ fontSize: '12.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Referência</label>
-                                                                <div className="ref-line" style={{ marginTop: '6px', color: '#334155', fontSize: '14.5px', whiteSpace: 'pre-line', lineHeight: '1.45' }}>
-                                                                    {param.reference_text || (param.min_value !== null || param.max_value !== null ? `${param.min_value || 0} a ${param.max_value || '∞'}` : 'Não cadastrada')}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
+                    {/* Área do Corpo / Revisão (Largura Completa) */}
+                    <div className="lab-conf-body">
+                        {loadingDetails ? (
+                            <div className="lab-conf-empty">
+                                <Loader2 size={24} className="spin text-primary" />
+                                <p>Carregando parâmetros do exame...</p>
                             </div>
-                    )}
+                        ) : examDetails.length === 0 ? (
+                            <div className="lab-conf-empty">
+                                <p>Nenhum parâmetro encontrado para este exame.</p>
+                            </div>
+                        ) : isHemo ? (
+                            <HemoExamView 
+                                examDetails={examDetails}
+                                selectedExam={selectedExam}
+                                selectedProtocol={selectedProtocol}
+                                editingParam={editingParam}
+                                setEditingParam={setEditingParam}
+                                handleSaveParam={handleSaveParam}
+                                saving={saving}
+                                isAbnormal={isAbnormal}
+                            />
+                        ) : isUri ? (
+                            <UriExamView 
+                                examDetails={examDetails}
+                                selectedExam={selectedExam}
+                                selectedProtocol={selectedProtocol}
+                                editingParam={editingParam}
+                                setEditingParam={setEditingParam}
+                                handleSaveParam={handleSaveParam}
+                                saving={saving}
+                                isAbnormal={isAbnormal}
+                            />
+                        ) : (
+                            <SimpleExamView 
+                                examDetails={examDetails}
+                                selectedExam={selectedExam}
+                                editingParam={editingParam}
+                                setEditingParam={setEditingParam}
+                                handleSaveParam={handleSaveParam}
+                                saving={saving}
+                                isAbnormal={isAbnormal}
+                            />
+                        )}
+                    </div>
                 </div>
-            </div>
-            
+            )}
 
             {/* Modal Alteração Não Salva */}
             {showUnsavedModal && (
                 <div className="unsaved-result-modal-overlay" role="dialog" aria-modal="true">
-                    <div className="unsaved-result-modal" style={{ maxWidth: '450px' }}>
-                        <div className="unsaved-result-modal-header" style={{ paddingBottom: '12px' }}>
+                    <div className="unsaved-result-modal" style={{ maxWidth: '440px' }}>
+                        <div className="unsaved-result-modal-header" style={{ paddingBottom: '10px' }}>
                             <div className="unsaved-result-modal-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
-                                <AlertTriangle size={24} />
+                                <AlertTriangle size={22} />
                             </div>
                             <div>
-                                <h2 className="unsaved-result-modal-title">Alteração não salva</h2>
-                                <p className="unsaved-result-modal-subtitle">Existe uma alteração de resultado não salva. Deseja descartar a alteração e continuar?</p>
+                                <h2 className="unsaved-result-modal-title" style={{ fontSize: '1.05rem' }}>Alteração não salva</h2>
+                                <p className="unsaved-result-modal-subtitle" style={{ fontSize: '0.82rem' }}>
+                                    Existe uma edição de parâmetro pendente. Deseja descartar a edição para continuar?
+                                </p>
                             </div>
                         </div>
-                        <div className="unsaved-result-modal-footer">
+                        <div className="unsaved-result-modal-footer" style={{ marginTop: '12px' }}>
                             <button className="unsaved-btn-neutral" onClick={() => {
                                 setShowUnsavedModal(false);
                                 setPendingAction(null);
                             }}>Continuar editando</button>
-                            <button className="lab-btn-danger" style={{ height: '46px', padding: '0 20px', borderRadius: '10px', border: 'none', background: '#ef4444', color: '#fff', fontWeight: 600, cursor: 'pointer' }} onClick={() => {
+                            <button className="lab-btn-danger" style={{ height: '38px', padding: '0 16px', borderRadius: '6px', border: 'none', background: '#ef4444', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: '0.84rem' }} onClick={() => {
                                 setShowUnsavedModal(false);
                                 setEditingParam(null);
                                 if (pendingAction) {
@@ -993,4 +986,970 @@ const LaboratorioConferencia = () => {
     );
 };
 
+/* ==========================================================================
+   SUB-COMPONENTE: EXAMES SIMPLES (Grade 4 Colunas com Geometria Travada)
+   ========================================================================== */
+const SimpleExamView = ({ examDetails, selectedExam, editingParam, setEditingParam, handleSaveParam, saving, isAbnormal }) => {
+    return (
+        <div className="conf-simple-card">
+            {/* Header da Grade Compartilhada */}
+            <div className="conf-simple-grid-header">
+                <div className="conf-simple-th col-param">PARÂMETRO</div>
+                <div className="conf-simple-th col-result">RESULTADO</div>
+                <div className="conf-simple-th col-ref">VALOR DE REFERÊNCIA</div>
+                <div className="conf-simple-th col-action">AÇÃO</div>
+            </div>
+
+            {/* Linhas da Grade Compartilhada */}
+            <div className="conf-simple-grid-body">
+                {examDetails.map((param) => {
+                    const displayValue = formatLabValue(
+                        param.parameter_code || param.code,
+                        param.result_type,
+                        param.value_numeric,
+                        param.value_text,
+                        selectedExam?.exameCodigo,
+                        param.parameter_name
+                    );
+                    const rawParamValue = param.value_text !== null && param.value_text !== undefined 
+                        ? param.value_text 
+                        : (param.value_numeric !== null && param.value_numeric !== undefined ? String(param.value_numeric) : (displayValue || ''));
+                    
+                    const abnormalStatus = isAbnormal(param.value_numeric, param.min_value, param.max_value);
+                    const isEditing = editingParam?.id === param.id;
+
+                    let refDisplay = param.reference_text;
+                    if (!refDisplay && (param.min_value !== null || param.max_value !== null)) {
+                        refDisplay = `${param.min_value !== null ? String(param.min_value).replace('.', ',') : '0'} a ${param.max_value !== null ? String(param.max_value).replace('.', ',') : '∞'}`;
+                    }
+                    if (!refDisplay) refDisplay = 'Não cadastrada';
+
+                    return (
+                        <div key={param.id} className="conf-simple-grid-row">
+                            {/* PARÂMETRO */}
+                            <div className="conf-simple-td col-param">
+                                <span className="conf-param-name">
+                                    {param.parameter_name || param.parameter_code}
+                                </span>
+                                {param.observation && (
+                                    <div className="conf-param-obs-sub">
+                                        Obs: {param.observation}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* RESULTADO (220px fixo, cabeçalho centralizado, grid interno 90px + auto) */}
+                            <div className="conf-simple-td col-result">
+                                {isEditing ? (
+                                    <div className="conf-inline-edit-box">
+                                        <input 
+                                            type="text"
+                                            className="conf-inline-edit-input"
+                                            value={editingParam.value}
+                                            onChange={(e) => setEditingParam({ ...editingParam, value: e.target.value })}
+                                            autoFocus
+                                            onFocus={(e) => e.target.select()}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleSaveParam(param);
+                                                if (e.key === 'Escape') setEditingParam(null);
+                                            }}
+                                            disabled={saving}
+                                        />
+                                        <button className="conf-btn-save-mini" onClick={() => handleSaveParam(param)} disabled={saving} title="Salvar alteração">
+                                            <Save size={12} /> Salvar
+                                        </button>
+                                        <button className="conf-btn-cancel-mini" onClick={() => setEditingParam(null)} disabled={saving} title="Cancelar edição">
+                                            <X size={12} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="conf-result-inner-grid">
+                                        <div className="conf-result-val-col">
+                                            <span 
+                                                className="conf-result-val-text"
+                                                style={{ color: abnormalStatus === 'above' || abnormalStatus === 'below' ? '#dc2626' : '#0f172a' }}
+                                            >
+                                                {displayValue}
+                                            </span>
+                                            {abnormalStatus === 'below' && (
+                                                <span className="lab-conf-badge-abnormal">Abaixo</span>
+                                            )}
+                                            {abnormalStatus === 'above' && (
+                                                <span className="lab-conf-badge-abnormal">Acima</span>
+                                            )}
+                                            {abnormalStatus === 'normal' && param.min_value !== null && (
+                                                <span className="lab-conf-badge-normal">Normal</span>
+                                            )}
+                                        </div>
+                                        <div className="conf-result-unit-col">
+                                            {param.unit || ''}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* VALOR DE REFERÊNCIA (1fr) */}
+                            <div className="conf-simple-td col-ref">
+                                <span className="conf-ref-text">
+                                    {refDisplay}
+                                </span>
+                            </div>
+
+                            {/* AÇÃO (100px fixo, centralizado) */}
+                            <div className="conf-simple-td col-action">
+                                {!isEditing && (
+                                    <button 
+                                        className="conf-btn-edit" 
+                                        onClick={() => setEditingParam({ id: param.id, value: rawParamValue, isText: param.result_type === 'TEXTO' })}
+                                        disabled={saving || !!editingParam}
+                                        title="Editar valor deste parâmetro"
+                                    >
+                                        <Edit2 size={13} />
+                                        <span>Editar</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+/* ==========================================================================
+   SUB-COMPONENTE: HEMO - HEMOGRAMA COMPLETO (Layout Reorganizado)
+   Estrutura:
+   1. Linha Superior: Eritrograma (~44%) | Leucograma (~56%)
+   2. Faixa Intermediária: Plaquetas (Horizontal)
+   3. Linha Inferior: Série Eritrocitária | Série Leucocitária | Série Plaquetária (3 colunas)
+   ========================================================================== */
+const HemoExamView = ({ examDetails, selectedExam, selectedProtocol, editingParam, setEditingParam, handleSaveParam, saving, isAbnormal }) => {
+    const ageDays = getPatientAgeDays(selectedProtocol);
+    const sexGroup = getPatientSexGroup(selectedProtocol);
+
+    const eritroCodes = new Set(['HEMACIAS', 'HEMOGLOBINA', 'HEMATOCRITO', 'HCM', 'VCM', 'CHCM', 'RDW']);
+    const leucTotalCode = 'LEUCOCITOS';
+    const leucDiffCodes = new Set([
+        'BASTONETES', 'SEGMENTADOS', 'EOSINOFILOS', 'BASOFILOS', 
+        'LINFOCITOS_TIPICOS', 'LINFOCITOS_ATIPICOS', 'MONOCITOS', 
+        'MIELOCITOS', 'METAMIELOCITOS', 'PLASMOCITOS'
+    ]);
+    const plaqCodes = new Set(['PLAQUETAS']);
+    const obsCodes = new Set([
+        'OBS_ERITROGRAMA', 'OBSERVACOES_ERITROGRAMA', 'SERIE_ERITROCITARIA', 'S_ERITROCITARIA',
+        'SERIE_LEUCOCITARIA', 'S_LEUCOCITARIA', 'OBS_LEUCOGRAMA', 'OBSERVACOES_LEUCOGRAMA',
+        'SERIE_PLAQUETARIA', 'S_PLAQUETARIA', 'OBS_PLAQUETAS', 'OBSERVACOES_PLAQUETAS',
+        'OBS_MORFOLOGICAS', 'OBSERVACOES_MORFOLOGICAS', 'OBS_MORFOLOGIA', 'MORFOLOGIA',
+        'OBS_GERAL', 'OBSERVACAO_GERAL', 'OBS_GERAIS', 'OBSERVACOES_GERAIS', 'OBS_EXAME', 'OBSERVACOES', 'OBS'
+    ]);
+
+    const normalizeCode = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9_]/g, '');
+
+    const eritroParams = [];
+    let leucTotalParam = null;
+    const leucDiffParams = [];
+    let plaquetasParam = null;
+    const morphologyParams = [];
+    const otherParams = [];
+
+    examDetails.forEach(param => {
+        const code = normalizeCode(param.parameter_code || param.code);
+        if (eritroCodes.has(code)) {
+            eritroParams.push(param);
+        } else if (code === leucTotalCode) {
+            leucTotalParam = param;
+        } else if (leucDiffCodes.has(code)) {
+            leucDiffParams.push(param);
+        } else if (plaqCodes.has(code)) {
+            plaquetasParam = param;
+        } else if (obsCodes.has(code) || isHemoMorphologyParameter(code, param.parameter_name) || param.result_type === 'TEXTO') {
+            morphologyParams.push(param);
+        } else {
+            otherParams.push(param);
+        }
+    });
+
+    // Mapeamento canônico das 3 Séries de Morfologia + Observação Geral
+    let morphEritro = null;
+    let morphLeuco = null;
+    let morphPlaq = null;
+    let obsGeralParam = null;
+
+    morphologyParams.forEach(param => {
+        const code = normalizeCode(param.parameter_code || param.code);
+        const name = String(param.parameter_name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+        
+        const isEritro = code.includes('ERITRO') || name.includes('ERITRO');
+        const isLeuco = (code.includes('LEUCO') || name.includes('LEUCO')) && !code.includes('TOTAL') && !code.includes('DIF');
+        const isPlaq = code.includes('PLAQUET') || name.includes('PLAQUET');
+        const isGeral = code.includes('GERAL') || code.includes('GERAIS') || name.includes('GERAL') || code === 'OBS' || code === 'OBSERVACOES' || code === 'OBS_EXAME';
+
+        if (isEritro) {
+            if (!morphEritro) {
+                morphEritro = param;
+            } else if ((param.value_text && param.value_text.trim()) && (!morphEritro.value_text || !morphEritro.value_text.trim())) {
+                morphEritro = param;
+            }
+        } else if (isLeuco) {
+            if (!morphLeuco) {
+                morphLeuco = param;
+            } else if ((param.value_text && param.value_text.trim()) && (!morphLeuco.value_text || !morphLeuco.value_text.trim())) {
+                morphLeuco = param;
+            }
+        } else if (isPlaq) {
+            if (!morphPlaq) {
+                morphPlaq = param;
+            } else if ((param.value_text && param.value_text.trim()) && (!morphPlaq.value_text || !morphPlaq.value_text.trim())) {
+                morphPlaq = param;
+            }
+        } else if (isGeral) {
+            if (!obsGeralParam) {
+                obsGeralParam = param;
+            } else if ((param.value_text && param.value_text.trim()) && (!obsGeralParam.value_text || !obsGeralParam.value_text.trim())) {
+                obsGeralParam = param;
+            }
+        } else {
+            // Outro parâmetro textual restante vira observação geral
+            if (!obsGeralParam) {
+                obsGeralParam = param;
+            }
+        }
+    });
+
+    const renderHemoRef = (param) => {
+        const code = normalizeCode(param.parameter_code || param.code);
+        const resolved = resolveHemoReference(code, param.reference_text, ageDays, sexGroup);
+        if (resolved && resolved.valid && resolved.text) {
+            return `Ref: ${formatHemoReferenceText(resolved.text, code)}`;
+        }
+        if (param.reference_text) {
+            return `Ref: ${formatHemoReferenceText(param.reference_text, code, false)}`;
+        }
+        if (param.min_value !== null || param.max_value !== null) {
+            return `Ref: ${param.min_value ?? 0} – ${param.max_value ?? '∞'}`;
+        }
+        return '';
+    };
+
+    const renderMorphologyCard = (title, param, defaultPlaceholder) => {
+        const rawVal = param ? (param.value_text || '') : '';
+        const expandedText = (rawVal && expandHemogramaMorphologyAbbreviations(rawVal)) || defaultPlaceholder;
+        const isEditing = param && editingParam?.id === param.id;
+
+        return (
+            <div className="conf-morph-card">
+                <div className="conf-morph-card-header">
+                    <span className="conf-morph-card-title">{title}</span>
+                    {param && !isEditing && (
+                        <button 
+                            className="conf-compact-edit-btn" 
+                            onClick={() => setEditingParam({ id: param.id, value: rawVal, isText: true })}
+                            disabled={saving || !!editingParam}
+                            title="Editar observação"
+                        >
+                            <Edit2 size={11} />
+                        </button>
+                    )}
+                </div>
+
+                {isEditing ? (
+                    <div className="conf-morph-edit-area">
+                        <textarea 
+                            className="conf-morph-textarea"
+                            value={editingParam.value}
+                            onChange={(e) => setEditingParam({ ...editingParam, value: e.target.value })}
+                            autoFocus
+                            rows={2}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                    e.preventDefault();
+                                    handleSaveParam(param);
+                                }
+                                if (e.key === 'Escape') setEditingParam(null);
+                            }}
+                            disabled={saving}
+                        />
+                        <div className="conf-morph-actions">
+                            <button className="conf-btn-save-mini" onClick={() => handleSaveParam(param)} disabled={saving}>
+                                <Save size={10} /> Salvar
+                            </button>
+                            <button className="conf-btn-cancel-mini" onClick={() => setEditingParam(null)} disabled={saving}>
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="conf-morph-text-body">
+                        {expandedText}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div className="conf-hemo-layout-wrapper">
+            {/* 1. LINHA PRINCIPAL: ERITROGRAMA & LEUCOGRAMA */}
+            <div className="conf-hemo-top-grid">
+                {/* ERITROGRAMA (Esquerda) */}
+                <div className="conf-hemo-box eritro-box">
+                    <div className="conf-hemo-box-header">
+                        <span className="conf-hemo-box-title">ERITROGRAMA</span>
+                        <span className="conf-hemo-box-count">{eritroParams.length} parâmetros</span>
+                    </div>
+
+                    <div className="conf-hemo-col-headers eritro-grid">
+                        <span>PARÂMETRO</span>
+                        <span style={{ textAlign: 'center' }}>RESULTADO</span>
+                        <span>REFERÊNCIA</span>
+                        <span></span>
+                    </div>
+
+                    <div className="conf-hemo-box-rows">
+                        {eritroParams.map(param => {
+                            const code = normalizeCode(param.parameter_code || param.code);
+                            const displayVal = formatLabValue(code, param.result_type, param.value_numeric, param.value_text, 'HEMO', param.parameter_name);
+                            const rawParamValue = param.value_text !== null && param.value_text !== undefined 
+                                ? param.value_text 
+                                : (param.value_numeric !== null && param.value_numeric !== undefined ? String(param.value_numeric) : (displayVal || ''));
+                            const abnormal = isAbnormal(param.value_numeric, param.min_value, param.max_value);
+                            const isEditing = editingParam?.id === param.id;
+                            const refText = renderHemoRef(param);
+
+                            return (
+                                <div key={param.id} className="conf-hemo-row eritro-grid">
+                                    <div className="conf-hemo-col-param-name" title={param.parameter_name || param.parameter_code}>
+                                        {param.parameter_name || param.parameter_code}
+                                    </div>
+
+                                    {isEditing ? (
+                                        <div className="conf-inline-edit-box conf-hemo-edit-span">
+                                            <input 
+                                                type="text"
+                                                className="conf-inline-edit-input"
+                                                style={{ width: '85px', height: '22px', fontSize: '0.78rem' }}
+                                                value={editingParam.value}
+                                                onChange={(e) => setEditingParam({ ...editingParam, value: e.target.value })}
+                                                autoFocus
+                                                onFocus={(e) => e.target.select()}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') handleSaveParam(param);
+                                                    if (e.key === 'Escape') setEditingParam(null);
+                                                }}
+                                                disabled={saving}
+                                            />
+                                            <button className="conf-btn-save-mini" onClick={() => handleSaveParam(param)} disabled={saving} title="Salvar">
+                                                <Save size={10} />
+                                            </button>
+                                            <button className="conf-btn-cancel-mini" onClick={() => setEditingParam(null)} disabled={saving} title="Cancelar">
+                                                <X size={10} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="conf-hemo-col-val">
+                                                <span className="conf-hemo-val-number" style={{ color: abnormal === 'above' || abnormal === 'below' ? '#dc2626' : '#0f172a' }}>
+                                                    {displayVal}
+                                                </span>
+                                                {param.unit && <span className="conf-hemo-unit-text">{param.unit}</span>}
+                                            </div>
+
+                                            <div className="conf-hemo-col-ref" title={refText}>
+                                                {refText}
+                                            </div>
+
+                                            <div className="conf-hemo-col-action">
+                                                <button 
+                                                    className="conf-compact-edit-btn" 
+                                                    onClick={() => setEditingParam({ id: param.id, value: rawParamValue, isText: false })}
+                                                    disabled={saving || !!editingParam}
+                                                    title="Editar parâmetro"
+                                                >
+                                                    <Edit2 size={11} />
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* LEUCOGRAMA (Direita) */}
+                <div className="conf-hemo-box leuco-box">
+                    <div className="conf-hemo-box-header">
+                        <span className="conf-hemo-box-title">LEUCOGRAMA</span>
+                        <span className="conf-hemo-box-count">{leucDiffParams.length + (leucTotalParam ? 1 : 0)} parâmetros</span>
+                    </div>
+
+                    <div className="conf-hemo-col-headers leuco-grid">
+                        <span>PARÂMETRO</span>
+                        <span style={{ textAlign: 'center' }}>RESULTADO</span>
+                        <span>REFERÊNCIA</span>
+                        <span></span>
+                    </div>
+
+                    <div className="conf-hemo-box-rows">
+                        {/* Linha Destacada: Leucócitos Totais */}
+                        {leucTotalParam && (
+                            <div className="conf-hemo-row leuco-grid conf-leuc-total-row">
+                                <div className="conf-hemo-col-param-name conf-leuc-total-name">
+                                    LEUCÓCITOS TOTAIS
+                                </div>
+
+                                {editingParam?.id === leucTotalParam.id ? (
+                                    <div className="conf-inline-edit-box conf-hemo-edit-span">
+                                        <input 
+                                            type="text"
+                                            className="conf-inline-edit-input"
+                                            style={{ width: '90px', height: '22px', fontSize: '0.78rem' }}
+                                            value={editingParam.value}
+                                            onChange={(e) => setEditingParam({ ...editingParam, value: e.target.value })}
+                                            autoFocus
+                                            onFocus={(e) => e.target.select()}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleSaveParam(leucTotalParam);
+                                                if (e.key === 'Escape') setEditingParam(null);
+                                            }}
+                                            disabled={saving}
+                                        />
+                                        <button className="conf-btn-save-mini" onClick={() => handleSaveParam(leucTotalParam)} disabled={saving} title="Salvar">
+                                            <Save size={10} />
+                                        </button>
+                                        <button className="conf-btn-cancel-mini" onClick={() => setEditingParam(null)} disabled={saving} title="Cancelar">
+                                            <X size={10} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="conf-hemo-col-val">
+                                            <span className="conf-hemo-val-number conf-leuc-total-number">
+                                                {formatLabValue('LEUCOCITOS', 'NUMERICO', leucTotalParam.value_numeric, leucTotalParam.value_text, 'HEMO')}
+                                            </span>
+                                            <span className="conf-hemo-unit-text">/mm³</span>
+                                        </div>
+
+                                        <div className="conf-hemo-col-ref" title={renderHemoRef(leucTotalParam) || 'Ref: 4.000 a 10.000 /mm³'}>
+                                            {renderHemoRef(leucTotalParam) || 'Ref: 4.000 a 10.000 /mm³'}
+                                        </div>
+
+                                        <div className="conf-hemo-col-action">
+                                            <button 
+                                                className="conf-compact-edit-btn" 
+                                                onClick={() => setEditingParam({ 
+                                                    id: leucTotalParam.id, 
+                                                    value: leucTotalParam.value_numeric !== null ? String(leucTotalParam.value_numeric) : (leucTotalParam.value_text || ''),
+                                                    isText: false
+                                                })}
+                                                disabled={saving || !!editingParam}
+                                                title="Editar Leucócitos Totais"
+                                            >
+                                                <Edit2 size={11} />
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Parâmetros do Diferencial */}
+                        {leucDiffParams.map(param => {
+                            const code = normalizeCode(param.parameter_code || param.code);
+                            const displayVal = formatLabValue(code, param.result_type, param.value_numeric, param.value_text, 'HEMO', param.parameter_name);
+                            const rawParamValue = param.value_text !== null && param.value_text !== undefined 
+                                ? param.value_text 
+                                : (param.value_numeric !== null && param.value_numeric !== undefined ? String(param.value_numeric) : (displayVal || ''));
+                            const isEditing = editingParam?.id === param.id;
+                            const refText = renderHemoRef(param);
+
+                            return (
+                                <div key={param.id} className="conf-hemo-row leuco-grid">
+                                    <div className="conf-hemo-col-param-name" title={param.parameter_name || param.parameter_code}>
+                                        {param.parameter_name || param.parameter_code}
+                                    </div>
+
+                                    {isEditing ? (
+                                        <div className="conf-inline-edit-box conf-hemo-edit-span">
+                                            <input 
+                                                type="text"
+                                                className="conf-inline-edit-input"
+                                                style={{ width: '75px', height: '22px', fontSize: '0.78rem' }}
+                                                value={editingParam.value}
+                                                onChange={(e) => setEditingParam({ ...editingParam, value: e.target.value })}
+                                                autoFocus
+                                                onFocus={(e) => e.target.select()}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') handleSaveParam(param);
+                                                    if (e.key === 'Escape') setEditingParam(null);
+                                                }}
+                                                disabled={saving}
+                                            />
+                                            <button className="conf-btn-save-mini" onClick={() => handleSaveParam(param)} disabled={saving} title="Salvar">
+                                                <Save size={10} />
+                                            </button>
+                                            <button className="conf-btn-cancel-mini" onClick={() => setEditingParam(null)} disabled={saving} title="Cancelar">
+                                                <X size={10} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="conf-hemo-col-val">
+                                                <span className="conf-hemo-val-number">
+                                                    {displayVal}
+                                                </span>
+                                                <span className="conf-hemo-unit-text">%</span>
+                                            </div>
+
+                                            <div className="conf-hemo-col-ref" title={refText}>
+                                                {refText}
+                                            </div>
+
+                                            <div className="conf-hemo-col-action">
+                                                <button 
+                                                    className="conf-compact-edit-btn" 
+                                                    onClick={() => setEditingParam({ id: param.id, value: rawParamValue, isText: false })}
+                                                    disabled={saving || !!editingParam}
+                                                    title="Editar"
+                                                >
+                                                    <Edit2 size={11} />
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* 2. FAIXA INTERMEDIÁRIA: PLAQUETAS */}
+            {plaquetasParam && (
+                <div className="conf-hemo-plaq-banner">
+                    <div className="conf-hemo-plaq-label">PLAQUETAS</div>
+
+                    {editingParam?.id === plaquetasParam.id ? (
+                        <div className="conf-inline-edit-box conf-hemo-edit-span">
+                            <input 
+                                type="text"
+                                className="conf-inline-edit-input"
+                                style={{ width: '100px', height: '22px', fontSize: '0.80rem' }}
+                                value={editingParam.value}
+                                onChange={(e) => setEditingParam({ ...editingParam, value: e.target.value })}
+                                autoFocus
+                                onFocus={(e) => e.target.select()}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveParam(plaquetasParam);
+                                    if (e.key === 'Escape') setEditingParam(null);
+                                }}
+                                disabled={saving}
+                            />
+                            <button className="conf-btn-save-mini" onClick={() => handleSaveParam(plaquetasParam)} disabled={saving} title="Salvar">
+                                <Save size={10} />
+                            </button>
+                            <button className="conf-btn-cancel-mini" onClick={() => setEditingParam(null)} disabled={saving} title="Cancelar">
+                                <X size={10} />
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="conf-hemo-col-val">
+                                <span className="conf-hemo-val-number conf-hemo-plaq-value">
+                                    {formatLabValue('PLAQUETAS', 'NUMERICO', plaquetasParam.value_numeric, plaquetasParam.value_text, 'HEMO')}
+                                </span>
+                                <span className="conf-hemo-unit-text">/mm³</span>
+                            </div>
+
+                            <div className="conf-hemo-col-ref conf-hemo-plaq-ref" title={renderHemoRef(plaquetasParam) || 'Ref: 150.000 – 450.000 /mm³'}>
+                                {renderHemoRef(plaquetasParam) || 'Ref: 150.000 – 450.000 /mm³'}
+                            </div>
+
+                            <div className="conf-hemo-col-action">
+                                <button 
+                                    className="conf-compact-edit-btn" 
+                                    onClick={() => setEditingParam({ 
+                                        id: plaquetasParam.id, 
+                                        value: plaquetasParam.value_numeric !== null ? String(plaquetasParam.value_numeric) : (plaquetasParam.value_text || ''),
+                                        isText: false
+                                    })}
+                                    disabled={saving || !!editingParam}
+                                    title="Editar Plaquetas"
+                                >
+                                    <Edit2 size={11} />
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* 3. LINHA INFERIOR: MORFOLOGIA EM 3 BLOCOS HORIZONTAIS */}
+            <div className="conf-hemo-morph-grid">
+                {renderMorphologyCard(
+                    'SÉRIE ERITROCITÁRIA', 
+                    morphEritro, 
+                    'Hemácias normocíticas e normocrômicas.'
+                )}
+                {renderMorphologyCard(
+                    'SÉRIE LEUCOCITÁRIA', 
+                    morphLeuco, 
+                    'Leucócitos com morfologia preservada.'
+                )}
+                {renderMorphologyCard(
+                    'SÉRIE PLAQUETÁRIA', 
+                    morphPlaq, 
+                    'Plaquetas morfologicamente normais.'
+                )}
+            </div>
+
+            {/* 4. OBSERVAÇÃO GERAL DO HEMO */}
+            {obsGeralParam && (
+                <div className="conf-hemo-obs-bar">
+                    <div className="conf-hemo-obs-content">
+                        <Info size={14} className="text-primary" />
+                        <strong>Observação Geral:</strong>
+                        {editingParam?.id === obsGeralParam.id ? (
+                            <div className="conf-inline-edit-box" style={{ flex: 1, marginLeft: '6px' }}>
+                                <input 
+                                    type="text"
+                                    className="conf-inline-edit-input"
+                                    style={{ flex: 1, height: '24px' }}
+                                    value={editingParam.value}
+                                    onChange={(e) => setEditingParam({ ...editingParam, value: e.target.value })}
+                                    autoFocus
+                                    onFocus={(e) => e.target.select()}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveParam(obsGeralParam);
+                                        if (e.key === 'Escape') setEditingParam(null);
+                                    }}
+                                    disabled={saving}
+                                />
+                                <button className="conf-btn-save-mini" onClick={() => handleSaveParam(obsGeralParam)} disabled={saving}>
+                                    <Save size={11} /> Salvar
+                                </button>
+                                <button className="conf-btn-cancel-mini" onClick={() => setEditingParam(null)} disabled={saving}>
+                                    <X size={11} />
+                                </button>
+                            </div>
+                        ) : (
+                            <span>{obsGeralParam.value_text || 'Sem observações gerais'}</span>
+                        )}
+                    </div>
+
+                    {editingParam?.id !== obsGeralParam.id && (
+                        <button 
+                            className="conf-compact-edit-btn" 
+                            onClick={() => setEditingParam({ id: obsGeralParam.id, value: obsGeralParam.value_text || '', isText: true })}
+                            disabled={saving || !!editingParam}
+                            title="Editar Observação Geral"
+                        >
+                            <Edit2 size={11} />
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {otherParams.length > 0 && (
+                <div className="conf-hemo-other-params">
+                    {otherParams.map(param => {
+                        const displayVal = formatLabValue(param.parameter_code, param.result_type, param.value_numeric, param.value_text, 'HEMO', param.parameter_name);
+                        return (
+                            <div key={param.id} className="conf-hemo-row eritro-grid">
+                                <div className="conf-hemo-col-param-name">{param.parameter_name || param.parameter_code}</div>
+                                <div className="conf-hemo-col-val">
+                                    <span className="conf-hemo-val-number">{displayVal}</span>
+                                </div>
+                                <div className="conf-hemo-col-ref"></div>
+                                <div className="conf-hemo-col-action"></div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+};
+
+/* ==========================================================================
+   SUB-COMPONENTE: URI - URINA TIPO I (Linha 1: Físico + Químico | Linha 2: Sedimentoscopia 100%)
+   ========================================================================== */
+const UriExamView = ({ examDetails, selectedExam, selectedProtocol, editingParam, setEditingParam, handleSaveParam, saving, isAbnormal }) => {
+    const fisicoKeys = new Set([
+        URI_PARAM_CANONICAL_KEYS.VOLUME,
+        URI_PARAM_CANONICAL_KEYS.COR,
+        URI_PARAM_CANONICAL_KEYS.ASPECTO,
+        URI_PARAM_CANONICAL_KEYS.DENSIDADE,
+        URI_PARAM_CANONICAL_KEYS.PH
+    ]);
+
+    const quimicoKeys = new Set([
+        URI_PARAM_CANONICAL_KEYS.PROTEINAS,
+        URI_PARAM_CANONICAL_KEYS.CORPOS_CETONICOS,
+        URI_PARAM_CANONICAL_KEYS.GLICOSE,
+        URI_PARAM_CANONICAL_KEYS.UROBILINOGENIO,
+        URI_PARAM_CANONICAL_KEYS.BILIRRUBINA,
+        URI_PARAM_CANONICAL_KEYS.SANGUE_HEMOGLOBINA,
+        URI_PARAM_CANONICAL_KEYS.NITRITO
+    ]);
+
+    const sedimentoKeys = new Set([
+        URI_PARAM_CANONICAL_KEYS.CELULAS_EPITELIAIS,
+        URI_PARAM_CANONICAL_KEYS.FILAMENTOS_MUCO,
+        URI_PARAM_CANONICAL_KEYS.LEUCOCITOS,
+        URI_PARAM_CANONICAL_KEYS.HEMACIAS,
+        URI_PARAM_CANONICAL_KEYS.BACTERIAS,
+        URI_PARAM_CANONICAL_KEYS.CILINDROS,
+        URI_PARAM_CANONICAL_KEYS.CRISTAIS,
+        URI_PARAM_CANONICAL_KEYS.ESTRUTURAS_LEVEDURIFORMES
+    ]);
+
+    const fisicoParams = [];
+    const quimicoParams = [];
+    const sedimentoParams = [];
+    let obsParam = null;
+
+    examDetails.forEach(param => {
+        const canonicalKey = getUriParameterKey(param);
+        if (canonicalKey === URI_PARAM_CANONICAL_KEYS.OBSERVACAO) {
+            obsParam = param;
+        } else if (fisicoKeys.has(canonicalKey)) {
+            fisicoParams.push(param);
+        } else if (quimicoKeys.has(canonicalKey)) {
+            quimicoParams.push(param);
+        } else if (sedimentoKeys.has(canonicalKey)) {
+            sedimentoParams.push(param);
+        } else {
+            const name = (param.parameter_name || param.parameter_code || '').toUpperCase();
+            if (name.includes('VOL') || name.includes('COR') || name.includes('ASP') || name.includes('DENS') || name.includes('PH')) {
+                fisicoParams.push(param);
+            } else if (name.includes('PROT') || name.includes('GLIC') || name.includes('NIT') || name.includes('BIL') || name.includes('URO')) {
+                quimicoParams.push(param);
+            } else {
+                sedimentoParams.push(param);
+            }
+        }
+    });
+
+    const renderUriValueAndUnit = (valStr, unitStr) => {
+        const val = (valStr !== null && valStr !== undefined) ? String(valStr).trim() : '';
+        const unit = (unitStr !== null && unitStr !== undefined) ? String(unitStr).trim() : '';
+
+        // Identifica se "por campo" está no valor ou na unidade
+        const valHasPorCampo = /por\s*campo|\/campo|p\/\s*campo/i.test(val);
+        const unitHasPorCampo = /por\s*campo|\/campo|p\/\s*campo/i.test(unit);
+
+        if (valHasPorCampo) {
+            const mainVal = val.replace(/\s*(?:\(?por\s*campo\)?|\(?\/campo\)?|\(?p\/\s*campo\)?)\s*$/i, '').trim();
+            return (
+                <>
+                    <span className="conf-uri-val-number">{mainVal || val}</span>
+                    <span className="conf-uri-field-subtext"> (por campo)</span>
+                </>
+            );
+        }
+
+        if (unitHasPorCampo) {
+            return (
+                <>
+                    <span className="conf-uri-val-number">{val || 'Não informado'}</span>
+                    <span className="conf-uri-field-subtext"> (por campo)</span>
+                </>
+            );
+        }
+
+        return (
+            <>
+                <span className="conf-uri-val-number">{val || 'Não informado'}</span>
+                {unit && <span className="conf-uri-unit-text">{unit}</span>}
+            </>
+        );
+    };
+
+    const renderUriRow = (param, gridClass = 'uri-fisico-grid') => {
+        const displayName = getUriParameterDisplayName(param) || param.parameter_name || param.parameter_code;
+        const rawVal = param.value_text !== null && param.value_text !== undefined 
+            ? param.value_text 
+            : (param.value_numeric !== null && param.value_numeric !== undefined ? String(param.value_numeric) : '');
+        
+        const expandedVal = expandUriFieldValue(param, rawVal) || 'Não informado';
+        const isEditing = editingParam?.id === param.id;
+        const refText = param.reference_text || (param.min_value !== null ? `${param.min_value} – ${param.max_value || ''}` : '');
+
+        return (
+            <div key={param.id} className={`conf-uri-row ${gridClass}`}>
+                <div className="conf-uri-col-name" title={displayName}>
+                    {displayName}
+                </div>
+
+                {isEditing ? (
+                    <div className="conf-inline-edit-box conf-uri-edit-span">
+                        <input 
+                            type="text"
+                            className="conf-inline-edit-input"
+                            style={{ width: '110px', height: '22px', fontSize: '0.78rem' }}
+                            value={editingParam.value}
+                            onChange={(e) => setEditingParam({ ...editingParam, value: e.target.value })}
+                            autoFocus
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveParam(param);
+                                if (e.key === 'Escape') setEditingParam(null);
+                            }}
+                            disabled={saving}
+                        />
+                        <button className="conf-btn-save-mini" onClick={() => handleSaveParam(param)} disabled={saving} title="Salvar">
+                            <Save size={10} />
+                        </button>
+                        <button className="conf-btn-cancel-mini" onClick={() => setEditingParam(null)} disabled={saving} title="Cancelar">
+                            <X size={10} />
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        <div className="conf-uri-col-val">
+                            {renderUriValueAndUnit(expandedVal, param.unit)}
+                        </div>
+
+                        <div className="conf-uri-col-ref" title={refText ? `Ref: ${refText}` : ''}>
+                            {refText ? `Ref: ${refText}` : ''}
+                        </div>
+
+                        <div className="conf-uri-col-action">
+                            <button 
+                                className="conf-compact-edit-btn" 
+                                onClick={() => setEditingParam({ id: param.id, value: rawVal, isText: true })}
+                                disabled={saving || !!editingParam}
+                                title="Editar"
+                            >
+                                <Edit2 size={11} />
+                            </button>
+                        </div>
+                    </>
+                )}
+            </div>
+        );
+    };
+
+    const obsText = obsParam ? (obsParam.value_text || obsParam.observation || '') : '';
+    const expandedObs = expandRcText(obsText);
+
+    return (
+        <div className="conf-uri-wrapper">
+            {/* LINHA 1: EXAME FÍSICO & EXAME QUÍMICO */}
+            <div className="conf-uri-top-grid">
+                {/* EXAME FÍSICO */}
+                <div className="conf-uri-box col-fisico">
+                    <div className="conf-uri-box-header">
+                        <span className="conf-uri-box-title">EXAME FÍSICO</span>
+                        <span className="conf-uri-box-count">{fisicoParams.length} parâmetros</span>
+                    </div>
+                    <div className="conf-uri-col-headers uri-fisico-grid">
+                        <span>PARÂMETRO</span>
+                        <span style={{ textAlign: 'right' }}>RESULTADO</span>
+                        <span>REFERÊNCIA</span>
+                        <span></span>
+                    </div>
+                    <div className="conf-uri-box-rows">
+                        {fisicoParams.map(p => renderUriRow(p, 'uri-fisico-grid'))}
+                    </div>
+                </div>
+
+                {/* EXAME QUÍMICO */}
+                <div className="conf-uri-box col-quimico">
+                    <div className="conf-uri-box-header">
+                        <span className="conf-uri-box-title">EXAME QUÍMICO</span>
+                        <span className="conf-uri-box-count">{quimicoParams.length} parâmetros</span>
+                    </div>
+                    <div className="conf-uri-col-headers uri-quimico-grid">
+                        <span>PARÂMETRO</span>
+                        <span style={{ textAlign: 'right' }}>RESULTADO</span>
+                        <span>REFERÊNCIA</span>
+                        <span></span>
+                    </div>
+                    <div className="conf-uri-box-rows">
+                        {quimicoParams.map(p => renderUriRow(p, 'uri-quimico-grid'))}
+                    </div>
+                </div>
+            </div>
+
+            {/* LINHA 2: SEDIMENTOSCOPIA (LARGURA TOTAL 100%) */}
+            <div className="conf-uri-bottom-full">
+                <div className="conf-uri-box col-sedimento-full">
+                    <div className="conf-uri-box-header">
+                        <span className="conf-uri-box-title">SEDIMENTOSCOPIA</span>
+                        <span className="conf-uri-box-count">{sedimentoParams.length} parâmetros</span>
+                    </div>
+                    <div className="conf-uri-sedimento-header-row">
+                        <div className="conf-uri-col-headers uri-sedimento-grid">
+                            <span>PARÂMETRO</span>
+                            <span style={{ textAlign: 'right' }}>RESULTADO</span>
+                            <span>REFERÊNCIA</span>
+                            <span></span>
+                        </div>
+                        <div className="conf-uri-col-headers uri-sedimento-grid">
+                            <span>PARÂMETRO</span>
+                            <span style={{ textAlign: 'right' }}>RESULTADO</span>
+                            <span>REFERÊNCIA</span>
+                            <span></span>
+                        </div>
+                    </div>
+                    <div className="conf-uri-box-rows conf-uri-sedimento-grid-container">
+                        {sedimentoParams.map(p => renderUriRow(p, 'uri-sedimento-grid'))}
+                    </div>
+                </div>
+            </div>
+
+            {/* LINHA 3: OBSERVAÇÃO GERAL DO URI */}
+            {obsParam && (
+                <div className="conf-uri-obs-bar">
+                    <div className="conf-uri-obs-content">
+                        <Info size={14} className="text-primary" />
+                        <strong>Observação Geral:</strong>
+                        {editingParam?.id === obsParam.id ? (
+                            <div className="conf-inline-edit-box" style={{ flex: 1, marginLeft: '6px' }}>
+                                <input 
+                                    type="text"
+                                    className="conf-inline-edit-input"
+                                    style={{ flex: 1, height: '24px' }}
+                                    value={editingParam.value}
+                                    onChange={(e) => setEditingParam({ ...editingParam, value: e.target.value })}
+                                    autoFocus
+                                    onFocus={(e) => e.target.select()}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveParam(obsParam);
+                                        if (e.key === 'Escape') setEditingParam(null);
+                                    }}
+                                    disabled={saving}
+                                />
+                                <button className="conf-btn-save-mini" onClick={() => handleSaveParam(obsParam)} disabled={saving}>
+                                    <Save size={11} /> Salvar
+                                </button>
+                                <button className="conf-btn-cancel-mini" onClick={() => setEditingParam(null)} disabled={saving}>
+                                    <X size={11} />
+                                </button>
+                            </div>
+                        ) : (
+                            <span>{expandedObs || 'Sem observações'}</span>
+                        )}
+                    </div>
+
+                    {editingParam?.id !== obsParam.id && (
+                        <button 
+                            className="conf-compact-edit-btn" 
+                            onClick={() => setEditingParam({ id: obsParam.id, value: obsText, isText: true })}
+                            disabled={saving || !!editingParam}
+                            title="Editar Observação Geral"
+                        >
+                            <Edit2 size={11} />
+                        </button>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 export default LaboratorioConferencia;
+

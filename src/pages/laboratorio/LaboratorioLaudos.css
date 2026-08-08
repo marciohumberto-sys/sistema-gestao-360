@@ -438,54 +438,22 @@
 
 /* Filtros */
 .lab-laudos-container .lab-filters-card {
-    margin-bottom: 1.25rem;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .lab-laudos-container .lab-filters-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 16px;
+    gap: 12px;
     align-items: end;
     width: 100%;
     max-width: 100%;
-    min-width: 0;
     box-sizing: border-box;
-    overflow: visible;
 }
-
-
-
-
-
-
-
-
-
-@media (min-width: 1200px) {
-    .lab-laudos-container .lab-filters-grid {
-        display: grid;
-        grid-template-columns: minmax(135px, 0.75fr) minmax(165px, 0.90fr) minmax(220px, 1.5fr) minmax(125px, 0.70fr) minmax(120px, 0.65fr);
-        gap: 10px;
-        align-items: end;
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-        box-sizing: border-box;
-    }
-}
-
-
-
-
-
-
-}
-}
-}
-
-
-
-
 
 .lab-laudos-container .lab-filter-item {
     display: flex;
@@ -521,25 +489,89 @@
     border-color: #3b82f6;
 }
 
-/* Layout Principal */
-.lab-laudos-layout {
-    display: grid;
-    grid-template-columns: minmax(360px, 0.75fr) minmax(620px, 1.25fr);
-    gap: 1.5rem;
-    align-items: start;
+/* ============================================================
+   LAYOUT PRINCIPAL: LISTA DE LAUDOS (ESQUERDA) | PRÉVIA (DIREITA)
+   ============================================================ */
+.lab-laudos-container .lab-conf-layout,
+.lab-laudos-layout,
+.lab-conf-layout {
+    display: grid !important;
+    grid-template-columns: 320px minmax(0, 1fr) !important;
+    gap: 1.25rem !important;
+    align-items: start !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
 }
 
-@media (max-width: 1400px) {
-    .lab-laudos-layout {
-        grid-template-columns: 1fr;
+@media (min-width: 1440px) {
+    .lab-laudos-container .lab-conf-layout,
+    .lab-laudos-layout,
+    .lab-conf-layout {
+        grid-template-columns: 340px minmax(0, 1fr) !important;
     }
 }
 
+/* Coluna Esquerda: Lista de Laudos */
+.lab-laudos-container .lab-conf-sidebar,
+.lab-conf-sidebar,
 .lab-laudos-list-card {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1rem !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    position: sticky !important;
+    top: 1rem !important;
+    align-self: start !important;
+}
+
+.lab-laudos-container .lab-queue-card,
+.lab-queue-card {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
     padding: 1rem !important;
-    position: sticky;
-    top: 1.5rem;
-    align-self: start;
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+.lab-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.lab-card-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+}
+
+.lab-laudos-container .lab-queue-list,
+.lab-queue-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+    max-height: calc(100vh - 240px) !important;
+    overflow-y: auto !important;
+    padding-right: 4px !important;
+}
+
+/* Coluna Direita: Painel Principal / Pré-Visualização */
+.lab-laudos-container .lab-conf-main,
+.lab-conf-main {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+    width: 100% !important;
 }
 
 .lab-laudos-card-list {
@@ -1043,7 +1075,9 @@
     .app-layout,
     .main-content,
     .lab-conf-container,
+    .lab-laudos-container,
     .lab-conf-layout,
+    .lab-laudos-layout,
     .lab-conf-main {
         width: 100% !important;
         max-width: none !important;

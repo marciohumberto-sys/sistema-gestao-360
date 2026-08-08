@@ -237,15 +237,16 @@ const LaboratorioResultados = () => {
     const [initialGeneralObservation, setInitialGeneralObservation] = useState('');
     const generalObsRef = useRef(null);
     const inputRefs = useRef([]);
+    const lastFocusedExamRef = useRef(null);
     const shouldScrollToTopRef = useRef(false);
     const examTopRef = useRef(null);
 
     const location = useLocation();
-    const { tenantLink } = useAuth();
-    const currentUserRole = String(tenantLink?.role || tenantLink?.profile || '').trim().toUpperCase();
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const currentUserRole = isSuperAdmin ? 'SUPERADMIN' : String(tenantLink?.role || tenantLink?.profile || '').trim().toUpperCase();
     const canReopenReleasedResult = [
-        'SUPERADMIN', 'ADMIN', 'GESTOR', 'ADMINISTRADOR', 'RECEPCAO'
-    ].includes(currentUserRole);
+        'SUPERADMIN', 'ADMIN', 'GESTOR', 'ADMINISTRADOR', 'RECEPCAO', 'TECNICO', 'BANCADA', 'OPERADOR'
+    ].includes(currentUserRole) || Boolean(isSuperAdmin);
     
     const [searchFilters, setSearchFilters] = useState({
         date: location.state?.attendanceDate || '',
@@ -427,6 +428,7 @@ const LaboratorioResultados = () => {
     }, [loadingSearch, loadingMore, hasMore, loadMoreError, searchResults, nextCursor]);
 
     const handleSelectAttendance = async (att) => {
+        lastFocusedExamRef.current = null;
         setSelectedAttendance(att);
         
         const hadSpecificPatientFilter = Boolean(
@@ -670,6 +672,7 @@ const LaboratorioResultados = () => {
     };
 
     const executePatientNavigation = async (targetAttendance, targetExamCode) => {
+        lastFocusedExamRef.current = null;
         setSelectedAttendance(targetAttendance);
         shouldScrollToTopRef.current = true;
         await carregarDados(targetAttendance.protocol_number, null, targetExamCode);
@@ -705,6 +708,7 @@ const LaboratorioResultados = () => {
             setPendingNavigation(result);
             setShowUnsavedModal(true);
         } else {
+            lastFocusedExamRef.current = null;
             selecionarExame(result);
         }
     };
@@ -714,6 +718,7 @@ const LaboratorioResultados = () => {
             setPendingNavigation('back_to_search');
             setShowUnsavedModal(true);
         } else {
+            lastFocusedExamRef.current = null;
             setSelectedAttendance(null);
             setAttendances([]);
             setSelectedExamId(null);
@@ -762,6 +767,53 @@ const LaboratorioResultados = () => {
             }, 100);
         });
     }, [selectedExamId, loading, saving]);
+
+    const focusFirstEditableField = () => {
+        if (!inputRefs.current || inputRefs.current.length === 0) return false;
+
+        for (let i = 0; i < inputRefs.current.length; i++) {
+            const el = inputRefs.current[i];
+            if (el && !el.disabled && !el.readOnly && el.offsetParent !== null) {
+                // No HEMO, garantir que o foco inicial caia no primeiro parâmetro real e não em observações morfológicas
+                if (isHemo && el.tagName === 'TEXTAREA') {
+                    continue;
+                }
+
+                el.focus({ preventScroll: true });
+                if (typeof el.select === 'function') {
+                    el.select();
+                }
+
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        if (document.activeElement === el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                        }
+                    }, 10);
+                });
+                return true;
+            }
+        }
+        return false;
+    };
+
+    useEffect(() => {
+        if (!selectedExamId || loading || saving || isReadOnly) return;
+        if (showUnsavedModal || showReopenModal || showGerenciarExamesModal) return;
+
+        if (lastFocusedExamRef.current === selectedExamId) return;
+
+        const timer = setTimeout(() => {
+            if (showUnsavedModal || showReopenModal || showGerenciarExamesModal) return;
+
+            const focused = focusFirstEditableField();
+            if (focused) {
+                lastFocusedExamRef.current = selectedExamId;
+            }
+        }, 50);
+
+        return () => clearTimeout(timer);
+    }, [selectedExamId, loading, saving, isReadOnly, showUnsavedModal, showReopenModal, showGerenciarExamesModal]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -1944,6 +1996,8 @@ const LaboratorioResultados = () => {
                                                                                             const newFull = pcrDil ? `${pcrDil} — ${newRes} mg/L` : (newRes ? `${newRes} mg/L` : '');
                                                                                             handleValueChange(param.id, 'value_text', newFull);
                                                                                         }}
+                                                                                        onKeyDown={(e) => handleResultKeyDown(e, index)}
+                                                                                        ref={(el) => inputRefs.current[index] = el}
                                                                                     />
                                                                                     <div className="pcr-unit" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 0.75rem', background: '#f8fafc', border: isMissing ? '2px solid #ef4444' : '1px solid #cbd5e1', borderLeft: 'none', borderRadius: '0 8px 8px 0', color: '#475569', fontWeight: 600, whiteSpace: 'nowrap', fontSize: '0.9rem' }}>
                                                                                         mg/L

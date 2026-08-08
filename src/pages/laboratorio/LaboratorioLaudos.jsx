@@ -3625,7 +3625,7 @@ const LaboratorioLaudos = () => {
     const statusReal = selectedExam ? String(selectedExam.status || '').trim().toUpperCase() : '';
 
     return (
-        <div className="lab-conf-container">
+        <div className="lab-laudos-container">
             <style>{`
                 .result-value-long {
                     font-size: 10px;

@@ -31,21 +31,33 @@ export const laboratorioConferenciaService = {
             if (!attendances || attendances.length === 0) return [];
             
             // Pacientes
-            const { data: patients, error: patError } = await supabase.from('lab_patients').select('id, code, full_name, birth_date, sex, cns, cpf');
-            if (patError) throw patError;
-            
+            let patients = [];
             let filteredAttendances = attendances;
-            if (filters.patient) {
-                const searchName = filters.patient.toLowerCase();
-                const matchedPatients = patients.filter(p => p.full_name && p.full_name.toLowerCase().includes(searchName));
-                const matchedPatientIds = matchedPatients.map(p => p.id);
-                filteredAttendances = attendances.filter(a => matchedPatientIds.includes(a.patient_id));
-            }
-            if (filters.patientCode) {
-                const searchCode = String(filters.patientCode).trim();
-                const matchedPatients = patients.filter(p => p.code && String(p.code) === searchCode);
-                const matchedPatientIds = matchedPatients.map(p => p.id);
-                filteredAttendances = filteredAttendances.filter(a => matchedPatientIds.includes(a.patient_id));
+
+            if (filters.patient || filters.patientCode) {
+                let patQuery = supabase.from('lab_patients').select('id, code, full_name, birth_date, sex, cns, cpf');
+                if (filters.patient) {
+                    patQuery = patQuery.ilike('full_name', `%${filters.patient.trim()}%`);
+                }
+                if (filters.patientCode) {
+                    patQuery = patQuery.eq('code', String(filters.patientCode).trim());
+                }
+                const { data: patData, error: patError } = await patQuery;
+                if (patError) throw patError;
+                patients = patData || [];
+                const matchedPatientIds = new Set(patients.map(p => p.id));
+                filteredAttendances = attendances.filter(a => matchedPatientIds.has(a.patient_id));
+            } else {
+                const uniquePatIds = [...new Set(attendances.map(a => a.patient_id).filter(Boolean))];
+                for (let i = 0; i < uniquePatIds.length; i += 100) {
+                    const chunk = uniquePatIds.slice(i, i + 100);
+                    const { data: patData, error: patError } = await supabase
+                        .from('lab_patients')
+                        .select('id, code, full_name, birth_date, sex, cns, cpf')
+                        .in('id', chunk);
+                    if (patError) throw patError;
+                    if (patData) patients = patients.concat(patData);
+                }
             }
             if (filteredAttendances.length === 0) return [];
 
@@ -124,6 +136,8 @@ export const laboratorioConferenciaService = {
                     pacienteNome: pat.full_name,
                     pacienteIdade: idade,
                     pacienteSexo: pat.sex === 'F' ? 'Feminino' : pat.sex === 'M' ? 'Masculino' : pat.sex,
+                    pacienteDataNasc: pat.birth_date || null,
+                    pacienteSexoRaw: pat.sex || null,
                     pacienteCns: pat.cns || null,
                     pacienteCpf: pat.cpf || null,
                     convenio: att.agreement,

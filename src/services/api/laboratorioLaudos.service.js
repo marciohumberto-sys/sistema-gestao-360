@@ -145,6 +145,8 @@ export const laboratorioLaudosService = {
 
                 return {
                     id: r.id, 
+                    result_id: r.id,
+                    resultId: r.id,
                     patient_id: pat.id,
                     protocolo: att.protocol_number,
                     pacienteCodigo: pat.code,
@@ -191,7 +193,7 @@ export const laboratorioLaudosService = {
                 };
             }).filter(Boolean);
 
-            const resultIds = fila.map(f => f.id);
+            const resultIds = fila.map(f => f.id).filter(id => id && typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim()));
             if(resultIds.length > 0) {
                  const { data: valData } = await supabase.from('lab_result_values').select('result_id').in('result_id', resultIds);
                  if(valData) {
@@ -210,10 +212,14 @@ export const laboratorioLaudosService = {
 
     carregarDetalhesLaudo: async (resultId) => {
         try {
+            if (!resultId || typeof resultId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resultId.trim())) {
+                return [];
+            }
+
             const { data: values, error } = await supabase
                 .from('lab_result_values')
                 .select('*')
-                .eq('result_id', resultId)
+                .eq('result_id', resultId.trim())
                 .order('display_order', { ascending: true });
                 
             if (error) throw error;
@@ -227,7 +233,7 @@ export const laboratorioLaudosService = {
     carregarDetalhesLaudosLote: async (resultIds) => {
         try {
             if (!resultIds || !Array.isArray(resultIds)) return {};
-            const validIds = [...new Set(resultIds.filter(id => id))];
+            const validIds = [...new Set(resultIds.filter(id => id && typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim())).map(id => id.trim()))];
             if (validIds.length === 0) return {};
 
             const { data: values, error } = await supabase
@@ -326,7 +332,10 @@ export const laboratorioLaudosService = {
 
     buscarHistoricoExame: async (examCode, patientId, currentResultId, currentTimestamp) => {
         try {
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
             if (!examCode || !patientId || !currentResultId || !currentTimestamp) return [];
+            if (typeof patientId !== 'string' || !uuidRegex.test(patientId.trim())) return [];
+            if (typeof currentResultId !== 'string' || !uuidRegex.test(currentResultId.trim())) return [];
             
             const currTime = new Date(currentTimestamp).getTime();
             if (isNaN(currTime)) return [];
@@ -335,12 +344,13 @@ export const laboratorioLaudosService = {
             const { data: attendances, error: attErr } = await supabase
                 .from('lab_attendances')
                 .select('id, attendance_date, lab_attendance_exams(exam_id, collection_date, collection_time)')
-                .eq('patient_id', patientId);
+                .eq('patient_id', patientId.trim());
             
             if (attErr) throw attErr;
             if (!attendances || attendances.length === 0) return [];
             
-            const attendanceIds = attendances.map(a => a.id);
+            const attendanceIds = attendances.map(a => a.id).filter(id => id && typeof id === 'string' && uuidRegex.test(id.trim()));
+            if (attendanceIds.length === 0) return [];
             
             // Find exam_id for specific examCode
             const { data: exams, error: examErr } = await supabase
@@ -351,6 +361,7 @@ export const laboratorioLaudosService = {
             if (examErr) throw examErr;
             if (!exams || exams.length === 0) return [];
             const examId = exams[0].id;
+            if (!examId || !uuidRegex.test(examId)) return [];
             
             // Find results
             const { data: results, error: resErr } = await supabase
@@ -359,12 +370,13 @@ export const laboratorioLaudosService = {
                 .in('attendance_id', attendanceIds)
                 .eq('exam_id', examId)
                 .in('status', ['CONFERIDO', 'LIBERADO'])
-                .neq('id', currentResultId);
+                .neq('id', currentResultId.trim());
                 
             if (resErr) throw resErr;
             if (!results || results.length === 0) return [];
             
-            const resultIds = results.map(r => r.id);
+            const resultIds = results.map(r => r.id).filter(id => id && typeof id === 'string' && uuidRegex.test(id.trim()));
+            if (resultIds.length === 0) return [];
             
             // Fetch values
             const { data: values, error: valErr } = await supabase
