@@ -443,7 +443,7 @@ class LaboratorioResultadosService {
         // 4. Buscar exames
         const { data: exams, error: errExams } = await supabase
             .from('lab_exams')
-            .select('*')
+            .select('*, lab_exam_sectors(name)')
             .in('id', examIds);
             
         if (errExams) throw errExams;
@@ -506,11 +506,11 @@ class LaboratorioResultadosService {
                         observation: savedValue.observation || ''
                     };
                 });
-
                 return {
                     ...r,
                     exameNome: exame.name || exame.code,
                     exameCodigo: exame.code,
+                    exameSetor: exame.lab_exam_sectors?.name || 'OUTROS',
                     examePrintOrder: exame.print_order || 999,
                     requires_conference: exame.requires_conference || false,
                     structuredValues

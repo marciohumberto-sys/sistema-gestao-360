@@ -226,7 +226,19 @@ const LaboratorioResultados = () => {
 
     const currentTenantId = tenantLink?.tenant_id || tenantLink?.id || selectedAttendance?.tenant_id || attendances[0]?.tenant_id;
     const currentAttendance = attendances[0] || {};
-    const resultados = currentAttendance.resultados || [];
+    const resultados = currentAttendance.resultados ? [...currentAttendance.resultados].sort((a, b) => {
+        const sectorA = String(a.exameSetor || '').toLowerCase();
+        const sectorB = String(b.exameSetor || '').toLowerCase();
+        if (sectorA < sectorB) return -1;
+        if (sectorA > sectorB) return 1;
+
+        const codeA = String(a.exameCodigo || a.exame_codigo || '').toLowerCase();
+        const codeB = String(b.exameCodigo || b.exame_codigo || '').toLowerCase();
+        if (codeA < codeB) return -1;
+        if (codeA > codeB) return 1;
+        
+        return (a.id || 0) - (b.id || 0);
+    }) : [];
     const attendanceExams = resultados;
     const currentExamIndex = attendanceExams.findIndex(exam => exam.id === selectedExamId);
     const selectedResult = resultados.find(r => r.id === selectedExamId) || {};
