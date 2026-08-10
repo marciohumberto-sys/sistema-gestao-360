@@ -84,11 +84,12 @@ const PlanejamentoDashboard = () => {
         <div className="planejamento-dashboard-container">
             {/* 1. Cabeçalho da Página */}
             <header className="planejamento-header">
-                <div className="planejamento-title-group">
+                <div className="planejamento-title-row">
                     <h1>Painel de Monitoramento e Planejamento</h1>
-                    <p>Visão executiva do monitoramento das ações</p>
                 </div>
-                <div className="planejamento-filters">
+                <div className="planejamento-subtitle-filters-row">
+                    <p className="planejamento-subtitle">Visão executiva do monitoramento das ações</p>
+                    <div className="planejamento-filters">
                     <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
                         <div style={{ position: 'absolute', left: '10px', pointerEvents: 'none', color: '#64748b', display: 'flex' }}>
                             <Calendar size={16} />
@@ -153,6 +154,7 @@ const PlanejamentoDashboard = () => {
                             })}
                         </select>
                         <div style={{ position: 'absolute', right: '10px', pointerEvents: 'none', color: '#64748b', fontSize: '0.6rem' }}>▼</div>
+                    </div>
                     </div>
                 </div>
             </header>

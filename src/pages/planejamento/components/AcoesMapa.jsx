@@ -196,7 +196,7 @@ const AcoesMapa = ({ data }) => {
 
     const MUNICIPALITY_CENTER = [-8.234777256840292, -35.75168643326829];
 
-    const acoes = data || [];
+    const acoes = (data || []).filter(acao => acao.show_on_map === true);
     const baseComCoordenadas = [];
     const baseSemCoordenadas = [];
 

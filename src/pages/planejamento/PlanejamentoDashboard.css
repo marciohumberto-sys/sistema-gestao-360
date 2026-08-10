@@ -11,12 +11,16 @@
 
 .planejamento-header {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 0.5rem;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
 }
 
-.planejamento-title-group h1 {
+.planejamento-title-row {
+    width: 100%;
+}
+
+.planejamento-title-row h1 {
     font-size: 1.75rem;
     font-weight: 800;
     color: var(--text-primary, #0f172a);
@@ -24,36 +28,75 @@
     letter-spacing: -0.02em;
 }
 
-.planejamento-title-group p {
+.planejamento-subtitle-filters-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+}
+
+.planejamento-subtitle {
     font-size: 0.95rem;
     color: var(--text-secondary, #64748b);
-    margin: 0.25rem 0 0 0;
+    margin: 0;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .planejamento-filters {
     display: flex;
-    gap: 0.75rem;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    transform: translateY(12px);
 }
 
 .filter-button-mock {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 1rem;
+    padding: 6px 24px 6px 28px;
     background: #ffffff;
     border: 1px solid var(--border-color, #e2e8f0);
     border-radius: 8px;
-    font-size: 0.85rem;
-    font-weight: 500;
+    font-size: 0.82rem;
+    font-weight: 600;
     color: var(--text-secondary, #475569);
     cursor: pointer;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     transition: all 0.2s ease;
+    max-width: 210px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .filter-button-mock:hover {
     border-color: #cbd5e1;
     background: #f8fafc;
+}
+
+@media (max-width: 1024px) {
+    .planejamento-subtitle-filters-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    .planejamento-subtitle {
+        white-space: normal;
+        overflow: visible;
+    }
+    .planejamento-filters {
+        flex-wrap: wrap;
+        width: 100%;
+    }
+    .filter-button-mock {
+        max-width: 100%;
+        flex: 1 1 auto;
+    }
 }
 
 .kpi-grid {

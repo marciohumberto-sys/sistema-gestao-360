@@ -163,82 +163,90 @@ const PlanejamentoEstrategico = () => {
         return list;
     }, [data?.actions, filters]);
 
-    // Estatísticas da Linha do Tempo e Gráfico Anual calculadas estritamente por AÇÃO com regra temporal
+    // Todos os objetivos extraídos dos eixos para cálculo da timeline
+    const allObjectives = useMemo(() => {
+        if (!data?.eixos) return [];
+        const objs = [];
+        data.eixos.forEach(e => {
+            if (filters.eixoId && filters.eixoId !== 'todos' && e.id !== filters.eixoId) return;
+            if (e.objetivos) {
+                e.objetivos.forEach(o => {
+                    objs.push(o);
+                });
+            }
+        });
+        return objs;
+    }, [data?.eixos, filters.eixoId]);
+
+    // Estatísticas da Linha do Tempo baseada nos OBJETIVOS, conforme regra da Sec. de Planejamento
     const timelineAndYearStats = useMemo(() => {
         const statsByYear = {};
 
         TIMELINE_YEARS.forEach(yr => {
             let emAndamento = 0;
             let concluidas = 0;
-            let concluidasNoAno = 0;
             let naoIniciadas = 0;
-            let previstasTermino = 0;
+            let naoConcluidas = 0;
             let iniciadasNoAno = 0;
 
-            filteredActions.forEach(a => {
-                const startYr = getYear(a.start_date);
-                const dueYr = getYear(a.due_date);
-                const isConcluida = a.status === 'CONCLUIDA';
-                const compYr = isConcluida && a.completion_date ? getYear(a.completion_date) : null;
+            allObjectives.forEach(obj => {
+                const acoes = obj.acoes || [];
+                
+                let acoesValidas = acoes.filter(a => a.objective_id === obj.id);
 
-                // Métrica adicional: Iniciadas no ano analisado
-                if (startYr === yr) {
-                    iniciadasNoAno++;
+                if (filters.secretariaId && filters.secretariaId !== 'todas') {
+                    if (filters.secretariaId === 'todas_minhas' && Array.isArray(filters.allowedSecretariatIds)) {
+                        acoesValidas = acoesValidas.filter(a => filters.allowedSecretariatIds.includes(a.secretariat_id));
+                    } else {
+                        acoesValidas = acoesValidas.filter(a => a.secretariat_id === filters.secretariaId);
+                    }
+                }
+                
+                if (filters.secretariaId && filters.secretariaId !== 'todas' && acoesValidas.length === 0) {
+                    return; 
                 }
 
-                // Métrica adicional: Previstas para término no ano analisado (baseada em due_date)
-                if (dueYr === yr) {
-                    previstasTermino++;
-                }
+                const startedActions = acoesValidas.filter(a => a.status !== 'NAO_INICIADA' && getYear(a.start_date) !== null);
 
-                // 1. NÃO INICIADAS / FUTURAS NO ANO (Regra temporal estrita):
-                // Ação sem start_date OU com start_date maior que o ano analisado
-                const isNaoIniciada = !a.start_date || startYr === null || startYr > yr;
-
-                if (isNaoIniciada) {
+                if (startedActions.length === 0) {
                     naoIniciadas++;
                     return;
                 }
 
-                // 2. CONCLUÍDAS ATÉ O ANO ANALISADO:
-                // Ação com status CONCLUIDA cuja data de conclusão é até o ano yr
-                const isConcluidaAteAno = isConcluida && (
-                    (compYr !== null && compYr <= yr) ||
-                    (compYr === null && startYr !== null && startYr <= yr)
-                );
-
-                if (isConcluidaAteAno) {
-                    concluidas++;
-                    if ((compYr !== null && compYr === yr) || (compYr === null && dueYr === yr) || (compYr === null && !dueYr && startYr === yr)) {
-                        concluidasNoAno++;
-                    }
-                    return;
+                let startYear = Math.min(...startedActions.map(a => getYear(a.start_date)));
+                if (startYear === 2024) {
+                    startYear = 2025;
                 }
 
-                // 3. EM ANDAMENTO NO ANO ANALISADO:
-                // Ação que iniciou até o ano yr e ainda não havia sido concluída até aquele ano
-                emAndamento++;
+                if (yr < startYear) {
+                    naoIniciadas++;
+                } else if (yr === startYear) {
+                    iniciadasNoAno++;
+                } else {
+                    emAndamento++;
+                }
             });
 
-            const total = emAndamento + concluidas + naoIniciadas;
+            const total = emAndamento + concluidas + naoIniciadas + iniciadasNoAno + naoConcluidas;
 
             const badges = [];
+            if (iniciadasNoAno > 0) {
+                badges.push({ text: `${iniciadasNoAno} ${iniciadasNoAno === 1 ? 'iniciado' : 'iniciados'}`, color: 'teal' });
+            }
             if (emAndamento > 0) {
                 badges.push({ text: `${emAndamento} em andamento`, color: 'blue' });
             }
-            if (concluidasNoAno > 0) {
-                badges.push({ text: `${concluidasNoAno} ${concluidasNoAno === 1 ? 'concluída no ano' : 'concluídas no ano'}`, color: 'green' });
-            } else if (concluidas > 0) {
-                badges.push({ text: `${concluidas} ${concluidas === 1 ? 'concluída' : 'concluídas'}`, color: 'green' });
+            if (concluidas > 0) {
+                badges.push({ text: `${concluidas} ${concluidas === 1 ? 'concluído' : 'concluídos'}`, color: 'green' });
             }
-            if (previstasTermino > 0) {
-                badges.push({ text: `${previstasTermino} ${previstasTermino === 1 ? 'prevista' : 'previstas'} p/ término`, color: 'amber' });
+            if (naoConcluidas > 0) {
+                badges.push({ text: `${naoConcluidas} não ${naoConcluidas === 1 ? 'concluído' : 'concluídos'}`, color: 'red' });
             }
             if (naoIniciadas > 0) {
-                badges.push({ text: `${naoIniciadas} ${naoIniciadas === 1 ? 'não iniciada' : 'não iniciadas'}`, color: 'gray' });
+                badges.push({ text: `${naoIniciadas} não ${naoIniciadas === 1 ? 'iniciado' : 'iniciados'}`, color: 'gray' });
             }
             if (badges.length === 0) {
-                badges.push({ text: 'Sem ações', color: 'gray' });
+                badges.push({ text: 'Sem objetivos', color: 'gray' });
             }
 
             statsByYear[yr] = {
@@ -246,17 +254,17 @@ const PlanejamentoEstrategico = () => {
                 total,
                 emAndamento,
                 concluidas,
-                concluidasNoAno,
                 naoIniciadas,
-                previstasTermino,
+                naoConcluidas,
+                previstasTermino: 0,
                 iniciadasNoAno,
-                active: (emAndamento > 0 || concluidas > 0 || iniciadasNoAno > 0),
+                active: (emAndamento > 0 || concluidas > 0 || iniciadasNoAno > 0 || naoConcluidas > 0),
                 badges
             };
         });
 
         return statsByYear;
-    }, [filteredActions]);
+    }, [allObjectives, filters.secretariaId, filters.allowedSecretariatIds]);
 
     // Recálculo dinâmico dos KPIs da página baseado nos filtros
     const dynamicKpis = useMemo(() => {
@@ -361,13 +369,13 @@ const PlanejamentoEstrategico = () => {
         <div className="plano-estrategico-container">
             {/* Header com Filtros Dinâmicos */}
             <header className="pe-header">
-                <div className="pe-title-group">
+                <div className="pe-title-row">
                     <h1>Plano Estratégico 2025–2028</h1>
-                    <p>Visão estratégica da gestão com base nos eixos do Plano de Governo.</p>
                 </div>
-
-                <div className="pe-filters">
-                    {/* Filtro por Período */}
+                <div className="pe-subtitle-filters-row">
+                    <p className="pe-subtitle">Visão estratégica baseada nos eixos do Plano de Governo.</p>
+                    <div className="pe-filters">
+                        {/* Filtro por Período */}
                     <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
                         <div style={{ position: 'absolute', left: '10px', pointerEvents: 'none', color: '#64748b', display: 'flex' }}>
                             <Calendar size={16} />
@@ -429,6 +437,7 @@ const PlanejamentoEstrategico = () => {
                             })}
                         </select>
                         <div style={{ position: 'absolute', right: '10px', pointerEvents: 'none', color: '#64748b', fontSize: '0.6rem' }}>▼</div>
+                    </div>
                     </div>
                 </div>
             </header>
@@ -711,15 +720,16 @@ const PlanejamentoEstrategico = () => {
                     <div>
                         <h3 className="pe-section-title" style={{ fontSize: '1.1rem', margin: 0 }}>Linha do Tempo Estratégica</h3>
                         <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0 0' }}>
-                            Evolução temporal das ações ao longo do ciclo de governo (clique em um ano para inspecionar).
+                            Evolução temporal dos objetivos ao longo do ciclo de governo (clique em um ano para inspecionar).
                         </p>
                     </div>
 
                     <div className="pe-legend" style={{ margin: 0 }}>
+                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#0d9488' }}></div> Iniciados</div>
                         <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#3b82f6' }}></div> Em andamento</div>
-                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#10b981' }}></div> Concluídas</div>
-                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#f59e0b' }}></div> Previstas p/ término</div>
-                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#94a3b8' }}></div> Não iniciadas</div>
+                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#10b981' }}></div> Concluídos</div>
+                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#ef4444' }}></div> Não concluídos</div>
+                        <div className="pe-legend-item"><div className="pe-legend-dot" style={{ background: '#94a3b8' }}></div> Não iniciados</div>
                     </div>
                 </div>
 

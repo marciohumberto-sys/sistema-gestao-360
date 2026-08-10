@@ -386,6 +386,7 @@ class PlanejamentoService {
                 address_city: action.address_city || 'Bezerros',
                 address_state: action.address_state || 'PE',
                 address_zipcode: action.address_zipcode || '',
+                show_on_map: action.show_on_map === true,
             };
         });
 

@@ -434,7 +434,8 @@ const AcoesList = () => {
         budget_amount: null,
         resource_source: '',
         latitude: null,
-        longitude: null
+        longitude: null,
+        show_on_map: false
     };
     const [formData, setFormData] = useState(emptyForm);
     const [objectivesList, setObjectivesList] = useState([]);
@@ -554,7 +555,8 @@ const AcoesList = () => {
                 budget_amount: acao.budget_amount ?? null,
                 resource_source: acao.resource_source || '',
                 latitude: acao.latitude ?? null,
-                longitude: acao.longitude ?? null
+                longitude: acao.longitude ?? null,
+                show_on_map: acao.show_on_map ?? false
             });
 
             // Carregar secretarias participantes de forma assíncrona e travar estado original
@@ -2009,12 +2011,21 @@ const AcoesList = () => {
                                                     if (newType === 'PROJETO' || newType === 'OBRA' || newType === 'ACAO_PONTUAL') {
                                                         newProgress = 0;
                                                     }
+                                                    const extraUpdates = {};
+                                                    if (!editingAcao && !formData._mapCheckboxTouched) {
+                                                        if (newType === 'OBRA') {
+                                                            extraUpdates.show_on_map = true;
+                                                        } else {
+                                                            extraUpdates.show_on_map = false;
+                                                        }
+                                                    }
                                                     setFormData({ 
                                                         ...formData, 
                                                         action_type: newType, 
                                                         progresso: newProgress,
                                                         custom_stages: null,
-                                                        current_stage_index: null
+                                                        current_stage_index: null,
+                                                        ...extraUpdates
                                                     });
                                                 }}
                                             >
@@ -2857,15 +2868,30 @@ const AcoesList = () => {
                                                 onChange={e => setFormData({ ...formData, address_state: e.target.value })}
                                             />
                                         </div>
-                                        <div className="farmacia-form-group" style={{ gridColumn: 'span 12' }}>
-                                            <label className="farmacia-form-label">Referência / Ponto de Referência</label>
-                                            <input
-                                                type="text"
-                                                className="farmacia-form-input"
-                                                placeholder="Ex: Próximo à Escola Municipal"
-                                                value={formData.address_reference}
-                                                onChange={e => setFormData({ ...formData, address_reference: e.target.value })}
-                                            />
+                                        <div style={{ gridColumn: 'span 12', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
+                                            <div className="farmacia-form-group" style={{ flex: '1 1 60%' }}>
+                                                <label className="farmacia-form-label">Referência / Ponto de Referência</label>
+                                                <input
+                                                    type="text"
+                                                    className="farmacia-form-input"
+                                                    placeholder="Ex: Próximo à Escola Municipal"
+                                                    value={formData.address_reference}
+                                                    onChange={e => setFormData({ ...formData, address_reference: e.target.value })}
+                                                />
+                                            </div>
+                                            <div style={{ flex: '0 0 auto', marginBottom: '0.5rem' }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={formData.show_on_map} 
+                                                        onChange={e => setFormData({ ...formData, show_on_map: e.target.checked, _mapCheckboxTouched: true })} 
+                                                        style={{ width: '15px', height: '15px', cursor: 'pointer', accentColor: '#f59e0b' }}
+                                                    />
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>
+                                                        Exibir esta ação no mapa
+                                                    </span>
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

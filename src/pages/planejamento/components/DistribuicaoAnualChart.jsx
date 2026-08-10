@@ -3,10 +3,10 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Calendar, CheckCircle2, Clock, Hourglass, Target, Zap } from 'lucide-react';
 
 const STATUS_COLORS = {
+    'Iniciados': '#0d9488',
     'Em Andamento': '#3b82f6',
-    'Concluídas acumuladas': '#10b981',
-    'Concluídas': '#10b981',
-    'Não Iniciadas': '#94a3b8'
+    'Concluídos': '#10b981',
+    'Não Iniciados': '#94a3b8'
 };
 
 const CustomTooltip = ({ active, payload, total }) => {
@@ -36,7 +36,7 @@ const CustomTooltip = ({ active, payload, total }) => {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
                     <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>
-                        {val} {val === 1 ? 'ação' : 'ações'}
+                        {val} {val === 1 ? 'objetivo' : 'objetivos'}
                     </span>
                     <span style={{ fontSize: '0.75rem', fontWeight: 700, color: item.payload.fill, fontVariantNumeric: 'tabular-nums' }}>
                         {percent}%
@@ -71,9 +71,10 @@ const DistribuicaoAnualChart = ({
     } = metrics;
 
     const chartData = [
+        { name: 'Iniciados', value: iniciadasNoAno, fill: STATUS_COLORS['Iniciados'] },
         { name: 'Em Andamento', value: emAndamento, fill: STATUS_COLORS['Em Andamento'] },
-        { name: 'Concluídas acumuladas', value: concluidas, fill: STATUS_COLORS['Concluídas acumuladas'] },
-        { name: 'Não Iniciadas', value: naoIniciadas, fill: STATUS_COLORS['Não Iniciadas'] }
+        { name: 'Concluídos', value: concluidas, fill: STATUS_COLORS['Concluídos'] },
+        { name: 'Não Iniciados', value: naoIniciadas, fill: STATUS_COLORS['Não Iniciados'] }
     ].filter(d => d.value > 0);
 
     const calcPercent = (val) => {
@@ -87,10 +88,10 @@ const DistribuicaoAnualChart = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '8px' }}>
                 <div>
                     <h3 className="pe-section-title" style={{ fontSize: '1.1rem', margin: 0 }}>
-                        Distribuição Anual de Ações
+                        Distribuição Anual de Objetivos
                     </h3>
                     <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0 0' }}>
-                        Situação acumulada das ações até <strong>{selectedYear}</strong>
+                        Situação acumulada dos objetivos até <strong>{selectedYear}</strong>
                     </p>
                 </div>
 
@@ -123,7 +124,7 @@ const DistribuicaoAnualChart = ({
             {/* Conteúdo Principal: Gráfico e Indicadores */}
             {total === 0 ? (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.9rem', padding: '2rem' }}>
-                    Nenhuma ação registrada para o ano {selectedYear}.
+                    Nenhum objetivo registrado para o ano {selectedYear}.
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', gap: '1rem' }}>
@@ -172,13 +173,23 @@ const DistribuicaoAnualChart = ({
                                 {total}
                             </span>
                             <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                Ações
+                                Objetivos
                             </span>
                         </div>
                     </div>
 
-                    {/* Legenda dos 3 Status Excludentes */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', padding: '0 4px' }}>
+                    {/* Legenda dos 4 Status Excludentes */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', padding: '0 4px' }}>
+                        <div style={{ background: '#f0fdfa', borderRadius: '8px', padding: '8px 10px', borderLeft: `3px solid ${STATUS_COLORS['Iniciados']}` }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#0f766e', fontSize: '0.72rem', fontWeight: 600 }}>
+                                <Zap size={12} /> Iniciados
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: '2px' }}>
+                                <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#115e59' }}>{iniciadasNoAno}</span>
+                                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#0d9488' }}>{calcPercent(iniciadasNoAno)}</span>
+                            </div>
+                        </div>
+
                         <div style={{ background: '#eff6ff', borderRadius: '8px', padding: '8px 10px', borderLeft: `3px solid ${STATUS_COLORS['Em Andamento']}` }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#1e40af', fontSize: '0.72rem', fontWeight: 600 }}>
                                 <Clock size={12} /> Em Andamento
@@ -189,9 +200,9 @@ const DistribuicaoAnualChart = ({
                             </div>
                         </div>
 
-                        <div style={{ background: '#f0fdf4', borderRadius: '8px', padding: '8px 10px', borderLeft: `3px solid ${STATUS_COLORS['Concluídas acumuladas']}` }}>
+                        <div style={{ background: '#f0fdf4', borderRadius: '8px', padding: '8px 10px', borderLeft: `3px solid ${STATUS_COLORS['Concluídos']}` }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#166534', fontSize: '0.72rem', fontWeight: 600 }}>
-                                <CheckCircle2 size={12} /> Concluídas acumuladas
+                                <CheckCircle2 size={12} /> Concluídos
                             </div>
                             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: '2px' }}>
                                 <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#14532d' }}>{concluidas}</span>
@@ -199,62 +210,13 @@ const DistribuicaoAnualChart = ({
                             </div>
                         </div>
 
-                        <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '8px 10px', borderLeft: `3px solid ${STATUS_COLORS['Não Iniciadas']}` }}>
+                        <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '8px 10px', borderLeft: `3px solid ${STATUS_COLORS['Não Iniciados']}` }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#475569', fontSize: '0.72rem', fontWeight: 600 }}>
-                                <Hourglass size={12} /> Não Iniciadas
+                                <Hourglass size={12} /> Não Iniciados
                             </div>
                             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: '2px' }}>
                                 <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#334155' }}>{naoIniciadas}</span>
                                 <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b' }}>{calcPercent(naoIniciadas)}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Indicadores Complementares Baseados em Prazos (Cards Separados sem duplicar o Donut) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', paddingTop: '4px', borderTop: '1px solid #f1f5f9' }}>
-                        {/* Previstas para Término */}
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            background: '#fffbeb',
-                            border: '1px solid #fef3c7',
-                            borderRadius: '8px',
-                            padding: '8px 12px'
-                        }}>
-                            <div style={{ background: '#fde68a', color: '#b45309', padding: '6px', borderRadius: '6px', display: 'flex' }}>
-                                <Target size={16} />
-                            </div>
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                                <div style={{ fontSize: '0.72rem', color: '#92400e', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    Previsão Término ({selectedYear})
-                                </div>
-                                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#78350f', lineHeight: 1.1 }}>
-                                    {previstasTermino} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#b45309' }}>ações com prazo</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Novas Ações Iniciadas */}
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            background: '#f5f3ff',
-                            border: '1px solid #ede9fe',
-                            borderRadius: '8px',
-                            padding: '8px 12px'
-                        }}>
-                            <div style={{ background: '#ddd6fe', color: '#6d28d9', padding: '6px', borderRadius: '6px', display: 'flex' }}>
-                                <Zap size={16} />
-                            </div>
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                                <div style={{ fontSize: '0.72rem', color: '#5b21b6', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    Início no Ano ({selectedYear})
-                                </div>
-                                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#4c1d95', lineHeight: 1.1 }}>
-                                    {iniciadasNoAno} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#6d28d9' }}>novas ações</span>
-                                </div>
                             </div>
                         </div>
                     </div>

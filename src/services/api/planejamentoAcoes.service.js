@@ -426,7 +426,8 @@ export const fetchAcoes = async (tenantId) => {
         last_manual_update_at: latestUpdateMap.get(a.id) || null,
         update_count: updatesCountMap.get(a.id) || 0,
         updated_at: a.updated_at,
-        created_at: a.created_at
+        created_at: a.created_at,
+        show_on_map: a.show_on_map === true
     }));
 };
 
@@ -531,6 +532,7 @@ export const createAcao = async (tenantId, formData, axes, context = null) => {
         current_stage_observation: formData.current_stage_observation?.trim() || null,
         latitude: formData.latitude ?? null,
         longitude: formData.longitude ?? null,
+        show_on_map: formData.show_on_map ?? false,
     };
 
     // LOG DE DIAGNÓSTICO OBRIGATÓRIO
@@ -672,6 +674,7 @@ export const updateAcao = async (tenantId, id, formData) => {
         current_stage_observation: formData.current_stage_observation?.trim() || null,
         latitude: formData.latitude ?? null,
         longitude: formData.longitude ?? null,
+        show_on_map: formData.show_on_map ?? false,
         ...(formData.axisId && { axis_id: formData.axisId }),
         ...(formData.secretariatId && { secretariat_id: formData.secretariatId }),
         objective_id: formData.objectiveId !== undefined ? formData.objectiveId : null,
