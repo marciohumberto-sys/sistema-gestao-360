@@ -563,4 +563,20 @@ export function expandRcText(text) {
     return text;
 }
 
+export const ERITROGRAMA_CODES = new Set([
+    'HEMACIAS', 'HEMOGLOBINA', 'HEMATOCRITO', 'HCM', 'VCM', 'CHCM', 'RDW'
+]);
 
+export function isEritrogramaParameter(code) {
+    if (!code) return false;
+    return ERITROGRAMA_CODES.has(String(code).trim().toUpperCase());
+}
+
+export function formatEritrogramaDecimal(value) {
+    if (value === null || value === undefined || value === '') return value;
+    const str = String(value).trim().replace(',', '.');
+    if (str === '') return value;
+    const num = parseFloat(str);
+    if (isNaN(num) || !isFinite(num)) return value;
+    return num.toFixed(2).replace('.', ',');
+}

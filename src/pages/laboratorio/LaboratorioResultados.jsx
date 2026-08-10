@@ -10,7 +10,7 @@ import './LaboratorioResultados.css';
 import { laboratorioResultadosService } from '../../services/api/laboratorioResultados.service';
 import LaboratorioGerenciarExamesModal from '../../components/laboratorio/LaboratorioGerenciarExamesModal';
 import { useAuth } from '../../context/AuthContext';
-import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue, expandRcText, isHemoMorphologyParameter } from '../../utils/laboratorioHelpers';
+import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue, expandRcText, isHemoMorphologyParameter, isEritrogramaParameter, formatEritrogramaDecimal } from '../../utils/laboratorioHelpers';
 import {
     isUriExam,
     getUriParameterDisplayName,
@@ -41,49 +41,6 @@ const calculateLeucogramaTotal = (formValuesState) => {
     }, 0);
 };
 
-// Configuração da máscara real do Eritrograma (HEMO)
-const HEMO_ERITROGRAMA_CONFIG = {
-    'HEMACIAS': { maxIntDigits: 1, decimals: 2, maxTotalDigits: 3 },
-    'HEMOGLOBINA': { maxIntDigits: 2, decimals: 1, maxTotalDigits: 3 },
-    'HEMATOCRITO': { maxIntDigits: 2, decimals: 1, maxTotalDigits: 3 },
-    'HCM': { maxIntDigits: 2, decimals: 1, maxTotalDigits: 3 },
-    'VCM': { maxIntDigits: 3, decimals: 1, maxTotalDigits: 4 },
-    'CHCM': { maxIntDigits: 2, decimals: 1, maxTotalDigits: 3 },
-    'RDW': { maxIntDigits: 2, decimals: 1, maxTotalDigits: 3 }
-};
-
-const formatEritrogramaMask = (rawValue, config) => {
-    if (rawValue === null || rawValue === undefined) return '';
-    const str = String(rawValue).trim();
-    if (str === '') return '';
-
-    // Extrai apenas dígitos
-    const rawDigits = str.replace(/\D/g, '');
-    if (!rawDigits) return '';
-
-    // Remove zeros à esquerda a menos que seja apenas zero
-    let digits = '';
-    if (/^0+$/.test(rawDigits)) {
-        digits = '0';
-    } else {
-        digits = rawDigits.replace(/^0+/, '');
-    }
-
-    if (!digits) return '';
-
-    // Limita à quantidade máxima de dígitos da máscara
-    if (digits.length > config.maxTotalDigits) {
-        digits = digits.slice(0, config.maxTotalDigits);
-    }
-
-    // Preenche à esquerda até o tamanho mínimo (decimais + 1)
-    const minLength = config.decimals + 1;
-    const padded = digits.padStart(minLength, '0');
-    const intPart = padded.slice(0, padded.length - config.decimals).replace(/^0+(?=\d)/, '') || '0';
-    const decPart = padded.slice(padded.length - config.decimals);
-
-    return `${intPart},${decPart}`;
-};
 
 const getLocalDateInputValue = (date = new Date()) => {
     const year = date.getFullYear();
@@ -543,7 +500,7 @@ const LaboratorioResultados = () => {
             
             const formatResult = (val) => {
                 if (val === null || val === undefined || isNaN(val) || !isFinite(val)) return '';
-                return val.toFixed(1).replace('.', ',');
+                return formatEritrogramaDecimal(val);
             };
             
             if (vcmId) {
@@ -640,6 +597,8 @@ const LaboratorioResultados = () => {
                 if (v.result_type === 'NUMERICO' && vNum !== null && vNum !== undefined) {
                     if (HEMO_INTEGER_COUNT_CODES.has(code)) {
                         vNum = String(vNum).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                    } else if (isEritrogramaParameter(code)) {
+                        vNum = formatEritrogramaDecimal(vNum);
                     }
                 }
                 initialForm[v.parameter_id] = { ...v, value_numeric: vNum };
@@ -2050,9 +2009,7 @@ const LaboratorioResultados = () => {
                                                                         onChange={(e) => {
                                                                             if (isCalculatedIndex) return;
                                                                             let val = e.target.value;
-                                                                            if (isHemo && isNumeric && HEMO_ERITROGRAMA_CONFIG[code]) {
-                                                                                val = formatEritrogramaMask(val, HEMO_ERITROGRAMA_CONFIG[code]);
-                                                                            } else if (isNumeric && HEMO_INTEGER_COUNT_CODES.has(code)) {
+                                                                            if (isNumeric && HEMO_INTEGER_COUNT_CODES.has(code)) {
                                                                                 if (/^[\d.]+$/.test(val)) {
                                                                                     const digits = val.replace(/\./g, '');
                                                                                     val = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -2067,6 +2024,15 @@ const LaboratorioResultados = () => {
                                                                                     const expanded = expandUriFieldValue(param, currentVal);
                                                                                     if (expanded !== currentVal) {
                                                                                         handleValueChange(param.id, 'value_text', expanded);
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                            if (isHemo && isNumeric && isEritrogramaParameter(code)) {
+                                                                                const currentVal = formState.value_numeric;
+                                                                                if (currentVal !== null && currentVal !== undefined && currentVal !== '') {
+                                                                                    const formatted = formatEritrogramaDecimal(currentVal);
+                                                                                    if (formatted !== currentVal) {
+                                                                                        handleValueChange(param.id, 'value_numeric', formatted);
                                                                                     }
                                                                                 }
                                                                             }
