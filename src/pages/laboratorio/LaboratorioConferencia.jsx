@@ -863,9 +863,6 @@ const LaboratorioConferencia = () => {
                                         onClick={() => handleSelectExamWithCheck(ex)}
                                     >
                                         {ex.exameCodigo}
-                                        {ex.parametros > 0 && (
-                                            <span className="lab-conf-tab-badge">{ex.parametros}</span>
-                                        )}
                                     </button>
                                 );
                             })}
