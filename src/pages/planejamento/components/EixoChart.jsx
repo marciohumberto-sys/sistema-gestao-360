@@ -40,7 +40,7 @@ const EixoChart = ({ data: distribuicaoEixos }) => {
                 border: '1px solid rgba(0,0,0,0.06)', 
                 boxShadow: '0 8px 24px -4px rgba(0,0,0,0.06)' 
             }}>
-                <h2 className="card-title">Distribuição por Eixo</h2>
+                <h2 className="card-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>Distribuição de Ações por Eixo do Plano</h2>
                 <div style={{ flex: 1, width: '100%', minHeight: 250, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
                     Nenhuma ação cadastrada por eixo.
                 </div>
@@ -60,7 +60,7 @@ const EixoChart = ({ data: distribuicaoEixos }) => {
             border: '1px solid rgba(0,0,0,0.06)', 
             boxShadow: '0 8px 24px -4px rgba(0,0,0,0.06)' 
         }}>
-            <h2 className="card-title" style={{ marginBottom: '16px', marginTop: 0 }}>Distribuição por Eixo</h2>
+            <h2 className="card-title" style={{ marginBottom: '16px', marginTop: 0, fontSize: '0.9rem' }}>Distribuição de Ações por Eixo do Plano</h2>
             
             <div style={{ display: 'flex', flex: 1, position: 'relative' }}>
                 <div style={{ flex: 1, height: '100%', position: 'relative', display: 'flex', justifyContent: 'center' }}>

@@ -88,7 +88,7 @@ const PlanejamentoDashboard = () => {
                     <h1>Painel de Monitoramento e Planejamento</h1>
                 </div>
                 <div className="planejamento-subtitle-filters-row">
-                    <p className="planejamento-subtitle">Visão executiva do monitoramento das ações</p>
+                    <p className="planejamento-subtitle">Panorama Executivo do Monitoramento da Gestão</p>
                     <div className="planejamento-filters">
                     <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
                         <div style={{ position: 'absolute', left: '10px', pointerEvents: 'none', color: '#64748b', display: 'flex' }}>

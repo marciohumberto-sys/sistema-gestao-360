@@ -165,7 +165,11 @@ class PlanejamentoService {
             prazoVencido,
         };
 
-        // ── 4. Evolução do Plano (acumulado por semestre/ano) ─────────────────
+        // ── 4. Evolução dos Objetivos (acumulado por semestre/ano) ────────────
+        // Regra: deduplicar por objective_id; objetivo iniciado = possui ação
+        // com status !== 'NAO_INICIADA' e start_date preenchida.
+        // Se a primeira ação válida do objetivo for de 2024, considera 2025.
+        // Não usa planning_action_objectives. Não conta ações sem objective_id.
         const parseDateToTimestamp = (dateVal: any): number | null => {
             if (!dateVal) return null;
             if (typeof dateVal === 'string') {
@@ -179,6 +183,12 @@ class PlanejamentoService {
             return isNaN(dt.getTime()) ? null : dt.getTime();
         };
 
+        const parseDateToYear = (dateVal: any): number | null => {
+            const ts = parseDateToTimestamp(dateVal);
+            if (ts === null) return null;
+            return new Date(ts).getFullYear();
+        };
+
         const EVOLUCAO_PERIODOS = [
             { name: '2024/S2', endTimestamp: new Date(2024, 11, 31, 23, 59, 59, 999).getTime() },
             { name: '2025/S1', endTimestamp: new Date(2025, 5, 30, 23, 59, 59, 999).getTime() },
@@ -189,33 +199,81 @@ class PlanejamentoService {
             { name: '2028',    endTimestamp: new Date(2028, 11, 31, 23, 59, 59, 999).getTime() },
         ];
 
-        const totalAcoesFiltradas = safeActions.length;
+        // Agrupar ações por objective_id (excluindo ações sem objective_id)
+        const objetivosMap = new Map<string, any[]>();
+        safeActions.forEach((action: any) => {
+            if (!action.objective_id) return;
+            if (!objetivosMap.has(action.objective_id)) {
+                objetivosMap.set(action.objective_id, []);
+            }
+            objetivosMap.get(action.objective_id)!.push(action);
+        });
+
+        const totalObjetivos = objetivosMap.size;
+
+        // Para cada objetivo, calcular:
+        // - startTs: timestamp da primeira ação válida (ajustado: 2024 → jan/2025)
+        // - endTs: timestamp de conclusão (se TODAS as ações concluídas)
+        const objetivosInfo = Array.from(objetivosMap.entries()).map(([objId, acoes]) => {
+            const acoesValidas = acoes.filter(
+                (a: any) => a.status !== 'NAO_INICIADA' && a.start_date
+            );
+
+            let startTs: number | null = null;
+            if (acoesValidas.length > 0) {
+                const anos = acoesValidas
+                    .map((a: any) => ({ ts: parseDateToTimestamp(a.start_date), yr: parseDateToYear(a.start_date) }))
+                    .filter((x: any) => x.ts !== null);
+                if (anos.length > 0) {
+                    // Ajuste: se o menor ano for 2024, usar 01/01/2025
+                    const minYear = Math.min(...anos.map((x: any) => x.yr ?? 9999));
+                    if (minYear <= 2024) {
+                        startTs = new Date(2025, 0, 1, 0, 0, 0, 0).getTime();
+                    } else {
+                        startTs = Math.min(...anos.map((x: any) => x.ts as number));
+                    }
+                }
+            }
+
+            // Objetivo concluído: todas as ações do objetivo estão com status CONCLUIDA
+            // e todas possuem completion_date/completed_at
+            let endTs: number | null = null;
+            const todasConcluidas = acoes.length > 0 && acoes.every(
+                (a: any) => a.status === 'CONCLUIDA'
+            );
+            if (todasConcluidas) {
+                const compDates = acoes
+                    .map((a: any) => parseDateToTimestamp(a.completion_date || a.completed_at))
+                    .filter((ts: number | null) => ts !== null) as number[];
+                if (compDates.length > 0) {
+                    endTs = Math.max(...compDates);
+                }
+            }
+
+            return { objId, startTs, endTs };
+        });
 
         const execucao = EVOLUCAO_PERIODOS.map(p => {
             let iniciadasAcumuladas = 0;
             let concluidasAcumuladas = 0;
 
-            safeActions.forEach((action: any) => {
-                const startTime = parseDateToTimestamp(action.start_date);
-                if (startTime !== null && startTime <= p.endTimestamp) {
+            objetivosInfo.forEach(({ startTs, endTs }) => {
+                if (startTs !== null && startTs <= p.endTimestamp) {
                     iniciadasAcumuladas++;
                 }
-
-                const compDate = action.completion_date || action.completed_at;
-                const compTime = parseDateToTimestamp(compDate);
-                if (action.status === 'CONCLUIDA' && compTime !== null && compTime <= p.endTimestamp) {
+                if (endTs !== null && endTs <= p.endTimestamp) {
                     concluidasAcumuladas++;
                 }
             });
 
-            const naoIniciadasRestantes = Math.max(0, totalAcoesFiltradas - iniciadasAcumuladas);
+            const naoIniciadasRestantes = Math.max(0, totalObjetivos - iniciadasAcumuladas);
 
             return {
                 name: p.name,
                 iniciadas: iniciadasAcumuladas,
                 concluidas: concluidasAcumuladas,
                 naoIniciadas: naoIniciadasRestantes,
-                total: totalAcoesFiltradas,
+                total: totalObjetivos,
             };
         });
 

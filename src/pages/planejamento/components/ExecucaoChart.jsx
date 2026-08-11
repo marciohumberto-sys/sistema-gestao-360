@@ -10,8 +10,45 @@ import {
     Legend 
 } from 'recharts';
 
+// Tick SVG customizado: ano em negrito + período abaixo
+const CustomXTick = ({ x, y, payload }) => {
+    const value = payload?.value || '';
+    const semMatch = value.match(/^(\d{4})\/S(\d)$/);
+    let linha1 = value;
+    let linha2 = '';
+    if (semMatch) {
+        linha1 = semMatch[1];
+        linha2 = semMatch[2] === '1' ? '1º Sem' : '2º Sem';
+    } else if (/^\d{4}$/.test(value)) {
+        linha1 = value;
+        linha2 = 'Ano';
+    }
+    return (
+        <g transform={`translate(${x},${y})`}>
+            <text textAnchor="middle" fill="#64748b">
+                <tspan x={0} dy="6" fontSize="12" fontWeight="700" fill="#334155">
+                    {linha1}
+                </tspan>
+                <tspan x={0} dy="18" fontSize="10" fontWeight="400" fill="#94a3b8">
+                    {linha2}
+                </tspan>
+            </text>
+        </g>
+    );
+};
+
 const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
+        // Formatar o label do período para o tooltip
+        const periodoFormatado = (() => {
+            const semMatch = label && label.match(/^(\d{4})\/S(\d)$/);
+            if (semMatch) {
+                const sem = semMatch[2] === '1' ? '1º Semestre' : '2º Semestre';
+                return `${semMatch[1]} / ${sem}`;
+            }
+            return label;
+        })();
+
         return (
             <div style={{
                 background: '#ffffff',
@@ -19,7 +56,7 @@ const CustomTooltip = ({ active, payload, label }) => {
                 borderRadius: '10px',
                 padding: '12px 16px',
                 boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)',
-                minWidth: '220px'
+                minWidth: '260px'
             }}>
                 <div style={{
                     fontSize: '0.85rem',
@@ -29,7 +66,7 @@ const CustomTooltip = ({ active, payload, label }) => {
                     paddingBottom: '6px',
                     marginBottom: '8px'
                 }}>
-                    Período: {label}
+                    Período: {periodoFormatado}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {payload.map((entry, index) => (
@@ -82,14 +119,14 @@ const ExecucaoChart = ({ data: execucao }) => {
             }}>
                 <div style={{ marginBottom: '16px' }}>
                     <h2 className="card-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
-                        Evolução Acumulada do Plano
+                        Evolução Acumulada dos Objetivos
                     </h2>
                     <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 400 }}>
-                        Avanço acumulado das ações durante o ciclo do plano
+                        Avanço acumulado dos objetivos durante o ciclo do plano
                     </p>
                 </div>
                 <div style={{ flex: 1, width: '100%', minHeight: 250, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
-                    Nenhuma ação encontrada para os filtros selecionados.
+                    Nenhum objetivo encontrado para os filtros selecionados.
                 </div>
             </div>
         );
@@ -107,24 +144,26 @@ const ExecucaoChart = ({ data: execucao }) => {
         }}>
             <div style={{ marginBottom: '16px' }}>
                 <h2 className="card-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
-                    Evolução Acumulada do Plano
+                    Evolução Acumulada dos Objetivos
                 </h2>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 400 }}>
-                    Avanço acumulado das ações durante o ciclo do plano
+                    Avanço acumulado dos objetivos durante o ciclo do plano
                 </p>
             </div>
             <div style={{ flex: 1, width: '100%', minHeight: '260px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart 
                         data={execucao} 
-                        margin={{ top: 15, right: 20, left: -20, bottom: 0 }}
+                        margin={{ top: 15, right: 20, left: -20, bottom: 8 }}
                     >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis 
                             dataKey="name" 
                             axisLine={false} 
                             tickLine={false} 
-                            tick={{ fontSize: 12, fill: '#64748b', fontWeight: 500 }} 
+                            tick={<CustomXTick />}
+                            height={52}
+                            tickMargin={10}
                         />
                         <YAxis 
                             axisLine={false} 
@@ -146,7 +185,7 @@ const ExecucaoChart = ({ data: execucao }) => {
                         <Line 
                             type="monotone" 
                             dataKey="iniciadas" 
-                            name="Iniciadas acumuladas" 
+                            name="Objetivos iniciados acumulados" 
                             stroke="#2563eb" 
                             strokeWidth={2.5} 
                             dot={{ r: 4, fill: '#2563eb', strokeWidth: 2, stroke: '#ffffff' }}
@@ -157,7 +196,7 @@ const ExecucaoChart = ({ data: execucao }) => {
                         <Line 
                             type="monotone" 
                             dataKey="concluidas" 
-                            name="Concluídas acumuladas" 
+                            name="Objetivos concluídos acumulados" 
                             stroke="#10b981" 
                             strokeWidth={2.5} 
                             dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#ffffff' }}
@@ -168,7 +207,7 @@ const ExecucaoChart = ({ data: execucao }) => {
                         <Line 
                             type="monotone" 
                             dataKey="naoIniciadas" 
-                            name="Não iniciadas restantes" 
+                            name="Objetivos não iniciados restantes" 
                             stroke="#94a3b8" 
                             strokeWidth={2} 
                             strokeDasharray="5 5"
