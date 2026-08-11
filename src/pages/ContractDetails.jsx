@@ -1718,7 +1718,7 @@ const ContractDetails = () => {
                                                 const val = parseInt(allocationForm[sec.id], 10);
                                                 totalAlocado += isNaN(val) ? 0 : val;
                                             });
-                                            const diff = Math.round(((item.total_quantity || 0) - (item.legacy_consumed_quantity || 0) - totalAlocado) * 100) / 100;
+                                            const diff = Math.round(((item.total_quantity || 0) - totalAlocado) * 100) / 100;
 
                                             return (
                                                 <div style={{ display: 'flex', gap: '1rem', background: '#f8fafc', padding: '0.6rem 1rem', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '0.75rem', flexShrink: 0 }}>
@@ -1757,7 +1757,9 @@ const ContractDetails = () => {
 
                                             secretariats.forEach(sec => {
                                                 const val = allocationForm[sec.id];
-                                                if (val !== undefined && val !== '' && parseFloat(val) > 0) {
+                                                // Secretaria aparece na tabela se já foi adicionada ao form
+                                                // (inclusive quando alocado = 0, para preservar visibilidade e validação)
+                                                if (val !== undefined && val !== '') {
                                                     totalAlocado += parseFloat(val) || 0;
                                                     addedSecretariatsList.push({ ...sec, allocated: val });
                                                 } else {
@@ -1765,8 +1767,16 @@ const ContractDetails = () => {
                                                 }
                                             });
 
-                                            const diff = (item.total_quantity || 0) - (item.legacy_consumed_quantity || 0) - totalAlocado;
-                                            const isSaveDisabled = (item.total_quantity > 0 && diff !== 0) || isSavingAllocations;
+                                            const diff = Math.round(((item.total_quantity || 0) - totalAlocado) * 100) / 100;
+
+                                            // Validação independente: nenhuma Secretaria pode ter alocado < reservado
+                                            const hasInvalidBalance = addedSecretariatsList.some(sec => {
+                                                const secReserved = (reservedQuantityPerItemPerSec[item.id] || {})[sec.id] || 0;
+                                                const allocated = parseFloat(sec.allocated) || 0;
+                                                return allocated < secReserved;
+                                            });
+
+                                            const isSaveDisabled = (item.total_quantity > 0 && diff !== 0) || hasInvalidBalance || isSavingAllocations;
 
                                             const handleAddAllocation = () => {
                                                 const parsedVal = parseInt(rateioAmount, 10);
@@ -1777,6 +1787,11 @@ const ContractDetails = () => {
                                             };
 
                                             const handleRemoveAllocation = (secId) => {
+                                                const secReservedForRemove = (reservedQuantityPerItemPerSec[item.id] || {})[secId] || 0;
+                                                if (secReservedForRemove > 0) {
+                                                    showToast('Não é possível remover esta Secretaria porque já existem unidades utilizadas/reservadas.', 'error');
+                                                    return;
+                                                }
                                                 const newMap = { ...allocationForm };
                                                 delete newMap[secId];
                                                 setAllocationForm(newMap);
@@ -1892,6 +1907,13 @@ const ContractDetails = () => {
                                                             </div>
                                                         )}
 
+                                                        {hasInvalidBalance && (
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1rem', background: '#fef2f2', color: '#dc2626', borderRadius: '6px', marginBottom: '0.5rem', fontSize: '0.8125rem', border: '1px solid #fecaca' }}>
+                                                                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                                                                <span>Não é possível salvar: uma ou mais Secretarias possuem quantidade alocada inferior ao que já foi utilizado/reservado.</span>
+                                                            </div>
+                                                        )}
+
                                                         {(!item.total_quantity || item.total_quantity === 0) && (
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1rem', background: '#fffbeb', color: '#b45309', borderRadius: '6px', marginBottom: '1.5rem', fontSize: '0.8125rem' }}>
                                                                 <AlertCircle size={16} />
@@ -1910,8 +1932,19 @@ const ContractDetails = () => {
                                     {(() => {
                                         let totalAlocado = 0;
                                         Object.values(allocationForm).forEach(val => totalAlocado += (parseInt(val, 10) || 0));
-                                        const diff = Math.round(((item.total_quantity || 0) - (item.legacy_consumed_quantity || 0) - totalAlocado) * 100) / 100;
-                                        const isSaveDisabled = (item.total_quantity > 0 && diff !== 0) || isSavingAllocations;
+                                        const diff = Math.round(((item.total_quantity || 0) - totalAlocado) * 100) / 100;
+
+                                        // Mesma valida\u00e7\u00e3o do bloco principal: cobre inclusive allocated = 0
+                                        const hasInvalidBalance = secretariats.some(sec => {
+                                            const val = allocationForm[sec.id];
+                                            if (val !== undefined && val !== '') {
+                                                const secReserved = (reservedQuantityPerItemPerSec[item.id] || {})[sec.id] || 0;
+                                                return (parseFloat(val) || 0) < secReserved;
+                                            }
+                                            return false;
+                                        });
+                                        const isSaveDisabled = (item.total_quantity > 0 && diff !== 0) || hasInvalidBalance || isSavingAllocations;
+                                        
                                         return (
                                             <button
                                                 className="cd-btn-primary"
