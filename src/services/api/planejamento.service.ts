@@ -213,7 +213,8 @@ class PlanejamentoService {
 
         // Para cada objetivo, calcular:
         // - startTs: timestamp da primeira ação válida (ajustado: 2024 → jan/2025)
-        // - endTs: timestamp de conclusão (se TODAS as ações concluídas)
+        // Regra validada com a Secretaria: ações concluídas NÃO representam objetivo
+        // concluído. A série "concluídos" permanece 0 em todos os períodos.
         const objetivosInfo = Array.from(objetivosMap.entries()).map(([objId, acoes]) => {
             const acoesValidas = acoes.filter(
                 (a: any) => a.status !== 'NAO_INICIADA' && a.start_date
@@ -235,43 +236,26 @@ class PlanejamentoService {
                 }
             }
 
-            // Objetivo concluído: todas as ações do objetivo estão com status CONCLUIDA
-            // e todas possuem completion_date/completed_at
-            let endTs: number | null = null;
-            const todasConcluidas = acoes.length > 0 && acoes.every(
-                (a: any) => a.status === 'CONCLUIDA'
-            );
-            if (todasConcluidas) {
-                const compDates = acoes
-                    .map((a: any) => parseDateToTimestamp(a.completion_date || a.completed_at))
-                    .filter((ts: number | null) => ts !== null) as number[];
-                if (compDates.length > 0) {
-                    endTs = Math.max(...compDates);
-                }
-            }
-
-            return { objId, startTs, endTs };
+            return { objId, startTs };
         });
 
         const execucao = EVOLUCAO_PERIODOS.map(p => {
             let iniciadasAcumuladas = 0;
-            let concluidasAcumuladas = 0;
 
-            objetivosInfo.forEach(({ startTs, endTs }) => {
+            objetivosInfo.forEach(({ startTs }) => {
                 if (startTs !== null && startTs <= p.endTimestamp) {
                     iniciadasAcumuladas++;
                 }
-                if (endTs !== null && endTs <= p.endTimestamp) {
-                    concluidasAcumuladas++;
-                }
             });
 
+            // Concluídos = 0 em todos os períodos (validado com a Secretaria:
+            // ação concluída não representa objetivo concluído).
             const naoIniciadasRestantes = Math.max(0, totalObjetivos - iniciadasAcumuladas);
 
             return {
                 name: p.name,
                 iniciadas: iniciadasAcumuladas,
-                concluidas: concluidasAcumuladas,
+                concluidas: 0,
                 naoIniciadas: naoIniciadasRestantes,
                 total: totalObjetivos,
             };
