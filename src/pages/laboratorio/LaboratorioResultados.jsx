@@ -4,13 +4,13 @@ import { useLocation } from 'react-router-dom';
 import { formatCpf } from '../../utils/formatters';
 import { 
     TriangleAlert, Search, CheckCircle2, Clock, ChevronLeft, ChevronRight, Save, Activity, User, FileText,
-    History, AlertCircle, Info, Loader2, RotateCcw, Layers
+    History, AlertCircle, Info, Loader2, RotateCcw, Layers, Pencil, ChevronDown
 } from 'lucide-react';
 import './LaboratorioResultados.css';
 import { laboratorioResultadosService } from '../../services/api/laboratorioResultados.service';
 import LaboratorioGerenciarExamesModal from '../../components/laboratorio/LaboratorioGerenciarExamesModal';
 import { useAuth } from '../../context/AuthContext';
-import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue, expandRcText, isHemoMorphologyParameter, isEritrogramaParameter, formatEritrogramaDecimal } from '../../utils/laboratorioHelpers';
+import { ATTENDANCE_ORIGINS, POSTOS_UNIDADES_ORDENADOS, TODAS_ORIGENS, normalizeString, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue, expandRcText, isHemoMorphologyParameter, isEritrogramaParameter, formatEritrogramaDecimal } from '../../utils/laboratorioHelpers';
 import {
     isUriExam,
     getUriParameterDisplayName,
@@ -190,6 +190,13 @@ const LaboratorioResultados = () => {
     const [showReopenModal, setShowReopenModal] = useState(false);
     const [reopeningResult, setReopeningResult] = useState(false);
     const [showGerenciarExamesModal, setShowGerenciarExamesModal] = useState(false);
+    const [isEditingOrigin, setIsEditingOrigin] = useState(false);
+    const [newOriginValue, setNewOriginValue] = useState('');
+    const [updatingOrigin, setUpdatingOrigin] = useState(false);
+    const [originSearchText, setOriginSearchText] = useState('');
+    const [isOriginDropdownOpen, setIsOriginDropdownOpen] = useState(false);
+    const [originHighlightedIndex, setOriginHighlightedIndex] = useState(-1);
+    const originRef = useRef(null);
     const [generalObservation, setGeneralObservation] = useState('');
     const [initialGeneralObservation, setInitialGeneralObservation] = useState('');
     const generalObsRef = useRef(null);
@@ -721,6 +728,48 @@ const LaboratorioResultados = () => {
     const cancelNavigation = () => {
         setShowUnsavedModal(false);
         setPendingNavigation(null);
+    };
+
+    const handleUpdateOrigin = async (newOrigin) => {
+        if (!selectedAttendance || !selectedAttendance.id || updatingOrigin) return;
+
+        try {
+            setUpdatingOrigin(true);
+            await laboratorioResultadosService.updateAttendanceOrigin(selectedAttendance.id, newOrigin);
+            
+            setAttendances(prev => {
+                if (!prev || prev.length === 0) return prev;
+                const newAttendances = [...prev];
+                newAttendances[0] = {
+                    ...newAttendances[0],
+                    attendance_origin: newOrigin
+                };
+                return newAttendances;
+            });
+
+            setSelectedAttendance(prev => {
+                if (!prev) return prev;
+                return {
+                    ...prev,
+                    attendance_origin: newOrigin
+                };
+            });
+
+            setSearchResults(prev => {
+                if (!prev) return prev;
+                return prev.map(att => att.id === selectedAttendance.id ? { ...att, attendance_origin: newOrigin } : att);
+            });
+
+            setIsEditingOrigin(false);
+            setFeedbackMsg({ type: 'success', text: 'Origem alterada com sucesso.' });
+            setTimeout(() => setFeedbackMsg(null), 3000);
+        } catch (error) {
+            console.error("Erro ao atualizar origem:", error);
+            setFeedbackMsg({ type: 'error', text: 'Não foi possível alterar a origem. Tente novamente.' });
+            setTimeout(() => setFeedbackMsg(null), 3000);
+        } finally {
+            setUpdatingOrigin(false);
+        }
     };
 
     useEffect(() => {
@@ -1409,6 +1458,11 @@ const LaboratorioResultados = () => {
 
     const statusGeral = getStatusGeralAtendimento(resultados);
 
+    const normalizedOriginSearch = normalizeString(originSearchText);
+    const filteredGerais = ATTENDANCE_ORIGINS.filter(o => normalizeString(o.label).includes(normalizedOriginSearch));
+    const filteredPostos = POSTOS_UNIDADES_ORDENADOS.filter(o => normalizeString(o.label).includes(normalizedOriginSearch));
+    const flatFilteredOrigens = [...filteredGerais, ...filteredPostos];
+
     return (
         <div className="lab-res-container" style={{ paddingTop: '1.25rem', paddingBottom: '1.25rem' }}>
             {/* Header */}
@@ -1655,10 +1709,173 @@ const LaboratorioResultados = () => {
                                 <div className="lab-ps-item" style={{ flex: 1 }}><span className="lab-ps-label">Paciente:</span> <span className="lab-ps-val text-primary" style={{ fontSize: '1.15rem', fontWeight: '600' }}>{currentAttendance.pacienteNome}</span></div>
                             </div>
                             
-                            <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '1rem', alignItems: 'center', fontSize: '0.85rem', width: '100%', overflow: 'hidden' }}>
+                            <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '1rem', alignItems: 'center', fontSize: '0.85rem', width: '100%', overflow: 'visible' }}>
                                 <div className="lab-ps-item" style={{ whiteSpace: 'nowrap' }}><span className="lab-ps-label">Idade:</span> <span className="lab-ps-val">{currentAttendance.pacienteIdade}</span></div>
                                 <div className="lab-ps-item" style={{ whiteSpace: 'nowrap' }}><span className="lab-ps-label">Sexo:</span> <span className="lab-ps-val">{currentAttendance.pacienteSexo}</span></div>
-                                <div className="lab-ps-item" style={{ whiteSpace: 'nowrap' }}><span className="lab-ps-label">Origem:</span> <span className="lab-ps-val">{formatAttendanceOrigin(currentAttendance.attendance_origin) || currentAttendance.attendance_origin || 'Não informada'}</span></div>
+                                <div className="lab-ps-item" style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <span className="lab-ps-label">Origem:</span> 
+                                    {isEditingOrigin ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', position: 'relative' }}>
+                                            <div 
+                                                ref={originRef}
+                                                style={{ 
+                                                    position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                    cursor: updatingOrigin ? 'not-allowed' : 'text', border: '1px solid #cbd5e1',
+                                                    outline: 'none', minHeight: '32px', padding: 0, borderRadius: '4px', background: '#fff', width: '220px'
+                                                }}
+                                            >
+                                                <input 
+                                                    type="text"
+                                                    autoFocus
+                                                    placeholder="Selecione ou digite..."
+                                                    disabled={updatingOrigin}
+                                                    value={isOriginDropdownOpen ? originSearchText : (TODAS_ORIGENS.find(o => o.value === newOriginValue)?.label || '')}
+                                                    onChange={(e) => {
+                                                        setOriginSearchText(e.target.value);
+                                                        if (!isOriginDropdownOpen) setIsOriginDropdownOpen(true);
+                                                        setOriginHighlightedIndex(0);
+                                                    }}
+                                                    onFocus={(e) => {
+                                                        if (updatingOrigin) return;
+                                                        setIsOriginDropdownOpen(true);
+                                                        setOriginSearchText(TODAS_ORIGENS.find(o => o.value === newOriginValue)?.label || '');
+                                                        setOriginHighlightedIndex(0);
+                                                        setTimeout(() => e.target.select(), 10);
+                                                    }}
+                                                    onBlur={() => {
+                                                        setTimeout(() => setIsOriginDropdownOpen(false), 200);
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'ArrowDown') {
+                                                            e.preventDefault();
+                                                            if (!isOriginDropdownOpen) {
+                                                                setIsOriginDropdownOpen(true);
+                                                                setOriginHighlightedIndex(0);
+                                                            } else {
+                                                                setOriginHighlightedIndex(prev => (prev < flatFilteredOrigens.length - 1 ? prev + 1 : prev));
+                                                            }
+                                                        } else if (e.key === 'ArrowUp') {
+                                                            e.preventDefault();
+                                                            setOriginHighlightedIndex(prev => (prev > 0 ? prev - 1 : 0));
+                                                        } else if (e.key === 'Enter') {
+                                                            if (isOriginDropdownOpen) {
+                                                                e.preventDefault();
+                                                                if (flatFilteredOrigens.length > 0) {
+                                                                    const idx = originHighlightedIndex >= 0 && originHighlightedIndex < flatFilteredOrigens.length ? originHighlightedIndex : 0;
+                                                                    const selected = flatFilteredOrigens[idx];
+                                                                    setNewOriginValue(selected.value);
+                                                                    setIsOriginDropdownOpen(false);
+                                                                }
+                                                            }
+                                                        } else if (e.key === 'Escape') {
+                                                            if (isOriginDropdownOpen) {
+                                                                e.preventDefault();
+                                                                setIsOriginDropdownOpen(false);
+                                                            } else {
+                                                                setIsEditingOrigin(false);
+                                                                setNewOriginValue('');
+                                                            }
+                                                        }
+                                                    }}
+                                                    style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: '#0f172a', padding: '0.2rem 0.5rem', fontSize: '0.85rem' }}
+                                                />
+                                                <ChevronDown size={14} color="#64748b" style={{ transform: isOriginDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms ease', marginRight: '0.4rem', flexShrink: 0 }} onMouseDown={(e) => e.preventDefault()} onClick={() => {
+                                                    if (!updatingOrigin) {
+                                                        if (isOriginDropdownOpen) setIsOriginDropdownOpen(false);
+                                                        else {
+                                                            const input = originRef.current?.querySelector('input');
+                                                            if (input) input.focus();
+                                                        }
+                                                    }
+                                                }}/>
+                                                
+                                                {isOriginDropdownOpen && !updatingOrigin && (
+                                                    <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, width: '250px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)', zIndex: 9999, overflowY: 'auto', maxHeight: '250px', animation: 'slideDownDropdown 200ms ease-out forwards', transformOrigin: 'top center' }}>
+                                                        {flatFilteredOrigens.length === 0 ? (
+                                                            <div style={{ padding: '0.5rem', color: '#64748b', fontSize: '0.85rem', textAlign: 'center' }}>Nenhuma origem encontrada.</div>
+                                                        ) : (
+                                                            <>
+                                                                {filteredGerais.length > 0 && (
+                                                                    <div style={{ padding: '0.4rem 0.6rem', fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                                                                        ORIGENS GERAIS
+                                                                    </div>
+                                                                )}
+                                                                {filteredGerais.map((origin) => {
+                                                                    const idx = flatFilteredOrigens.findIndex(o => o.value === origin.value);
+                                                                    return (
+                                                                        <div 
+                                                                            key={origin.value}
+                                                                            onMouseDown={(e) => e.preventDefault()}
+                                                                            onClick={(e) => { e.stopPropagation(); setNewOriginValue(origin.value); setIsOriginDropdownOpen(false); }}
+                                                                            style={{ padding: '0.4rem 0.6rem', cursor: 'pointer', background: originHighlightedIndex === idx || (originHighlightedIndex === -1 && newOriginValue === origin.value) ? '#eff6ff' : 'transparent', color: newOriginValue === origin.value ? '#1d4ed8' : '#334155', fontWeight: newOriginValue === origin.value ? '600' : '500', fontSize: '0.85rem', transition: 'background 150ms' }}
+                                                                            onMouseEnter={() => setOriginHighlightedIndex(idx)}
+                                                                        >
+                                                                            {origin.label}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                                {filteredPostos.length > 0 && (
+                                                                    <div style={{ padding: '0.4rem 0.6rem', fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', borderTop: filteredGerais.length > 0 ? '1px solid #e2e8f0' : 'none' }}>
+                                                                        POSTOS / UNIDADES
+                                                                    </div>
+                                                                )}
+                                                                {filteredPostos.map((origin) => {
+                                                                    const idx = flatFilteredOrigens.findIndex(o => o.value === origin.value);
+                                                                    return (
+                                                                        <div 
+                                                                            key={origin.value}
+                                                                            onMouseDown={(e) => e.preventDefault()}
+                                                                            onClick={(e) => { e.stopPropagation(); setNewOriginValue(origin.value); setIsOriginDropdownOpen(false); }}
+                                                                            style={{ padding: '0.4rem 0.6rem', cursor: 'pointer', background: originHighlightedIndex === idx || (originHighlightedIndex === -1 && newOriginValue === origin.value) ? '#eff6ff' : 'transparent', color: newOriginValue === origin.value ? '#1d4ed8' : '#334155', fontWeight: newOriginValue === origin.value ? '600' : '500', fontSize: '0.85rem', transition: 'background 150ms' }}
+                                                                            onMouseEnter={() => setOriginHighlightedIndex(idx)}
+                                                                        >
+                                                                            {origin.label}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button 
+                                                type="button"
+                                                className="lab-btn lab-btn-primary" 
+                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderRadius: '4px' }}
+                                                onClick={() => handleUpdateOrigin(newOriginValue)}
+                                                disabled={updatingOrigin || !newOriginValue}
+                                            >
+                                                {updatingOrigin ? <Loader2 size={12} className="animate-spin" /> : 'Salvar'}
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                className="lab-btn lab-btn-secondary" 
+                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderRadius: '4px' }}
+                                                onClick={() => { setIsEditingOrigin(false); setNewOriginValue(''); setIsOriginDropdownOpen(false); setOriginSearchText(''); }}
+                                                disabled={updatingOrigin}
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                            <span className="lab-ps-val">
+                                                {formatAttendanceOrigin(currentAttendance.attendance_origin) || currentAttendance.attendance_origin || 'Não informada'}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', padding: '2px', borderRadius: '4px' }}
+                                                onClick={() => {
+                                                    setNewOriginValue(currentAttendance.attendance_origin || '');
+                                                    setIsEditingOrigin(true);
+                                                }}
+                                                title="Editar origem"
+                                            >
+                                                <Pencil size={14} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="lab-ps-item" style={{ whiteSpace: 'nowrap' }}><span className="lab-ps-label">Data:</span> <span className="lab-ps-val">{currentAttendance.attendance_date ? currentAttendance.attendance_date.split('-').reverse().join('/') : 'Não informada'}</span></div>
                                 <div className="lab-ps-item" style={{ whiteSpace: 'nowrap' }}><span className="lab-ps-label">Exames:</span> <span className="lab-ps-val">{resultados.length}</span></div>
                                 <div className="lab-ps-item" style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><span className="lab-ps-label">Médico:</span> <span className="lab-ps-val">{currentAttendance.requesting_doctor || 'Não informado'}</span></div>

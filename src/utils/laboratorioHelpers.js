@@ -7,6 +7,45 @@ export const ATTENDANCE_ORIGINS = [
     { value: 'URGENCIA', label: 'URGÊNCIA' },
 ];
 
+export const POSTOS_UNIDADES = [
+    { value: 'ENCRUZILHADA', label: 'ENCRUZILHADA' },
+    { value: 'SANTO AMARO', label: 'SANTO AMARO' },
+    { value: 'SÃO PEDRO I', label: 'SÃO PEDRO I' },
+    { value: 'SÃO PEDRO II', label: 'SÃO PEDRO II' },
+    { value: 'SAPUCARANA', label: 'SAPUCARANA' },
+    { value: 'REMÉDIOS', label: 'REMÉDIOS' },
+    { value: 'BOAS NOVAS', label: 'BOAS NOVAS' },
+    { value: 'SERRA NEGRA', label: 'SERRA NEGRA' },
+    { value: 'GAMELEIRA', label: 'GAMELEIRA' },
+    { value: 'RETIRO', label: 'RETIRO' },
+    { value: 'POÇO VERDE', label: 'POÇO VERDE' },
+    { value: 'CRUZEIRO', label: 'CRUZEIRO' },
+    { value: 'GUARIBAS', label: 'GUARIBAS' },
+    { value: 'FREI CANECA', label: 'FREI CANECA' },
+    { value: 'SANTANA', label: 'SANTANA' },
+    { value: 'COHAB', label: 'COHAB' },
+    { value: 'RESIDENCIAL', label: 'RESIDENCIAL' },
+    { value: 'SÃO SEBASTIÃO', label: 'SÃO SEBASTIÃO' },
+    { value: 'SALGADO', label: 'SALGADO' },
+    { value: 'SÃO RAFAEL', label: 'SÃO RAFAEL' },
+    { value: 'SANTO ANTÔNIO', label: 'SANTO ANTÔNIO' },
+    { value: 'CAJAZEIRAS', label: 'CAJAZEIRAS' },
+    { value: 'AREIAS', label: 'AREIAS' },
+    { value: 'ROSÁRIO', label: 'ROSÁRIO' },
+    { value: 'SÃO JOSÉ', label: 'SÃO JOSÉ' }
+];
+
+export const POSTOS_UNIDADES_ORDENADOS = [...POSTOS_UNIDADES].sort((a, b) => 
+    a.label.localeCompare(b.label, 'pt-BR', { sensitivity: 'base' })
+);
+
+export const TODAS_ORIGENS = [...ATTENDANCE_ORIGINS, ...POSTOS_UNIDADES_ORDENADOS];
+
+export const normalizeString = (str) => {
+    if (!str) return '';
+    return str.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+};
+
 const ATTENDANCE_ORIGIN_LABELS = {
     UPA: 'UPA',
     UNIDADE_MISTA: 'UMSJ',

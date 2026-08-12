@@ -725,6 +725,22 @@ class LaboratorioResultadosService {
         return Array.isArray(data) ? data[0] : data;
     }
 
+    async updateAttendanceOrigin(attendanceId, newOrigin) {
+        if (!attendanceId) throw new Error('Atendimento não informado.');
+        if (!newOrigin) throw new Error('Nova origem não informada.');
+
+        const { data, error } = await supabase.rpc('rpc_lab_update_attendance_origin', {
+            p_attendance_id: attendanceId,
+            p_new_origin: newOrigin
+        });
+
+        if (error) {
+            throw error;
+        }
+
+        return data;
+    }
+
     }
 
 export const laboratorioResultadosService = new LaboratorioResultadosService();
