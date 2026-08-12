@@ -209,12 +209,15 @@ class PlanejamentoService {
             objetivosMap.get(action.objective_id)!.push(action);
         });
 
-        const totalObjetivos = objetivosMap.size;
+        // Total oficial do plano validado com a Secretaria de Planejamento.
+        // objetivosMap.size conta apenas objetivos com ações vinculadas,
+        // mas o plano possui 221 objetivos no total. O total oficial é a base de
+        // referência para naoIniciadas e para o total exibido no gráfico.
+        const TOTAL_OFICIAL_PLANO = 221;
 
-        // Para cada objetivo, calcular:
-        // - startTs: timestamp da primeira ação válida (ajustado: 2024 → jan/2025)
-        // Regra validada com a Secretaria: ações concluídas NÃO representam objetivo
-        // concluído. A série "concluídos" permanece 0 em todos os períodos.
+        // Para cada objetivo com ações, calcular startTs (primeira ação válida).
+        // Regra validada com a Secretaria: ações concluídas NÃO representam
+        // objetivo concluído. A série "concluídos" permanece 0 em todos os períodos.
         const objetivosInfo = Array.from(objetivosMap.entries()).map(([objId, acoes]) => {
             const acoesValidas = acoes.filter(
                 (a: any) => a.status !== 'NAO_INICIADA' && a.start_date
@@ -248,16 +251,15 @@ class PlanejamentoService {
                 }
             });
 
-            // Concluídos = 0 em todos os períodos (validado com a Secretaria:
-            // ação concluída não representa objetivo concluído).
-            const naoIniciadasRestantes = Math.max(0, totalObjetivos - iniciadasAcumuladas);
+            // Concluídos = 0 (validado com a Secretaria).
+            const naoIniciadasRestantes = Math.max(0, TOTAL_OFICIAL_PLANO - iniciadasAcumuladas);
 
             return {
                 name: p.name,
                 iniciadas: iniciadasAcumuladas,
                 concluidas: 0,
                 naoIniciadas: naoIniciadasRestantes,
-                total: totalObjetivos,
+                total: TOTAL_OFICIAL_PLANO,
             };
         });
 

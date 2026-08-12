@@ -49,10 +49,14 @@ const EixoChart = ({ data: distribuicaoEixos }) => {
     }
 
     const total = distribuicaoEixos.reduce((sum, item) => sum + item.value, 0);
+    const sortedEixos = [...distribuicaoEixos].sort((a, b) => b.value - a.value);
+    const top2Value = (sortedEixos[0]?.value || 0) + (sortedEixos[1]?.value || 0);
+    const top2Percent = total > 0 ? Math.round((top2Value / total) * 100) : 0;
 
     return (
         <div className="dashboard-card animate-fade-in-up delay-200" style={{ 
-            height: '400px', 
+            height: '100%', 
+            minHeight: '400px',
             padding: '24px',
             display: 'flex', 
             flexDirection: 'column',
@@ -60,20 +64,31 @@ const EixoChart = ({ data: distribuicaoEixos }) => {
             border: '1px solid rgba(0,0,0,0.06)', 
             boxShadow: '0 8px 24px -4px rgba(0,0,0,0.06)' 
         }}>
-            <h2 className="card-title" style={{ marginBottom: '16px', marginTop: 0, fontSize: '0.9rem' }}>Distribuição de Ações por Eixo do Plano</h2>
+            <h2
+		  className="card-title" style={{ margin: 0, marginBottom: '4px', marginTop: 0, fontSize: '1.08rem', fontWeight: 800, lineHeight: 1.15, color: '#0f172a' }}
+			>
+			  Distribuição de Ações por Eixo do Plano
+			</h2>
+
+			<p
+			  style={{ margin: 0, marginTop: '-22px', marginBottom: '8px', fontSize: '0.78rem', color: '#64748b', lineHeight: 1.25 }}
+			>
+			  Ações vinculadas por eixo estratégico.
+			</p>
             
-            <div style={{ display: 'flex', flex: 1, position: 'relative' }}>
-                <div style={{ flex: 1, height: '100%', position: 'relative', display: 'flex', justifyContent: 'center' }}>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, justifyContent: 'space-between', gap: '12px' }}>
+			  <div style={{ flex: '1 1 auto', minHeight: '310px', marginTop: '-40px', marginBottom: '-20px', position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center'
+			  }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
                             <Pie
                                 data={distribuicaoEixos}
                                 dataKey="value"
                                 nameKey="name"
                                 cx="50%"
                                 cy="50%"
-                                innerRadius={70}
-                                outerRadius={105}
+                                innerRadius={'56%'}
+                                outerRadius={'82%'}
                                 paddingAngle={2}
                                 isAnimationActive={true}
                                 animationBegin={300}
@@ -86,17 +101,33 @@ const EixoChart = ({ data: distribuicaoEixos }) => {
                                 ))}
                             </Pie>
                             <Tooltip content={<CustomTooltip total={total} />} />
-                            <text x="50%" y="42%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '2rem', fontWeight: 800, fill: '#0f172a' }}>
+                            <text x="50%" y="43%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '2.2rem', fontWeight: 800, fill: '#0f172a' }}>
                                 {total}
                             </text>
-                            <text x="50%" y="54%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '0.85rem', fontWeight: 600, fill: '#64748b' }}>
+                            <text x="50%" y="55%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '0.85rem', fontWeight: 600, fill: '#64748b' }}>
                                 Total de Ações
                             </text>
-                            <text x="50%" y="62%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '0.75rem', fontWeight: 500, fill: '#94a3b8' }}>
+                            <text x="50%" y="63%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: '0.75rem', fontWeight: 500, fill: '#94a3b8' }}>
                                 {distribuicaoEixos.length} eixos
                             </text>
                         </PieChart>
                     </ResponsiveContainer>
+                </div>
+
+                {/* ── Box de Insight ── */}
+                <div style={{
+                    background: '#eff6ff', border: '1px solid #bfdbfe',
+                    borderRadius: '8px', padding: '12px', marginTop: '20px'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                        </svg>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e40af' }}>Insight</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.72rem', color: '#1e40af', lineHeight: 1.5 }}>
+                        2 eixos concentram {top2Value} ações, equivalente a {top2Percent}% do total.
+                    </p>
                 </div>
             </div>
         </div>
