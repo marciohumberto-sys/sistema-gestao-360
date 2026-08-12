@@ -78,13 +78,13 @@ const CustomTooltip = ({ active, payload, label }) => {
 // ── Linha do painel lateral ───────────────────────────────────────────────────
 const StatRow = ({ label, value, pct, color, divider }) => (
     <>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', padding: '10px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '10px 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
-                <span style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 500, lineHeight: 1.3 }}>{label}</span>
+                <span style={{ fontSize: '0.68rem', color: '#475569', fontWeight: 500, lineHeight: 1.5 }}>{label}</span>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{value}</div>
+                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{value}</div>
                 {pct !== undefined && (
                     <div style={{ fontSize: '0.72rem', fontWeight: 600, color, lineHeight: 1.3 }}>({pct}%)</div>
                 )}
@@ -100,12 +100,12 @@ const ExecucaoChart = ({ data: execucao }) => {
         return (
             <div className="dashboard-card animate-fade-in-up delay-100" style={{
                 padding: '24px', display: 'flex', flexDirection: 'column',
-                background: '#ffffff', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 8px 24px -4px rgba(0,0,0,0.06)'
+                background: '#ffffff', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 8px 24px -4px rgba(0,0,0,0.06)', minWidth: 0, width: '100%'
             }}>
-                <h2 style={{ margin: '0 0 4px', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+                <h2 style={{ margin: '0 0 4px', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
                     Evolução dos Objetivos do Plano de Governo
                 </h2>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'visible', maxWidth: 'none' }}>
                     Acompanhamento da situação dos objetivos ao longo do ciclo do plano
                 </p>
                 <div style={{ flex: 1, minHeight: 250, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', marginTop: '24px' }}>
@@ -148,7 +148,7 @@ const ExecucaoChart = ({ data: execucao }) => {
                         <h2 style={{ margin: '0 0 3px', fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                             Evolução dos {totalObjetivos} Objetivos do Plano de Governo
                         </h2>
-                        <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b', fontWeight: 400 }}>
+                        <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b', fontWeight: 400, whiteSpace: 'nowrap', overflow: 'visible', maxWidth: 'none' }}>
                             Acompanhamento da situação dos objetivos ao longo do ciclo do plano
                         </p>
                     </div>
@@ -202,7 +202,7 @@ const ExecucaoChart = ({ data: execucao }) => {
                         <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 500, marginBottom: '4px', marginLeft: '2px' }}>
                             Quantidade de objetivos
                         </div>
-                        <ResponsiveContainer width="100%" height={290}>
+                        <ResponsiveContainer width="100%" height={280}>
                             <LineChart data={execucao} margin={{ top: 22, right: 20, bottom: 4 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis
@@ -223,16 +223,10 @@ const ExecucaoChart = ({ data: execucao }) => {
                                     tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }}
                                 />
                                 <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#e2e8f0', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                                <Legend
-                                    verticalAlign="bottom"
-                                    height={5}
-                                    iconType="circle"
-                                    iconSize={8}
-                                    wrapperStyle={{ fontSize: '8.8px', color: '#475569', paddingTop: '0px', marginTop: '0px', left:'20px' }}
-                                />
+                                
                                 <Line
                                     type="monotone" dataKey="iniciadas"
-                                    name="Objetivos iniciados acumulados"
+                                    name="Objetivos iniciados"
                                     stroke={COR_INICIADAS} strokeWidth={2.5}
                                     dot={{ r: 4, fill: COR_INICIADAS, strokeWidth: 2, stroke: '#ffffff' }}
                                     activeDot={{ r: 6, fill: COR_INICIADAS, strokeWidth: 2, stroke: '#ffffff' }}
@@ -243,7 +237,7 @@ const ExecucaoChart = ({ data: execucao }) => {
                                 </Line>
                                 <Line
                                     type="monotone" dataKey="concluidas"
-                                    name="Objetivos concluídos acumulados"
+                                    name="Objetivos concluídos"
                                     stroke={COR_CONCLUIDAS} strokeWidth={2.5}
                                     dot={{ r: 4, fill: COR_CONCLUIDAS, strokeWidth: 2, stroke: '#ffffff' }}
                                     activeDot={{ r: 6, fill: COR_CONCLUIDAS, strokeWidth: 2, stroke: '#ffffff' }}
@@ -265,6 +259,22 @@ const ExecucaoChart = ({ data: execucao }) => {
                                 </Line>
                             </LineChart>
                         </ResponsiveContainer>
+						<div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', flexWrap: 'wrap', marginTop: '-6px', fontSize: '8.8px', color: '#475569' }}>
+						  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+							<span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: COR_INICIADAS }} />
+							<span>Objetivos iniciados</span>
+						  </div>
+
+						  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+							<span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: COR_CONCLUIDAS }} />
+							<span>Objetivos concluídos</span>
+						  </div>
+
+						  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+							<span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: COR_NAO_INIC }} />
+							<span>Objetivos não iniciados</span>
+						  </div>
+						</div>
                     </div>
 
                     {/* Rodapé */}
@@ -275,15 +285,15 @@ const ExecucaoChart = ({ data: execucao }) => {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
                         </svg>
-                        <span style={{ fontSize: '0.67rem', color: '#64748b', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
-                            <strong style={{ fontStyle: 'normal', color: '#475569' }}>Importante:</strong> cada objetivo está contabilizado conforme sua situação no ciclo do plano.
+                        <span style={{ fontSize: '0.67rem', color: '#1e40af', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+                            <strong style={{ fontStyle: 'normal', color: '#1e40af' }}>Importante:</strong> cada objetivo está contabilizado uma situação. A soma das situações é sempre igual a {totalObjetivos}.
                         </span>
                     </div>
                 </div>
 
                 {/* ── Painel lateral — alinhado com os mini-cards superiores ── */}
                 <div style={{
-                    width: '210px', flexShrink: 0,
+                    width: '230px', flexShrink: 0,
                     background: '#ffffff', border: '1px solid #e2e8f0',
                     borderRadius: '12px', padding: '16px 14px',
                     display: 'flex', flexDirection: 'column',
@@ -301,9 +311,9 @@ const ExecucaoChart = ({ data: execucao }) => {
                     <StatRow label="Objetivos não iniciados" value={naoIniciados2028} pct={pct(naoIniciados2028)} color={COR_NAO_INIC}   divider={true} />
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0 12px' }}>
-                        <span style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 700 }}>Total de objetivos do plano</span>
+                        <span style={{ fontSize: '0.68rem', color: '#334155', fontWeight: 700 }}>Total de objetivos do plano</span>
                         <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{totalObjetivos}</div>
+                            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{totalObjetivos}</div>
                             <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>(100%)</div>
                         </div>
                     </div>
