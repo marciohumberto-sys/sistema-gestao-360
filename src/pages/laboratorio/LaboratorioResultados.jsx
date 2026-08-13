@@ -234,6 +234,11 @@ const LaboratorioResultados = () => {
     const currentTenantId = tenantLink?.tenant_id || tenantLink?.id || selectedAttendance?.tenant_id || attendances[0]?.tenant_id;
     const currentAttendance = attendances[0] || {};
     const resultados = currentAttendance.resultados ? [...currentAttendance.resultados].sort((a, b) => {
+        const isHemoA = String(a.exameCodigo || a.exame_codigo || '').trim().toUpperCase() === 'HEMO';
+        const isHemoB = String(b.exameCodigo || b.exame_codigo || '').trim().toUpperCase() === 'HEMO';
+        if (isHemoA && !isHemoB) return -1;
+        if (!isHemoA && isHemoB) return 1;
+
         const sectorA = String(a.exameSetor || '').toLowerCase();
         const sectorB = String(b.exameSetor || '').toLowerCase();
         if (sectorA < sectorB) return -1;
@@ -1044,6 +1049,13 @@ const LaboratorioResultados = () => {
                         if (normalized === null) {
                             hasInvalidInteger = true;
                         }
+                    } else if (String(selectedResult?.exameCodigo || '').trim().toUpperCase() === 'ASO' && str.trim().startsWith('<')) {
+                        const numPart = str.replace('<', '').trim();
+                        if (normalizeLabNumericInput(numPart) !== null) {
+                            return { ...vToSend, value_text: str.trim(), value_numeric: null, _hasNumericOperator: true };
+                        } else {
+                            hasInvalidNumeric = true;
+                        }
                     } else {
                         normalized = normalizeLabNumericInput(str);
                         if (normalized === null) {
@@ -1149,6 +1161,9 @@ const LaboratorioResultados = () => {
                 }
 
                 if (v.result_type === 'NUMERICO') {
+                    if (v._hasNumericOperator === true) {
+                        return isLabValueEmpty(v.value_text);
+                    }
                     return isLabValueEmpty(v.value_numeric);
                 } else {
                     return isLabValueEmpty(v.value_text);
@@ -1160,7 +1175,7 @@ const LaboratorioResultados = () => {
                 setMissingFields(missingIds);
                 
                 const count = missingRequiredParameters.length;
-                setFeedbackMsg({ type: 'error', text: `Preencha os ${count} resultados obrigatórios antes de salvar o Hemograma.` });
+                setFeedbackMsg({ type: 'error', text: `Preencha os ${count} resultados obrigatórios antes de salvar o exame.` });
                 
                 setTimeout(() => setFeedbackMsg(null), 5000);
                 setSaveStatus('idle'); // Restores the button
@@ -1474,7 +1489,8 @@ const LaboratorioResultados = () => {
             </header>
 
             {/* Filtros */}
-            <div className={`lab-filters-card ${selectedAttendance ? 'compact' : ''}`}>
+            {!selectedAttendance && (
+                <div className={`lab-filters-card ${selectedAttendance ? 'compact' : ''}`}>
                 <div className="lab-filters-grid" style={{ gridTemplateColumns: '130px 145px minmax(200px, 1fr) 160px 160px 120px' }}>
                     <div className="lab-filter-group">
                         <label>Data Inicial</label>
@@ -1517,6 +1533,7 @@ const LaboratorioResultados = () => {
                     </div>
                 </div>
             </div>
+            )}
 
             {/* Empty State */}
             {!selectedAttendance && searchResults === null && !loading && (
@@ -1895,7 +1912,7 @@ const LaboratorioResultados = () => {
                         <div className="lab-card-header">
                             <h3 className="lab-card-title"><Activity size={18} /> Exames do Atendimento</h3>
                         </div>
-                        <div className="lab-exams-list">
+                        <div className="lab-exams-list" style={{ maxHeight: 'calc(100vh - 140px)', overflowY: 'auto', overflowX: 'hidden', paddingRight: '4px' }}>
                             {resultados.map((res) => (
                                 <div 
                                     key={res.id} 
@@ -2234,7 +2251,7 @@ const LaboratorioResultados = () => {
                                                                             fontStyle: isCalculatedIndex ? 'italic' : undefined
                                                                         }}
                                                                         placeholder={isCalculatedIndex ? 'Calculado automaticamente' : 'Resultado...'} 
-                                                                        value={isNumeric ? (formState.value_numeric ?? '') : (formState.value_text || '')}
+                                                                        value={isNumeric ? (String(selectedResult?.exameCodigo || '').trim().toUpperCase() === 'ASO' ? (formState.value_numeric ?? formState.value_text ?? '') : (formState.value_numeric ?? '')) : (formState.value_text || '')}
                                                                         onChange={(e) => {
                                                                             if (isCalculatedIndex) return;
                                                                             let val = e.target.value;
