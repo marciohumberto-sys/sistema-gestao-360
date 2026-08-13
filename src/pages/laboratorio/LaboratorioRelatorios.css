@@ -1,4 +1,4 @@
-/* LaboratorioRelatorios.css */
+﻿/* LaboratorioRelatorios.css */
 
 .lab-rel-container {
     padding: 1.5rem 2rem;
@@ -129,7 +129,7 @@
     font-weight: 600;
 }
 
-/* Tipos de Relatório (Seleção) */
+/* Tipos de Relatorio */
 .lab-rel-types {
     display: flex;
     flex-wrap: wrap;
@@ -169,7 +169,7 @@
     box-shadow: 0 0 0 1px #3b82f6;
 }
 
-/* Layout Principal: Relatório e Side Panel */
+/* Layout Principal */
 .lab-rel-layout {
     display: grid;
     grid-template-columns: 1fr 320px;
@@ -184,7 +184,7 @@
     }
 }
 
-/* Painel de Gráfico (Barras) */
+/* Painel de Grafico */
 .lab-rel-main-panel {
     background: #ffffff;
     border: 1px solid #e2e8f0;
@@ -240,7 +240,7 @@
     transition: width 0.5s ease-out;
 }
 
-/* Painel Lateral de Resumo */
+/* Painel Lateral */
 .lab-rel-side-panel {
     background: #ffffff;
     border: 1px solid #e2e8f0;
@@ -290,11 +290,11 @@
 /* Tabela Inferior */
 .lab-rel-table-card {
     background: #ffffff;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #cbd5e1;
     border-radius: 12px;
     padding: 0 !important;
     overflow: hidden;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .lab-rel-table-wrapper {
@@ -310,10 +310,10 @@
 
 .lab-rel-table th {
     padding: 1rem 1.5rem;
-    background: #f8fafc;
-    color: #475569;
+    background: #e2e8f0;
+    color: #1e293b;
     font-weight: 700;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 2px solid #cbd5e1;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-size: 0.8rem;
@@ -321,22 +321,71 @@
 
 .lab-rel-table td {
     padding: 1rem 1.5rem;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
     color: #334155;
     vertical-align: middle;
 }
 
-.lab-rel-table tr:hover {
+.lab-rel-table tr:nth-child(even) {
     background: #f8fafc;
+}
+
+.lab-rel-table tr:hover {
+    background: #f1f5f9;
+    transition: background 0.15s ease;
 }
 
 .lab-rel-table tr:last-child td {
     border-bottom: none;
 }
 
-/* Override global do page-wrapper apenas quando estiver na tela de Relat�rios */
+/* Override global */
 .page-wrapper:has(.lab-rel-container) {
     max-width: 100% !important;
     width: 100% !important;
     padding: 0 !important;
+}
+
+/* Print styles */
+@media print {
+    body * { visibility: hidden; }
+    .lab-rel-layout, .lab-rel-layout * { visibility: visible; }
+    .lab-rel-layout { position: absolute; left: 0; top: 0; width: 100%; }
+    .print-header { display: block !important; text-align: center; margin-bottom: 20px; }
+    .lab-rel-header, .lab-rel-filters-card, .lab-header-actions { display: none !important; }
+    .lab-rel-table-card { border: none !important; box-shadow: none !important; margin-top: 0 !important; }
+    .lab-rel-panel-title, .lab-rel-panel-subtitle { display: none !important; }
+}
+.print-header { display: none; }
+
+/* Compact Exam Badges */
+.lab-exam-badge-compact { display: inline-block; padding: 0.15rem 0.4rem; font-size: 0.75rem; font-weight: 600; color: #1e293b; background-color: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px; margin-right: 0.3rem; margin-bottom: 0.3rem; white-space: nowrap; cursor: default; }
+.lab-exam-badge-compact:hover { background-color: #cbd5e1; border-color: #94a3b8; color: #0f172a; }
+
+/* Custom Dropdown Filters */
+.lab-custom-dropdown { position: relative; width: 100%; }
+.lab-custom-dropdown-list { position: absolute; top: 100%; left: 0; right: 0; max-height: 250px; overflow-y: auto; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 50; margin-top: 4px; }
+.lab-custom-dropdown-item { padding: 0.5rem 1rem; cursor: pointer; font-size: 0.9rem; color: #334155; }
+.lab-custom-dropdown-item:hover, .lab-custom-dropdown-item.highlighted { background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+
+/* NOVO MODO DE IMPRESSAO INDEPENDENTE */
+.lab-report-print { display: none; }
+@media print {
+    body * { visibility: hidden !important; }
+    .lab-rel-layout, .lab-rel-layout * { visibility: hidden !important; display: none !important; }
+    .lab-report-print, .lab-report-print * { visibility: visible !important; }
+    .lab-report-print { display: block !important; position: absolute !important; left: 0; top: 0; width: 100%; background: #fff; }
+    .print-header-modern h2, .print-header-modern h3, .print-header-modern h4 { text-align: center; margin: 2px 0; color: #1e293b; }
+    .print-header-modern h2 { font-size: 14pt; }
+    .print-header-modern h3 { font-size: 12pt; }
+    .print-header-modern h4 { font-size: 11pt; margin-bottom: 10px; }
+    .print-filters { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; font-size: 9pt; color: #475569; margin-bottom: 10px; }
+    .print-filters p { margin: 0; }
+    .print-summary { text-align: center; font-size: 10pt; font-weight: bold; color: #1d4ed8; margin-bottom: 20px; }
+    .print-table { width: 100%; border-collapse: collapse; font-size: 9pt; page-break-inside: auto; }
+    .print-table tr { page-break-inside: avoid; page-break-after: auto; }
+    .print-table th, .print-table td { border-bottom: 1px solid #cbd5e1; padding: 6px; text-align: left; }
+    .print-table th { border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #1e293b; background: #f8fafc !important; -webkit-print-color-adjust: exact; }
+    .print-footer { margin-top: 20px; text-align: center; font-size: 8pt; color: #94a3b8; }
+    @page { size: A4 landscape; margin: 10mm; }
 }
