@@ -62,6 +62,12 @@ const LaboratorioRelatorios = () => {
     const [totalExames, setTotalExames] = useState(0);
 
     useEffect(() => {
+        // Isolar a regra de impressão (paisagem) exclusivamente para o ciclo de vida desta tela
+        const printStyle = document.createElement('style');
+        printStyle.id = 'lab-relatorio-print-style';
+        printStyle.innerHTML = `@media print { @page { size: A4 landscape; margin: 10mm; } }`;
+        document.head.appendChild(printStyle);
+
         // Click outside to close dropdowns
         const handleClickOutside = (e) => {
             if (originRef.current && !originRef.current.contains(e.target)) {
@@ -74,7 +80,11 @@ const LaboratorioRelatorios = () => {
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            const injected = document.getElementById('lab-relatorio-print-style');
+            if (injected) injected.remove(); // Remove ao sair da tela, protegendo Laudos
+        };
     }, []);
 
     const handleBuscar = async () => {

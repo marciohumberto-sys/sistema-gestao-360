@@ -12,44 +12,132 @@ export const laboratorioLaudosService = {
 
     buscarLaudos: async (filters = {}) => {
         try {
-            let attendancesQuery = supabase.from('lab_attendances').select('id, protocol_number, patient_id, attendance_date, attendance_time, created_at, requesting_doctor, delivery_location, agreement, attendance_origin, lab_attendance_exams(exam_id, collection_date, collection_time)');
-            
-            if (filters.protocol) {
-                attendancesQuery = attendancesQuery.ilike('protocol_number', `%${filters.protocol}%`);
+            // 1. Resolve Patient IDs if needed (evita buscar milhares de pacientes depois)
+            let matchedPatientIds = null;
+            if (filters.patient || filters.patientCode) {
+                let patQuery = supabase.from('lab_patients').select('id');
+                if (filters.patient) {
+                    patQuery = patQuery.ilike('full_name', `%${filters.patient}%`);
+                }
+                if (filters.patientCode) {
+                    patQuery = patQuery.ilike('code', `%${filters.patientCode}%`);
+                }
+                const { data: matched, error: patErr } = await patQuery;
+                if (patErr) throw patErr;
+                if (!matched || matched.length === 0) return [];
+                matchedPatientIds = matched.map(p => p.id);
             }
-            if (filters.date) {
-                attendancesQuery = attendancesQuery.gte('attendance_date', `${filters.date}T00:00:00Z`)
-                                                   .lte('attendance_date', `${filters.date}T23:59:59Z`);
-            }
-            if (filters.attendance_origin) {
-                attendancesQuery = attendancesQuery.eq('attendance_origin', filters.attendance_origin);
-            }
-            
-            const { data: attendances, error: attError } = await attendancesQuery;
-            if (attError) throw attError;
-            if (!attendances || attendances.length === 0) return [];
-            
-            const { data: patients, error: patError } = await supabase.from('lab_patients').select('id, code, full_name, birth_date, sex, cns, cpf, rg');
-            if (patError) throw patError;
-            
-            let filteredAttendances = attendances;
-            if (filters.patient) {
-                const searchName = filters.patient.toLowerCase();
-                const matchedPatients = patients.filter(p => p.full_name && p.full_name.toLowerCase().includes(searchName));
-                const matchedPatientIds = matchedPatients.map(p => p.id);
-                filteredAttendances = filteredAttendances.filter(a => matchedPatientIds.includes(a.patient_id));
-            }
-            if (filters.patientCode) {
-                const searchCode = filters.patientCode.toLowerCase().trim();
-                const matchedPatients = patients.filter(p => p.code && p.code.toLowerCase().includes(searchCode));
-                const matchedPatientIds = matchedPatients.map(p => p.id);
-                filteredAttendances = filteredAttendances.filter(a => matchedPatientIds.includes(a.patient_id));
-            }
-            if (filteredAttendances.length === 0) return [];
 
-            const attIds = filteredAttendances.map(a => a.id);
-
+            // ETAPA A: Descobrir até 50 attendance_id distintos que possuam resultados compatíveis
+            const MAX_ATTENDANCES = 50;
+            const FETCH_SIZE = 200;
+            
+            let attendanceIds = [];
+            let allAttendancesData = [];
+            
+            let hasMore = true;
+            let currentOffset = 0;
             const statusFilter = filters.status;
+            
+            while (hasMore && attendanceIds.length < MAX_ATTENDANCES) {
+                let attendancesQuery = supabase.from('lab_attendances').select('id, protocol_number, patient_id, attendance_date, attendance_time, created_at, requesting_doctor, delivery_location, agreement, attendance_origin, lab_attendance_exams(exam_id, collection_date, collection_time)');
+                
+                if (matchedPatientIds) {
+                    attendancesQuery = attendancesQuery.in('patient_id', matchedPatientIds);
+                }
+                if (filters.protocol) {
+                    attendancesQuery = attendancesQuery.ilike('protocol_number', `%${filters.protocol}%`);
+                }
+                if (filters.date) {
+                    attendancesQuery = attendancesQuery.gte('attendance_date', `${filters.date}T00:00:00Z`)
+                                                       .lte('attendance_date', `${filters.date}T23:59:59Z`);
+                }
+                if (filters.attendance_origin) {
+                    attendancesQuery = attendancesQuery.eq('attendance_origin', filters.attendance_origin);
+                }
+                
+                attendancesQuery = attendancesQuery
+                    .order('attendance_date', { ascending: false })
+                    .order('created_at', { ascending: false })
+                    .range(currentOffset, currentOffset + FETCH_SIZE - 1);
+                    
+                const { data: attendancesChunk, error: attError } = await attendancesQuery;
+                if (attError) throw attError;
+                
+                if (!attendancesChunk || attendancesChunk.length === 0) {
+                    hasMore = false;
+                    break;
+                }
+                
+                const chunkAttIds = attendancesChunk.map(a => a.id);
+                
+                let query = supabase.from('lab_results').select('id, attendance_id, exam_id, status').in('attendance_id', chunkAttIds);
+                if (statusFilter === 'LIBERADO') {
+                    query = query.eq('status', 'LIBERADO');
+                } else {
+                    query = query.in('status', ['DIGITADO', 'CONFERIDO', 'LIBERADO']);
+                }
+
+                const { data: resData, error: resError } = await query;
+                if (resError) throw resError;
+                
+                if (resData && resData.length > 0) {
+                    const examIdsChunk = [...new Set(resData.map(r => r.exam_id))];
+                    const { data: exData, error: exError } = await supabase.from('lab_exams').select('id, code, name, requires_conference').in('id', examIdsChunk);
+                    if (exError) throw exError;
+                    
+                    let validExams = exData || [];
+                    if (filters.exam) {
+                        const searchExam = filters.exam.toLowerCase();
+                        validExams = validExams.filter(e => (e.code && e.code.toLowerCase().includes(searchExam)) || (e.name && e.name.toLowerCase().includes(searchExam)));
+                    }
+                    
+                    const validExamIds = validExams.map(e => e.id);
+                    const validResults = resData.filter(r => {
+                        if (!validExamIds.includes(r.exam_id)) return false;
+                        const ex = validExams.find(e => e.id === r.exam_id);
+                        if (!ex) return false;
+                        if (statusFilter === 'LIBERADO') return r.status === 'LIBERADO';
+                        if (statusFilter === 'AGUARDANDO') {
+                            if (r.status === 'CONFERIDO') return true;
+                            if (r.status === 'DIGITADO' && ex.requires_conference === false) return true;
+                            return false;
+                        }
+                        if (statusFilter === 'TODOS' || !statusFilter) {
+                            if (r.status === 'LIBERADO') return true;
+                            if (r.status === 'CONFERIDO') return true;
+                            if (r.status === 'DIGITADO' && ex.requires_conference === false) return true;
+                            return false;
+                        }
+                        return true;
+                    });
+                    
+                    const distinctValidAttIds = [...new Set(validResults.map(r => r.attendance_id))];
+                    
+                    for (const a of attendancesChunk) {
+                        if (distinctValidAttIds.includes(a.id) && !attendanceIds.includes(a.id)) {
+                            if (attendanceIds.length < MAX_ATTENDANCES) {
+                                attendanceIds.push(a.id);
+                                allAttendancesData.push(a);
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (attendancesChunk.length < FETCH_SIZE) {
+                    hasMore = false;
+                } else {
+                    currentOffset += FETCH_SIZE;
+                }
+            }
+            
+            if (attendanceIds.length === 0) return [];
+
+            // ETAPA B: Carregar resultados dos 50 atendimentos descobertos e prosseguir normalmente
+            const attIds = attendanceIds;
+            let filteredAttendances = allAttendancesData;
             
             let results = [];
             for (let i = 0; i < attIds.length; i += 100) {
@@ -117,6 +205,13 @@ export const laboratorioLaudosService = {
             });
 
             if (results.length === 0) return [];
+
+            const attendancePatientIds = [...new Set(filteredAttendances.map(a => a.patient_id))];
+            const { data: patients, error: patError } = await supabase
+                .from('lab_patients')
+                .select('id, code, full_name, birth_date, sex, cns, cpf, rg')
+                .in('id', attendancePatientIds);
+            if (patError) throw patError;
 
             const patientMap = {};
             patients.forEach(p => patientMap[p.id] = p);

@@ -374,10 +374,6 @@
 
 /* NOVO MODO DE IMPRESSAO INDEPENDENTE */
 .lab-report-print { display: none; }
-@page labRelatorioPage {
-    size: A4 landscape;
-    margin: 10mm;
-}
 @media print {
     body:has(.lab-rel-container) * { visibility: hidden !important; }
     body:has(.lab-rel-container) .lab-rel-layout, 
@@ -392,7 +388,6 @@
         top: 0; 
         width: 100%; 
         background: #fff; 
-        page: labRelatorioPage;
     }
     
     .lab-report-print .print-header-modern h2, 
