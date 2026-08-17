@@ -1049,17 +1049,48 @@ const LaboratorioResultados = () => {
                         if (normalized === null) {
                             hasInvalidInteger = true;
                         }
-                    } else if (String(selectedResult?.exameCodigo || '').trim().toUpperCase() === 'ASO' && str.trim().startsWith('<')) {
-                        const numPart = str.replace('<', '').trim();
-                        if (normalizeLabNumericInput(numPart) !== null) {
-                            return { ...vToSend, value_text: str.trim(), value_numeric: null, _hasNumericOperator: true };
-                        } else {
-                            hasInvalidNumeric = true;
-                        }
                     } else {
-                        normalized = normalizeLabNumericInput(str);
-                        if (normalized === null) {
-                            hasInvalidNumeric = true;
+                        const examCode = String(selectedResult?.exameCodigo || '').trim().toUpperCase();
+                        let isSpecialFormat = false;
+
+                        if (examCode === 'LATEX') {
+                            const latexRegex = /^(<|>|<=|>=)\s*(\d+([.,]\d+)?)$/;
+                            const match = str.trim().match(latexRegex);
+                            if (match) {
+                                const numPart = match[2];
+                                if (normalizeLabNumericInput(numPart) !== null) {
+                                    isSpecialFormat = true;
+                                } else {
+                                    hasInvalidNumeric = true;
+                                }
+                            }
+                        } else if (examCode === 'ASO') {
+                            const asoOperatorRegex = /^(<)\s*(\d+([.,]\d+)?)$/;
+                            const asoDilutionRegex = /^\d+\s*\/\s*\d+\s+\d+([.,]\d+)?$/;
+                            const trimmedStr = str.trim();
+                            
+                            if (asoDilutionRegex.test(trimmedStr)) {
+                                isSpecialFormat = true;
+                            } else {
+                                const match = trimmedStr.match(asoOperatorRegex);
+                                if (match) {
+                                    const numPart = match[2];
+                                    if (normalizeLabNumericInput(numPart) !== null) {
+                                        isSpecialFormat = true;
+                                    } else {
+                                        hasInvalidNumeric = true;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (isSpecialFormat) {
+                            return { ...vToSend, value_text: str.trim(), value_numeric: null, _saveNumericAsText: true };
+                        } else {
+                            normalized = normalizeLabNumericInput(str);
+                            if (normalized === null) {
+                                hasInvalidNumeric = true;
+                            }
                         }
                     }
                     
@@ -1161,7 +1192,7 @@ const LaboratorioResultados = () => {
                 }
 
                 if (v.result_type === 'NUMERICO') {
-                    if (v._hasNumericOperator === true) {
+                    if (v._saveNumericAsText === true || v._hasNumericOperator === true) {
                         return isLabValueEmpty(v.value_text);
                     }
                     return isLabValueEmpty(v.value_numeric);
@@ -2026,7 +2057,9 @@ const LaboratorioResultados = () => {
                                         let compactRefText = '';
                                         let isObservation = false;
                                         let isCalculatedIndex = false;
-                                        const isPCRExam = String(selectedResult?.exameCodigo || '').trim().toUpperCase() === 'PCR';
+                                        const examCodeUpper = String(selectedResult?.exameCodigo || '').trim().toUpperCase();
+                                        const isPCRExam = examCodeUpper === 'PCR';
+                                        const isSpecialNumericExam = examCodeUpper === 'ASO' || examCodeUpper === 'LATEX';
 
                                         if (isHemo) {
                                             if (obsCodes.has(code) || param.result_type === 'TEXTO') {
@@ -2251,7 +2284,7 @@ const LaboratorioResultados = () => {
                                                                             fontStyle: isCalculatedIndex ? 'italic' : undefined
                                                                         }}
                                                                         placeholder={isCalculatedIndex ? 'Calculado automaticamente' : 'Resultado...'} 
-                                                                        value={isNumeric ? (String(selectedResult?.exameCodigo || '').trim().toUpperCase() === 'ASO' ? (formState.value_numeric ?? formState.value_text ?? '') : (formState.value_numeric ?? '')) : (formState.value_text || '')}
+                                                                        value={isNumeric ? (isSpecialNumericExam ? (formState.value_numeric ?? formState.value_text ?? '') : (formState.value_numeric ?? '')) : (formState.value_text || '')}
                                                                         onChange={(e) => {
                                                                             if (isCalculatedIndex) return;
                                                                             let val = e.target.value;

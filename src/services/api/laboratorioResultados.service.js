@@ -629,7 +629,7 @@ class LaboratorioResultadosService {
                 };
 
                 const isPCR = v._isPCRExam === true;
-                const hasNumericOperator = v._hasNumericOperator === true;
+                const hasNumericOperator = v._hasNumericOperator === true || v._saveNumericAsText === true;
 
                 if (v.result_type === 'NUMERICO' && !isPCR && !hasNumericOperator) {
                     payload.value_numeric = v.value_numeric !== '' && v.value_numeric !== null ? parseFloat(v.value_numeric) : null;
