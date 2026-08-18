@@ -8,13 +8,15 @@ import { commitmentsService } from '../services/api/commitments.service';
 import { ArrowLeft, FileText, CheckCircle, XCircle, Trash2, Plus, AlertCircle, Play, Printer, Download } from 'lucide-react';
 import { normalizeQuantityInput, isValidQuantity, parseQuantity, formatQuantityDisplay, safeParseQuantity, normalizeQuantityOnBlur } from '../utils/quantityUtils';
 import { formatLocalDate } from '../utils/dateUtils';
+import { canWriteCompras } from '../utils/comprasAcl';
 import './OfDetails.css';
 
 const OfDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { tenantId } = useTenant();
-    const { user } = useAuth();
+    const { user, tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
 
     const [ofData, setOfData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
