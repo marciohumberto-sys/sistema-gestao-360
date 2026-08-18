@@ -11,6 +11,11 @@ export const canManageLaboratorioUsers = (role) => {
     return ['SUPERADMIN', 'ADMIN', 'GESTOR', 'ADMINISTRADOR'].includes(role);
 };
 
+export const canWriteLaboratorio = (role) => {
+    if (role === 'VISUALIZADOR') return false;
+    return true; // As outras roles já têm acesso por rota, se passaram nelas, podem escrever no seu escopo
+};
+
 export const canAccessLaboratorio = (role, featurePath) => {
     if (!role || !featurePath) return false;
 
@@ -22,13 +27,13 @@ export const canAccessLaboratorio = (role, featurePath) => {
     // Acesso básico de visualização
     if (!canViewLaboratorio(role)) return false;
 
-    // ADMINISTRADOR, ADMIN e Superiores têm acesso total a todas as outras rotas
-    if (['SUPERADMIN', 'ADMIN', 'GESTOR', 'ADMINISTRADOR'].includes(role)) {
+    // ADMINISTRADOR, ADMIN, Superiores e VISUALIZADOR têm acesso total a todas as outras rotas permitidas
+    if (['SUPERADMIN', 'ADMIN', 'GESTOR', 'ADMINISTRADOR', 'VISUALIZADOR'].includes(role)) {
         return true;
     }
 
-    // VISUALIZADOR e OPERADOR (fallback) acessam o dashboard e visualizações operacionais
-    if (role === 'VISUALIZADOR' || role === 'OPERADOR') {
+    // OPERADOR (fallback) acessa o dashboard e visualizações operacionais
+    if (role === 'OPERADOR') {
         const allowedPaths = [
             '/laboratorio/dashboard',
             '/laboratorio/pacientes',

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { Search, Users, ShieldCheck, UserCheck, UserX, Plus, Edit2, XCircle, ShieldAlert, Check, ChevronDown, AlertTriangle, Activity, Upload, Trash2, KeyRound } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { canAccessLaboratorio, canManageLaboratorioUsers } from '../../utils/laboratorioAcl';
+import { canAccessLaboratorio, canManageLaboratorioUsers, canWriteLaboratorio } from '../../utils/laboratorioAcl';
 import { 
     getCurrentTenantId, fetchLaboratorioUsers, createLaboratorioUser, updateLaboratorioUser, toggleLaboratorioUserStatus, deleteLaboratorioUser,
     getLaboratorioProfessionalData, getLaboratorioSignatureSignedUrl, uploadLaboratorioSignature, updateLaboratorioProfessionalData
@@ -208,6 +208,7 @@ const LaboratorioUsuarios = () => {
     };
 
     const handleDeleteUser = (user) => {
+        if (!canWriteLaboratorio(role)) return;
         setUserToDelete(user);
         setIsDeleteModalOpen(true);
     };
@@ -279,6 +280,8 @@ const LaboratorioUsuarios = () => {
     const handleSave = async (e) => {
         e.preventDefault();
         
+        if (!canWriteLaboratorio(role)) return;
+
         if (!canManageLaboratorioUsers(role)) {
             showAlert('Acesso restrito', 'Seu perfil possui acesso apenas para visualização. Esta ação não está disponível.', 'error');
             return;

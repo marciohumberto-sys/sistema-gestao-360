@@ -24,12 +24,14 @@ export const laboratorioLaudosService = {
                 }
                 const { data: matched, error: patErr } = await patQuery;
                 if (patErr) throw patErr;
-                if (!matched || matched.length === 0) return [];
+                if (!matched || matched.length === 0) return { data: [], hasMore: false };
                 matchedPatientIds = matched.map(p => p.id);
             }
 
             // ETAPA A: Descobrir até 50 attendance_id distintos que possuam resultados compatíveis
             const MAX_ATTENDANCES = 50;
+            const PAGE = typeof filters.page === 'number' ? filters.page : 0;
+            const TARGET_COUNT = (PAGE + 1) * MAX_ATTENDANCES;
             const FETCH_SIZE = 200;
             
             let attendanceIds = [];
@@ -39,7 +41,7 @@ export const laboratorioLaudosService = {
             let currentOffset = 0;
             const statusFilter = filters.status;
             
-            while (hasMore && attendanceIds.length < MAX_ATTENDANCES) {
+            while (hasMore && attendanceIds.length < TARGET_COUNT) {
                 let attendancesQuery = supabase.from('lab_attendances').select('id, protocol_number, patient_id, attendance_date, attendance_time, created_at, requesting_doctor, delivery_location, agreement, attendance_origin, lab_attendance_exams(exam_id, collection_date, collection_time)');
                 
                 if (matchedPatientIds) {
@@ -116,7 +118,7 @@ export const laboratorioLaudosService = {
                     
                     for (const a of attendancesChunk) {
                         if (distinctValidAttIds.includes(a.id) && !attendanceIds.includes(a.id)) {
-                            if (attendanceIds.length < MAX_ATTENDANCES) {
+                            if (attendanceIds.length < TARGET_COUNT) {
                                 attendanceIds.push(a.id);
                                 allAttendancesData.push(a);
                             } else {
@@ -133,11 +135,14 @@ export const laboratorioLaudosService = {
                 }
             }
             
-            if (attendanceIds.length === 0) return [];
+            if (attendanceIds.length === 0) return { data: [], hasMore: false };
 
             // ETAPA B: Carregar resultados dos 50 atendimentos descobertos e prosseguir normalmente
-            const attIds = attendanceIds;
-            let filteredAttendances = allAttendancesData;
+            const startIndex = PAGE * MAX_ATTENDANCES;
+            const attIds = attendanceIds.slice(startIndex, TARGET_COUNT);
+            let filteredAttendances = allAttendancesData.slice(startIndex, TARGET_COUNT);
+            
+            if (attIds.length === 0) return { data: [], hasMore: false };
             
             let results = [];
             for (let i = 0; i < attIds.length; i += 100) {
@@ -158,7 +163,7 @@ export const laboratorioLaudosService = {
                 if (resData) results = results.concat(resData);
             }
             
-            if (results.length === 0) return [];
+            if (results.length === 0) return { data: [], hasMore: false };
 
             const examIds = [...new Set(results.map(r => r.exam_id))];
             let exams = [];
@@ -204,7 +209,7 @@ export const laboratorioLaudosService = {
                 return true;
             });
 
-            if (results.length === 0) return [];
+            if (results.length === 0) return { data: [], hasMore: false };
 
             const attendancePatientIds = [...new Set(filteredAttendances.map(a => a.patient_id))];
             const { data: patients, error: patError } = await supabase
@@ -298,7 +303,7 @@ export const laboratorioLaudosService = {
                  }
             }
 
-            return fila;
+            return { data: fila, hasMore };
         } catch (error) {
             console.error('Erro ao buscar laudos:', error);
             throw error;

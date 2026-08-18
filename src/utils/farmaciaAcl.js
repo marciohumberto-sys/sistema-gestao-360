@@ -26,22 +26,9 @@ export const canAccessFarmacia = (role, featurePath) => {
     // Acesso básico de visualização
     if (!canViewFarmacia(role)) return false;
 
-    // GESTOR e Superiores têm acesso total a todas as outras rotas
-    if (['SUPERADMIN', 'ADMIN', 'GESTOR'].includes(role)) {
+    // GESTOR, Superiores e VISUALIZADOR têm acesso total a todas as outras rotas permitidas
+    if (['SUPERADMIN', 'ADMIN', 'GESTOR', 'VISUALIZADOR'].includes(role)) {
         return true;
-    }
-
-    // VISUALIZADOR acessa o dashboard e visualizações operacionais
-    if (role === 'VISUALIZADOR') {
-        const allowedPaths = [
-            '/farmacia/dashboard',
-            '/farmacia/estoque',
-            '/farmacia/entradas',
-            '/farmacia/saidas',
-            '/farmacia/movimentacoes',
-            '/farmacia/relatorios'
-        ];
-        return allowedPaths.some(p => featurePath.startsWith(p));
     }
 
     // OPERADOR acessa apenas um subset estrito

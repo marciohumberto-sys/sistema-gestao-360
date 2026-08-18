@@ -20,7 +20,7 @@ import {
     ArrowRight,
     History
 } from 'lucide-react';
-import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
+import { getPlanejamentoContext, canWritePlanejamento } from '../../utils/planejamentoAccess';
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
 import { useAuth } from '../../context/AuthContext';
@@ -548,6 +548,7 @@ const PlanejamentoAtualizacoes = () => {
     const navigate = useNavigate();
 
     const contextoPlanejamento = React.useMemo(() => getPlanejamentoContext(tenantLink?.role, scopes), [tenantLink, scopes]);
+    const role = tenantLink?.role || 'VISUALIZADOR';
 
     // ---- ESTADO ----
     const [atualizacoes, setAtualizacoes] = useState([]);
@@ -839,6 +840,7 @@ const PlanejamentoAtualizacoes = () => {
     };
 
     const handleDelete = (id) => {
+        if (!canWritePlanejamento(role)) return;
         setDeleteId(id);
         setIsConfirmDeleteOpen(true);
     };
@@ -863,6 +865,7 @@ const PlanejamentoAtualizacoes = () => {
 
     const handleSave = async (e) => {
         e.preventDefault();
+        if (!canWritePlanejamento(role)) return;
         if (!tenantId) return;
         setSaveLoading(true);
         setSaveError(null);

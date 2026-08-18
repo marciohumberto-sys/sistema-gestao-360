@@ -64,6 +64,16 @@ export const AuthProvider = ({ children }) => {
                 }
             }
 
+            // Mock frontend para liberar todos os módulos ao VISUALIZADOR
+            if (data?.tenantLink?.role === 'VISUALIZADOR' && data?.accessibleModules) {
+                const todosModulos = ['COMPRAS', 'FARMACIA', 'PLANEJAMENTO_ESTRATEGICO', 'LABORATORIO'];
+                todosModulos.forEach(mod => {
+                    if (!data.accessibleModules.includes(mod)) {
+                        data.accessibleModules.push(mod);
+                    }
+                });
+            }
+
             setTenantLink(data.tenantLink);
             setScopes(data.scopes);
             setAccessibleModules(data.accessibleModules);

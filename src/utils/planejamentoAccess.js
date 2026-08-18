@@ -1,11 +1,15 @@
 /**
  * Utilitário para determinar as permissões e o contexto do usuário no módulo de Planejamento.
  */
+export const canWritePlanejamento = (role) => {
+    return role !== 'VISUALIZADOR';
+};
+
 export const getPlanejamentoContext = (userRole, scopes) => {
     // Fallback: se não tiver scopes ou for inválido, assumimos restrito e sem secretaria, a menos que seja SUPERADMIN
     const fallbackContext = { 
         hasFullAccess: userRole === 'SUPERADMIN', 
-        hasRestrictedAccess: userRole !== 'SUPERADMIN', 
+        hasRestrictedAccess: userRole !== 'SUPERADMIN' && userRole !== 'VISUALIZADOR', 
         primarySecretariatId: null, 
         primarySecretariatName: null,
         allowedSecretariatIds: [],
@@ -26,7 +30,7 @@ export const getPlanejamentoContext = (userRole, scopes) => {
     const primarySecretariatId = planningPrimaryScope?.secretariat_id || null;
     const primarySecretariatName = planningPrimaryScope?.secretariat_name || null;
 
-    if (!primarySecretariatId && userRole !== 'SUPERADMIN') {
+    if (!primarySecretariatId && userRole !== 'SUPERADMIN' && userRole !== 'VISUALIZADOR') {
         console.log("Escopo principal do Planejamento não encontrado no AuthContext");
         return fallbackContext;
     }
@@ -36,7 +40,7 @@ export const getPlanejamentoContext = (userRole, scopes) => {
         primarySecretariatName === 'Planejamento e Inovação' ||
         primarySecretariatName === 'Gabinete';
 
-    const hasRestrictedAccess = !hasFullAccess;
+    const hasRestrictedAccess = !hasFullAccess && userRole !== 'VISUALIZADOR';
 
     let planningActiveScopes = scopes.filter(scope => 
         scope.module_key === 'PLANEJAMENTO_ESTRATEGICO' && 
@@ -45,7 +49,7 @@ export const getPlanejamentoContext = (userRole, scopes) => {
     );
 
     // INVERSÃO DA REGRA: 
-    // Se não for full access e o perfil for diferente de GESTOR (ex: OPERADOR, VISUALIZADOR), 
+    // Se não for full access e o perfil for diferente de GESTOR (ex: OPERADOR), 
     // limitamos as secretarias permitidas apenas à principal.
     if (hasRestrictedAccess && userRole !== 'GESTOR') {
         planningActiveScopes = planningActiveScopes.filter(scope => scope.is_primary_secretariat === true);

@@ -10,6 +10,7 @@ import './LaboratorioResultados.css';
 import { laboratorioResultadosService } from '../../services/api/laboratorioResultados.service';
 import LaboratorioGerenciarExamesModal from '../../components/laboratorio/LaboratorioGerenciarExamesModal';
 import { useAuth } from '../../context/AuthContext';
+import { canWriteLaboratorio } from '../../utils/laboratorioAcl';
 import { ATTENDANCE_ORIGINS, POSTOS_UNIDADES_ORDENADOS, TODAS_ORIGENS, normalizeString, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue, expandRcText, isHemoMorphologyParameter, isEritrogramaParameter, formatEritrogramaDecimal } from '../../utils/laboratorioHelpers';
 import {
     isUriExam,
@@ -736,6 +737,7 @@ const LaboratorioResultados = () => {
     };
 
     const handleUpdateOrigin = async (newOrigin) => {
+        if (!canWriteLaboratorio(role)) return;
         if (!selectedAttendance || !selectedAttendance.id || updatingOrigin) return;
 
         try {

@@ -7,12 +7,16 @@ import { useTenant } from '../context/TenantContext';
 import { formatLocalDate } from '../utils/dateUtils';
 import NovaNfModal from './components/NovaNfModal';
 import EdicaoNfModal from './components/EdicaoNfModal';
+import { useAuth } from '../context/AuthContext';
+import { canWriteCompras } from '../utils/comprasAcl';
 import './NotasFiscais.css';
 
 const NotasFiscais = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { tenantId } = useTenant();
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
 
     // Data State
     const [invoices, setInvoices] = useState([]);
@@ -62,6 +66,7 @@ const NotasFiscais = () => {
     };
 
     const handleDeleteNf = async () => {
+        if (!canWriteCompras(role)) return;
         if (!nfToDelete) return;
         try {
             setIsSubmitting(true);

@@ -6,13 +6,17 @@ import { secretariatsService } from '../services/api/secretariats.service';
 import { ofsService } from '../services/api/ofs.service';
 import { filesService } from '../services/api/files.service';
 import { useTenant } from '../context/TenantContext';
+import { useAuth } from '../context/AuthContext';
 import { formatLocalDate, getTodayLocalDateString, getDaysDiffFromToday } from '../utils/dateUtils';
+import { canWriteCompras } from '../utils/comprasAcl';
 import './Contratos.css';
 
 const Contratos = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { tenantId } = useTenant();
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const [contracts, setContracts] = useState([]);
     const [secretariats, setSecretariats] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -308,6 +312,7 @@ const Contratos = () => {
     };
 
     const handleDeleteContract = async (id) => {
+        if (!canWriteCompras(role)) return;
         try {
             // Objective 2: Check for linked OFs before deletion
             const linkedOfs = await ofsService.listByContract(id);
@@ -390,6 +395,7 @@ const Contratos = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!canWriteCompras(role)) return;
         if (!tenantId) return;
 
         setIsSubmitting(true);
@@ -563,10 +569,12 @@ const Contratos = () => {
                     <h1 className="ct-title">Contratos</h1>
                     <p className="ct-subtitle">Gestão e acompanhamento de vigência e saldos</p>
                 </div>
-                <button className="ct-primary-btn" onClick={handleNewContract}>
-                    <Plus size={18} />
-                    <span>Novo Contrato</span>
-                </button>
+                {canWriteCompras(role) && (
+                    <button className="ct-primary-btn" onClick={handleNewContract}>
+                        <Plus size={18} />
+                        <span>Novo Contrato</span>
+                    </button>
+                )}
             </header>
 
             <div className="main-content-card">
@@ -706,28 +714,30 @@ const Contratos = () => {
                                                 </span>
                                             </td>
                                             <td style={{ textAlign: 'right' }}>
-                                                <div className="action-buttons-group">
-                                                    <button
-                                                        className="action-btn edit"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleEditContract(contract);
-                                                        }}
-                                                    >
-                                                        <Edit2 size={18} />
-                                                        <span className="premium-tooltip">Editar</span>
-                                                    </button>
-                                                    <button
-                                                        className="action-btn delete"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setContractToDelete(contract);
-                                                        }}
-                                                    >
-                                                        <Trash2 size={18} />
-                                                        <span className="premium-tooltip">Excluir</span>
-                                                    </button>
-                                                </div>
+                                                {canWriteCompras(role) && (
+                                                    <div className="action-buttons-group">
+                                                        <button
+                                                            className="action-btn edit"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleEditContract(contract);
+                                                            }}
+                                                        >
+                                                            <Edit2 size={18} />
+                                                            <span className="premium-tooltip">Editar</span>
+                                                        </button>
+                                                        <button
+                                                            className="action-btn delete"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setContractToDelete(contract);
+                                                            }}
+                                                        >
+                                                            <Trash2 size={18} />
+                                                            <span className="premium-tooltip">Excluir</span>
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </td>
                                         </tr>
                                     ))

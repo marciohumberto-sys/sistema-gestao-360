@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import './LaboratorioConferencia.css';
 import { laboratorioConferenciaService } from '../../services/api/laboratorioConferencia.service';
+import { useAuth } from '../../context/AuthContext';
+import { canWriteLaboratorio } from '../../utils/laboratorioAcl';
 import { laboratorioResultadosService } from '../../services/api/laboratorioResultados.service';
 import { 
     ATTENDANCE_ORIGINS, 
@@ -74,6 +76,9 @@ const LaboratorioConferencia = () => {
         patientCode: '',
         attendance_origin: ''
     });
+
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     
     const [localSearch, setLocalSearch] = useState('');
     const [selectedProtocol, setSelectedProtocol] = useState(null);
@@ -426,6 +431,7 @@ const LaboratorioConferencia = () => {
     };
 
     const handleSaveParam = async (param) => {
+        if (!canWriteLaboratorio(role)) return;
         if (!editingParam || !selectedExam) return;
         
         if (!param.id) {

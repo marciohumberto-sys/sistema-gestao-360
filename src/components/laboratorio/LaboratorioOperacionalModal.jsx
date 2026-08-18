@@ -5,6 +5,8 @@ import {
 import { laboratorioPacientesService } from '../../services/api/laboratorioPacientes.service';
 import { laboratorioAtendimentoService } from '../../services/api/laboratorioAtendimento.service';
 import { ATTENDANCE_ORIGINS, POSTOS_UNIDADES_ORDENADOS, TODAS_ORIGENS, normalizeString } from '../../utils/laboratorioHelpers';
+import { useAuth } from '../../context/AuthContext';
+import { canWriteLaboratorio } from '../../utils/laboratorioAcl';
 import PacienteForm, { initialFormData, validatePacienteForm, handlePacienteChange, normalizePacienteDataForSave, applyCpfMask, applyPhoneMask, applyCepMask } from './PacienteForm';
 
 const getLocalDateInputValue = (date = new Date()) => {
@@ -112,6 +114,8 @@ const formatCpf = (cpf) => {
 };
 
 const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, onSuccess, onPatientUpdated }) => {
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     // --- ESTADOS DO PACIENTE ---
     const mode = initialPatient ? 'edit' : 'create';
     const [patientData, setPatientData] = useState(initialFormData);
@@ -455,6 +459,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
 
     // --- SAVE FLOW ---
     const prepararSalvamento = () => {
+        if (!canWriteLaboratorio(role)) return;
         setFeedback(null);
         
         if (!validatePacienteForm(patientData, setPatientFormErrors)) {

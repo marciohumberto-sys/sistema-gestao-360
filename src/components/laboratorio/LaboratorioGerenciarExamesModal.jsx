@@ -21,6 +21,8 @@ import {
     MAP_STATUS 
 } from '../../services/api/laboratorioGerenciarExames.service';
 import { formatAttendanceOrigin } from '../../utils/laboratorioHelpers';
+import { useAuth } from '../../context/AuthContext';
+import { canWriteLaboratorio } from '../../utils/laboratorioAcl';
 import './LaboratorioGerenciarExamesModal.css';
 
 /**
@@ -35,6 +37,8 @@ const LaboratorioGerenciarExamesModal = ({
     onClose,
     onChanged
 }) => {
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [activeExams, setActiveExams] = useState([]);
@@ -350,6 +354,7 @@ const LaboratorioGerenciarExamesModal = ({
 
     // Execução da adição de exames via RPC
     const handleAdicionarExames = async () => {
+        if (!canWriteLaboratorio(role)) return;
         if (isAdding || selectedExams.length === 0 || !attendanceId) return;
 
         try {
@@ -418,6 +423,7 @@ const LaboratorioGerenciarExamesModal = ({
 
     // Execução do cancelamento de exame via RPC segura
     const handleConfirmCancelExam = async () => {
+        if (!canWriteLaboratorio(role)) return;
         if (!cancellingExam || isCancelling || !attendanceId) return;
 
         const trimmedReason = (cancelReason || '').trim();
@@ -502,6 +508,7 @@ const LaboratorioGerenciarExamesModal = ({
 
     // Execução da restauração de exame via RPC segura
     const handleConfirmRestoreExam = async () => {
+        if (!canWriteLaboratorio(role)) return;
         if (!restoringExam || isRestoring || !attendanceId) return;
 
         try {

@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Search, FileText, FileCheck, AlertCircle, TrendingUp, CheckCircle, ChevronRight, ChevronLeft } from 'lucide-react';
+import { X, Search, FileText, FileCheck, AlertCircle, TrendingUp, CheckCircle, ChevronRight, ChevronLeft, FilePlus } from 'lucide-react';
 import { invoicesService } from '../../services/api/invoices.service';
 import { ofsService } from '../../services/api/ofs.service';
 import { contractsService } from '../../services/api/contracts.service';
 import { useTenant } from '../../context/TenantContext';
+import { useAuth } from '../../context/AuthContext';
+import { canWriteCompras } from '../../utils/comprasAcl';
 
 const NovaNfModal = ({ isOpen, onClose, onSuccess }) => {
     const { tenantId } = useTenant();
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
 
     const [currentStep, setCurrentStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
@@ -166,6 +170,8 @@ const NovaNfModal = ({ isOpen, onClose, onSuccess }) => {
     }, 0);
 
     const handleSave = async () => {
+        if (!canWriteCompras(role)) return;
+        if (!tenantId) return;
         if (nfTotalAmount <= 0) {
             setErrorMsg('O valor total da Nota Fiscal deve ser maior que zero.');
             return;
@@ -441,7 +447,5 @@ const NovaNfModal = ({ isOpen, onClose, onSuccess }) => {
     );
 };
 
-// Add lucide-react manual import to avoid broken icon import
-import { FilePlus } from 'lucide-react';
 
 export default NovaNfModal;

@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, FileText, CheckCircle, AlertCircle, Save } from 'lucide-react';
 import { invoicesService } from '../../services/api/invoices.service';
+import { useAuth } from '../../context/AuthContext';
+import { canWriteCompras } from '../../utils/comprasAcl';
 import { useTenant } from '../../context/TenantContext';
 import { formatLocalDate } from '../../utils/dateUtils';
 
-const EdicaoNfModal = ({ isOpen, nfId, onClose, onSuccess }) => {
+const EdicaoNfModal = ({ isOpen, onClose, nfId, onSuccess }) => {
     const { tenantId } = useTenant();
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
 
     const [isLoading, setIsLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -45,6 +49,7 @@ const EdicaoNfModal = ({ isOpen, nfId, onClose, onSuccess }) => {
     };
 
     const handleSave = async () => {
+        if (!canWriteCompras(role)) return;
         try {
             setSubmitting(true);
             setErrorMsg(null);

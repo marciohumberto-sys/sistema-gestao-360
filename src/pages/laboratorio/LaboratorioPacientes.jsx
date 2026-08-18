@@ -4,6 +4,7 @@ import {
     Users, UserPlus, RefreshCw, Search,
     AlertTriangle, Edit, Loader2, CheckCircle, AlertCircle
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { formatCpf } from '../../utils/formatters';
 import { laboratorioPacientesService } from '../../services/api/laboratorioPacientes.service';
 import PacienteFormModal from '../../components/laboratorio/PacienteFormModal';
@@ -80,6 +81,8 @@ const formatDate = (dateStr) => {
 
 const LaboratorioPacientes = () => {
     const navigate = useNavigate();
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     // Lista
     const [patients, setPatients] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -159,9 +162,11 @@ const LaboratorioPacientes = () => {
                     <button className="lab-btn lab-btn-outline" onClick={loadPatients} disabled={loading}>
                         {loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Atualizar lista
                     </button>
-                    <button className="lab-btn lab-btn-primary" onClick={openCreateModal}>
-                        <UserPlus size={16} /> Novo paciente
-                    </button>
+                    {role !== 'VISUALIZADOR' && (
+                        <button className="lab-btn lab-btn-primary" onClick={openCreateModal}>
+                            <UserPlus size={16} /> Novo paciente
+                        </button>
+                    )}
                 </div>
             </header>
 
@@ -248,9 +253,11 @@ const LaboratorioPacientes = () => {
                                                 </span>
                                             </td>
                                             <td style={{ textAlign: 'center' }}>
-                                                <button className="lab-btn-icon-edit" data-tooltip="Editar paciente" data-tooltip-dir="left" onClick={(e) => { e.stopPropagation(); openEditModal(p); }}>
-                                                    <Edit size={16} />
-                                                </button>
+                                                {role !== 'VISUALIZADOR' && (
+                                                    <button className="lab-btn-icon-edit" data-tooltip="Editar paciente" data-tooltip-dir="left" onClick={(e) => { e.stopPropagation(); openEditModal(p); }}>
+                                                        <Edit size={16} />
+                                                    </button>
+                                                )}
                                             </td>
                                         </tr>
                                     )})}

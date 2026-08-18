@@ -6,6 +6,9 @@ import {
     Ban, CheckCircle2, ChevronLeft, ChevronRight, Lock, Edit, CheckCircle, Filter
 } from 'lucide-react';
 import { laboratorioConfiguracoesService } from '../../services/api/laboratorioConfiguracoes.service';
+import { canWriteLaboratorio } from '../../utils/laboratorioAcl';
+
+import { useAuth } from '../../context/AuthContext';
 
 import ReactDOM from 'react-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
@@ -451,6 +454,9 @@ const LaboratorioConfiguracoes = () => {
     const [selectedParamHistory, setSelectedParamHistory] = useState(null);
     const [historyLoading, setHistoryLoading] = useState(false);
     
+    const [tenantId, setTenantId] = useState(null);
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const [feedbackMsg, setFeedbackMsg] = useState(null);
     const showFeedback = (type, text) => {
         setFeedbackMsg({ type, text });
@@ -679,6 +685,7 @@ const LaboratorioConfiguracoes = () => {
     };
     
     const handleSaveSector = async () => {
+        if (!canWriteLaboratorio(role)) return;
         try {
             if (!sectorForm.code.trim()) { showFeedback('error', 'O Código é obrigatório.'); return; }
             if (!sectorForm.name.trim()) { showFeedback('error', 'O Nome é obrigatório.'); return; }
@@ -823,6 +830,7 @@ const LaboratorioConfiguracoes = () => {
     };
 
     const handleSaveExam = async () => {
+        if (!canWriteLaboratorio(role)) return;
         if (actionLoading) return;
         
         const normalizedCode = (examForm.code || '').trim().toUpperCase();
@@ -989,6 +997,7 @@ const LaboratorioConfiguracoes = () => {
     };
 
     const handleSaveParam = async () => {
+        if (!canWriteLaboratorio(role)) return;
         const normalizedCode = (paramForm.code || '').trim().toUpperCase();
         if (!normalizedCode) return showFeedback('error', 'Informe o código do parâmetro.');
         if (!(paramForm.name || '').trim()) return showFeedback('error', 'Informe o nome do parâmetro.');

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import { formatCpf } from '../../utils/formatters';
 import { 
     CheckCircle2, AlertTriangle, Search, RefreshCw, 
@@ -1883,6 +1883,11 @@ const LaboratorioLaudos = () => {
         attendance_origin: ''
     });
     
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const observerTarget = useRef(null);
+
     const [localSearch, setLocalSearch] = useState('');
     const [selectedProtocol, setSelectedProtocol] = useState(null);
     const [keyboardSelectedIndex, setKeyboardSelectedIndex] = useState(-1);
@@ -1960,7 +1965,7 @@ const LaboratorioLaudos = () => {
         const removeAccents = str => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const term = removeAccents(lower);
 
-        return searchResults.filter(item => {
+        return (searchResults || []).filter(item => {
             const p = removeAccents((item.protocolo || '').toLowerCase());
             const n = removeAccents((item.pacienteNome || '').toLowerCase());
             const ec = removeAccents((item.exameCodigo || '').toLowerCase());
@@ -1976,7 +1981,7 @@ const LaboratorioLaudos = () => {
         const groups = {};
         const statusFilter = searchFilters.status;
 
-        filteredResults.forEach(ex => {
+        (filteredResults || []).forEach(ex => {
             if (!groups[ex.protocolo]) {
                 groups[ex.protocolo] = {
                     protocolo: ex.protocolo,
@@ -2253,13 +2258,58 @@ const LaboratorioLaudos = () => {
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
     }, [groupedProtocols, selectedProtocol, selectedExam, selectedExamIds, drawerOpen, generatingPdf]);
 
+    const loadMore = useCallback(async () => {
+        if (isLoadingMore || !hasMore || loading) return;
+        try {
+            setIsLoadingMore(true);
+            const nextPage = page + 1;
+            const { data, hasMore: more } = await laboratorioLaudosService.buscarLaudos({
+                ...searchFilters,
+                page: nextPage
+            });
+            setSearchResults(prev => {
+                const safePrev = prev || [];
+                const existingIds = new Set(safePrev.map(r => r.id));
+                const newItems = (data || []).filter(r => !existingIds.has(r.id));
+                return [...safePrev, ...newItems];
+            });
+            setPage(nextPage);
+            setHasMore(more);
+        } catch (error) {
+            console.error('Erro ao carregar mais', error);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    }, [isLoadingMore, hasMore, loading, page, searchFilters]);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting) {
+                    loadMore();
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current);
+        }
+
+        return () => observer.disconnect();
+    }, [loadMore]);
+
     const handleSearch = async () => {
         try {
             setLoading(true);
-            const data = await laboratorioLaudosService.buscarLaudos({
-                ...searchFilters
+            setPage(0);
+            setHasMore(true);
+            const { data, hasMore: more } = await laboratorioLaudosService.buscarLaudos({
+                ...searchFilters,
+                page: 0
             });
-            setSearchResults(data);
+            setSearchResults(data || []);
+            setHasMore(more);
             setSelectedExam(null);
             setExamDetails([]);
             setFeedbackMsg(null);
@@ -3744,10 +3794,12 @@ const LaboratorioLaudos = () => {
                     <div className="lab-card lab-queue-card">
                         <div className="lab-card-header">
                             <h3 className="lab-card-title"><Clock size={18} /> Laudos Encontrados</h3>
-                            <span className="lab-badge lab-badge-primary">{groupedProtocols.length} atendimentos / {filteredResults.length} exames</span>
+                            <span className="lab-badge lab-badge-primary">
+                                {groupedProtocols.length}{hasMore ? '+' : ''} atendimentos carregados
+                            </span>
                         </div>
                         <div className="lab-queue-list">
-                            {searchResults.length === 0 && !loading && (
+                            {(searchResults || []).length === 0 && !loading && (
                                 <div className="text-center p-6 text-gray-500" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', marginTop: '2rem' }}>
                                     <Search size={32} className="text-gray-300" />
                                     <h4 style={{ fontWeight: 600, color: '#475569', fontSize: '1rem', margin: 0 }}>Nenhum laudo encontrado para os filtros informados.</h4>
@@ -3812,6 +3864,14 @@ const LaboratorioLaudos = () => {
                                     </div>
                                 );
                             })}
+                            {hasMore && (
+                                <div 
+                                    ref={observerTarget}
+                                    style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}
+                                >
+                                    {isLoadingMore ? 'Carregando mais atendimentos...' : ''}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

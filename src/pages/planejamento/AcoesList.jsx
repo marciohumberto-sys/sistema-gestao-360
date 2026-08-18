@@ -30,7 +30,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, deleteAcao, fetchObjectivesByAxis, fetchAllObjectives, fetchActionObjectives, createAtualizacao, fetchActionSecretariats, recordActionHistory, fetchActionDeletions, fetchUpdatesByAction } from '../../services/api/planejamentoAcoes.service';
-import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
+import { getPlanejamentoContext, canWritePlanejamento } from '../../utils/planejamentoAccess';
 
 import { PLANNING_ACTION_TYPES_ARRAY, getActionTypeConfig, getActionTypeStages } from '../../modules/planejamento/constants/planningActionTypes';
 
@@ -202,12 +202,12 @@ const getDisplayName = (del, usersMap) => {
 
 const AcoesList = () => {
     const { authUser, tenantLink, scopes, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const tenantId = tenantLink?.tenant_id;
     const location = useLocation();
     const navigate = useNavigate();
     
     const contextoPlanejamento = useMemo(() => getPlanejamentoContext(tenantLink?.role, scopes), [tenantLink, scopes]);
-
     const [busca, setBusca] = useState('');
     const [statusFiltro, setStatusFiltro] = useState('Todos');
     const [secretariaFiltro, setSecretariaFiltro] = useState(contextoPlanejamento.hasMultipleRestrictedSecretariats ? 'todas_minhas' : (contextoPlanejamento.hasRestrictedAccess ? (contextoPlanejamento.primarySecretariatId || 'nenhuma') : 'Todas'));
@@ -832,6 +832,7 @@ const AcoesList = () => {
     };
 
     const handleDeleteAcao = async () => {
+        if (!canWritePlanejamento(role)) return;
         console.log('[DELETE] handleDeleteAcao EXECUTOU');
         console.log('[DELETE_ACAO] Botão Confirmar Exclusão clicado.');
         console.log('[DELETE_ACAO] Status das variáveis:', { tenantId, editingAcaoId: editingAcao?.id });
@@ -881,6 +882,7 @@ const AcoesList = () => {
 
     const handleSave = async (e) => {
         e.preventDefault();
+        if (!canWritePlanejamento(role)) return;
         if (!tenantId) return;
         
         let finalData = { ...formData };
@@ -1129,9 +1131,11 @@ const AcoesList = () => {
                         <History size={16} />
                         Histórico de Exclusões
                     </button>
-                    <button className="farmacia-btn-primary" onClick={() => openModal()} disabled={loading}>
-                        <Plus size={18} /> Nova Ação
-                    </button>
+                    {role !== 'VISUALIZADOR' && (
+                        <button className="farmacia-btn-primary" onClick={() => openModal()} disabled={loading}>
+                            <Plus size={18} /> Nova Ação
+                        </button>
+                    )}
                 </div>
             </header>
 
@@ -1914,18 +1918,22 @@ const AcoesList = () => {
                                      </td>
                                     <td className="col-acoes">
                                         <div className="acoes-container">
-                                            <button className="farmacia-action-icon" style={{ padding: '4px' }} onClick={(e) => { e.stopPropagation(); navigate('/planejamento/atualizacoes', { state: { openModal: 'nova-atualizacao', acaoId: acao.id } }); }}>
-                                                <Plus size={16} />
-                                                <span className="premium-tooltip">Nova Atualização</span>
-                                            </button>
+                                            {role !== 'VISUALIZADOR' && (
+                                                <button className="farmacia-action-icon" style={{ padding: '4px' }} onClick={(e) => { e.stopPropagation(); navigate('/planejamento/atualizacoes', { state: { openModal: 'nova-atualizacao', acaoId: acao.id } }); }}>
+                                                    <Plus size={16} />
+                                                    <span className="premium-tooltip">Nova Atualização</span>
+                                                </button>
+                                            )}
                                             <button className="farmacia-action-icon" style={{ padding: '4px' }} onClick={() => openViewModal(acao)}>
                                                 <Eye size={16} />
                                                 <span className="premium-tooltip">Visualizar</span>
                                             </button>
-                                            <button className="farmacia-action-icon" style={{ padding: '4px' }} onClick={() => openModal(acao)}>
-                                                <Edit2 size={16} />
-                                                <span className="premium-tooltip">Editar</span>
-                                            </button>
+                                            {role !== 'VISUALIZADOR' && (
+                                                <button className="farmacia-action-icon" style={{ padding: '4px' }} onClick={() => openModal(acao)}>
+                                                    <Edit2 size={16} />
+                                                    <span className="premium-tooltip">Editar</span>
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

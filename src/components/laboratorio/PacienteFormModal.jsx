@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, XCircle, CheckCircle, AlertTriangle } from 'lucide-react';
 import { laboratorioPacientesService } from '../../services/api/laboratorioPacientes.service';
+import { useAuth } from '../../context/AuthContext';
+import { canWriteLaboratorio } from '../../utils/laboratorioAcl';
 import PacienteForm, { initialFormData, validatePacienteForm, handlePacienteChange, normalizePacienteDataForSave, applyCpfMask, applyPhoneMask, applyCepMask } from './PacienteForm';
 
 const PacienteFormModal = ({ isOpen, mode = 'create', patientId = null, onClose, onSuccess, onError }) => {
@@ -10,6 +12,8 @@ const PacienteFormModal = ({ isOpen, mode = 'create', patientId = null, onClose,
     const [formErrors, setFormErrors] = useState({});
     const [loading, setLoading] = useState(false);
     const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null, cancelText: 'Cancelar', confirmText: 'Confirmar' });
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
 
     useEffect(() => {
         if (isOpen) {
@@ -81,6 +85,7 @@ const PacienteFormModal = ({ isOpen, mode = 'create', patientId = null, onClose,
     const handleChange = (e) => handlePacienteChange(e, setFormData, formErrors, setFormErrors);
 
     const handleSave = async (forceSave = false) => {
+        if (!canWriteLaboratorio(role)) return;
         const triggerError = (msg) => {
             if (onError) onError(msg);
             else alert(msg);

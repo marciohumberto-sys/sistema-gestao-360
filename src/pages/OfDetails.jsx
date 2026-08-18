@@ -146,6 +146,7 @@ const OfDetails = () => {
     };
 
     const handleIssueOf = async () => {
+        if (!canWriteCompras(role)) return;
         if (!selectedSignatory) {
             setSignatoryContext('emission');
             setIsSignatoryModalOpen(true);
@@ -169,6 +170,7 @@ const OfDetails = () => {
     };
 
     const handleCancelOf = async () => {
+        if (!canWriteCompras(role)) return;
         if (!tenantId || !user?.id) {
             setFeedback({ type: 'error', message: 'Erro de sessão: IDs necessários não encontrados.' });
             return;
@@ -189,10 +191,12 @@ const OfDetails = () => {
     };
 
     const handleDeleteOf = async () => {
+        if (!canWriteCompras(role)) return;
         setShowDeleteModal(true);
     };
 
     const confirmDeleteOf = async () => {
+        if (!canWriteCompras(role)) return;
         try {
             setIsSubmitting(true);
             setShowDeleteModal(false);
@@ -210,6 +214,7 @@ const OfDetails = () => {
     };
 
     const confirmRectifyOf = async () => {
+        if (!canWriteCompras(role)) return;
         if (!retificationReason.trim()) {
             setFeedback({ type: 'error', message: 'O motivo da retificação é obrigatório.' });
             return;
@@ -247,6 +252,7 @@ const OfDetails = () => {
     };
 
     const handleSaveNumber = async () => {
+        if (!canWriteCompras(role)) return;
         const trimmed = editNumberValue.trim();
         if (!trimmed) {
             setFeedback({ type: 'error', message: 'O número da OF não pode ser vazio.' });
@@ -287,6 +293,7 @@ const OfDetails = () => {
 
     const handleAddItem = async (e) => {
         e.preventDefault();
+        if (!canWriteCompras(role)) return;
         try {
             setIsSubmitting(true);
             
@@ -414,6 +421,7 @@ const OfDetails = () => {
     };
 
     const handleDeleteItem = async (itemId) => {
+        if (!canWriteCompras(role)) return;
         if (!window.confirm('Tem certeza que deseja remover este item?')) return;
         try {
             setIsLoading(true);
@@ -467,6 +475,7 @@ const OfDetails = () => {
     };
 
     const handleLinkCommitment = async (commitmentId) => {
+        if (!canWriteCompras(role)) return;
         try {
             setIsSubmitting(true);
             await ofsService.updateOf(id, tenantId, { commitment_id: commitmentId });
@@ -483,6 +492,7 @@ const OfDetails = () => {
     };
 
     const handleRemoveLink = async () => {
+        if (!canWriteCompras(role)) return;
         if (!window.confirm('Tem certeza que deseja remover o vínculo deste empenho?')) return;
         try {
             setIsLoading(true);
