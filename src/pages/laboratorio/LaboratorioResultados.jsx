@@ -1237,10 +1237,6 @@ const LaboratorioResultados = () => {
             const protocolToReload = selectedAttendance?.protocol_number || currentAttendance?.protocol_number;
             const updatedData = await carregarDados(protocolToReload, selectedExamId);
             
-            // Sincronizar estado após sucesso
-            setInitialFormValues({ ...formValues });
-            setInitialGeneralObservation(finalGeneralObs);
-            
             setSaveStatus('success');
 
             const results = updatedData && updatedData.length > 0 && updatedData[0].resultados ? updatedData[0].resultados : [];
