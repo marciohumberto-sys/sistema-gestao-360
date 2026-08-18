@@ -1882,6 +1882,7 @@ const LaboratorioLaudos = () => {
         status: 'LIBERADO',
         attendance_origin: ''
     });
+    const [activeFilters, setActiveFilters] = useState(searchFilters);
     
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
@@ -2264,7 +2265,7 @@ const LaboratorioLaudos = () => {
             setIsLoadingMore(true);
             const nextPage = page + 1;
             const { data, hasMore: more } = await laboratorioLaudosService.buscarLaudos({
-                ...searchFilters,
+                ...activeFilters,
                 page: nextPage
             });
             setSearchResults(prev => {
@@ -2280,7 +2281,7 @@ const LaboratorioLaudos = () => {
         } finally {
             setIsLoadingMore(false);
         }
-    }, [isLoadingMore, hasMore, loading, page, searchFilters]);
+    }, [isLoadingMore, hasMore, loading, page, activeFilters]);
 
     useEffect(() => {
         const observer = new IntersectionObserver(
@@ -2304,6 +2305,7 @@ const LaboratorioLaudos = () => {
             setLoading(true);
             setPage(0);
             setHasMore(true);
+            setActiveFilters(searchFilters);
             const { data, hasMore: more } = await laboratorioLaudosService.buscarLaudos({
                 ...searchFilters,
                 page: 0

@@ -303,7 +303,8 @@ export const laboratorioLaudosService = {
                  }
             }
 
-            return { data: fila, hasMore };
+            const finalHasMore = attendanceIds.length >= TARGET_COUNT;
+            return { data: fila, hasMore: finalHasMore };
         } catch (error) {
             console.error('Erro ao buscar laudos:', error);
             throw error;
