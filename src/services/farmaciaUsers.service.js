@@ -18,7 +18,7 @@ export const getCurrentTenantId = async () => {
 /**
  * Busca a lista consolidade de usuários vinculados ao módulo FARMACIA.
  */
-export const fetchFarmaciaUsers = async (tenantId) => {
+export const fetchFarmaciaUsers = async (tenantId, allowedUnitNames = null) => {
     // 1. Obter ID do módulo FARMACIA
     const { data: moduleData } = await supabase
         .from('system_modules')
@@ -62,13 +62,32 @@ export const fetchFarmaciaUsers = async (tenantId) => {
 
     if (!data) return [];
 
+    // 3.5. Coletar unidades extras da própria RPC (útil para VISUALIZADOR que sofre bloqueio RLS na tabela de scopes)
+    data.forEach(row => {
+        const userId = row.user_id || row.id;
+        if (row.unit_code) {
+            if (!userUnitsMap[userId]) userUnitsMap[userId] = new Set();
+            userUnitsMap[userId].add(row.unit_code);
+        }
+    });
+
     const groupedUsers = {};
 
     data.forEach(row => {
         const userId = row.user_id || row.id;
         
-        // 4. FILTRAR: Só incluir se o usuário tiver escopo real na Farmácia
-        if (!farmaciaUserIds.includes(userId)) return;
+        let hasAccess = farmaciaUserIds.includes(userId);
+        
+        // Burlar bloqueio de RLS para VISUALIZADOR usando as unidades permitidas pelo contexto
+        if (!hasAccess && allowedUnitNames) {
+            const uUnits = userUnitsMap[userId] ? Array.from(userUnitsMap[userId]) : [];
+            if (allowedUnitNames.includes('TODAS') || uUnits.some(u => allowedUnitNames.includes(u))) {
+                hasAccess = true;
+            }
+        }
+
+        // 4. FILTRAR: Só incluir se o usuário tiver acesso à Farmácia
+        if (!hasAccess) return;
 
         const key = row.user_tenant_id || userId;
 

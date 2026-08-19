@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { canAccessComprasUsuarios } from '../utils/comprasAcl';
+import { canAccessComprasUsuarios, canWriteCompras } from '../utils/comprasAcl';
 import {
     getCurrentTenantId,
     fetchComprasUsers,
@@ -37,6 +37,7 @@ const ComprasUsuarios = () => {
     const { tenantLink, isSuperAdmin } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const hasAccess = canAccessComprasUsuarios(role);
+    const canWrite = canWriteCompras(role);
 
     // ── Filters
     const [busca, setBusca]                     = useState('');
@@ -112,6 +113,7 @@ const ComprasUsuarios = () => {
 
     /* ── Toggle status ────────────────────────────────────────── */
     const toggleStatusHandler = async (user) => {
+        if (!canWrite) return;
         const tenantLinkId = user.user_tenant_id || user.id;
         const novoStatus   = user.status === 'ATIVO' ? 'INATIVO' : 'ATIVO';
         const novoIsActive = novoStatus === 'ATIVO';
@@ -135,6 +137,7 @@ const ComprasUsuarios = () => {
     };
 
     const confirmDeletion = async () => {
+        if (!canWrite) return;
         if (!userToDelete || deletingId) return;
         setDeletingId(userToDelete.id);
         try {
@@ -155,6 +158,7 @@ const ComprasUsuarios = () => {
     /* ── Save ─────────────────────────────────────────────────── */
     const handleSave = async (e) => {
         e.preventDefault();
+        if (!canWrite) return;
         if (isSaving) return;
         setIsSaving(true);
 
@@ -234,11 +238,13 @@ const ComprasUsuarios = () => {
                     <h1 className="farmacia-page-title">Usuários do Compras</h1>
                     <p className="farmacia-page-subtitle">Gerencie perfis, secretarias e acessos operacionais do módulo.</p>
                 </div>
+                {canWrite && (
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                     <button className="farmacia-btn-primary" onClick={() => openModal()}>
                         <Plus size={18} /> Novo Usuário
                     </button>
                 </div>
+                )}
             </header>
 
             {/* KPIs */}
@@ -424,15 +430,15 @@ const ComprasUsuarios = () => {
                                         <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                                             <div style={{ display: 'flex', justifyContent: 'center' }}>
                                                 <div
-                                                    onClick={() => toggleStatusHandler(user)}
+                                                    onClick={() => canWrite && toggleStatusHandler(user)}
                                                     style={{
                                                         width: '44px', height: '24px', borderRadius: '12px', boxSizing: 'border-box',
                                                         background: user.status === 'ATIVO' ? '#059669' : '#94a3b8',
                                                         display: 'inline-flex', alignItems: 'center',
-                                                        position: 'relative', cursor: 'pointer', transition: 'background-color 0.25s ease-in-out',
+                                                        position: 'relative', cursor: canWrite ? 'pointer' : 'default', transition: 'background-color 0.25s ease-in-out',
                                                         margin: 0, padding: 0
                                                     }}
-                                                    title={user.status === 'ATIVO' ? 'Bloquear acesso' : 'Liberar acesso'}
+                                                    title={canWrite ? (user.status === 'ATIVO' ? 'Bloquear acesso' : 'Liberar acesso') : undefined}
                                                 >
                                                     <div style={{
                                                         width: '20px', height: '20px', borderRadius: '50%', background: '#ffffff',
@@ -446,10 +452,13 @@ const ComprasUsuarios = () => {
                                         {/* Ações */}
                                         <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                                             <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                                                {canWrite && (
                                                 <button className="farmacia-action-icon" onClick={() => openModal(user)}>
                                                     <Edit2 size={16} />
                                                     <span className="premium-tooltip">Editar Usuário</span>
                                                 </button>
+                                                )}
+                                                {canWrite && (
                                                 <button
                                                     className="farmacia-action-icon"
                                                     onClick={() => handleDeleteUser(user)}
@@ -459,6 +468,7 @@ const ComprasUsuarios = () => {
                                                     <UserX size={16} />
                                                     <span className="premium-tooltip">Excluir Usuário</span>
                                                 </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

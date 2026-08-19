@@ -31,11 +31,12 @@ import {
     resolveEntrave,
     fetchAcoesParaEntraves,
 } from '../../services/api/planejamentoEntraves.service';
-import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
+import { getPlanejamentoContext, canWritePlanejamento } from '../../utils/planejamentoAccess';
 
 const PlanejamentoEntraves = () => {
-    const { tenantLink, scopes } = useAuth();
+    const { tenantLink, scopes, isSuperAdmin } = useAuth();
     const tenantId = tenantLink?.tenant_id;
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
 
     const contextoPlanejamento = React.useMemo(() => getPlanejamentoContext(tenantLink?.role, scopes), [tenantLink, scopes]);
 
@@ -312,14 +313,16 @@ const PlanejamentoEntraves = () => {
                     <h1 className="farmacia-page-title">Entraves das Ações</h1>
                     <p className="farmacia-page-subtitle">Acompanhe problemas, riscos e impedimentos que podem impactar a execução das ações estratégicas.</p>
                 </div>
-                <button className="farmacia-btn-primary" onClick={() => {
-                    setEditingEntrave(null);
-                    setFormData(emptyForm);
-                    setActionSearch('');
-                    setIsFormModalOpen(true);
-                }} disabled={loading}>
-                    <Plus size={18} /> Novo Entrave
-                </button>
+                {canWritePlanejamento(role) && (
+                    <button className="farmacia-btn-primary" onClick={() => {
+                        setEditingEntrave(null);
+                        setFormData(emptyForm);
+                        setActionSearch('');
+                        setIsFormModalOpen(true);
+                    }} disabled={loading}>
+                        <Plus size={18} /> Novo Entrave
+                    </button>
+                )}
             </header>
 
             <style>{`
@@ -543,14 +546,16 @@ const PlanejamentoEntraves = () => {
                                     Registre entraves para acompanhar problemas que possam impactar a execução das ações estratégicas.
                                 </p>
                             </div>
-                            <button className="farmacia-btn-secondary" onClick={() => {
-                                setEditingEntrave(null);
-                                setFormData(emptyForm);
-                                setActionSearch('');
-                                setIsFormModalOpen(true);
-                            }} style={{ marginTop: '0.5rem' }}>
-                                <Plus size={16} /> Registrar primeiro entrave
-                            </button>
+                            {canWritePlanejamento(role) && (
+                                <button className="farmacia-btn-secondary" onClick={() => {
+                                    setEditingEntrave(null);
+                                    setFormData(emptyForm);
+                                    setActionSearch('');
+                                    setIsFormModalOpen(true);
+                                }} style={{ marginTop: '0.5rem' }}>
+                                    <Plus size={16} /> Registrar primeiro entrave
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <div 
@@ -751,16 +756,18 @@ const PlanejamentoEntraves = () => {
                                                     </div>
                                                     
                                                     <div style={{ display: 'flex', gap: '6px' }}>
-                                                        {item.status !== 'Resolvido' && (
+                                                        {canWritePlanejamento(role) && item.status !== 'Resolvido' && (
                                                             <button className="farmacia-action-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.2)' }} onClick={() => handleResolve(item)}>
                                                                 <Check size={15} />
                                                                 <span className="premium-tooltip">Marcar como resolvido</span>
                                                             </button>
                                                         )}
-                                                        <button className="farmacia-action-icon" onClick={() => openEdit(item)}>
-                                                            <Edit2 size={15} />
-                                                            <span className="premium-tooltip">Editar entrave</span>
-                                                        </button>
+                                                        {canWritePlanejamento(role) && (
+                                                            <button className="farmacia-action-icon" onClick={() => openEdit(item)}>
+                                                                <Edit2 size={15} />
+                                                                <span className="premium-tooltip">Editar entrave</span>
+                                                            </button>
+                                                        )}
                                                         <button className="farmacia-action-icon" onClick={() => openView(item)}>
                                                             <Eye size={15} />
                                                             <span className="premium-tooltip">Visualizar detalhes</span>
@@ -1064,21 +1071,23 @@ const PlanejamentoEntraves = () => {
                             <button type="button" className="farmacia-modal-btn-cancel" onClick={() => setIsViewModalOpen(false)}>
                                 Fechar
                             </button>
-                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                                <button type="button" className="farmacia-modal-btn-cancel" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => {
-                                    setIsViewModalOpen(false);
-                                    openEdit(viewingEntrave);
-                                }}>
-                                    <Edit2 size={15} /> Editar
-                                </button>
-                                {viewingEntrave.status !== 'Resolvido' && (
-                                    <button type="button" className="farmacia-modal-btn-confirm" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981' }} onClick={() => {
-                                        handleResolve(viewingEntrave);
+                            {canWritePlanejamento(role) && (
+                                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                                    <button type="button" className="farmacia-modal-btn-cancel" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => {
+                                        setIsViewModalOpen(false);
+                                        openEdit(viewingEntrave);
                                     }}>
-                                        <Check size={15} /> Marcar como Resolvido
+                                        <Edit2 size={15} /> Editar
                                     </button>
-                                )}
-                            </div>
+                                    {viewingEntrave.status !== 'Resolvido' && (
+                                        <button type="button" className="farmacia-modal-btn-confirm" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981' }} onClick={() => {
+                                            handleResolve(viewingEntrave);
+                                        }}>
+                                            <Check size={15} /> Marcar como Resolvido
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -949,7 +949,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                         {internalPatientId && !hasPatientChanges() && <span className="lab-badge lab-badge-success">Cadastrado</span>}
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b' }}>
-                                        {mode === 'edit' && !isEditingPatientCadastro && (
+                                        {mode === 'edit' && !isEditingPatientCadastro && role !== 'VISUALIZADOR' && (
                                             <button 
                                                 className="lab-btn"
                                                 style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem', background: 'transparent', color: '#3b82f6', border: '1px solid #bfdbfe', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '0.3rem', marginRight: '0.5rem' }}
@@ -986,7 +986,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                             formErrors={patientFormErrors} 
                                             onChange={handlePatientChangeWrapper} 
                                             isSaving={isSaving}
-                                            readOnly={mode === 'edit' && !isEditingPatientCadastro}
+                                            readOnly={(mode === 'edit' && !isEditingPatientCadastro) || role === 'VISUALIZADOR'}
                                             patientRefs={{ cpfRef, rgRef, cnsRef, btnDocumentosRef }}
                                         />
                                         
@@ -1027,13 +1027,13 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                             <div className="lab-data-item">
                                                 <label>Data <span style={{ color: '#ef4444' }}>*</span></label>
                                                 <div className="lab-data-value" style={{ padding: '0.2rem', border: feedback?.text?.includes('data válida') ? '1px solid #ef4444' : 'none', borderRadius: '6px' }}>
-                                                    <input ref={dateRef} type="date" value={attendanceData.attendance_date} onChange={e => setAttendanceData({...attendanceData, attendance_date: e.target.value})} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: '#0f172a' }} disabled={isSaving}/>
+                                                    <input ref={dateRef} type="date" value={attendanceData.attendance_date} onChange={e => setAttendanceData({...attendanceData, attendance_date: e.target.value})} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: '#0f172a' }} disabled={isSaving || role === 'VISUALIZADOR'}/>
                                                 </div>
                                             </div>
                                             <div className="lab-data-item">
                                                 <label>Hora <span style={{ color: '#ef4444' }}>*</span></label>
                                                 <div className="lab-data-value" style={{ padding: '0.2rem', border: feedback?.text?.includes('horário válido') ? '1px solid #ef4444' : 'none', borderRadius: '6px' }}>
-                                                    <input ref={timeRef} type="time" value={attendanceData.attendance_time} onChange={e => setAttendanceData({...attendanceData, attendance_time: e.target.value})} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: '#0f172a' }} disabled={isSaving}/>
+                                                    <input ref={timeRef} type="time" value={attendanceData.attendance_time} onChange={e => setAttendanceData({...attendanceData, attendance_time: e.target.value})} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: '#0f172a' }} disabled={isSaving || role === 'VISUALIZADOR'}/>
                                                 </div>
                                             </div>
                                             <div className="lab-data-item" data-tooltip="Alt + O para focar Origem">
@@ -1051,7 +1051,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                                     <input 
                                                         type="text"
                                                         placeholder="Selecione ou digite..."
-                                                        disabled={isSaving}
+                                                        disabled={isSaving || role === 'VISUALIZADOR'}
                                                         value={isOriginDropdownOpen ? originSearchText : (TODAS_ORIGENS.find(o => o.value === attendanceData.attendance_origin)?.label || '')}
                                                         onChange={(e) => {
                                                             setOriginSearchText(e.target.value);
@@ -1167,13 +1167,13 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                             <div className="lab-data-item">
                                                 <label>Médico solicitante (Opcional)</label>
                                                 <div className="lab-data-value" style={{ padding: '0.2rem' }}>
-                                                    <input type="text" placeholder="Nome do médico..." value={attendanceData.requesting_doctor} onChange={e => setAttendanceData({...attendanceData, requesting_doctor: e.target.value})} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: '#0f172a' }} disabled={isSaving}/>
+                                                    <input type="text" placeholder="Nome do médico..." value={attendanceData.requesting_doctor} onChange={e => setAttendanceData({...attendanceData, requesting_doctor: e.target.value})} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: '#0f172a' }} disabled={isSaving || role === 'VISUALIZADOR'}/>
                                                 </div>
                                             </div>
                                             <div className="lab-data-item full-width">
                                                 <label>Observações</label>
                                                 <div className="lab-data-value" style={{ padding: '0.2rem' }}>
-                                                    <input type="text" placeholder="Notas internas..." value={attendanceData.observations} onChange={e => setAttendanceData({...attendanceData, observations: e.target.value})} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: '#0f172a' }} disabled={isSaving}/>
+                                                    <input type="text" placeholder="Notas internas..." value={attendanceData.observations} onChange={e => setAttendanceData({...attendanceData, observations: e.target.value})} style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: '#0f172a' }} disabled={isSaving || role === 'VISUALIZADOR'}/>
                                                 </div>
                                             </div>
                                         </div>
@@ -1181,8 +1181,9 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
 
                                     <div className="lab-card fade-in">
                                         <div className="lab-card-header">
-                                            <h3 className="lab-card-title"><Beaker size={18} /> Adicionar Exames</h3>
+                                            <h3 className="lab-card-title"><Beaker size={18} /> {role === 'VISUALIZADOR' ? 'Exames Solicitados' : 'Adicionar Exames'}</h3>
                                         </div>
+                                        {role !== 'VISUALIZADOR' && (
                                         <div className="lab-exam-search-area" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px dashed #cbd5e1', marginBottom: '1.5rem', position: 'relative' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                                 <div>
@@ -1223,6 +1224,7 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                                 )}
                                             </div>
                                         </div>
+                                        )}
 
                                         <div className="lab-table-container">
                                             {(() => {
@@ -1246,9 +1248,11 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                                                     <td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }} title={exame.name}>{exame.name}</td>
                                                                     {hasMaterial && <td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#64748b' }}>{exame.material || '-'}</td>}
                                                                     <td className="text-right">
-                                                                        <button className="lab-icon-btn lab-text-red" data-tooltip="Remover exame" onClick={() => removerExame(exame.id)} disabled={isSaving}>
-                                                                            <X size={16} />
-                                                                        </button>
+                                                                        {role !== 'VISUALIZADOR' && (
+                                                                            <button className="lab-icon-btn lab-text-red" data-tooltip="Remover exame" onClick={() => removerExame(exame.id)} disabled={isSaving}>
+                                                                                <X size={16} />
+                                                                            </button>
+                                                                        )}
                                                                     </td>
                                                                 </tr>
                                                             ))}
@@ -1286,9 +1290,10 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                         </div>
                                     </div>
                                     <div className="lab-summary-actions" style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <button 
-                                            className="lab-btn lab-btn-success lab-btn-block lab-btn-salvar-tudo" 
-                                            onClick={prepararSalvamento} 
+                                        {role !== 'VISUALIZADOR' && (
+                                            <button 
+                                                className="lab-btn lab-btn-success lab-btn-block lab-btn-salvar-tudo" 
+                                                onClick={prepararSalvamento} 
                                             disabled={isSaving || isEditingPatientCadastro} 
                                             style={{ 
                                                 minHeight: '44px',
@@ -1310,10 +1315,11 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
                                                 <span style={{ fontSize: '0.7rem', opacity: 0.85, fontWeight: 500, lineHeight: 1, letterSpacing: '0.02em' }}>
                                                     Ctrl + Enter
                                                 </span>
-                                            )}
-                                        </button>
+                                                )}
+                                            </button>
+                                        )}
                                         <button className="lab-btn lab-btn-outline lab-btn-block" data-tooltip="Esc" onClick={handleCloseModal} disabled={isSaving}>
-                                            <X size={18} /> Cancelar
+                                            <X size={18} /> {role === 'VISUALIZADOR' ? 'Fechar' : 'Cancelar'}
                                         </button>
                                     </div>
                                 </div>

@@ -483,6 +483,7 @@ const LaboratorioConferencia = () => {
     };
 
     const handleConfirmarConferencia = async () => {
+        if (!canWriteLaboratorio(role)) return;
         if (!selectedExam || saving || returning) return;
         
         if (editingParam) {
@@ -807,15 +808,17 @@ const LaboratorioConferencia = () => {
                                         {feedbackMsg.text}
                                     </div>
                                 )}
-                                <button 
-                                    className="lab-conf-btn-confirm" 
-                                    onClick={handleConfirmarConferencia} 
-                                    disabled={saving || returning || !selectedExam}
-                                    title="Confirmar conferência deste exame (Ctrl + Enter)"
-                                >
-                                    {saving ? <Loader2 size={14} className="spin" /> : <CheckCircle2 size={14} />}
-                                    {saving ? 'Confirmando...' : 'Confirmar'}
-                                </button>
+                                {canWriteLaboratorio(role) && (
+                                    <button 
+                                        className="lab-conf-btn-confirm" 
+                                        onClick={handleConfirmarConferencia} 
+                                        disabled={saving || returning || !selectedExam}
+                                        title="Confirmar conferência deste exame (Ctrl + Enter)"
+                                    >
+                                        {saving ? <Loader2 size={14} className="spin" /> : <CheckCircle2 size={14} />}
+                                        {saving ? 'Confirmando...' : 'Confirmar'}
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -924,6 +927,7 @@ const LaboratorioConferencia = () => {
                                 handleSaveParam={handleSaveParam}
                                 saving={saving}
                                 isAbnormal={isAbnormal}
+                                canWrite={canWriteLaboratorio(role)}
                             />
                         ) : isUri ? (
                             <UriExamView 
@@ -935,6 +939,7 @@ const LaboratorioConferencia = () => {
                                 handleSaveParam={handleSaveParam}
                                 saving={saving}
                                 isAbnormal={isAbnormal}
+                                canWrite={canWriteLaboratorio(role)}
                             />
                         ) : (
                             <SimpleExamView 
@@ -945,6 +950,7 @@ const LaboratorioConferencia = () => {
                                 handleSaveParam={handleSaveParam}
                                 saving={saving}
                                 isAbnormal={isAbnormal}
+                                canWrite={canWriteLaboratorio(role)}
                             />
                         )}
                     </div>
@@ -992,7 +998,7 @@ const LaboratorioConferencia = () => {
 /* ==========================================================================
    SUB-COMPONENTE: EXAMES SIMPLES (Grade 4 Colunas com Geometria Travada)
    ========================================================================== */
-const SimpleExamView = ({ examDetails, selectedExam, editingParam, setEditingParam, handleSaveParam, saving, isAbnormal }) => {
+const SimpleExamView = ({ examDetails, selectedExam, editingParam, setEditingParam, handleSaveParam, saving, isAbnormal, canWrite }) => {
     return (
         <div className="conf-simple-card">
             {/* Header da Grade Compartilhada */}
@@ -1100,7 +1106,7 @@ const SimpleExamView = ({ examDetails, selectedExam, editingParam, setEditingPar
 
                             {/* AÇÃO (100px fixo, centralizado) */}
                             <div className="conf-simple-td col-action">
-                                {!isEditing && (
+                                {!isEditing && canWrite && (
                                     <button 
                                         className="conf-btn-edit" 
                                         onClick={() => setEditingParam({ id: param.id, value: rawParamValue, isText: param.result_type === 'TEXTO' })}
@@ -1127,7 +1133,7 @@ const SimpleExamView = ({ examDetails, selectedExam, editingParam, setEditingPar
    2. Faixa Intermediária: Plaquetas (Horizontal)
    3. Linha Inferior: Série Eritrocitária | Série Leucocitária | Série Plaquetária (3 colunas)
    ========================================================================== */
-const HemoExamView = ({ examDetails, selectedExam, selectedProtocol, editingParam, setEditingParam, handleSaveParam, saving, isAbnormal }) => {
+const HemoExamView = ({ examDetails, selectedExam, selectedProtocol, editingParam, setEditingParam, handleSaveParam, saving, isAbnormal, canWrite }) => {
     const ageDays = getPatientAgeDays(selectedProtocol);
     const sexGroup = getPatientSexGroup(selectedProtocol);
 
@@ -1244,7 +1250,7 @@ const HemoExamView = ({ examDetails, selectedExam, selectedProtocol, editingPara
             <div className="conf-morph-card">
                 <div className="conf-morph-card-header">
                     <span className="conf-morph-card-title">{title}</span>
-                    {param && !isEditing && (
+                    {param && !isEditing && canWrite && (
                         <button 
                             className="conf-compact-edit-btn" 
                             onClick={() => setEditingParam({ id: param.id, value: rawVal, isText: true })}
@@ -1363,14 +1369,16 @@ const HemoExamView = ({ examDetails, selectedExam, selectedProtocol, editingPara
                                             </div>
 
                                             <div className="conf-hemo-col-action">
-                                                <button 
-                                                    className="conf-compact-edit-btn" 
-                                                    onClick={() => setEditingParam({ id: param.id, value: rawParamValue, isText: false })}
-                                                    disabled={saving || !!editingParam}
-                                                    title="Editar parâmetro"
-                                                >
-                                                    <Edit2 size={11} />
-                                                </button>
+                                                {canWrite && (
+                                                    <button 
+                                                        className="conf-compact-edit-btn" 
+                                                        onClick={() => setEditingParam({ id: param.id, value: rawParamValue, isText: false })}
+                                                        disabled={saving || !!editingParam}
+                                                        title="Editar parâmetro"
+                                                    >
+                                                        <Edit2 size={11} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </>
                                     )}
@@ -1439,18 +1447,20 @@ const HemoExamView = ({ examDetails, selectedExam, selectedProtocol, editingPara
                                         </div>
 
                                         <div className="conf-hemo-col-action">
-                                            <button 
-                                                className="conf-compact-edit-btn" 
-                                                onClick={() => setEditingParam({ 
-                                                    id: leucTotalParam.id, 
-                                                    value: leucTotalParam.value_numeric !== null ? String(leucTotalParam.value_numeric) : (leucTotalParam.value_text || ''),
-                                                    isText: false
-                                                })}
-                                                disabled={saving || !!editingParam}
-                                                title="Editar Leucócitos Totais"
-                                            >
-                                                <Edit2 size={11} />
-                                            </button>
+                                            {canWrite && (
+                                                <button 
+                                                    className="conf-compact-edit-btn" 
+                                                    onClick={() => setEditingParam({ 
+                                                        id: leucTotalParam.id, 
+                                                        value: leucTotalParam.value_numeric !== null ? String(leucTotalParam.value_numeric) : (leucTotalParam.value_text || ''),
+                                                        isText: false
+                                                    })}
+                                                    disabled={saving || !!editingParam}
+                                                    title="Editar Leucócitos Totais"
+                                                >
+                                                    <Edit2 size={11} />
+                                                </button>
+                                            )}
                                         </div>
                                     </>
                                 )}
@@ -1510,14 +1520,16 @@ const HemoExamView = ({ examDetails, selectedExam, selectedProtocol, editingPara
                                             </div>
 
                                             <div className="conf-hemo-col-action">
-                                                <button 
-                                                    className="conf-compact-edit-btn" 
-                                                    onClick={() => setEditingParam({ id: param.id, value: rawParamValue, isText: false })}
-                                                    disabled={saving || !!editingParam}
-                                                    title="Editar"
-                                                >
-                                                    <Edit2 size={11} />
-                                                </button>
+                                                {canWrite && (
+                                                    <button 
+                                                        className="conf-compact-edit-btn" 
+                                                        onClick={() => setEditingParam({ id: param.id, value: rawParamValue, isText: false })}
+                                                        disabled={saving || !!editingParam}
+                                                        title="Editar"
+                                                    >
+                                                        <Edit2 size={11} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </>
                                     )}
@@ -1641,7 +1653,7 @@ const HemoExamView = ({ examDetails, selectedExam, selectedProtocol, editingPara
                         )}
                     </div>
 
-                    {editingParam?.id !== obsGeralParam.id && (
+                    {editingParam?.id !== obsGeralParam.id && canWrite && (
                         <button 
                             className="conf-compact-edit-btn" 
                             onClick={() => setEditingParam({ id: obsGeralParam.id, value: obsGeralParam.value_text || '', isText: true })}
@@ -1678,7 +1690,7 @@ const HemoExamView = ({ examDetails, selectedExam, selectedProtocol, editingPara
 /* ==========================================================================
    SUB-COMPONENTE: URI - URINA TIPO I (Linha 1: Físico + Químico | Linha 2: Sedimentoscopia 100%)
    ========================================================================== */
-const UriExamView = ({ examDetails, selectedExam, selectedProtocol, editingParam, setEditingParam, handleSaveParam, saving, isAbnormal }) => {
+const UriExamView = ({ examDetails, selectedExam, selectedProtocol, editingParam, setEditingParam, handleSaveParam, saving, isAbnormal, canWrite }) => {
     const fisicoKeys = new Set([
         URI_PARAM_CANONICAL_KEYS.VOLUME,
         URI_PARAM_CANONICAL_KEYS.COR,
@@ -1820,14 +1832,16 @@ const UriExamView = ({ examDetails, selectedExam, selectedProtocol, editingParam
                         </div>
 
                         <div className="conf-uri-col-action">
-                            <button 
-                                className="conf-compact-edit-btn" 
-                                onClick={() => setEditingParam({ id: param.id, value: rawVal, isText: true })}
-                                disabled={saving || !!editingParam}
-                                title="Editar"
-                            >
-                                <Edit2 size={11} />
-                            </button>
+                            {canWrite && (
+                                <button 
+                                    className="conf-compact-edit-btn" 
+                                    onClick={() => setEditingParam({ id: param.id, value: rawVal, isText: true })}
+                                    disabled={saving || !!editingParam}
+                                    title="Editar"
+                                >
+                                    <Edit2 size={11} />
+                                </button>
+                            )}
                         </div>
                     </>
                 )}
@@ -1938,7 +1952,7 @@ const UriExamView = ({ examDetails, selectedExam, selectedProtocol, editingParam
                         )}
                     </div>
 
-                    {editingParam?.id !== obsParam.id && (
+                    {editingParam?.id !== obsParam.id && canWrite && (
                         <button 
                             className="conf-compact-edit-btn" 
                             onClick={() => setEditingParam({ id: obsParam.id, value: obsText, isText: true })}

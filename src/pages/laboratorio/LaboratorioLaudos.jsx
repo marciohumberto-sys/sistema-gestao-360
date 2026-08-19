@@ -11,6 +11,8 @@ import './LaboratorioConferencia.css';
 import './LaboratorioLaudos.css';
 import { laboratorioLaudosService } from '../../services/api/laboratorioLaudos.service';
 import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, parseHemoNumber, formatHemoResultValue, formatHemoReferenceText, resolveHemoReference, expandHemogramaMorphologyAbbreviations, formatDateTimeRecife, formatDateOnlyBR, formatTimeOnly } from '../../utils/laboratorioHelpers';
+import { useAuth } from '../../context/AuthContext';
+import { canWriteLaboratorio } from '../../utils/laboratorioAcl';
 
 const getLocalDateInputValue = (date = new Date()) => {
     const year = date.getFullYear();
@@ -1875,6 +1877,9 @@ const LaudoA4Page = ({ pageExamData, pageNumber, patientCode, selectedProtocol, 
 };
 
 const LaboratorioLaudos = () => {
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
+
     const [searchFilters, setSearchFilters] = useState({
         date: '',
         patient: '',
@@ -2347,7 +2352,8 @@ const LaboratorioLaudos = () => {
     };
 
     const handleLiberar = async () => {
-        if (!selectedExam) return;
+        if (!canWriteLaboratorio(role)) return;
+        if (!selectedExam || saving) return;
         
         try {
             setSaving(true);
@@ -4051,7 +4057,7 @@ const LaboratorioLaudos = () => {
                                             </>
                                         )}
 
-                                        {statusReal === 'CONFERIDO' && (
+                                        {statusReal === 'CONFERIDO' && canWriteLaboratorio(role) && (
                                             <button
                                                 type="button"
                                                 className="laudos-action-btn laudos-action-btn-primary"

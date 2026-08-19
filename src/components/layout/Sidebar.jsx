@@ -37,6 +37,7 @@ import { useAuth } from '../../context/AuthContext';
 import { canAccessFarmacia } from '../../utils/farmaciaAcl';
 import { canAccessLaboratorio } from '../../utils/laboratorioAcl';
 import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
+import { canWriteCompras } from '../../utils/comprasAcl';
 import './Sidebar.css';
 
 const MENU_ITEMS = [
@@ -324,7 +325,7 @@ const Sidebar = ({ isPinned, togglePin }) => {
                 ))}
             </div>
 
-            {!isFarmacia && !isPlanejamento && !isLaboratorio && (
+            {!isFarmacia && !isPlanejamento && !isLaboratorio && canWriteCompras(role) && (
             <div className="sidebar-footer">
                 <div className="footer-actions">
                     <button className="footer-btn btn-primary" title={!isPinned ? "Nova Ordem de Fornecimento" : ""} onClick={() => navigate('/compras/ordens-fornecimento', { state: { openModal: 'nova-of' } })}>

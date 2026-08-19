@@ -2,16 +2,17 @@ import React, { useState, useMemo } from 'react';
 import { Search, Users, ShieldCheck, UserCheck, UserX, UserMinus, Plus, Edit2, XCircle, ShieldAlert, Check, ChevronDown, AlertTriangle, Trash2 } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { canAccessFarmacia, canManageFarmaciaUsers } from '../../utils/farmaciaAcl';
+import { canAccessFarmacia, canManageFarmaciaUsers, canWriteFarmacia } from '../../utils/farmaciaAcl';
 import FarmaciaUnitBadge from './FarmaciaUnitBadge';
 import FarmaciaAlertModal from './components/FarmaciaAlertModal';
 import { getCurrentTenantId, fetchFarmaciaUsers, createFarmaciaUser, updateFarmaciaUser, toggleFarmaciaUserStatus, deleteFarmaciaUser } from '../../services/farmaciaUsers.service';
 import './FarmaciaPages.css';
 
 const FarmaciaUsuarios = () => {
-    const { tenantLink, isSuperAdmin } = useAuth();
+    const { tenantLink, isSuperAdmin, scopes } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const hasAccess = canAccessFarmacia(role, '/farmacia/usuarios');
+    const canWrite = canWriteFarmacia(role);
 
     const [busca, setBusca] = useState('');
     const [perfilFiltro, setPerfilFiltro] = useState('Todos');
@@ -78,7 +79,13 @@ const FarmaciaUsuarios = () => {
         setIsLoading(true);
         try {
             const tenantId = await getCurrentTenantId();
-            const data = await fetchFarmaciaUsers(tenantId);
+            
+            // Obter unidades permitidas do módulo FARMACIA
+            const farmaciaScopes = (scopes || []).filter(s => s.module === 'FARMACIA');
+            const allowedUnitNames = isSuperAdmin ? ['TODAS'] : farmaciaScopes.map(s => s.unit);
+            const bypassUnits = role === 'VISUALIZADOR' ? allowedUnitNames : null;
+            
+            const data = await fetchFarmaciaUsers(tenantId, bypassUnits);
             setUsuarios(data || []);
         } catch (e) {
             console.error('Erro na carga dos usuários da farmácia:', e);
@@ -94,7 +101,7 @@ const FarmaciaUsuarios = () => {
 
     const toggleStatusHandler = async (user) => {
         // Proteção de Segurança (Fail-fast)
-        if (!canManageFarmaciaUsers(role)) {
+        if (!canWrite) {
             showAlert('Acesso restrito', 'Seu perfil possui acesso apenas para visualização. Esta ação não está disponível.', 'error');
             return;
         }
@@ -125,7 +132,7 @@ const FarmaciaUsuarios = () => {
         if (!userToDelete || deletingId) return;
         
         // Proteção de Segurança (Fail-fast)
-        if (!canManageFarmaciaUsers(role)) {
+        if (!canWrite) {
             showAlert('Acesso restrito', 'Seu perfil possui acesso apenas para visualização. Esta ação não está disponível.', 'error');
             return;
         }
@@ -150,7 +157,7 @@ const FarmaciaUsuarios = () => {
         e.preventDefault();
         
         // Proteção de Segurança (Fail-fast)
-        if (!canManageFarmaciaUsers(role)) {
+        if (!canWrite) {
             showAlert('Acesso restrito', 'Seu perfil possui acesso apenas para visualização. Esta ação não está disponível.', 'error');
             return;
         }
@@ -226,9 +233,11 @@ const FarmaciaUsuarios = () => {
                 </div>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                     <FarmaciaUnitBadge />
-                    <button className="farmacia-btn-primary" onClick={() => openModal()}>
-                        <Plus size={18} /> Novo Usuário
-                    </button>
+                    {canWrite && (
+                        <button className="farmacia-btn-primary" onClick={() => openModal()}>
+                            <Plus size={18} /> Novo Usuário
+                        </button>
+                    )}
                 </div>
             </header>
 
@@ -414,15 +423,15 @@ const FarmaciaUsuarios = () => {
                                         <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                                             <div style={{ display: 'flex', justifyContent: 'center' }}>
                                                 <div 
-                                                    onClick={() => toggleStatusHandler(user)}
+                                                    onClick={() => canWrite && toggleStatusHandler(user)}
                                                     style={{
-                                                        width: '44px', height: '24px', borderRadius: '12px', boxSizing: 'border-box',
+                                                        width: '46px', height: '24px', borderRadius: '12px',
                                                         background: user.status === 'ATIVO' ? '#059669' : '#94a3b8',
                                                         display: 'inline-flex', alignItems: 'center',
-                                                        position: 'relative', cursor: 'pointer', transition: 'background-color 0.25s ease-in-out',
+                                                        position: 'relative', cursor: canWrite ? 'pointer' : 'default', transition: 'background-color 0.25s ease-in-out',
                                                         margin: 0, padding: 0
                                                     }}
-                                                    title={user.status === 'ATIVO' ? 'Bloquear acesso' : 'Liberar acesso'}
+                                                    title={canWrite ? (user.status === 'ATIVO' ? 'Bloquear acesso' : 'Liberar acesso') : user.status}
                                                 >
                                                     <div style={{
                                                         width: '20px', height: '20px', borderRadius: '50%', background: '#ffffff',
@@ -435,23 +444,29 @@ const FarmaciaUsuarios = () => {
                                         </td>
                                         <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                                             <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                                                <button className="farmacia-action-icon" onClick={() => openModal(user)}>
-                                                    <Edit2 size={16} />
-                                                    <span className="premium-tooltip">Editar Usuário</span>
-                                                </button>
-                                                <button 
-                                                    className="farmacia-action-icon" 
-                                                    onClick={() => handleDeleteUser(user)}
-                                                    disabled={deletingId === user.id}
-                                                    style={{ 
-                                                        opacity: deletingId === user.id ? 0.5 : 1, 
-                                                        cursor: deletingId === user.id ? 'not-allowed' : 'pointer',
-                                                        transition: 'all 0.2s'
-                                                    }}
-                                                >
-                                                    <UserX size={16} />
-                                                    <span className="premium-tooltip">Excluir Usuário</span>
-                                                </button>
+                                                {canWrite ? (
+                                                    <>
+                                                        <button className="farmacia-action-icon" onClick={() => openModal(user)}>
+                                                            <Edit2 size={16} />
+                                                            <span className="premium-tooltip">Editar Usuário</span>
+                                                        </button>
+                                                        <button 
+                                                            className="farmacia-action-icon" 
+                                                            onClick={() => handleDeleteUser(user)}
+                                                            disabled={deletingId === user.id}
+                                                            style={{ 
+                                                                opacity: deletingId === user.id ? 0.5 : 1, 
+                                                                cursor: deletingId === user.id ? 'not-allowed' : 'pointer',
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                        >
+                                                            <UserX size={16} />
+                                                            <span className="premium-tooltip">Excluir Usuário</span>
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

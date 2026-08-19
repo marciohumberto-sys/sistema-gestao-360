@@ -19,7 +19,7 @@ export const getCurrentTenantId = async () => {
  * Busca usuários vinculados ao módulo PLANEJAMENTO_ESTRATEGICO.
  * Reutiliza a RPC consolidada get_farmacia_users_with_auth e filtra pelo escopo de planejamento.
  */
-export const fetchPlanejamentoUsers = async (tenantId) => {
+export const fetchPlanejamentoUsers = async (tenantId, allowedSecretariatNames = null) => {
     // 1. Obter ID do módulo PLANEJAMENTO_ESTRATEGICO
     const { data: moduleData } = await supabase
         .from('system_modules')
@@ -97,9 +97,6 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
 
         const userId = resolvedAuthUserId;
         
-        // 4. FILTRAR: Só incluir se o usuário tiver escopo real no Planejamento
-        if (!planningUserIds.includes(userId) && !planningUserIds.includes(row.user_id) && !planningUserIds.includes(row.id)) return;
-
         // 5. REGRA: Excluir SUPERADMIN da listagem operacional do módulo
         const role = row.role || row.profile || 'OPERADOR';
         if (role === 'SUPERADMIN') return;
@@ -125,6 +122,19 @@ export const fetchPlanejamentoUsers = async (tenantId) => {
                 }
             }
         }
+
+        // 4. FILTRAR: Só incluir se o usuário tiver escopo real no Planejamento
+        let hasAccess = planningUserIds.includes(userId) || planningUserIds.includes(row.user_id) || planningUserIds.includes(row.id);
+        
+        // Burlar bloqueio de RLS para VISUALIZADOR usando as secretarias permitidas pelo contexto
+        if (!hasAccess && allowedSecretariatNames) {
+            // Permitir se o usuário pertencer a uma das secretarias que o Visualizador tem acesso ou se tiver acesso total
+            if (allowedSecretariatNames.includes('TODAS') || allowedSecretariatNames.includes(finalSecName)) {
+                hasAccess = true;
+            }
+        }
+        
+        if (!hasAccess) return;
 
         // 6. DEDUPLICAR: Garantir apenas uma linha por user_id (evita duplicidade por múltiplos vínculos)
         if (!uniqueUsers.has(userId)) {

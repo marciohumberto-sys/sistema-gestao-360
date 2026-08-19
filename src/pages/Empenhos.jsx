@@ -7,6 +7,8 @@ import { secretariatsService } from '../services/api/secretariats.service';
 import { contractItemsService } from '../services/api/contractItems.service';
 import { allocationsService } from '../services/api/allocations.service';
 import { useTenant } from '../context/TenantContext';
+import { useAuth } from '../context/AuthContext';
+import { canWriteCompras } from '../utils/comprasAcl';
 import { formatLocalDate, getTodayLocalDateString } from '../utils/dateUtils';
 import './Contratos.css';
 import './Empenhos.css';
@@ -14,6 +16,9 @@ import './Empenhos.css';
 const Empenhos = () => {
     const navigate = useNavigate();
     const { tenantId } = useTenant();
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
+    const canWrite = canWriteCompras(role);
 
     // 1. Data State
     const [commitments, setCommitments] = useState([]);
@@ -193,6 +198,7 @@ const Empenhos = () => {
     // Actions
     const handleCreateSubmit = async (e) => {
         e.preventDefault();
+        if (!canWrite) return;
         setFeedback(null);
         try {
             setIsSubmitting(true);
@@ -223,6 +229,7 @@ const Empenhos = () => {
 
     const handleAddValueSubmit = async (e) => {
         e.preventDefault();
+        if (!canWrite) return;
         try {
             setIsSubmitting(true);
             await commitmentsService.addValue(
@@ -248,6 +255,7 @@ const Empenhos = () => {
 
     const handleAnnulValueSubmit = async (e) => {
         e.preventDefault();
+        if (!canWrite) return;
         try {
             setIsSubmitting(true);
             await commitmentsService.annulValue(
@@ -313,6 +321,7 @@ const Empenhos = () => {
 
     const handleEditSubmit = async (e) => {
         e.preventDefault();
+        if (!canWrite) return;
         try {
             setIsSubmitting(true);
             await commitmentsService.updateCommitment(
@@ -335,6 +344,7 @@ const Empenhos = () => {
     };
 
     const handleDeleteSubmit = async () => {
+        if (!canWrite) return;
         try {
             setIsSubmitting(true);
             await commitmentsService.deleteCommitment(selectedCommitment.id, tenantId);
@@ -356,15 +366,17 @@ const Empenhos = () => {
     return (
         <div className="ct-container" style={{ gap: '1rem' }}>
             {/* Header */}
-            <header className="ct-header">
+            <header className="ct-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <h1 className="ct-title">Empenhos</h1>
-                    <p className="ct-subtitle">Gestão financeira e acompanhamento de saldos dos empenhos</p>
+                    <p className="ct-subtitle">Gestão e acompanhamento de dotações e saldos</p>
                 </div>
+                {canWrite && (
                 <button className="ct-primary-btn" onClick={() => setIsCreateModalOpen(true)}>
                     <Plus size={18} />
                     <span>Novo Empenho</span>
                 </button>
+                )}
             </header>
 
             {/* Summary Cards */}
@@ -612,6 +624,7 @@ const Empenhos = () => {
                                                 </td>
                                                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                                                     <div className="action-buttons-group">
+                                                        {canWrite && (
                                                         <button 
                                                             className="action-btn" 
                                                             style={{ color: '#16a34a' }}
@@ -623,6 +636,8 @@ const Empenhos = () => {
                                                             <PlusCircle size={18} />
                                                             <span className="premium-tooltip">Adicionar Valor</span>
                                                         </button>
+                                                        )}
+                                                        {canWrite && (
                                                         <button 
                                                             className="action-btn" 
                                                             style={{ color: '#ef4444' }}
@@ -634,6 +649,7 @@ const Empenhos = () => {
                                                             <MinusCircle size={18} />
                                                             <span className="premium-tooltip">Anular Valor</span>
                                                         </button>
+                                                        )}
                                                         <button 
                                                             className="action-btn edit" 
                                                             onClick={(e) => {
@@ -646,6 +662,7 @@ const Empenhos = () => {
                                                         </button>
 
                                                         {/* More Actions Dropdown */}
+                                                        {canWrite && (
                                                         <div className="action-menu-container" style={{ position: 'relative', display: 'flex' }}>
                                                             <button 
                                                                 className="action-btn" 
@@ -701,6 +718,7 @@ const Empenhos = () => {
                                                                 </div>
                                                             )}
                                                         </div>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>

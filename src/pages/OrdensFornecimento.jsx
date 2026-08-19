@@ -11,6 +11,7 @@ import { supabase } from '../lib/supabase';
 import { formatLocalDate } from '../utils/dateUtils';
 import NovaOfModal from './components/NovaOfModal';
 import AjustarDataReferenciaModal from './components/AjustarDataReferenciaModal';
+import { canWriteCompras } from '../utils/comprasAcl';
 import './Contratos.css';
 import './OrdensFornecimento.css';
 
@@ -19,8 +20,8 @@ const OrdensFornecimento = () => {
     const location = useLocation();
     const { tenantId } = useTenant();
     const { user, tenantLink, isSuperAdmin } = useAuth();
-
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
+    const canWrite = canWriteCompras(role);
     const isGestor = ['SUPERADMIN', 'ADMIN', 'GESTOR'].includes(role);
 
     const getStatusLabel = (status) => {
@@ -231,6 +232,7 @@ const OrdensFornecimento = () => {
     
     // Actions
     const handleIssueOf = async (ofId) => {
+        if (!canWrite) return;
         try {
             setIsSubmitting(true);
             await ofsService.issueOf(ofId, tenantId);
@@ -248,6 +250,7 @@ const OrdensFornecimento = () => {
     };
 
     const handleCancelOfClick = (of) => {
+        if (!canWrite) return;
         setOfToCancel(of);
         setCancelReason('');
         setIsCancelModalOpen(true);
@@ -302,6 +305,7 @@ const OrdensFornecimento = () => {
     };
 
     const handleRectifyOfClick = (of) => {
+        if (!canWrite) return;
         setOfToRectify(of);
         setRetificationReason('');
         setIsRetificationModalOpen(true);
@@ -344,6 +348,7 @@ const OrdensFornecimento = () => {
     };
 
     const handleDeleteOf = async (ofId) => {
+        if (!canWrite) return;
         setOpenActionMenuId(null);
         setOfToDelete(ofId);
     };
@@ -658,6 +663,7 @@ const OrdensFornecimento = () => {
                                                     </button>
 
                                                     {/* More Actions Dropdown via Portal */}
+                                                    {canWrite && (
                                                     <div className="action-menu-container" style={{ position: 'relative', display: 'flex' }}>
                                                         <button 
                                                             className="action-btn" 
@@ -704,7 +710,7 @@ const OrdensFornecimento = () => {
                                                                 >
                                                                     <Eye size={16} /> Visualizar OF
                                                                 </button>
-                                                                {of.status === 'DRAFT' && (
+                                                                {canWrite && of.status === 'DRAFT' && (
                                                                     <button 
                                                                         onClick={(e) => { e.stopPropagation(); handleIssueOf(of.id); }}
                                                                         disabled={isSubmitting}
@@ -718,7 +724,7 @@ const OrdensFornecimento = () => {
                                                                     </button>
                                                                 )}
 
-                                                                {of.status === 'DRAFT' && (
+                                                                {canWrite && of.status === 'DRAFT' && (
                                                                     <>
                                                                         <div style={{ height: '1px', background: '#f1f5f9', margin: '2px 0' }} />
                                                                         <button 
@@ -735,7 +741,7 @@ const OrdensFornecimento = () => {
                                                                     </>
                                                                 )}
 
-                                                                {of.status === 'ISSUED' && (
+                                                                {canWrite && of.status === 'ISSUED' && (
                                                                     <button 
                                                                         onClick={(e) => { e.stopPropagation(); handleCancelOfClick(of); }}
                                                                         disabled={isSubmitting}
@@ -749,7 +755,7 @@ const OrdensFornecimento = () => {
                                                                     </button>
                                                                 )}
 
-                                                                        {of.status === 'ISSUED' && isGestor && (
+                                                                        {canWrite && of.status === 'ISSUED' && isGestor && (
                                                                             <>
                                                                                 <div style={{ height: '1px', background: '#f1f5f9', margin: '2px 0' }} />
                                                                                 <button 
@@ -771,7 +777,7 @@ const OrdensFornecimento = () => {
                                                                             </>
                                                                         )}
 
-                                                                        {of.status === 'ISSUED' && of.is_active === true && (
+                                                                        {canWrite && of.status === 'ISSUED' && of.is_active === true && (
                                                                             <>
                                                                                 <div style={{ height: '1px', background: '#f1f5f9', margin: '2px 0' }} />
                                                                                 <button 
@@ -797,6 +803,7 @@ const OrdensFornecimento = () => {
                                                             document.body
                                                         )}
                                                     </div>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

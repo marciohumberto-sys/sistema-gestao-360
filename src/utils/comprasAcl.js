@@ -13,7 +13,7 @@ export const canWriteCompras = (role) => {
 };
 
 export const canAccessComprasUsuarios = (role) => {
-    return ['SUPERADMIN', 'ADMIN', 'GESTOR'].includes(role);
+    return ['SUPERADMIN', 'ADMIN', 'GESTOR', 'VISUALIZADOR'].includes(role);
 };
 
 export const canAccessCompras = (role, featurePath) => {

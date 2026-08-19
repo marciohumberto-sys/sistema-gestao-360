@@ -129,6 +129,7 @@ const NotasFiscais = () => {
                     <h1 className="ct-title">Notas Fiscais</h1>
                     <p className="ct-subtitle">Gestão e acompanhamento de faturamentos das OFs</p>
                 </div>
+                {canWriteCompras(role) && (
                 <button 
                     className="btn-primary" 
                     onClick={() => setIsNovaNfModalOpen(true)}
@@ -136,6 +137,7 @@ const NotasFiscais = () => {
                 >
                     <Plus size={20} /> Registrar NF
                 </button>
+                )}
             </header>
 
             {/* Summary Cards */}
@@ -276,7 +278,7 @@ const NotasFiscais = () => {
                                         </td>
                                         <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
-                                                {hasFinancialPendency(inv) ? (
+                                                {canWriteCompras(role) && hasFinancialPendency(inv) ? (
                                                     <button 
                                                         style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', width: '32px', height: '32px', cursor: 'pointer', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
                                                         title="Completar Informações Financeiras"
@@ -297,6 +299,7 @@ const NotasFiscais = () => {
                                                         <Eye size={16} />
                                                     </button>
                                                 )}
+                                                {canWriteCompras(role) && (
                                                 <button
                                                     style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', width: '32px', height: '32px', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
                                                     title="Excluir Nota Fiscal"
@@ -306,6 +309,7 @@ const NotasFiscais = () => {
                                                 >
                                                     <Trash2 size={16} />
                                                 </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

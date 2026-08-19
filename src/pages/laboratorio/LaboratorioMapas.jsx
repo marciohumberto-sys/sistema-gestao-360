@@ -8,6 +8,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { laboratorioMapasService } from '../../services/api/laboratorioMapas.service';
+import { canWriteLaboratorio } from '../../utils/laboratorioAcl';
 
 import './LaboratorioMapas.css';
 
@@ -1171,10 +1172,12 @@ const LaboratorioMapas = () => {
                         <input type="number" placeholder="Opcional" value={filters.codigoFinal} onChange={(e) => setFilters({...filters, codigoFinal: e.target.value})} ref={codigoFinalRef} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (gerarBtnRef.current) gerarBtnRef.current.focus(); handleGerarLote(); } }} />
                     </div>
                     <div className="lab-filters-actions">
-                        <button className="lab-btn lab-btn-primary" onClick={handleGerarLote} disabled={loadingGen} ref={gerarBtnRef}>
-                            {loadingGen ? <Loader2 size={16} className="animate-spin" /> : <MapIcon size={16} />} 
-                            Gerar mapa
-                        </button>
+                        {canWriteLaboratorio(tenantLink?.role) && (
+                            <button className="lab-btn lab-btn-primary" onClick={handleGerarLote} disabled={loadingGen} ref={gerarBtnRef}>
+                                {loadingGen ? <Loader2 size={16} className="animate-spin" /> : <MapIcon size={16} />} 
+                                Gerar mapa
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1256,7 +1259,9 @@ const LaboratorioMapas = () => {
                                                 {lote.status === 'PENDING' && (
                                                     <>
                                                         <button className="lab-icon-btn lab-text-gray" title="Imprimir" onClick={(e) => { e.stopPropagation(); setSelectedLoteId(lote.id); handleImprimirDocumento(lote); }}><Printer size={16} /></button>
-                                                        <button className="lab-icon-btn lab-text-gray" title="Cancelar Lote" onClick={(e) => { e.stopPropagation(); handleSolicitarCancelamento(lote.id); }}><XCircle size={16} /></button>
+                                                        {canWriteLaboratorio(tenantLink?.role) && (
+                                                            <button className="lab-icon-btn lab-text-gray" title="Cancelar Lote" onClick={(e) => { e.stopPropagation(); handleSolicitarCancelamento(lote.id); }}><XCircle size={16} /></button>
+                                                        )}
                                                     </>
                                                 )}
                                                 {lote.status === 'PRINTED' && (

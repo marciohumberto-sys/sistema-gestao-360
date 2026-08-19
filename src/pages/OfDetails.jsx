@@ -148,6 +148,7 @@ const OfDetails = () => {
     };
 
     const handleIssueOf = async () => {
+        if (isSubmitting) return;
         if (!canWriteCompras(role)) return;
         if (!selectedSignatory) {
             setSignatoryContext('emission');
@@ -172,6 +173,7 @@ const OfDetails = () => {
     };
 
     const handleCancelOf = async () => {
+        if (isSubmitting) return;
         if (!canWriteCompras(role)) return;
         if (!tenantId || !user?.id) {
             setFeedback({ type: 'error', message: 'Erro de sessão: IDs necessários não encontrados.' });
@@ -198,6 +200,7 @@ const OfDetails = () => {
     };
 
     const confirmDeleteOf = async () => {
+        if (isSubmitting) return;
         if (!canWriteCompras(role)) return;
         try {
             setIsSubmitting(true);

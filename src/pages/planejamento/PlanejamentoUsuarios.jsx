@@ -28,7 +28,7 @@ import { resetUserTemporaryPassword } from '../../services/passwordService';
 import { fetchSecretariats } from '../../services/api/planejamentoAcoes.service';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
+import { getPlanejamentoContext, canWritePlanejamento } from '../../utils/planejamentoAccess';
 import '../farmacia/FarmaciaPages.css';
 import '../farmacia/FarmaciaModal.css';
 import './PlanejamentoDashboard.css';
@@ -70,6 +70,7 @@ const PlanejamentoUsuarios = () => {
 
     const { authUser, isSuperAdmin, tenantLink, scopes } = useAuth();
     const navigate = useNavigate();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
 
     useEffect(() => {
         const planejamentoContext = getPlanejamentoContext(tenantLink?.role, scopes);
@@ -94,8 +95,11 @@ const PlanejamentoUsuarios = () => {
         setIsLoading(true);
         try {
             const tenantId = await getCurrentTenantId();
+            const planejamentoContext = getPlanejamentoContext(tenantLink?.role, scopes);
+            const bypassSecretariats = role === 'VISUALIZADOR' ? (planejamentoContext.hasFullAccess ? ['TODAS'] : planejamentoContext.allowedSecretariatNames) : null;
+            
             const [data, secs] = await Promise.all([
-                fetchPlanejamentoUsers(tenantId),
+                fetchPlanejamentoUsers(tenantId, bypassSecretariats),
                 fetchSecretariats(tenantId)
             ]);
             setUsuarios(data || []);
@@ -328,9 +332,11 @@ const PlanejamentoUsuarios = () => {
                     <h1 className="farmacia-page-title">Usuários do Planejamento</h1>
                     <p className="farmacia-page-subtitle">Gerencie as contas de acesso e permissões do módulo estratégico.</p>
                 </div>
-                <button className="farmacia-btn-primary" onClick={() => openModal()}>
-                    <Plus size={18} /> Novo Usuário
-                </button>
+                {canWritePlanejamento(role) && (
+                    <button className="farmacia-btn-primary" onClick={() => openModal()}>
+                        <Plus size={18} /> Novo Usuário
+                    </button>
+                )}
             </header>
 
             {/* KPIs */}
@@ -503,13 +509,14 @@ const PlanejamentoUsuarios = () => {
                                         <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                                             <div style={{ display: 'flex', justifyContent: 'center' }}>
                                                 <div
-                                                    onClick={() => toggleStatusHandler(user)}
+                                                    onClick={() => canWritePlanejamento(role) && toggleStatusHandler(user)}
                                                     style={{
                                                         width: '44px', height: '24px', borderRadius: '12px', boxSizing: 'border-box',
                                                         background: user.status === 'ATIVO' ? '#059669' : '#94a3b8',
                                                         display: 'inline-flex', alignItems: 'center',
-                                                        position: 'relative', cursor: 'pointer', transition: 'background-color 0.25s ease-in-out',
-                                                        margin: 0, padding: 0
+                                                        position: 'relative', cursor: canWritePlanejamento(role) ? 'pointer' : 'not-allowed', transition: 'background-color 0.25s ease-in-out',
+                                                        margin: 0, padding: 0,
+                                                        opacity: canWritePlanejamento(role) ? 1 : 0.6
                                                     }}
                                                 >
                                                     <div style={{
@@ -523,20 +530,24 @@ const PlanejamentoUsuarios = () => {
                                         </td>
                                         <td style={{ textAlign: 'center' }}>
                                             <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                                                <button className="farmacia-action-icon" onClick={() => openModal(user)}>
-                                                    <Edit2 size={16} />
-                                                    <span className="premium-tooltip">Editar Usuário</span>
-                                                </button>
-                                                {isSuperAdmin && (user.auth_user_id || user.user_id) && ((user.auth_user_id || user.user_id) !== authUser?.id) && (
+                                                {canWritePlanejamento(role) && (
+                                                    <button className="farmacia-action-icon" onClick={() => openModal(user)}>
+                                                        <Edit2 size={16} />
+                                                        <span className="premium-tooltip">Editar Usuário</span>
+                                                    </button>
+                                                )}
+                                                {canWritePlanejamento(role) && isSuperAdmin && (user.auth_user_id || user.user_id) && ((user.auth_user_id || user.user_id) !== authUser?.id) && (
                                                     <button className="farmacia-action-icon" onClick={() => handleResetPassword(user)} style={{ color: '#0ea5e9' }}>
                                                         <KeyRound size={16} />
                                                         <span className="premium-tooltip">Redefinir senha</span>
                                                     </button>
                                                 )}
-                                                <button className="farmacia-action-icon" onClick={() => handleDeleteUser(user)}>
-                                                    <UserX size={16} />
-                                                    <span className="premium-tooltip">Excluir Usuário</span>
-                                                </button>
+                                                {canWritePlanejamento(role) && (
+                                                    <button className="farmacia-action-icon" onClick={() => handleDeleteUser(user)}>
+                                                        <UserX size={16} />
+                                                        <span className="premium-tooltip">Excluir Usuário</span>
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

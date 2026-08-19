@@ -263,7 +263,7 @@ const LaboratorioResultados = () => {
     const normalizedStatus = String(selectedResult.status || '').trim().toUpperCase();
     const isPendente = normalizedStatus === 'PENDENTE';
     const isDigitado = normalizedStatus === 'DIGITADO';
-    const canEditResult = isPendente || isDigitado;
+    const canEditResult = (isPendente || isDigitado) && canWriteLaboratorio(currentUserRole);
     const isReadOnly = !canEditResult;
 
     useEffect(() => {
@@ -737,7 +737,7 @@ const LaboratorioResultados = () => {
     };
 
     const handleUpdateOrigin = async (newOrigin) => {
-        if (!canWriteLaboratorio(role)) return;
+        if (!canWriteLaboratorio(currentUserRole)) return;
         if (!selectedAttendance || !selectedAttendance.id || updatingOrigin) return;
 
         try {
@@ -1711,15 +1711,17 @@ const LaboratorioResultados = () => {
                                     </div>
                                 )}
 
-                                <button
-                                    type="button"
-                                    className="lab-btn-manage-exams"
-                                    onClick={() => setShowGerenciarExamesModal(true)}
-                                    title="Gerenciar exames do atendimento"
-                                >
-                                    <Layers size={14} />
-                                    <span>Gerenciar exames</span>
-                                </button>
+                                {canWriteLaboratorio(currentUserRole) && (
+                                    <button
+                                        type="button"
+                                        className="lab-btn-manage-exams"
+                                        onClick={() => setShowGerenciarExamesModal(true)}
+                                        title="Gerenciar exames do atendimento"
+                                    >
+                                        <Layers size={14} />
+                                        <span>Gerenciar exames</span>
+                                    </button>
+                                )}
 
                                 {searchResults && selectedAttendance && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.25rem' }}>
@@ -1908,17 +1910,19 @@ const LaboratorioResultados = () => {
                                             <span className="lab-ps-val">
                                                 {formatAttendanceOrigin(currentAttendance.attendance_origin) || currentAttendance.attendance_origin || 'Não informada'}
                                             </span>
-                                            <button
-                                                type="button"
-                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', padding: '2px', borderRadius: '4px' }}
-                                                onClick={() => {
-                                                    setNewOriginValue(currentAttendance.attendance_origin || '');
-                                                    setIsEditingOrigin(true);
-                                                }}
-                                                title="Editar origem"
-                                            >
-                                                <Pencil size={14} />
-                                            </button>
+                                            {canWriteLaboratorio(currentUserRole) && (
+                                                <button
+                                                    type="button"
+                                                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', padding: '2px', borderRadius: '4px' }}
+                                                    onClick={() => {
+                                                        setNewOriginValue(currentAttendance.attendance_origin || '');
+                                                        setIsEditingOrigin(true);
+                                                    }}
+                                                    title="Editar origem"
+                                                >
+                                                    <Pencil size={14} />
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -2223,10 +2227,10 @@ const LaboratorioResultados = () => {
                                                                                     <input 
                                                                                         type="text" 
                                                                                         placeholder="Ex.: < 6 ou 48" 
+                                                                                        disabled={isReadOnly || saving}
                                                                                         className="lab-input-field" 
                                                                                         style={{ flex: 1, padding: '0.5rem 0.75rem', border: isMissing ? '2px solid #ef4444' : '1px solid #cbd5e1', borderRadius: '8px 0 0 8px', fontSize: '1.1rem', outline: 'none', minWidth: 0 }}
                                                                                         value={pcrRes}
-                                                                                        disabled={isReadOnly || saving}
                                                                                         onChange={(e) => {
                                                                                             const newRes = e.target.value;
                                                                                             const newFull = pcrDil ? `${pcrDil} — ${newRes} mg/L` : (newRes ? `${newRes} mg/L` : '');

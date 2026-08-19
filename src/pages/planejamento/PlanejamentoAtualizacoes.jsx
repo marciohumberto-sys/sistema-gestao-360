@@ -30,7 +30,7 @@ import { fetchPlanejamentoUsers } from '../../services/planejamentoUsers.service
 import { getActionTypeStages, getActionTypeConfig } from '../../modules/planejamento/constants/planningActionTypes';
 
 // Sub-componente para animação individual do card
-const UpdateCard = ({ item, acaoContext, index, getTipoConfig, getStatusLabel, formatDate, onEdit, onDelete, onView, isLast, isConcluidaAnteriormente, getActionTypeConfig, getDisplayProgress, authorName }) => {
+const UpdateCard = ({ item, acaoContext, index, getTipoConfig, getStatusLabel, formatDate, onEdit, onDelete, onView, isLast, isConcluidaAnteriormente, getActionTypeConfig, getDisplayProgress, authorName, canWrite }) => {
     const [isVisible, setIsVisible] = useState(false);
     const cardRef = React.useRef(null);
 
@@ -149,14 +149,16 @@ const UpdateCard = ({ item, acaoContext, index, getTipoConfig, getStatusLabel, f
                                         {getStatusLabel(item.statusNovo)}
                                     </span>
                                 )}
-                                <div style={{ display: 'flex', gap: '4px' }}>
-                                    <button onClick={(e) => { e.stopPropagation(); onEdit(item); }} className="update-action-btn" title="Editar Atualização">
-                                        <Edit2 size={14} color="var(--text-muted)" />
-                                    </button>
-                                    <button onClick={(e) => { e.stopPropagation(); onDelete(item.id); }} className="update-action-btn delete-btn" title="Excluir Atualização">
-                                        <Trash2 size={14} color="#ef4444" />
-                                    </button>
-                                </div>
+                                {canWrite && (
+                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                        <button onClick={(e) => { e.stopPropagation(); onEdit(item); }} className="update-action-btn" title="Editar Atualização">
+                                            <Edit2 size={14} color="var(--text-muted)" />
+                                        </button>
+                                        <button onClick={(e) => { e.stopPropagation(); onDelete(item.id); }} className="update-action-btn delete-btn" title="Excluir Atualização">
+                                            <Trash2 size={14} color="#ef4444" />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Barra de Progresso Topo */}
@@ -549,6 +551,7 @@ const PlanejamentoAtualizacoes = () => {
 
     const contextoPlanejamento = React.useMemo(() => getPlanejamentoContext(tenantLink?.role, scopes), [tenantLink, scopes]);
     const role = tenantLink?.role || 'VISUALIZADOR';
+    const canWrite = canWritePlanejamento(role);
 
     // ---- ESTADO ----
     const [atualizacoes, setAtualizacoes] = useState([]);
@@ -1029,9 +1032,11 @@ const PlanejamentoAtualizacoes = () => {
                     <h1 className="farmacia-page-title">Atualizações das Ações</h1>
                     <p className="farmacia-page-subtitle">Acompanhe os registros recentes de evolução, status e observações das ações estratégicas.</p>
                 </div>
-                <button className="farmacia-btn-primary" onClick={handleOpenNewModal} disabled={loading}>
-                    <Plus size={18} /> Nova Atualização
-                </button>
+                {canWritePlanejamento(role) && (
+                    <button className="farmacia-btn-primary" onClick={handleOpenNewModal} disabled={loading}>
+                        <Plus size={18} /> Nova Atualização
+                    </button>
+                )}
             </header>
 
             <style>{`
@@ -1333,9 +1338,11 @@ const PlanejamentoAtualizacoes = () => {
                                     As atualizações ajudam a acompanhar a evolução das ações estratégicas ao longo do tempo.
                                 </p>
                             </div>
-                            <button className="farmacia-btn-secondary" onClick={handleOpenNewModal} style={{ marginTop: '0.5rem' }}>
-                                <Plus size={16} /> Registrar primeira atualização
-                            </button>
+                            {canWritePlanejamento(role) && (
+                                <button className="farmacia-btn-secondary" onClick={handleOpenNewModal} style={{ marginTop: '0.5rem' }}>
+                                    <Plus size={16} /> Registrar primeira atualização
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <div className="updates-feed" style={{ position: 'relative', marginTop: '32px !important' }}>
@@ -1376,6 +1383,7 @@ const PlanejamentoAtualizacoes = () => {
                                         getActionTypeConfig={getActionTypeConfig}
                                         getDisplayProgress={getDisplayProgress}
                                         authorName={authorName}
+                                        canWrite={canWrite}
                                     />
                                 );
                             })}
@@ -1840,12 +1848,21 @@ const PlanejamentoAtualizacoes = () => {
                         </div>
 
                         <div style={{ padding: '1rem 1.75rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '1rem', background: '#f8fafc' }}>
-                            <button className="farmacia-btn-secondary" onClick={() => handleEdit(viewingUpdate)} style={{ background: 'white' }}>
-                                <Edit2 size={16} /> Editar Atualização
-                            </button>
-                            <button className="farmacia-btn-secondary" onClick={() => { setIsViewModalOpen(false); handleDelete(viewingUpdate.id); }} style={{ color: '#ef4444', borderColor: '#fecaca', background: '#fef2f2' }}>
-                                <Trash2 size={16} /> Excluir
-                            </button>
+                            {canWritePlanejamento(role) && (
+                                <>
+                                    <button className="farmacia-btn-secondary" onClick={() => handleEdit(viewingUpdate)} style={{ background: 'white' }}>
+                                        <Edit2 size={16} /> Editar Atualização
+                                    </button>
+                                    <button className="farmacia-btn-secondary" onClick={() => { setIsViewModalOpen(false); handleDelete(viewingUpdate.id); }} style={{ color: '#ef4444', borderColor: '#fecaca', background: '#fef2f2' }}>
+                                        <Trash2 size={16} /> Excluir
+                                    </button>
+                                </>
+                            )}
+                            {!canWritePlanejamento(role) && (
+                                <button className="farmacia-btn-primary" onClick={() => setIsViewModalOpen(false)}>
+                                    Fechar
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

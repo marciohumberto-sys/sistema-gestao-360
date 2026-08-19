@@ -21,7 +21,11 @@ const Topbar = () => {
     const isFarmacia = location.pathname.startsWith('/farmacia');
     const isCompras = location.pathname.startsWith('/compras');
     const isPlanejamento = location.pathname.startsWith('/planejamento');
-    const showGlobalAddButton = isPlanejamento || isFarmacia || isCompras;
+    
+    const role = isSuperAdmin ? 'SUPERADMIN' : String(tenantLink?.profile || tenantLink?.role || 'VISUALIZADOR').trim().toUpperCase();
+    const canWriteGlobal = role !== 'VISUALIZADOR';
+    
+    const showGlobalAddButton = (isPlanejamento || isFarmacia || isCompras) && canWriteGlobal;
 
     useEffect(() => {
         const handleClickOutside = (event) => {

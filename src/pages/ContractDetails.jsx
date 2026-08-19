@@ -30,6 +30,8 @@ import { allocationsService } from '../services/api/allocations.service';
 import { filesService } from '../services/api/files.service';
 import { ofsService } from '../services/api/ofs.service';
 import { useTenant } from '../context/TenantContext';
+import { useAuth } from '../context/AuthContext';
+import { canWriteCompras } from '../utils/comprasAcl';
 import { formatLocalDate, getDaysDiffFromToday, parseLocalDate, getTodayLocalDateString } from '../utils/dateUtils';
 import { safeParseQuantity, formatQuantityDisplay, isValidQuantity, normalizeQuantityOnBlur } from '../utils/quantityUtils';
 import './ContractDetails.css';
@@ -38,6 +40,9 @@ const ContractDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { tenantId } = useTenant();
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
+    const canWrite = canWriteCompras(role);
 
     const [contract, setContract] = useState(null);
     const [empenhos, setEmpenhos] = useState([]);
@@ -902,12 +907,14 @@ const ContractDetails = () => {
                             <span>Este contrato está ATIVO mas não possui itens cadastrados.</span>
                         </div>
                     </div>
+                    {canWrite && (
                     <button
                         className="cd-pendency-banner-action"
                         onClick={handleQuickAddItem}
                     >
                         Adicionar itens agora
                     </button>
+                    )}
                 </div>
             )}
 
@@ -925,7 +932,10 @@ const ContractDetails = () => {
                         <span className={`status-badge-lg ${contract.status.toLowerCase()}`}>
                             {contract.status}
                         </span>
+                        {canWrite && (
                         <button className="cd-btn-secondary" onClick={handleEditClick}>Editar</button>
+                        )}
+                        {canWrite && (
                         <button className="cd-btn-ato" onClick={() => {
                             setAtoFormData({
                                 act_type: 'ADITIVO',
@@ -941,7 +951,9 @@ const ContractDetails = () => {
                             <FilePlus size={18} />
                             Ato Contratual
                         </button>
+                        )}
 
+                        {canWrite && (
                         <div className="cd-actions-dropdown-wrapper">
                             <button
                                 className={`cd-btn-primary ${contract.isPending ? 'is-blocked' : ''}`}
@@ -952,6 +964,7 @@ const ContractDetails = () => {
                                 Gerar OF
                             </button>
                         </div>
+                        )}
 
                         {/* Functional Alert Indicator Toggle with Premium Tooltip */}
                         {getContractAlerts().length > 0 && (
@@ -1537,14 +1550,17 @@ const ContractDetails = () => {
                         <div className="cd-tab-panel">
                             <div className="cd-tab-panel-header">
                                 <h3>Itens do Contrato</h3>
-                                <button className="cd-btn-primary" onClick={() => {
-                                    setItemFormData({ item_number: '', description: '', marca: '', unit: '', unit_price: '', total_quantity: '', legacy_consumed_quantity: '', allow_decimal_quantity: false });
-                                    setHasLegacyConsumption(false);
-                                    setEditingItemId(null);
-                                    setIsItemModalOpen(true);
-                                }}>
-                                    + Adicionar Item
-                                </button>
+                                {canWrite && (
+                                    <button className="cd-btn-primary" onClick={() => {
+                                        setEditingItemId(null);
+                                        setItemFormData({
+                                            item_number: '', description: '', marca: '', unit: '', unit_price: '', total_quantity: '', legacy_consumed_quantity: '', allow_decimal_quantity: false
+                                        });
+                                        setIsItemModalOpen(true);
+                                    }}>
+                                        + Adicionar Item
+                                    </button>
+                                )}
                             </div>
 
                             <div className="table-section" style={{ background: '#fff', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-lg)' }}>
@@ -1626,42 +1642,46 @@ const ContractDetails = () => {
                                                                 </td>
                                                                 <td style={{ width: '100px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                setItemFormData({
-                                                                                    item_number: item.item_number || '',
-                                                                                    description: item.description,
-                                                                                    marca: item.marca || '',
-                                                                                    unit: item.unit || '',
-                                                                                    unit_price: item.unit_price || '',
-                                                                                    total_quantity: item.total_quantity || '',
-                                                                                    legacy_consumed_quantity: item.legacy_consumed_quantity || '',
-                                                                                    allow_decimal_quantity: item.allow_decimal_quantity || false
-                                                                                });
-                                                                                setHasLegacyConsumption(!!item.legacy_consumed_quantity && item.legacy_consumed_quantity > 0);
-                                                                                setEditingItemId(item.id);
-                                                                                setIsItemModalOpen(true);
-                                                                            }}
-                                                                            style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.375rem', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                                                                            onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = 'var(--color-primary)'; }}
-                                                                            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#64748b'; }}
-                                                                            title="Editar"
-                                                                        >
-                                                                            <Edit2 size={16} />
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                setItemToDelete(item.id);
-                                                                            }}
-                                                                            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.375rem', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                                                                            onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444'; }}
-                                                                            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#94a3b8'; }}
-                                                                            title="Remover"
-                                                                        >
-                                                                            <Trash2 size={16} />
-                                                                        </button>
+                                                                        {canWrite && (
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setItemFormData({
+                                                                                        item_number: item.item_number || '',
+                                                                                        description: item.description,
+                                                                                        marca: item.marca || '',
+                                                                                        unit: item.unit || '',
+                                                                                        unit_price: item.unit_price || '',
+                                                                                        total_quantity: item.total_quantity || '',
+                                                                                        legacy_consumed_quantity: item.legacy_consumed_quantity || '',
+                                                                                        allow_decimal_quantity: item.allow_decimal_quantity || false
+                                                                                    });
+                                                                                    setHasLegacyConsumption(!!item.legacy_consumed_quantity && item.legacy_consumed_quantity > 0);
+                                                                                    setEditingItemId(item.id);
+                                                                                    setIsItemModalOpen(true);
+                                                                                }}
+                                                                                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.375rem', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                                                                                onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = 'var(--color-primary)'; }}
+                                                                                onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#64748b'; }}
+                                                                                title="Editar"
+                                                                            >
+                                                                                <Edit2 size={16} />
+                                                                            </button>
+                                                                        )}
+                                                                        {canWrite && (
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setItemToDelete(item.id);
+                                                                                }}
+                                                                                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.375rem', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                                                                                onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#ef4444'; }}
+                                                                                onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#64748b'; }}
+                                                                                title="Remover"
+                                                                            >
+                                                                                <Trash2 size={16} />
+                                                                            </button>
+                                                                        )}
                                                                     </div>
                                                                 </td>
                                                             </tr>
@@ -1799,24 +1819,22 @@ const ContractDetails = () => {
 
                                             return (
                                                 <>
-                                                    <div style={{ background: '#ffffff', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '0.75rem', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', flexShrink: 0 }}>
-                                                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.75rem' }}>
+                                                    {canWrite && (
+                                                    <div style={{ marginBottom: '1.25rem', padding: '1rem', background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                                                        <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                                                            <Plus size={14} style={{ color: 'var(--color-primary)' }} /> Novo Rateio
+                                                        </h4>
+                                                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
                                                             <div style={{ flex: 1 }}>
-                                                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.025em' }}>Selecionar Secretaria</label>
+                                                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.025em' }}>Secretaria</label>
                                                                 <select
                                                                     value={rateioSelect}
-                                                                    onChange={(e) => {
-                                                                        const val = e.target.value;
-                                                                        setRateioSelect(val);
-                                                                        if (val) {
-                                                                            setTimeout(() => rateioAmountRef.current?.focus(), 0);
-                                                                        }
-                                                                    }}
-                                                                    style={{ width: '100%', height: '38px', padding: '0 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.875rem', color: 'var(--text-primary)', outline: 'none', background: '#f8fafc', cursor: 'pointer', transition: 'all 0.2s' }}
+                                                                    onChange={(e) => setRateioSelect(e.target.value)}
+                                                                    style={{ width: '100%', height: '38px', padding: '0 0.75rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.875rem', color: 'var(--text-primary)', outline: 'none', background: '#f8fafc', transition: 'all 0.2s', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem top 50%', backgroundSize: '0.65rem auto' }}
                                                                     onFocus={e => { e.target.style.background = '#ffffff'; e.target.style.borderColor = 'var(--color-primary)'; e.target.style.boxShadow = '0 0 0 2px rgba(10,37,64,0.05)'; }}
                                                                     onBlur={e => { e.target.style.background = '#f8fafc'; e.target.style.borderColor = '#cbd5e1'; e.target.style.boxShadow = 'none'; }}
                                                                 >
-                                                                    <option value="">Selecione uma opção...</option>
+                                                                    <option value="">Selecione uma secretaria...</option>
                                                                     {availableSecretariats.map(sec => (
                                                                         <option key={sec.id} value={sec.id}>{sec.name}</option>
                                                                     ))}
@@ -1847,6 +1865,7 @@ const ContractDetails = () => {
                                                             </button>
                                                         </div>
                                                     </div>
+                                                    )}
                                                     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '0.25rem', paddingBottom: '0.5rem' }}>
 
                                                         {addedSecretariatsList.length > 0 && (

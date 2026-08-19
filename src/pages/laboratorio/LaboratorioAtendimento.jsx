@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, UserPlus, Activity, Loader2, AlertCircle, CheckCircle2, Edit2 } from 'lucide-react';
 import { laboratorioAtendimentoService } from '../../services/api/laboratorioAtendimento.service';
 import { laboratorioPacientesService } from '../../services/api/laboratorioPacientes.service';
+import { useAuth } from '../../context/AuthContext';
 import LaboratorioOperacionalModal from '../../components/laboratorio/LaboratorioOperacionalModal';
 import PacienteFormModal from '../../components/laboratorio/PacienteFormModal';
 import './LaboratorioAtendimento.css';
@@ -66,6 +67,9 @@ const formatCpf = (cpf) => {
 };
 
 const LaboratorioAtendimento = () => {
+    const { tenantLink, isSuperAdmin } = useAuth();
+    const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
+
     // --- ESTADOS DE BUSCA E LISTAGEM ---
     const [searchTerm, setSearchTerm] = useState('');
     const [pacientesResult, setPacientesResult] = useState([]);
@@ -255,9 +259,11 @@ const LaboratorioAtendimento = () => {
                             {emptyDescription}
                         </p>
                     </div>
-                    <button className="lab-btn lab-btn-primary" onClick={handleOpenModalForNewPatient} style={{ marginTop: '0.5rem', padding: '0.6rem 1rem' }}>
-                        <UserPlus size={16} /> Cadastrar Novo Paciente
-                    </button>
+                    {role !== 'VISUALIZADOR' && (
+                        <button className="lab-btn lab-btn-primary" onClick={handleOpenModalForNewPatient} style={{ marginTop: '0.5rem', padding: '0.6rem 1rem' }}>
+                            <UserPlus size={16} /> Cadastrar Novo Paciente
+                        </button>
+                    )}
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -290,37 +296,39 @@ const LaboratorioAtendimento = () => {
                                 </div>
                             </div>
                             <div style={{ marginLeft: '1rem', flexShrink: 0, display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                <button
-                                    className="lab-btn"
-                                    style={{ 
-                                        justifyContent: 'center', 
-                                        backgroundColor: 'transparent', 
-                                        border: '1px solid #cbd5e1', 
-                                        color: '#64748b', 
-                                        display: 'flex', 
-                                        alignItems: 'center',
-                                        width: '36px',
-                                        height: '36px',
-                                        padding: '0',
-                                        borderRadius: '6px',
-                                        transition: 'all 0.2s',
-                                        boxShadow: 'none'
-                                    }}
-                                    data-tooltip="Editar cadastro"
-                                    aria-label="Editar cadastro"
-                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.color = '#334155'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
-                                    onClick={(e) => handleOpenEditModal(e, paciente.id)}
-                                >
-                                    <Edit2 size={16} />
-                                </button>
+                                {role !== 'VISUALIZADOR' && (
+                                    <button
+                                        className="lab-btn"
+                                        style={{ 
+                                            justifyContent: 'center', 
+                                            backgroundColor: 'transparent', 
+                                            border: '1px solid #cbd5e1', 
+                                            color: '#64748b', 
+                                            display: 'flex', 
+                                            alignItems: 'center',
+                                            width: '36px',
+                                            height: '36px',
+                                            padding: '0',
+                                            borderRadius: '6px',
+                                            transition: 'all 0.2s',
+                                            boxShadow: 'none'
+                                        }}
+                                        data-tooltip="Editar cadastro"
+                                        aria-label="Editar cadastro"
+                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.color = '#334155'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
+                                        onClick={(e) => handleOpenEditModal(e, paciente.id)}
+                                    >
+                                        <Edit2 size={16} />
+                                    </button>
+                                )}
                                 <button
                                     className="lab-btn lab-btn-primary"
                                     style={{ whiteSpace: 'nowrap', minWidth: '110px', justifyContent: 'center', height: '36px', padding: '0 1rem' }}
                                     disabled={paciente.is_active === false}
                                     onClick={() => handleSelectPatientForModal(paciente)}
                                 >
-                                    <Activity size={16} /> Atender
+                                    <Activity size={16} /> {role === 'VISUALIZADOR' ? 'Visualizar' : 'Atender'}
                                 </button>
                             </div>
                         </div>
@@ -338,9 +346,11 @@ const LaboratorioAtendimento = () => {
                     <p className="lab-subtitle">Busque ou cadastre um paciente para iniciar</p>
                 </div>
                 <div className="lab-header-actions">
-                    <button className="lab-btn lab-btn-primary" onClick={handleOpenModalForNewPatient}>
-                        <UserPlus size={16} /> Novo Paciente
-                    </button>
+                    {role !== 'VISUALIZADOR' && (
+                        <button className="lab-btn lab-btn-primary" onClick={handleOpenModalForNewPatient}>
+                            <UserPlus size={16} /> Novo Paciente
+                        </button>
+                    )}
                 </div>
             </header>
 

@@ -35,71 +35,27 @@ export const getAdminSecretariatId = async () => {
  * Isso evita depender de uma RPC específica inexistente.
  */
 export const fetchComprasUsers = async (tenantId) => {
-    // 1. Obter ID do módulo COMPRAS
-    const { data: moduleData } = await supabase
-        .from('system_modules')
-        .select('id')
-        .eq('key', 'COMPRAS')
-        .maybeSingle();
-
-    // 2. Buscar user_ids com escopo no módulo COMPRAS
-    let comprasUserIds = null;
-    if (moduleData?.id) {
-        const { data: scopes } = await supabase
-            .from('user_access_scopes')
-            .select('user_id')
-            .eq('tenant_id', tenantId)
-            .eq('module_id', moduleData.id);
-
-        if (scopes && scopes.length > 0) {
-            comprasUserIds = scopes.map(s => s.user_id);
-        }
-    }
-
-    // 3. Reutilizar a RPC existente que cruza auth.users com user_tenants
-    const { data, error } = await supabase.rpc('get_farmacia_users_with_auth', {
+    const { data, error } = await supabase.rpc('get_compras_users_with_auth', {
         p_tenant_id: tenantId
     });
 
     if (error) {
-        console.error('Erro ao buscar usuários:', error);
+        console.error('Erro ao buscar usuários do compras:', error);
         throw error;
     }
 
     if (!data) return [];
 
-    // 4. Agrupar por usuário
-    const groupedUsers = {};
-    data.forEach(row => {
-        const key = row.user_tenant_id || row.user_id || row.id;
-        if (!groupedUsers[key]) {
-            groupedUsers[key] = {
-                id: row.user_id || row.id,
-                user_tenant_id: row.user_tenant_id || key,
-                name: row.full_name || row.name || 'Usuário Sem Nome',
-                email: row.email || '',
-                profile: row.role || row.profile || 'OPERADOR',
-                status: (row.is_active === true || row.status === 'ATIVO') ? 'ATIVO' : 'INATIVO',
-                secretariat_name: 'Administração',
-                secretariat_id: null,
-            };
-        }
-    });
-
-    const allUsers = Object.values(groupedUsers);
-
-    // 5. Filtrar pelos usuários com escopo COMPRAS
-    if (comprasUserIds && comprasUserIds.length > 0) {
-        return allUsers.filter(u => comprasUserIds.includes(u.id));
-    }
-
-    // Se o módulo existe mas não há escopos vinculados, retornar vazio
-    if (moduleData?.id) {
-        return [];
-    }
-
-    // Fallback: módulo ainda não cadastrado, retornar todos
-    return allUsers;
+    return data.map(row => ({
+        id: row.user_id,
+        user_tenant_id: row.user_id,
+        name: row.full_name || 'Usuário Sem Nome',
+        email: row.email || '',
+        profile: row.role || 'OPERADOR',
+        status: row.is_active ? 'ATIVO' : 'INATIVO',
+        secretariat_name: row.secretariat_name || 'Administração',
+        secretariat_id: row.secretariat_id || null,
+    }));
 };
 
 /**

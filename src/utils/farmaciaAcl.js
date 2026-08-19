@@ -18,9 +18,9 @@ export const canManageFarmaciaUsers = (role) => {
 export const canAccessFarmacia = (role, featurePath) => {
     if (!role || !featurePath) return false;
 
-    // Proteção de Usuários: Apenas Perfis Administrativos
+    // Proteção de Usuários: Apenas Perfis Administrativos (e VISUALIZADOR para consulta)
     if (featurePath.startsWith('/farmacia/usuarios')) {
-        return canManageFarmaciaUsers(role);
+        return canManageFarmaciaUsers(role) || role === 'VISUALIZADOR';
     }
 
     // Acesso básico de visualização
