@@ -408,6 +408,30 @@ const LaboratorioConferencia = () => {
         }
     };
 
+    const handleNavigateProtocol = (direction) => {
+        if (!selectedProtocol) return;
+
+        const currentIndex = groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo);
+        if (currentIndex === -1) return;
+
+        let targetProtocol;
+        if (direction === 'prev' && currentIndex > 0) {
+            targetProtocol = groupedProtocols[currentIndex - 1];
+        } else if (direction === 'next' && currentIndex < groupedProtocols.length - 1) {
+            targetProtocol = groupedProtocols[currentIndex + 1];
+        } else {
+            return;
+        }
+
+        if (editingParam) {
+            setPendingAction(() => () => handleNavigateProtocol(direction));
+            setShowUnsavedModal(true);
+            return;
+        }
+
+        handleOpenConference(targetProtocol);
+    };
+
     const handleBackToQueue = () => {
         if (editingParam) {
             setPendingAction(() => handleBackToQueue);
@@ -808,6 +832,29 @@ const LaboratorioConferencia = () => {
                                         {feedbackMsg.text}
                                     </div>
                                 )}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '1rem' }}>
+                                    <button 
+                                        className="lab-btn" 
+                                        style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) > 0 ? '#fff' : '#f8fafc', borderRadius: '6px', color: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) > 0 ? '#334155' : '#cbd5e1', cursor: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) > 0 ? 'pointer' : 'not-allowed' }}
+                                        onClick={() => handleNavigateProtocol('prev')}
+                                        disabled={loading || saving || returning || groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) <= 0}
+                                        title={groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) <= 0 ? 'Primeiro atendimento da fila' : 'Paciente anterior'}
+                                    >
+                                        <ChevronLeft size={16} />
+                                    </button>
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', minWidth: '60px', textAlign: 'center' }}>
+                                        {groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) + 1} de {groupedProtocols.length}
+                                    </span>
+                                    <button 
+                                        className="lab-btn" 
+                                        style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) < groupedProtocols.length - 1 ? '#fff' : '#f8fafc', borderRadius: '6px', color: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) < groupedProtocols.length - 1 ? '#334155' : '#cbd5e1', cursor: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) < groupedProtocols.length - 1 ? 'pointer' : 'not-allowed' }}
+                                        onClick={() => handleNavigateProtocol('next')}
+                                        disabled={loading || saving || returning || groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) >= groupedProtocols.length - 1}
+                                        title={groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) >= groupedProtocols.length - 1 ? 'Último atendimento da fila' : 'Próximo paciente'}
+                                    >
+                                        <ChevronRight size={16} />
+                                    </button>
+                                </div>
                                 {canWriteLaboratorio(role) && (
                                     <button 
                                         className="lab-conf-btn-confirm" 
