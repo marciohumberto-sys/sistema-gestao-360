@@ -1,15 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Users, ShieldCheck, UserCheck, UserX, UserMinus, Plus, Edit2, XCircle, ShieldAlert, Check, ChevronDown, AlertTriangle, Trash2 } from 'lucide-react';
+import { Search, Users, ShieldCheck, UserCheck, UserX, UserMinus, Plus, Edit2, XCircle, ShieldAlert, Check, ChevronDown, AlertTriangle, Trash2, KeyRound } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessFarmacia, canManageFarmaciaUsers, canWriteFarmacia } from '../../utils/farmaciaAcl';
 import FarmaciaUnitBadge from './FarmaciaUnitBadge';
 import FarmaciaAlertModal from './components/FarmaciaAlertModal';
 import { getCurrentTenantId, fetchFarmaciaUsers, createFarmaciaUser, updateFarmaciaUser, toggleFarmaciaUserStatus, deleteFarmaciaUser } from '../../services/farmaciaUsers.service';
+import { resetUserTemporaryPassword } from '../../services/passwordService';
 import './FarmaciaPages.css';
 
 const FarmaciaUsuarios = () => {
-    const { tenantLink, isSuperAdmin, scopes } = useAuth();
+    const { tenantLink, isSuperAdmin, scopes, authUser } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const hasAccess = canAccessFarmacia(role, '/farmacia/usuarios');
     const canWrite = canWriteFarmacia(role);
@@ -28,6 +29,9 @@ const FarmaciaUsuarios = () => {
     const [deletingId, setDeletingId] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [userToDelete, setUserToDelete] = useState(null);
+    const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    const [userToReset, setUserToReset] = useState(null);
+    const [isResetting, setIsResetting] = useState(false);
     const [alertConfig, setAlertConfig] = useState({ 
         isOpen: false, 
         title: '', 
@@ -150,6 +154,46 @@ const FarmaciaUsuarios = () => {
         } finally {
             setDeletingId(null);
             setTimeout(() => setToast(false), 3000);
+        }
+    };
+
+    const handleResetPassword = (user) => {
+        setUserToReset(user);
+        setIsResetModalOpen(true);
+    };
+
+    const confirmReset = async () => {
+        if (!isSuperAdmin) {
+            showAlert('Acesso restrito', 'Apenas usuários SUPERADMIN podem redefinir senhas por esta opção.', 'error');
+            return;
+        }
+
+        if (!userToReset) return;
+
+        if (!userToReset.id) {
+            showAlert('Aviso', 'Não foi possível identificar este usuário para redefinir a senha.', 'warning');
+            return;
+        }
+
+        if (userToReset.id === authUser.id) {
+            showAlert('Aviso', 'Você não pode redefinir sua própria senha por esta opção.', 'warning');
+            return;
+        }
+
+        if (isResetting) return;
+
+        setIsResetting(true);
+        try {
+            await resetUserTemporaryPassword(userToReset.id, 'FARMACIA');
+            setToast('Senha redefinida com sucesso. O usuário deverá criar uma nova senha no próximo acesso.');
+            setIsResetModalOpen(false);
+            setUserToReset(null);
+        } catch (e) {
+            console.error(e);
+            showAlert('Erro', e.message || 'Falha ao redefinir a senha do usuário.', 'error');
+        } finally {
+            setIsResetting(false);
+            setTimeout(() => setToast(false), 5000);
         }
     };
 
@@ -450,6 +494,16 @@ const FarmaciaUsuarios = () => {
                                                             <Edit2 size={16} />
                                                             <span className="premium-tooltip">Editar Usuário</span>
                                                         </button>
+                                                        {isSuperAdmin && user.id && user.id !== authUser.id && (
+                                                            <button 
+                                                                className="farmacia-action-icon" 
+                                                                onClick={() => handleResetPassword(user)}
+                                                                style={{ color: '#0ea5e9' }}
+                                                            >
+                                                                <KeyRound size={16} />
+                                                                <span className="premium-tooltip">Redefinir Senha</span>
+                                                            </button>
+                                                        )}
                                                         <button 
                                                             className="farmacia-action-icon" 
                                                             onClick={() => handleDeleteUser(user)}
@@ -717,6 +771,26 @@ const FarmaciaUsuarios = () => {
                                         <Trash2 size={16} /> Excluir
                                     </>
                                 )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Redefinir Senha */}
+            {isResetModalOpen && (
+                <div className="farmacia-modal-overlay">
+                    <div className="farmacia-modal-content" style={{ width: '450px', padding: '1.5rem', textAlign: 'center' }}>
+                        <div style={{ background: '#e0f2fe', color: '#0ea5e9', width: '48px', height: '48px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                            <KeyRound size={24} />
+                        </div>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.5rem', color: 'var(--text-primary)' }}>Redefinir senha</h3>
+                        <p style={{ color: 'var(--text-secondary)', margin: '0 0 1rem' }}>A senha de <strong>{userToReset?.name}</strong> será redefinida para a senha temporária padrão. No próximo acesso, o usuário deverá criar uma nova senha pessoal.</p>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, margin: '0 0 1.5rem' }}>Esta ação altera a senha de acesso ao GPI.</p>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <button onClick={() => setIsResetModalOpen(false)} disabled={isResetting} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: '#fff', color: 'var(--text-secondary)', fontWeight: 600, cursor: isResetting ? 'not-allowed' : 'pointer' }}>Cancelar</button>
+                            <button onClick={confirmReset} disabled={isResetting} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#0ea5e9', color: '#fff', fontWeight: 600, cursor: isResetting ? 'not-allowed' : 'pointer' }}>
+                                {isResetting ? 'Redefinindo...' : 'Confirmar redefinição'}
                             </button>
                         </div>
                     </div>
