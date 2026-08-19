@@ -719,6 +719,9 @@ const LaboratorioConferencia = () => {
                                 <div className="lab-conf-queue-cards-wrapper">
                                     {displayedProtocols.map((group) => {
                                         const totalExames = group.exams.length;
+                                        const liberadosCount = group.exams.filter(e => e.status === 'LIBERADO').length;
+                                        const pendentesCount = totalExames - liberadosCount;
+                                        const isAllLiberados = pendentesCount === 0 && liberadosCount > 0;
                                         const displayProtocolo = group.protocolo ? String(group.protocolo).replace(/^LAB-/i, '') : '';
                                         return (
                                             <div 
@@ -790,11 +793,15 @@ const LaboratorioConferencia = () => {
                                                     <div className="lab-conf-card-exams-summary">
                                                         <span className="lab-conf-info-item lab-conf-info-exams">
                                                             Exames: <strong>{totalExames}</strong>{' '}
-                                                            <span className="lab-conf-exams-pending-text">
-                                                                ({totalExames} {totalExames === 1 ? 
-                                                                    (searchFilters.status === 'DIGITADO' ? 'pendente' : searchFilters.status === 'LIBERADO' ? 'liberado' : '') : 
-                                                                    (searchFilters.status === 'DIGITADO' ? 'pendentes' : searchFilters.status === 'LIBERADO' ? 'liberados' : '')})
-                                                            </span>
+                                                            {isAllLiberados ? (
+                                                                <span style={{ color: '#16a34a', fontWeight: 600 }}>
+                                                                    ({liberadosCount} {liberadosCount === 1 ? 'liberado' : 'liberados'})
+                                                                </span>
+                                                            ) : (
+                                                                <span className="lab-conf-exams-pending-text">
+                                                                    ({pendentesCount} {pendentesCount === 1 ? 'pendente' : 'pendentes'})
+                                                                </span>
+                                                            )}
                                                         </span>
                                                     </div>
                                                 </div>
