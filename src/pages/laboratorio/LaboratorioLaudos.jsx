@@ -3572,6 +3572,7 @@ const LaboratorioLaudos = () => {
                         : `Laudo-${patientNameForFile || 'PACIENTE'}.pdf`;
 
                 pdf.save(fileName);
+                handleActionSuccess('DOWNLOAD');
             } catch (error) {
                 console.error(
                     'Erro ao gerar PDF da Prévia completa:',
@@ -3586,6 +3587,37 @@ const LaboratorioLaudos = () => {
                 setGeneratingPdf(false);
             }
         };
+
+    const handleActionSuccess = async (action) => {
+        const ids = Array.from(selectedExamIds);
+        if (ids.length === 0) return;
+        
+        try {
+            await laboratorioLaudosService.registrarAcaoLaudos(ids, action);
+            const now = new Date().toISOString();
+            
+            setLaudos(prev => prev.map(laudo => {
+                if (ids.includes(laudo.id)) {
+                    return {
+                        ...laudo,
+                        last_printed_at: action === 'PRINT' ? now : laudo.last_printed_at,
+                        last_downloaded_at: action === 'DOWNLOAD' ? now : laudo.last_downloaded_at
+                    };
+                }
+                return laudo;
+            }));
+            
+            if (selectedExam && ids.includes(selectedExam.id)) {
+                setSelectedExam(prev => ({
+                    ...prev,
+                    last_printed_at: action === 'PRINT' ? now : prev?.last_printed_at,
+                    last_downloaded_at: action === 'DOWNLOAD' ? now : prev?.last_downloaded_at
+                }));
+            }
+        } catch (error) {
+            console.error('Erro ao registrar ação localmente:', error);
+        }
+    };
 
     const handleDownloadPdf = async () => {
         if (generatingPdf) return;
@@ -3670,6 +3702,7 @@ const LaboratorioLaudos = () => {
                     // handled above
                 }
             }).save();
+            handleActionSuccess('DOWNLOAD');
         } catch (error) {
             console.error('Erro ao gerar PDF:', error);
             setFeedbackMsg({ type: 'error', text: 'Erro ao gerar PDF. Tente novamente.' });
@@ -3869,6 +3902,53 @@ const LaboratorioLaudos = () => {
                                                 {group.exams.length} {group.exams.length === 1 ? 'exame' : 'exames'}
                                             </span>
                                         </div>
+                                        {(() => {
+                                            const totalExams = group.exams.length;
+                                            const printedExams = group.exams.filter(e => e.last_printed_at);
+                                            const downloadedExams = group.exams.filter(e => e.last_downloaded_at);
+                                            
+                                            if (printedExams.length === 0 && downloadedExams.length === 0) return null;
+
+                                            const formatDate = (dateStr) => {
+                                                const d = new Date(dateStr);
+                                                return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}`;
+                                            };
+
+                                            let printBadge = null;
+                                            if (printedExams.length > 0) {
+                                                const maxDate = new Date(Math.max(...printedExams.map(e => new Date(e.last_printed_at).getTime()))).toISOString();
+                                                if (printedExams.length === totalExams) {
+                                                    printBadge = { text: 'IMPRESSO', style: { background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' }, title: `Última impressão: ${formatDate(maxDate)}` };
+                                                } else {
+                                                    printBadge = { text: 'IMP. PARCIAL', style: { background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }, title: `${printedExams.length} de ${totalExams} exames impressos\nÚltima impressão: ${formatDate(maxDate)}` };
+                                                }
+                                            }
+
+                                            let pdfBadge = null;
+                                            if (downloadedExams.length > 0) {
+                                                const maxDate = new Date(Math.max(...downloadedExams.map(e => new Date(e.last_downloaded_at).getTime()))).toISOString();
+                                                if (downloadedExams.length === totalExams) {
+                                                    pdfBadge = { text: 'PDF', style: { background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }, title: `Último PDF: ${formatDate(maxDate)}` };
+                                                } else {
+                                                    pdfBadge = { text: 'PDF PARCIAL', style: { background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }, title: `${downloadedExams.length} de ${totalExams} exames em PDF\nÚltimo PDF: ${formatDate(maxDate)}` };
+                                                }
+                                            }
+
+                                            return (
+                                                <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+                                                    {printBadge && (
+                                                        <div title={printBadge.title} style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 'bold', borderRadius: '4px', cursor: 'help', ...printBadge.style }}>
+                                                            {printBadge.text}
+                                                        </div>
+                                                    )}
+                                                    {pdfBadge && (
+                                                        <div title={pdfBadge.title} style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 'bold', borderRadius: '4px', cursor: 'help', ...pdfBadge.style }}>
+                                                            {pdfBadge.text}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 );
                             })}
@@ -4024,6 +4104,7 @@ const LaboratorioLaudos = () => {
                                                         setIsPrinting(true);
                                                         try {
                                                             window.print();
+                                                            handleActionSuccess('PRINT');
                                                         } finally {
                                                             setTimeout(() => {
                                                                 setIsPrinting(false);

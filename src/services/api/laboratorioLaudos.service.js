@@ -149,7 +149,7 @@ export const laboratorioLaudosService = {
                 const chunk = attIds.slice(i, i + 100);
                 let query = supabase
                     .from('lab_results')
-                    .select('id, attendance_id, exam_id, status, created_at, general_observation, typed_at, checked_at, released_at, responsible_name, responsible_crbm, responsible_signature_path')
+                    .select('id, attendance_id, exam_id, status, created_at, general_observation, typed_at, checked_at, released_at, responsible_name, responsible_crbm, responsible_signature_path, last_printed_at, last_downloaded_at')
                     .in('attendance_id', chunk);
 
                 if (statusFilter === 'LIBERADO') {
@@ -285,6 +285,8 @@ export const laboratorioLaudosService = {
                     typed_at: r.typed_at,
                     checked_at: r.checked_at,
                     released_at: r.released_at,
+                    last_printed_at: r.last_printed_at,
+                    last_downloaded_at: r.last_downloaded_at,
                     // snapshot do biomédico responsável pela Conferência
                     responsible_name: r.responsible_name || null,
                     responsible_crbm: r.responsible_crbm || null,
@@ -308,6 +310,33 @@ export const laboratorioLaudosService = {
         } catch (error) {
             console.error('Erro ao buscar laudos:', error);
             throw error;
+        }
+    },
+
+    registrarAcaoLaudos: async (resultIds, action) => {
+        try {
+            if (!resultIds || !Array.isArray(resultIds) || resultIds.length === 0) return;
+            const validIds = resultIds.filter(id => id && typeof id === 'string');
+            if (validIds.length === 0) return;
+
+            const updateData = {};
+            if (action === 'PRINT') {
+                updateData.last_printed_at = new Date().toISOString();
+            } else if (action === 'DOWNLOAD') {
+                updateData.last_downloaded_at = new Date().toISOString();
+            } else {
+                return;
+            }
+
+            const { error } = await supabase
+                .from('lab_results')
+                .update(updateData)
+                .in('id', validIds);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Erro ao registrar ação no laudo:', error);
+            // não quebrar a tela de impressão
         }
     },
 

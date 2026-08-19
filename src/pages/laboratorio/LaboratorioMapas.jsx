@@ -41,6 +41,7 @@ const LaboratorioMapas = () => {
     const [lotes, setLotes] = useState([]);
     const [selectedLoteId, setSelectedLoteId] = useState(null);
     const [pendingAutoPrintBatchId, setPendingAutoPrintBatchId] = useState(null);
+    const [patientNotesMap, setPatientNotesMap] = useState({});
     
     const [loadingList, setLoadingList] = useState(false);
     const [loadingGen, setLoadingGen] = useState(false);
@@ -97,6 +98,48 @@ const LaboratorioMapas = () => {
             };
         }
     }, [showSectorOptions]);
+
+    useEffect(() => {
+        const fetchNotes = async () => {
+            if (!selectedLoteId || !currentTenantId) {
+                setPatientNotesMap({});
+                return;
+            }
+            const lote = lotes.find(l => l.id === selectedLoteId);
+            if (!lote || !lote.document_snapshot) {
+                setPatientNotesMap({});
+                return;
+            }
+            try {
+                const snap = typeof lote.document_snapshot === 'string' ? JSON.parse(lote.document_snapshot) : lote.document_snapshot;
+                if (!snap || !snap.patients || snap.patients.length === 0) return;
+                
+                const codes = [...new Set(snap.patients.map(p => p.code).filter(c => c))];
+                if (codes.length === 0) return;
+
+                const { data, error } = await supabase
+                    .from('lab_patients')
+                    .select('code, notes')
+                    .eq('tenant_id', currentTenantId)
+                    .in('code', codes);
+
+                if (error) throw error;
+                
+                if (data) {
+                    const notesMap = {};
+                    data.forEach(p => {
+                        if (p.notes && p.notes.trim()) {
+                            notesMap[String(p.code).trim()] = p.notes.trim();
+                        }
+                    });
+                    setPatientNotesMap(notesMap);
+                }
+            } catch (error) {
+                console.error("[Mapas] Erro ao buscar notas dos pacientes do lote:", error);
+            }
+        };
+        fetchNotes();
+    }, [selectedLoteId, lotes, currentTenantId]);
 
     const normalizeString = (str) => {
         if (!str) return '';
@@ -622,9 +665,12 @@ const LaboratorioMapas = () => {
             if (examesVisiveis.length === 0) return;
 
             const deduplicatedExams = deduplicateExamsForPrint(examesVisiveis);
+            
+            const lookupCode = pat.code ? String(pat.code).trim() : '';
+            const resolvedObs = (pat.notes || (lookupCode && patientNotesMap[lookupCode]) || pat.observation || pat.obs || pat.observacao || '').trim();
 
             if (isUrinalise) {
-                const obsText = (pat.observation || pat.obs || pat.observacao || '').trim();
+                const obsText = resolvedObs;
                 let examsHtml = '';
                 deduplicatedExams.forEach(ex => {
                     let gridHtml = '';
@@ -704,8 +750,12 @@ const LaboratorioMapas = () => {
                                 <span>Origem: ${escapeHtml(pat.origin)}</span>
                                 <span class="u-sep">|</span>
                                 <span>Médico: ${escapeHtml(pat.doctor || 'NÃO INFORMADO')}</span>
-                                ${obsText ? `<span class="u-sep">|</span><span>Obs: ${escapeHtml(obsText)}</span>` : ''}
                             </div>
+                            ${obsText ? `
+                            <div style="margin-top: 4px; font-size: 0.85rem; color: #334155;">
+                                <span style="font-weight: 700;">Observação:</span> ${escapeHtml(obsText)}
+                            </div>
+                            ` : ''}
                         </div>
                         ${examsHtml}
                     </div>
@@ -769,8 +819,13 @@ const LaboratorioMapas = () => {
                                 <span style="color: #94a3b8;">|</span>
                                 <span>Origem: ${escapeHtml(pat.origin)}</span>
                                 <span style="color: #94a3b8;">|</span>
-                                <span>Médico: ${escapeHtml(pat.doctor)}</span>
+                                <span>Médico: ${escapeHtml(pat.doctor || 'NÃO INFORMADO')}</span>
                             </div>
+                            ${resolvedObs ? `
+                            <div style="margin-top: 4px; font-size: 0.85rem; color: #334155;">
+                                <span style="font-weight: 700;">Observação:</span> ${escapeHtml(resolvedObs)}
+                            </div>
+                            ` : ''}
                         </div>
                         <table class="lab-patient-exams">
                             ${examsRows}
@@ -1338,6 +1393,9 @@ const LaboratorioMapas = () => {
                                     const isHematologia = (previewSnap.metadata?.sector?.name || '').trim().toUpperCase() === 'HEMATOLOGIA';
 
                                     return previewSnap.patients.map((pat, idx) => {
+                                        const lookupCode = pat.code ? String(pat.code).trim() : '';
+                                        const resolvedObs = (pat.notes || (lookupCode && patientNotesMap[lookupCode]) || pat.observation || pat.obs || pat.observacao || '').trim();
+                                        
                                         const examesVisiveis = isHematologia
                                             ? (pat.exams || []).filter(exam => String(exam.code || '').trim().toUpperCase() !== 'HEMO')
                                             : (pat.exams || []);
@@ -1365,13 +1423,12 @@ const LaboratorioMapas = () => {
                                                             <span>Origem: {pat.origin}</span>
                                                             <span className="u-sep">|</span>
                                                             <span>Médico: {pat.doctor || 'NÃO INFORMADO'}</span>
-                                                            {(pat.observation || pat.obs || pat.observacao) && (
-                                                                <>
-                                                                    <span className="u-sep">|</span>
-                                                                    <span>Obs: {pat.observation || pat.obs || pat.observacao}</span>
-                                                                </>
-                                                            )}
                                                         </div>
+                                                        {resolvedObs && (
+                                                            <div style={{ marginTop: '4px', fontSize: '0.85rem', color: '#334155' }}>
+                                                                <span style={{ fontWeight: 700 }}>Observação:</span> {resolvedObs}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     {deduplicatedExams.map((ex, eIdx) => (
                                                         <div key={eIdx} className="lab-urinalise-exam">
@@ -1457,6 +1514,11 @@ const LaboratorioMapas = () => {
                                                         <span style={{ color: '#94a3b8' }}>|</span>
                                                         <span>Médico: {pat.doctor}</span>
                                                     </div>
+                                                    {resolvedObs && (
+                                                        <div style={{ marginTop: '2px', fontSize: '0.85rem', color: '#334155' }}>
+                                                            <span style={{ fontWeight: 700 }}>Observação:</span> {resolvedObs}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <table className="lab-patient-exams">
                                                     <tbody>

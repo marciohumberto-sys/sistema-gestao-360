@@ -467,16 +467,41 @@ const LaboratorioResultados = () => {
             const data = await laboratorioResultadosService.getResultadosPendentes(protocolToSearch);
             setAttendances(data);
             
-            // Se já tem um selecionado e ele existe, mantém. Se não, pega o primeiro.
+            // Se já tem um selecionado e ele existe, mantém. Se não, aplica ordenação e pega o primeiro pendente.
             if (data.length > 0 && data[0].resultados && data[0].resultados.length > 0) {
-                let toSelect = data[0].resultados[0];
+                const sortedResultados = [...data[0].resultados].sort((a, b) => {
+                    const isHemoA = String(a.exameCodigo || a.exame_codigo || '').trim().toUpperCase() === 'HEMO';
+                    const isHemoB = String(b.exameCodigo || b.exame_codigo || '').trim().toUpperCase() === 'HEMO';
+                    if (isHemoA && !isHemoB) return -1;
+                    if (!isHemoA && isHemoB) return 1;
+
+                    const sectorA = String(a.exameSetor || '').toLowerCase();
+                    const sectorB = String(b.exameSetor || '').toLowerCase();
+                    if (sectorA < sectorB) return -1;
+                    if (sectorA > sectorB) return 1;
+
+                    const codeA = String(a.exameCodigo || a.exame_codigo || '').toLowerCase();
+                    const codeB = String(b.exameCodigo || b.exame_codigo || '').toLowerCase();
+                    if (codeA < codeB) return -1;
+                    if (codeA > codeB) return 1;
+                    
+                    return 0;
+                });
+
+                let toSelect = null;
                 if (targetExamCode) {
-                    const found = data[0].resultados.find(r => r.exameCodigo === targetExamCode);
-                    if (found) toSelect = found;
+                    toSelect = sortedResultados.find(r => r.exameCodigo === targetExamCode);
                 } else if (currentSelectedId) {
-                    const found = data[0].resultados.find(r => r.id === currentSelectedId);
-                    if (found) toSelect = found;
+                    toSelect = sortedResultados.find(r => r.id === currentSelectedId);
                 }
+                
+                if (!toSelect) {
+                    toSelect = sortedResultados.find(r => !['DIGITADO', 'LIBERADO'].includes(String(r.status || '').trim().toUpperCase()));
+                    if (!toSelect) {
+                        toSelect = sortedResultados[0];
+                    }
+                }
+
                 selecionarExame(toSelect);
             } else {
                 setSelectedExamId(null);
@@ -619,6 +644,18 @@ const LaboratorioResultados = () => {
             result.structuredValues.forEach(v => {
                 let vNum = v.value_numeric;
                 const code = String(v.parameter_code || v.code || '').toUpperCase();
+                
+                if (code === 'PLASMOCITOS') {
+                    if (vNum === null || vNum === undefined || String(vNum).trim() === '') {
+                        vNum = '00';
+                    } else {
+                        const trimmed = String(vNum).trim();
+                        if (/^\d$/.test(trimmed)) {
+                            vNum = '0' + trimmed;
+                        }
+                    }
+                }
+
                 if (v.result_type === 'NUMERICO' && vNum !== null && vNum !== undefined) {
                     if (HEMO_INTEGER_COUNT_CODES.has(code)) {
                         vNum = String(vNum).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
