@@ -193,20 +193,37 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
             );
         }
 
-        if (mode === 'leuco' || mode === 'leuco-abs') {
-            const isAbsOnly = mode === 'leuco-abs';
+        if (mode === 'leuco-abs') {
+            return (
+                <div key={param.id} className="hemo-eritro-grid">
+                    <div className="hemo-col-name">{param.parameter_name || param.parameter_code}</div>
+                    <div className={`hemo-col-result ${isAbnormalRel ? 'hemo-abnormal' : ''}`}>{formattedResult}</div>
+                    <div className="hemo-col-unit">/mm³</div>
+                    <div className="hemo-col-graph">
+                        {refObj.valid && !refObj.isFixed && <GraficoHemo value={valNum} min={refObj.relMin} max={refObj.relMax} parameterCode={param.parameter_code} />}
+                    </div>
+                    <div className="hemo-col-ref-group">
+                        <div className="hemo-sex-reference-grid">
+                            <div className="hemo-col-ref-single" style={{ gridColumn: '1 / -1' }}>{singleLine?.text || absLine?.text || refObj.text || ''}</div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        if (mode === 'leuco') {
             return (
                 <div key={param.id} className="hemo-leuco-grid">
                     <div className="hemo-col-name">{param.parameter_name || param.parameter_code}</div>
-                    <div className={`hemo-leuco-col-rel ${isAbnormalRel ? 'hemo-abnormal' : ''}`}>{isAbsOnly ? '—' : formattedResult}</div>
-                    <div className="hemo-leuco-col-abs">{isAbsOnly ? formattedResult : absResultStr}</div>
+                    <div className={`hemo-leuco-col-rel ${isAbnormalRel ? 'hemo-abnormal' : ''}`}>{formattedResult}</div>
+                    <div className="hemo-leuco-col-abs">{absResultStr}</div>
                     <div className="hemo-col-graph">
                         {refObj.valid && !refObj.isFixed && <GraficoHemo value={valNum} min={refObj.relMin} max={refObj.relMax} parameterCode={param.parameter_code} />}
                     </div>
                     <div className="hemo-col-ref-group">
                         <div className="hemo-leuco-reference-grid">
-                            <div className="hemo-col-ref-rel">{isAbsOnly ? '—' : (relLine?.text || singleLine?.text || '')}</div>
-                            <div className="hemo-col-ref-abs">{isAbsOnly ? (singleLine?.text || absLine?.text || '') : (absLine?.text || '')}</div>
+                            <div className="hemo-col-ref-rel">{relLine?.text || singleLine?.text || ''}</div>
+                            <div className="hemo-col-ref-abs">{absLine?.text || ''}</div>
                         </div>
                     </div>
                 </div>
@@ -363,20 +380,35 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
             {/* LEUCOGRAMA */}
             <div className="hemo-section">
                 <div className="hemo-section-title">LEUCOGRAMA</div>
-                <div className="hemo-leuco-grid header">
+                
+                {/* Cabeçalho Total (Leucócitos) */}
+                <div className="hemo-eritro-grid header">
+                    <div className="hemo-col-name">Parâmetro</div>
+                    <div className="hemo-col-result">Resultado</div>
+                    <div className="hemo-col-unit">Unidade</div>
+                    <div className="hemo-col-graph"></div>
+                    <div className="hemo-col-ref-group">
+                        <div className="hemo-sex-reference-grid">
+                            <div className="hemo-col-ref-single" style={{ gridColumn: '1 / -1' }}>Valores de Referência</div>
+                        </div>
+                    </div>
+                </div>
+                {renderRow('LEUCOCITOS', 'leuco-abs')}
+                
+                {/* Cabeçalho Diferencial */}
+                <div className="hemo-leuco-grid header" style={{ marginTop: '0.5rem' }}>
                     <div className="hemo-col-name">Parâmetro</div>
                     <div className="hemo-leuco-col-rel">%</div>
                     <div className="hemo-leuco-col-abs">/mm³</div>
                     <div className="hemo-col-graph"></div>
                     <div className="hemo-col-ref-group">
-                        <div className="hemo-ref-title">Valores de Referência</div>
+                        
                         <div className="hemo-leuco-reference-grid">
                             <div className="hemo-col-ref-rel">Ref. %</div>
                             <div className="hemo-col-ref-abs">Ref. /mm³</div>
                         </div>
                     </div>
                 </div>
-                {renderRow('LEUCOCITOS', 'leuco-abs')}
                 {HEMO_GROUPS.leucograma.filter(c => c !== 'LEUCOCITOS').map(c => renderRow(c, 'leuco'))}
             </div>
 
