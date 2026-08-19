@@ -74,7 +74,8 @@ const LaboratorioConferencia = () => {
         date: '',
         patient: '',
         patientCode: '',
-        attendance_origin: ''
+        attendance_origin: '',
+        status: 'DIGITADO'
     });
 
     const { tenantLink, isSuperAdmin } = useAuth();
@@ -639,6 +640,19 @@ const LaboratorioConferencia = () => {
                                 </select>
                             </div>
 
+                            <div className="lab-filter-group">
+                                <label>Status</label>
+                                <select 
+                                    className="lab-select"
+                                    value={searchFilters.status}
+                                    onChange={(e) => setSearchFilters({...searchFilters, status: e.target.value})}
+                                >
+                                    <option value="DIGITADO">Aguardando conferência</option>
+                                    <option value="LIBERADO">Liberados</option>
+                                    <option value="TODOS">Todos</option>
+                                </select>
+                            </div>
+
                             <div className="lab-filter-group lab-filter-actions">
                                 <label className="filter-label-spacer" aria-hidden="true">Ação</label>
                                 <button 
@@ -659,10 +673,12 @@ const LaboratorioConferencia = () => {
                         <div className="lab-conf-queue-topbar">
                             <div className="lab-conf-queue-title-box">
                                 <h3 className="lab-conf-queue-title">
-                                    Atendimentos para Conferência
+                                    {searchFilters.status === 'DIGITADO' ? 'Atendimentos para Conferência' : 
+                                     searchFilters.status === 'LIBERADO' ? 'Atendimentos Liberados' : 
+                                     'Todos os Atendimentos'}
                                 </h3>
                                 <span className="lab-conf-queue-count-badge">
-                                    {groupedProtocols.length} {groupedProtocols.length === 1 ? 'atendimento' : 'atendimentos'} • {filteredResults.length} {filteredResults.length === 1 ? 'exame pendente' : 'exames pendentes'}
+                                    {groupedProtocols.length} {groupedProtocols.length === 1 ? 'atendimento' : 'atendimentos'} • {filteredResults.length} {filteredResults.length === 1 ? (searchFilters.status === 'DIGITADO' ? 'exame pendente' : searchFilters.status === 'LIBERADO' ? 'exame liberado' : 'exame') : (searchFilters.status === 'DIGITADO' ? 'exames pendentes' : searchFilters.status === 'LIBERADO' ? 'exames liberados' : 'exames')}
                                     {groupedProtocols.length > 0 && (
                                         <span className="lab-conf-queue-loaded-tag">
                                             ({displayedProtocols.length} carregados)
@@ -696,8 +712,8 @@ const LaboratorioConferencia = () => {
                             ) : groupedProtocols.length === 0 ? (
                                 <div className="lab-conf-empty">
                                     <Activity size={36} className="lab-conf-empty-icon" />
-                                    <h3>Nenhum exame pendente de conferência</h3>
-                                    <p>Não foram encontrados atendimentos com status DIGITADO para os filtros aplicados.</p>
+                                    <h3>{searchFilters.status === 'DIGITADO' ? 'Nenhum exame pendente de conferência' : 'Nenhum exame encontrado'}</h3>
+                                    <p>Não foram encontrados atendimentos para os filtros aplicados.</p>
                                 </div>
                             ) : (
                                 <div className="lab-conf-queue-cards-wrapper">
@@ -775,7 +791,9 @@ const LaboratorioConferencia = () => {
                                                         <span className="lab-conf-info-item lab-conf-info-exams">
                                                             Exames: <strong>{totalExames}</strong>{' '}
                                                             <span className="lab-conf-exams-pending-text">
-                                                                ({totalExames} {totalExames === 1 ? 'pendente' : 'pendentes'})
+                                                                ({totalExames} {totalExames === 1 ? 
+                                                                    (searchFilters.status === 'DIGITADO' ? 'pendente' : searchFilters.status === 'LIBERADO' ? 'liberado' : '') : 
+                                                                    (searchFilters.status === 'DIGITADO' ? 'pendentes' : searchFilters.status === 'LIBERADO' ? 'liberados' : '')})
                                                             </span>
                                                         </span>
                                                     </div>

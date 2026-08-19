@@ -71,7 +71,7 @@
 
 .lab-conf-container .lab-filters-grid.lab-conf-filters-grid {
     display: grid;
-    grid-template-columns: 135px 145px minmax(200px, 1fr) 160px 120px;
+    grid-template-columns: 150px 160px minmax(220px, 1fr) 170px 165px 145px;
     gap: 12px;
     align-items: end;
     width: 100%;

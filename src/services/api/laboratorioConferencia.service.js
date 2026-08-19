@@ -74,8 +74,16 @@ export const laboratorioConferenciaService = {
                     .select('id, attendance_id, exam_id, status, created_at')
                     .in('attendance_id', chunk);
 
-                // Apenas DIGITADOS na Conferência
-                query = query.eq('status', 'DIGITADO');
+                // Filtro de status
+                if (statusFilter === 'LIBERADO') {
+                    query = query.eq('status', 'LIBERADO');
+                } else if (statusFilter === 'TODOS') {
+                    query = query.in('status', ['DIGITADO', 'LIBERADO']);
+                } else {
+                    // Padrão: Apenas DIGITADOS na Conferência
+                    query = query.eq('status', 'DIGITADO');
+                }
+
 
                 const { data: resData, error: resError } = await query;
                 if (resError) throw resError;
