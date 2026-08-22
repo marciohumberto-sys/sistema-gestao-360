@@ -326,7 +326,7 @@
     vertical-align: middle;
 }
 
-.lab-rel-table tr:nth-child(even) {
+.lab-rel-table tr.lab-row-even {
     background: #f8fafc;
 }
 

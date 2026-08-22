@@ -7,13 +7,14 @@ class LaboratorioResultadosService {
 
     async buscarAtendimentosProgressivos({ filtros = {}, cursor = 0, limit = 20 } = {}) {
         try {
-            const { dataInicial, paciente, patient_code, status, attendance_origin } = filtros || {};
+            const { dataInicial, dataFinal, paciente, patient_code, status, attendance_origin } = filtros || {};
 
             const targetLimit = Math.min(50, Math.max(1, parseInt(limit, 10) || 20));
             let currentOffset = Math.max(0, parseInt(cursor?.offset ?? cursor, 10) || 0);
 
             console.debug('[LAB][RESULTADOS] Busca progressiva iniciada', {
                 dataInicial,
+                dataFinal,
                 paciente,
                 patient_code,
                 status,
@@ -46,10 +47,17 @@ class LaboratorioResultadosService {
             }
 
             const dataInicialNormalizada = typeof dataInicial === 'string' ? dataInicial.trim() : '';
+            const dataFinalNormalizada = typeof dataFinal === 'string' ? dataFinal.trim() : '';
             if (dataInicialNormalizada) {
                 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
                 if (!DATE_ONLY_REGEX.test(dataInicialNormalizada)) {
                     throw new Error('Data inicial inválida. Use o formato YYYY-MM-DD.');
+                }
+            }
+            if (dataFinalNormalizada) {
+                const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+                if (!DATE_ONLY_REGEX.test(dataFinalNormalizada)) {
+                    throw new Error('Data final inválida. Use o formato YYYY-MM-DD.');
                 }
             }
 
@@ -67,7 +75,9 @@ class LaboratorioResultadosService {
                 const to = from + CANDIDATE_CHUNK_SIZE - 1;
 
                 let query = supabase.from('lab_attendances').select('*');
-                if (dataInicialNormalizada) {
+                if (dataInicialNormalizada && dataFinalNormalizada && dataInicialNormalizada !== dataFinalNormalizada) {
+                    query = query.gte('attendance_date', dataInicialNormalizada).lte('attendance_date', dataFinalNormalizada);
+                } else if (dataInicialNormalizada) {
                     query = query.eq('attendance_date', dataInicialNormalizada);
                 }
                 if (patientIds) {
@@ -381,6 +391,8 @@ class LaboratorioResultadosService {
                 pacienteCns: paciente.cns || null,
                 pacienteCpf: paciente.cpf || null,
                 pacienteCodigo: paciente.code || null,
+                pacienteNascimento: paciente.birth_date || null,
+                medico: att.requesting_doctor || null,
                 convenio: att.agreement || 'Não inf.',
                 local_entrega: att.delivery_location || 'Central',
                 examesTotal: total,

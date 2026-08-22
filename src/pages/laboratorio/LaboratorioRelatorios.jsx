@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
     FileText, Download, Search, Printer, AlertCircle
 } from 'lucide-react';
@@ -8,6 +8,48 @@ import { laboratorioConfiguracoesService } from '../../services/api/laboratorioC
 import { supabase } from '../../lib/supabase';
 import { TODAS_ORIGENS, normalizeString } from '../../utils/laboratorioHelpers';
 import ExcelJS from 'exceljs';
+
+const BPA_CODES = {
+  AUR: '0202010120',
+  BIL: '0202010201',
+  HDL: '0202010279',
+  LDL: '0202010287',
+  COL: '0202010295',
+  CRE: '0202010317',
+  GLI: '0202010473',
+  GPP: '0202010473',
+  TGO: '0202010643',
+  TGP: '0202010651',
+  TRI: '0202010678',
+  URE: '0202010694',
+  B12: '0202010708',
+  TC: '0202020070',
+  TS: '0202020096',
+  TPI: '0202031209',
+  BHCG: '0202060217',
+  TAP: '0202020142',
+  VHS: '0202020150',
+  HEMO: '0202020380',
+  LATEX: '0202030075',
+  PCR: '0202030202',
+  HIV: '0202030300',
+  ASO: '0202030474',
+  ASLO: '0202030474',
+  HCV: '0202030679',
+  HBSAG: '0202030970',
+  TROPONINA: '0202031209',
+  PAR: '0202040127',
+  URI: '0202050017',
+  TSH: '0202060250',
+  T4: '0202060373',
+  T4L: '0202060381'
+};
+
+const getBpaCode = (code) => {
+    if (!code) return '-';
+    const normalized = code.trim().toUpperCase();
+    return BPA_CODES[normalized] || '-';
+};
 
 const formatDataToBR = (dateString) => {
     if (!dateString) return '-';
@@ -33,17 +75,90 @@ const getTodayFormat = () => {
 };
 
 const LaboratorioRelatorios = () => {
+    const [activeTab, setActiveTab] = useState('periodo'); // 'periodo', 'exame', 'origem'
+
     const [formFilters, setFormFilters] = useState({
-        data: getTodayFormat(),
+        dataInicial: getTodayFormat(),
+        dataFinal: getTodayFormat(),
         codigo: '',
-        nome: '',
         origem: 'Todas',
         exame: '' // codigo do exame
     });
 
     const [loading, setLoading] = useState(false);
-    const [attendances, setAttendances] = useState([]);
-    const [hasSearched, setHasSearched] = useState(false);
+    
+    const [periodResults, setPeriodResults] = useState([]);
+    const [examResults, setExamResults] = useState([]);
+    const [originResults, setOriginResults] = useState([]);
+    
+    const attendances = activeTab === 'exames' ? examResults : periodResults;
+    
+    const attendancesToRender = useMemo(() => {
+        if (activeTab !== 'exames') return attendances;
+        const flatList = [];
+        attendances.forEach(att => {
+            const exames = att.examesList || [];
+            exames.forEach(ex => {
+                if (formFilters.exame && ex.id !== formFilters.exame) return;
+                flatList.push({ ...att, exameUnico: ex.code, exameUnicoName: ex.name });
+            });
+        });
+        return flatList;
+    }, [attendances, activeTab, formFilters.exame]);
+    
+    const distinctPatientsCount = useMemo(() => {
+        return new Set(attendancesToRender.map(a => a.pacienteCodigo)).size;
+    }, [attendancesToRender]);
+
+    const originReportData = useMemo(() => {
+        if (activeTab !== 'origem') return [];
+        const examCounts = {};
+        originResults.forEach(att => {
+            const exames = att.examesList || [];
+            exames.forEach(ex => {
+                if (!examCounts[ex.code]) {
+                    examCounts[ex.code] = {
+                        codigo_bpa: getBpaCode(ex.code),
+                        exame: ex.code,
+                        descricao: ex.name,
+                        quantidade: 0,
+                        distinctPatients: new Set(),
+                        sortOrder: ex.print_order || 999
+                    };
+                }
+                examCounts[ex.code].quantidade += 1;
+                if (att.pacienteCodigo) {
+                    examCounts[ex.code].distinctPatients.add(att.pacienteCodigo);
+                }
+            });
+        });
+        const result = Object.values(examCounts).map(item => ({
+            ...item,
+            pacientes: item.distinctPatients.size
+        })).sort((a, b) => a.sortOrder - b.sortOrder);
+        return result;
+    }, [originResults, activeTab]);
+
+    const totalExamesOrigem = useMemo(() => {
+        return originReportData.reduce((acc, curr) => acc + curr.quantidade, 0);
+    }, [originReportData]);
+
+    const distinctPatientsOrigem = useMemo(() => {
+        if (activeTab !== 'origem') return 0;
+        const globalSet = new Set();
+        originResults.forEach(att => {
+            if (att.pacienteCodigo && att.examesList && att.examesList.length > 0) {
+                globalSet.add(att.pacienteCodigo);
+            }
+        });
+        return globalSet.size;
+    }, [originResults, activeTab]);
+
+    const [hasSearchedPeriod, setHasSearchedPeriod] = useState(false);
+    const [hasSearchedExam, setHasSearchedExam] = useState(false);
+    const [hasSearchedOrigin, setHasSearchedOrigin] = useState(false);
+    
+    const hasSearched = activeTab === 'exames' ? hasSearchedExam : (activeTab === 'origem' ? hasSearchedOrigin : hasSearchedPeriod);
     
     // Exams for dropdown
     const [baseExamsList, setBaseExamsList] = useState([]); // dynamic from fetched attendances
@@ -88,17 +203,25 @@ const LaboratorioRelatorios = () => {
     }, []);
 
     const handleBuscar = async () => {
+        if (activeTab === 'exames' && !formFilters.exame) {
+            alert('Selecione um exame para gerar o relatório.');
+            return;
+        }
+
         setLoading(true);
-        setHasSearched(true);
+        if (activeTab === 'exames') setHasSearchedExam(true);
+        else if (activeTab === 'origem') setHasSearchedOrigin(true);
+        else setHasSearchedPeriod(true);
+
         try {
             let allItems = [];
             let cursor = 0;
             let hasMore = true;
 
             const filtrosAPI = {
-                dataInicial: formFilters.data, 
-                patient_code: formFilters.codigo, 
-                paciente: formFilters.nome
+                dataInicial: formFilters.dataInicial, 
+                dataFinal: formFilters.dataFinal,
+                patient_code: activeTab !== 'origem' ? formFilters.codigo : ''
             };
             if (formFilters.origem !== 'Todas') {
                 filtrosAPI.attendance_origin = formFilters.origem;
@@ -135,14 +258,14 @@ const LaboratorioRelatorios = () => {
 
             // Fetch Exams for these attendances
             if (allItems.length > 0) {
-                const CHUNK_SIZE = 200;
+                const CHUNK_SIZE = 50;
                 let examesPorAtendimento = {};
                 
                 for (let i = 0; i < allItems.length; i += CHUNK_SIZE) {
                     const chunk = allItems.slice(i, i + CHUNK_SIZE).map(a => a.id);
                     const { data: attendanceExams, error: errExams } = await supabase
                         .from('lab_attendance_exams')
-                        .select('attendance_id, lab_exams(code, name, print_order)')
+                        .select('attendance_id, lab_exams(id, code, name, print_order)')
                         .in('attendance_id', chunk);
 
                     if (!errExams && attendanceExams) {
@@ -152,6 +275,7 @@ const LaboratorioRelatorios = () => {
                                 examesPorAtendimento[ae.attendance_id] = [];
                             }
                             examesPorAtendimento[ae.attendance_id].push({
+                                id: ae.lab_exams.id,
                                 code: ae.lab_exams.code,
                                 name: ae.lab_exams.name,
                                 print_order: ae.lab_exams.print_order || 999
@@ -178,7 +302,7 @@ const LaboratorioRelatorios = () => {
                         
                         // For the Global Filter Dropdown
                         if (!globalExamsMap.has(ex.code)) {
-                            globalExamsMap.set(ex.code, { code: ex.code, name: ex.name });
+                            globalExamsMap.set(ex.code, { id: ex.id, code: ex.code, name: ex.name });
                         }
                     });
                     
@@ -193,16 +317,11 @@ const LaboratorioRelatorios = () => {
             }
 
             // Local filter by exam if selected
-            if (formFilters.exame) {
+            if (formFilters.exame && activeTab !== 'origem') {
                 allItems = allItems.filter(att => 
-                    (att.examesList || []).some(e => e.code === formFilters.exame)
+                    (att.examesList || []).some(e => e.id === formFilters.exame)
                 );
             }
-
-            // Recalculate exams total after filtering
-            let distinctTotal = 0;
-            allItems.forEach(a => distinctTotal += (a.examesList?.length || 0));
-            setTotalExames(distinctTotal);
 
             // Sorting: Data -> Código Paciente
             allItems.sort((a, b) => {
@@ -214,7 +333,18 @@ const LaboratorioRelatorios = () => {
                 return codeA.localeCompare(codeB);
             });
 
-            setAttendances(allItems);
+            if (activeTab === 'exames') {
+                setExamResults(allItems);
+            } else if (activeTab === 'origem') {
+                setOriginResults(allItems);
+            } else {
+                setPeriodResults(allItems);
+                
+                // Recalculate exams total after filtering
+                let distinctTotal = 0;
+                allItems.forEach(a => distinctTotal += (a.examesList?.length || 0));
+                setTotalExames(distinctTotal);
+            }
         } catch (error) {
             console.error('Erro ao buscar relatórios:', error);
         } finally {
@@ -223,42 +353,53 @@ const LaboratorioRelatorios = () => {
     };
 
     const handleExportExcel = async () => {
-        if (attendances.length === 0) return;
+        if ((activeTab === 'origem' && originReportData.length === 0) || (activeTab !== 'origem' && attendancesToRender.length === 0)) return;
         
         const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Atendimentos', {
+        const worksheet = workbook.addWorksheet('Relatorio', {
             pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
         });
 
         // Colunas
-        worksheet.columns = [
-            { key: 'data', width: 14 },
-            { key: 'codigo', width: 15 },
-            { key: 'paciente', width: 40 },
-            { key: 'origem', width: 22 },
-            { key: 'exames', width: 70 }
-        ];
+        if (activeTab === 'origem') {
+            worksheet.columns = [
+                { key: 'codigo', width: 15 },
+                { key: 'exame', width: 20 },
+                { key: 'descricao', width: 70 },
+                { key: 'pacientes', width: 15 },
+                { key: 'quantidade', width: 15 }
+            ];
+        } else {
+            worksheet.columns = [
+                { key: 'data', width: 14 },
+                { key: 'codigo', width: 15 },
+                { key: 'paciente', width: 40 },
+                { key: 'origem', width: 22 },
+                { key: 'exame', width: activeTab === 'exames' ? 20 : 70 }
+            ];
+        }
 
         // Títulos e Logo (Excel)
         worksheet.getRow(1).height = 20;
         worksheet.getRow(2).height = 20;
         worksheet.getRow(3).height = 20;
         
-        worksheet.mergeCells('A1:E1');
+        const lastCol = activeTab === 'origem' ? 'D' : 'E';
+        worksheet.mergeCells(`A1:${lastCol}1`);
         const title1 = worksheet.getCell('A1');
         title1.value = 'PREFEITURA DE BEZERROS';
         title1.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF333333' } };
         title1.alignment = { horizontal: 'center', vertical: 'bottom' };
 
-        worksheet.mergeCells('A2:E2');
+        worksheet.mergeCells(`A2:${lastCol}2`);
         const title2 = worksheet.getCell('A2');
         title2.value = 'LABORATÓRIO';
         title2.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FF333333' } };
         title2.alignment = { horizontal: 'center', vertical: 'middle' };
 
-        worksheet.mergeCells('A3:E3');
+        worksheet.mergeCells(`A3:${lastCol}3`);
         const title3 = worksheet.getCell('A3');
-        title3.value = 'RELATÓRIO DE ATENDIMENTOS';
+        title3.value = activeTab === 'origem' ? 'RELATÓRIO TOTAL DE EXAMES POR ORIGEM' : 'RELATÓRIO DE ATENDIMENTOS';
         title3.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FF666666' } };
         title3.alignment = { horizontal: 'center', vertical: 'top' };
 
@@ -296,25 +437,34 @@ const LaboratorioRelatorios = () => {
         worksheet.addRow([]); // Espaço
 
         // Filtros
-        worksheet.mergeCells('A4:E4');
+        worksheet.mergeCells(`A4:${lastCol}4`);
         const filterCell = worksheet.getCell('A4');
-        filterCell.value = `Data: ${formatDataToBR(formFilters.data)} | Código: ${formFilters.codigo || 'Todos'} | Paciente: ${formFilters.nome || 'Todos'} | Origem: ${formFilters.origem} | Exame: ${formFilters.exame || 'Todos'}`;
+        const filterText = activeTab === 'origem' 
+            ? `Período: ${formatDataToBR(formFilters.dataInicial)} a ${formatDataToBR(formFilters.dataFinal)} | Origem: ${formFilters.origem}`
+            : `Data Incial: ${formatDataToBR(formFilters.dataInicial)} | Data Final: ${formatDataToBR(formFilters.dataFinal)} | Código: ${formFilters.codigo || 'Todos'} | Origem: ${formFilters.origem} | Exame: ${formFilters.exame ? baseExamsList.find(e=>e.id===formFilters.exame)?.code : 'Todos'}`;
+        filterCell.value = filterText;
         filterCell.font = { name: 'Arial', size: 10, italic: true };
         
         // Resumo
-        worksheet.mergeCells('A5:E5');
+        worksheet.mergeCells(`A5:${lastCol}5`);
         const summaryCell = worksheet.getCell('A5');
-        summaryCell.value = `${attendances.length} atendimentos | ${totalExames} exames vinculados`;
+        summaryCell.value = activeTab === 'origem' 
+            ? `${totalExamesOrigem} exames encontrados | ${originReportData.length} tipos de exame | ${distinctPatientsOrigem} pacientes distintos` 
+            : `${attendancesToRender.length} registros | ${activeTab === 'exames' ? distinctPatientsCount + ' pacientes' : totalExames + ' exames vinculados'}`;
         summaryCell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF1D4ED8' } };
         
         worksheet.addRow([]); // Espaço
 
         // Cabeçalho da tabela
-        const headerRow = worksheet.addRow(['DATA', 'CÓD. PACIENTE', 'PACIENTE', 'ORIGEM', 'EXAMES']);
+        const headers = activeTab === 'origem' 
+            ? ['CÓDIGO', 'EXAME', 'DESCRIÇÃO', 'PACIENTES', 'QUANTIDADE']
+            : ['DATA', 'CÓD. PACIENTE', 'PACIENTE', 'ORIGEM', activeTab === 'exames' ? 'EXAME' : 'EXAMES'];
+            
+        const headerRow = worksheet.addRow(headers);
         headerRow.eachCell((cell) => {
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
             cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF1E293B' } };
-            cell.alignment = { vertical: 'middle', horizontal: 'left' };
+            cell.alignment = { vertical: 'middle', horizontal: activeTab === 'origem' && (cell.col === 4 || cell.col === 5) ? 'right' : 'left' };
             cell.border = {
                 top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
                 bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
@@ -325,34 +475,63 @@ const LaboratorioRelatorios = () => {
         worksheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 7 }];
 
         // Dados
-        attendances.forEach((att, idx) => {
-            const examesStr = (att.examesList || []).map(e => e.code).join(', ');
-            const row = worksheet.addRow([
-                formatDataToBR(att.attendance_date),
-                att.pacienteCodigo || '-',
-                att.pacienteNome || '-',
-                formatAttendanceOrigin(att.attendance_origin),
-                examesStr || '-'
-            ]);
-
-            const isEven = idx % 2 === 1; // 1-indexed visual zebra
-            
-            row.eachCell((cell, colNumber) => {
-                cell.font = { name: 'Arial', size: 10, color: { argb: 'FF334155' } };
-                cell.alignment = { vertical: 'middle', wrapText: colNumber === 5 }; // wrap text na Exames
-                cell.border = { bottom: { style: 'hair', color: { argb: 'FFE2E8F0' } } };
-                if (isEven) {
-                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-                }
+        if (activeTab === 'origem') {
+            originReportData.forEach((item, idx) => {
+                const row = worksheet.addRow([
+                    item.codigo_bpa,
+                    item.exame,
+                    item.descricao,
+                    item.pacientes,
+                    item.quantidade
+                ]);
+                const isEven = idx % 2 === 1; // 1-indexed visual zebra
+                row.eachCell((cell, colNumber) => {
+                    cell.font = { name: 'Arial', size: 10, color: { argb: 'FF334155' } };
+                    cell.alignment = { vertical: 'middle', horizontal: (colNumber === 4 || colNumber === 5) ? 'right' : 'left' };
+                    cell.border = { bottom: { style: 'hair', color: { argb: 'FFE2E8F0' } } };
+                    if (colNumber === 1) {
+                        cell.numFmt = '@';
+                    }
+                    if (isEven) {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+                    }
+                });
             });
-        });
+            const totalRow = worksheet.addRow(['', '', '', 'TOTAL DE EXAMES', totalExamesOrigem]);
+            totalRow.eachCell((cell, colNumber) => {
+                cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF1E293B' } };
+                cell.alignment = { vertical: 'middle', horizontal: colNumber === 5 ? 'right' : 'left' };
+                cell.border = { top: { style: 'medium', color: { argb: 'FFCBD5E1' } } };
+            });
+        } else {
+            attendancesToRender.forEach((att, idx) => {
+                const examesStr = activeTab === 'exames' ? att.exameUnico : (att.examesList || []).map(e => e.code).join(', ');
+                const row = worksheet.addRow([
+                    formatDataToBR(att.attendance_date),
+                    att.pacienteCodigo || '-',
+                    att.pacienteNome || '-',
+                    formatAttendanceOrigin(att.attendance_origin),
+                    examesStr || '-'
+                ]);
+
+                const isEven = idx % 2 === 1; // 1-indexed visual zebra
+                row.eachCell((cell, colNumber) => {
+                    cell.font = { name: 'Arial', size: 10, color: { argb: 'FF334155' } };
+                    cell.alignment = { vertical: 'middle', wrapText: colNumber === 5 };
+                    cell.border = { bottom: { style: 'hair', color: { argb: 'FFE2E8F0' } } };
+                    if (isEven) {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+                    }
+                });
+            });
+        }
 
         // Download
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const link = document.createElement('a');
         link.href = window.URL.createObjectURL(blob);
-        link.download = `relatorio_atendimentos_${getTodayFormat()}.xlsx`;
+        link.download = `relatorio_${activeTab}_${getTodayFormat()}.xlsx`;
         link.click();
     };
 
@@ -389,47 +568,88 @@ const LaboratorioRelatorios = () => {
                     <div style={{ textAlign: 'center' }}>
                         <h2 style={{ textAlign: 'center', margin: '0 0 4px 0' }}>PREFEITURA DE BEZERROS</h2>
                         <h3 style={{ textAlign: 'center', margin: '0 0 4px 0' }}>LABORATÓRIO</h3>
-                        <h4 style={{ textAlign: 'center', margin: 0 }}>RELATÓRIO DE ATENDIMENTOS</h4>
+                        <h4 style={{ textAlign: 'center', margin: 0 }}>
+                            {activeTab === 'origem' ? 'RELATÓRIO TOTAL DE EXAMES POR ORIGEM' : 'RELATÓRIO DE ATENDIMENTOS'}
+                        </h4>
                     </div>
                     <div></div> {/* Espaço vazio para manter os títulos perfeitamente centralizados na página */}
                 </div>
                 
-                <div className="print-filters" style={{ display: 'flex', justifyContent: 'flex-start', gap: '10px' }}>
-                    <p><strong>Data:</strong> {formatDataToBR(formFilters.data)}</p>
-                    {formFilters.codigo && <p><strong>Código:</strong> {formFilters.codigo}</p>}
-                    {formFilters.nome && <p><strong>Paciente:</strong> {formFilters.nome}</p>}
-                    {formFilters.origem !== 'Todas' && <p><strong>Origem:</strong> {formFilters.origem}</p>}
-                    {formFilters.exame && <p><strong>Exame:</strong> {formFilters.exame}</p>}
-                </div>
+                {activeTab === 'origem' ? (
+                    <div className="print-filters" style={{ display: 'flex', justifyContent: 'flex-start', gap: '10px' }}>
+                        <p><strong>Período:</strong> {formatDataToBR(formFilters.dataInicial)} a {formatDataToBR(formFilters.dataFinal)}</p>
+                        <p><strong>Origem:</strong> {formFilters.origem}</p>
+                    </div>
+                ) : (
+                    <div className="print-filters" style={{ display: 'flex', justifyContent: 'flex-start', gap: '10px' }}>
+                        <p><strong>De:</strong> {formatDataToBR(formFilters.dataInicial)}</p>
+                        <p><strong>Até:</strong> {formatDataToBR(formFilters.dataFinal)}</p>
+                        {formFilters.codigo && <p><strong>Código:</strong> {formFilters.codigo}</p>}
+                        {formFilters.origem !== 'Todas' && <p><strong>Origem:</strong> {formFilters.origem}</p>}
+                        {formFilters.exame && <p><strong>Exame:</strong> {baseExamsList.find(e=>e.id===formFilters.exame)?.code || formFilters.exame}</p>}
+                    </div>
+                )}
 
                 <div className="print-summary" style={{ textAlign: 'left' }}>
-                    <strong>{attendances.length}</strong> atendimentos | <strong>{totalExames}</strong> exames vinculados
+                    {activeTab === 'origem' ? (
+                        <><strong>{totalExamesOrigem}</strong> exames encontrados | <strong>{originReportData.length}</strong> tipos de exame | <strong>{distinctPatientsOrigem}</strong> pacientes distintos</>
+                    ) : (
+                        <><strong>{attendancesToRender.length}</strong> registros encontrados | <strong>{activeTab === 'exames' ? distinctPatientsCount + ' pacientes distintos' : totalExames + ' exames vinculados'}</strong></>
+                    )}
                 </div>
 
                 <table className="print-table">
                     <thead>
-                        <tr>
-                            <th>DATA</th>
-                            <th>CÓD. PACIENTE</th>
-                            <th>PACIENTE</th>
-                            <th>ORIGEM</th>
-                            <th>EXAMES</th>
-                        </tr>
+                        {activeTab === 'origem' ? (
+                            <tr>
+                                <th>CÓDIGO</th>
+                                <th>EXAME</th>
+                                <th>DESCRIÇÃO</th>
+                                <th style={{ textAlign: 'right' }}>PACIENTES</th>
+                                <th style={{ textAlign: 'right' }}>QUANTIDADE</th>
+                            </tr>
+                        ) : (
+                            <tr>
+                                <th>DATA</th>
+                                <th>CÓD. PACIENTE</th>
+                                <th>PACIENTE</th>
+                                <th>ORIGEM</th>
+                                {activeTab === 'exames' ? <th>EXAME</th> : <th>EXAMES</th>}
+                            </tr>
+                        )}
                     </thead>
                     <tbody>
-                        {attendances.map((att, idx) => {
-                            const dataFormatada = formatDataToBR(att.attendance_date);
-                            const examesStr = (att.examesList || []).map(ex => ex.code).join(', ');
-                            return (
-                                <tr key={att.id || idx}>
-                                    <td>{dataFormatada}</td>
-                                    <td>{att.pacienteCodigo || '-'}</td>
-                                    <td>{att.pacienteNome || '-'}</td>
-                                    <td>{formatAttendanceOrigin(att.attendance_origin)}</td>
-                                    <td>{examesStr || '-'}</td>
+                        {activeTab === 'origem' ? (
+                            <>
+                                {originReportData.map((item, idx) => (
+                                    <tr key={item.exame}>
+                                        <td>{item.codigo_bpa}</td>
+                                        <td>{item.exame}</td>
+                                        <td>{item.descricao}</td>
+                                        <td style={{ textAlign: 'right' }}>{item.pacientes}</td>
+                                        <td style={{ textAlign: 'right' }}>{item.quantidade}</td>
+                                    </tr>
+                                ))}
+                                <tr style={{ fontWeight: 'bold' }}>
+                                    <td colSpan={4} style={{ borderTop: '2px solid #333' }}>TOTAL DE EXAMES</td>
+                                    <td style={{ textAlign: 'right', borderTop: '2px solid #333' }}>{totalExamesOrigem.toLocaleString('pt-BR')}</td>
                                 </tr>
-                            );
-                        })}
+                            </>
+                        ) : (
+                            attendancesToRender.map((att, idx) => {
+                                const dataFormatada = formatDataToBR(att.attendance_date);
+                                const examesStr = (att.examesList || []).map(ex => ex.code).join(', ');
+                                return (
+                                    <tr key={att.id + (activeTab === 'exames' ? att.exameUnico : '')}>
+                                        <td>{dataFormatada}</td>
+                                        <td>{att.pacienteCodigo || '-'}</td>
+                                        <td>{att.pacienteNome || '-'}</td>
+                                        <td>{formatAttendanceOrigin(att.attendance_origin)}</td>
+                                        {activeTab === 'exames' ? <td>{att.exameUnico}</td> : <td>{examesStr || '-'}</td>}
+                                    </tr>
+                                );
+                            })
+                        )}
                     </tbody>
                 </table>
 
@@ -439,17 +659,46 @@ const LaboratorioRelatorios = () => {
             </div>
 
             {/* Header Tela */}
-            <header className="lab-rel-header">
-                <div>
-                    <h1 className="lab-title">Relatórios</h1>
-                    <p className="lab-subtitle">Consultas e exportação dos atendimentos realizados pelo laboratório</p>
+            <header className="lab-rel-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                    <div>
+                        <h1 className="lab-title">Relatórios</h1>
+                        <p className="lab-subtitle">Consultas e exportação dos atendimentos realizados pelo laboratório</p>
+                    </div>
+                    <div className="lab-header-actions" style={{ display: 'flex', gap: '0.75rem' }}>
+                        <button className="lab-btn lab-btn-outline" onClick={handlePrint} disabled={activeTab === 'origem' ? originReportData.length === 0 : attendances.length === 0}>
+                            <Printer size={16} /> Imprimir
+                        </button>
+                        <button className="lab-btn lab-btn-success" onClick={handleExportExcel} disabled={activeTab === 'origem' ? originReportData.length === 0 : attendances.length === 0}>
+                            <Download size={16} /> Excel
+                        </button>
+                    </div>
                 </div>
-                <div className="lab-header-actions" style={{ display: 'flex', gap: '0.75rem' }}>
-                    <button className="lab-btn lab-btn-outline" onClick={handlePrint} disabled={attendances.length === 0}>
-                        <Printer size={16} /> Imprimir
+
+                <div className="lab-rel-tabs" style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0', width: '100%' }}>
+                    <button 
+                        type="button"
+                        className={`lab-rel-tab ${activeTab === 'periodo' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('periodo')}
+                        style={{ padding: '0.75rem 1.5rem', border: 'none', background: 'none', borderBottom: activeTab === 'periodo' ? '2px solid #2563eb' : '2px solid transparent', color: activeTab === 'periodo' ? '#2563eb' : '#64748b', fontWeight: activeTab === 'periodo' ? '600' : '500', cursor: 'pointer', fontSize: '0.95rem' }}
+                    >
+                        Pacientes por Período
                     </button>
-                    <button className="lab-btn lab-btn-success" onClick={handleExportExcel} disabled={attendances.length === 0}>
-                        <Download size={16} /> Excel
+                    <button 
+                        type="button"
+                        className={`lab-rel-tab ${activeTab === 'exames' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('exames')}
+                        style={{ padding: '0.75rem 1.5rem', border: 'none', background: 'none', borderBottom: activeTab === 'exames' ? '2px solid #2563eb' : '2px solid transparent', color: activeTab === 'exames' ? '#2563eb' : '#64748b', fontWeight: activeTab === 'exames' ? '600' : '500', cursor: 'pointer', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    >
+                        Pacientes por Exame
+                    </button>
+                    <button 
+                        type="button"
+                        className={`lab-rel-tab ${activeTab === 'origem' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('origem')}
+                        style={{ padding: '0.75rem 1.5rem', border: 'none', background: 'none', borderBottom: activeTab === 'origem' ? '2px solid #2563eb' : '2px solid transparent', color: activeTab === 'origem' ? '#2563eb' : '#64748b', fontWeight: activeTab === 'origem' ? '600' : '500', cursor: 'pointer', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    >
+                        Total Exames por Origem
                     </button>
                 </div>
             </header>
@@ -460,33 +709,38 @@ const LaboratorioRelatorios = () => {
                     <Search size={18} />
                     <h3 style={{ fontSize: '1rem', fontWeight: '700', margin: 0 }}>Filtros do relatório</h3>
                 </div>
-                <div className="lab-rel-filters-grid" style={{ gridTemplateColumns: 'minmax(120px, 1fr) minmax(120px, 1fr) minmax(200px, 2.5fr) minmax(180px, 2fr) minmax(180px, 2fr) 130px' }}>
+                <div className="lab-rel-filters-grid" style={{ gridTemplateColumns: activeTab === 'origem' ? 'minmax(180px, 1.2fr) minmax(180px, 1.2fr) minmax(220px, 2fr) 150px' : 'minmax(140px, 1.2fr) minmax(140px, 1.2fr) minmax(120px, 1fr) minmax(180px, 1.5fr) minmax(180px, 1.5fr) 130px', alignItems: 'end' }}>
                     <div className="lab-filter-item">
-                        <label>Data</label>
+                        <label>Data inicial</label>
                         <input 
                             type="date" 
-                            value={formFilters.data}
-                            onChange={(e) => setFormFilters({...formFilters, data: e.target.value})}
+                            value={formFilters.dataInicial}
+                            onChange={(e) => setFormFilters({...formFilters, dataInicial: e.target.value})}
                         />
                     </div>
                     <div className="lab-filter-item">
-                        <label>Cód. Paciente</label>
+                        <label>Data final</label>
                         <input 
-                            type="text" 
-                            placeholder="Ex: 115560" 
-                            value={formFilters.codigo}
-                            onChange={(e) => setFormFilters({...formFilters, codigo: e.target.value})}
+                            type="date" 
+                            value={formFilters.dataFinal}
+                            onChange={(e) => setFormFilters({...formFilters, dataFinal: e.target.value})}
                         />
                     </div>
-                    <div className="lab-filter-item">
-                        <label>Nome do Paciente</label>
-                        <input 
-                            type="text" 
-                            placeholder="Busca parcial"
-                            value={formFilters.nome}
-                            onChange={(e) => setFormFilters({...formFilters, nome: e.target.value})}
-                        />
-                    </div>
+
+                    {activeTab !== 'origem' && (
+                        <div className="lab-filter-item">
+                            <label>Cód. Paciente</label>
+                            <input 
+                                type="text" 
+                                placeholder="Apenas números..." 
+                                value={formFilters.codigo}
+                                onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, '');
+                                    setFormFilters({...formFilters, codigo: val});
+                                }}
+                            />
+                        </div>
+                    )}
                     
                     {/* Filtro Origem */}
                     <div className="lab-filter-item" ref={originRef}>
@@ -525,40 +779,54 @@ const LaboratorioRelatorios = () => {
                     </div>
 
                     {/* Filtro Exame */}
-                    <div className="lab-filter-item" ref={examRef}>
-                        <label>Exame</label>
-                        <div className="lab-custom-dropdown">
-                            <input
-                                type="text"
-                                placeholder="Todos"
-                                value={isExamOpen ? examSearch : (formFilters.exame ? (baseExamsList.find(e => e.code === formFilters.exame)?.code + ' — ' + baseExamsList.find(e => e.code === formFilters.exame)?.name) : 'Todos')}
-                                onChange={(e) => {
-                                    setExamSearch(e.target.value);
-                                    setIsExamOpen(true);
-                                }}
-                                onClick={() => {
-                                    setIsExamOpen(true);
-                                    setExamSearch('');
-                                }}
-                            />
+                    {activeTab !== 'origem' && (
+                        <div className="lab-filter-item" ref={examRef}>
+                            <label>Exame</label>
+                            <div className="lab-custom-select" onClick={() => setIsExamOpen(!isExamOpen)}>
+                                <span>{formFilters.exame ? baseExamsList.find(e => e.id === formFilters.exame)?.name || 'Desconhecido' : 'Opcional (Todos)'}</span>
+                                <span className={`lab-select-arrow ${isExamOpen ? 'open' : ''}`}>▼</span>
+                            </div>
+                            
                             {isExamOpen && (
-                                <div className="lab-custom-dropdown-list">
-                                    {filteredExams.length > 0 ? filteredExams.map(ex => (
+                                <div className="lab-dropdown-menu">
+                                    <div className="lab-dropdown-search">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Buscar exame..." 
+                                            value={examSearch}
+                                            onChange={(e) => setExamSearch(e.target.value)}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    <div className="lab-dropdown-options">
                                         <div 
-                                            key={ex.code || 'todos'} 
-                                            className={`lab-custom-dropdown-item ${formFilters.exame === ex.code ? 'highlighted' : ''}`}
+                                            className={`lab-dropdown-option ${!formFilters.exame ? 'selected' : ''}`}
                                             onClick={() => {
-                                                setFormFilters({...formFilters, exame: ex.code});
+                                                setFormFilters({...formFilters, exame: ''});
                                                 setIsExamOpen(false);
+                                                setExamSearch('');
                                             }}
                                         >
-                                            {ex.code === '' ? 'Todos' : `${ex.code} — ${ex.name}`}
+                                            Todos
                                         </div>
-                                    )) : <div className="lab-custom-dropdown-item" style={{color:'#94a3b8'}}>Nenhum exame encontrado</div>}
+                                        {filteredExams.map(ex => (
+                                            <div 
+                                                key={ex.id}
+                                                className={`lab-dropdown-option ${formFilters.exame === ex.id ? 'selected' : ''}`}
+                                                onClick={() => {
+                                                    setFormFilters({...formFilters, exame: ex.id});
+                                                    setIsExamOpen(false);
+                                                    setExamSearch('');
+                                                }}
+                                            >
+                                                {ex.code} — {ex.name}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
-                    </div>
+                    )}
 
                     <div className="lab-filter-actions">
                         <button 
@@ -576,12 +844,28 @@ const LaboratorioRelatorios = () => {
             {/* Resumo Real */}
             {hasSearched && !loading && (
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-                    <div style={{ background: '#eff6ff', color: '#1d4ed8', padding: '0.4rem 1rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '600' }}>
-                        {attendances.length} atendimento{attendances.length !== 1 ? 's' : ''} encontrado{attendances.length !== 1 ? 's' : ''}
-                    </div>
-                    <div style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', padding: '0.4rem 1rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '600' }}>
-                        {totalExames} exame{totalExames !== 1 ? 's' : ''} vinculado{totalExames !== 1 ? 's' : ''}
-                    </div>
+                    {activeTab === 'origem' ? (
+                        <>
+                            <div style={{ background: '#eff6ff', color: '#1d4ed8', padding: '0.4rem 1rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '600' }}>
+                                {totalExamesOrigem.toLocaleString('pt-BR')} exame{totalExamesOrigem !== 1 ? 's' : ''} encontrado{totalExamesOrigem !== 1 ? 's' : ''}
+                            </div>
+                            <div style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', padding: '0.4rem 1rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '600' }}>
+                                {originReportData.length} tipo{originReportData.length !== 1 ? 's' : ''} de exame{originReportData.length !== 1 ? 's' : ''}
+                            </div>
+                            <div style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', padding: '0.4rem 1rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '600' }}>
+                                {distinctPatientsOrigem.toLocaleString('pt-BR')} paciente{distinctPatientsOrigem !== 1 ? 's' : ''} distinto{distinctPatientsOrigem !== 1 ? 's' : ''}
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div style={{ background: '#eff6ff', color: '#1d4ed8', padding: '0.4rem 1rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '600' }}>
+                                {attendancesToRender.length} registro{attendancesToRender.length !== 1 ? 's' : ''} encontrado{attendancesToRender.length !== 1 ? 's' : ''}
+                            </div>
+                            <div style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', padding: '0.4rem 1rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '600' }}>
+                                {activeTab === 'exames' ? `${distinctPatientsCount} paciente${distinctPatientsCount !== 1 ? 's' : ''} distinto${distinctPatientsCount !== 1 ? 's' : ''}` : `${totalExames} exame${totalExames !== 1 ? 's' : ''} vinculado${totalExames !== 1 ? 's' : ''}`}
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 
@@ -590,79 +874,133 @@ const LaboratorioRelatorios = () => {
                 <div className="lab-rel-main-panel" style={{ gridColumn: '1 / -1' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                            <h2 className="lab-rel-panel-title">Relatório de Atendimentos</h2>
-                            <p className="lab-rel-panel-subtitle">Pacientes atendidos e exames cadastrados na data selecionada</p>
+                            <h2 className="lab-rel-panel-title">
+                                {activeTab === 'origem' ? 'Total de Exames por Origem' : 'Relatório de Atendimentos'}
+                            </h2>
+                            <p className="lab-rel-panel-subtitle">
+                                {activeTab === 'origem' 
+                                    ? 'Quantidade de exames realizados por tipo de procedimento.' 
+                                    : 'Pacientes atendidos e exames vinculados aos filtros selecionados.'}
+                            </p>
                         </div>
-                        {hasSearched && !loading && (
-                            <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: '600' }}>{attendances.length} registros</span>
+                        {hasSearched && !loading && activeTab !== 'origem' && (
+                            <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: '600' }}>
+                                {attendancesToRender.length} registros
+                            </span>
                         )}
                     </div>
-                    
                     <div className="lab-rel-table-card" style={{ marginTop: '1rem' }}>
                         <div className="lab-rel-table-wrapper" style={{ maxHeight: 'calc(100vh - 350px)', overflowY: 'auto' }}>
                             <table className="lab-rel-table" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                                 <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                                     <tr>
-                                        <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>Data</th>
-                                        <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>Cód. Paciente</th>
-                                        <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>Paciente</th>
-                                        <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>Origem</th>
-                                        <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>Exames</th>
+                                    {activeTab === 'origem' ? (
+                                        <>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>CÓDIGO</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>EXAME</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc', width: '100%' }}>DESCRIÇÃO</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc', textAlign: 'right' }}>PACIENTES</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc', textAlign: 'right' }}>QUANTIDADE</th>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>DATA</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>CÓD. PACIENTE</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc', width: '40%' }}>PACIENTE</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>DT. NASC.</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>MÉDICO</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>ORIGEM</th>
+                                            {activeTab === 'exames' && <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>EXAME</th>}
+                                        </>
+                                    )}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {loading ? (
                                         <tr>
-                                            <td colSpan="5" style={{ textAlign: 'center', padding: '3rem' }}>
+                                            <td colSpan={activeTab === 'origem' ? 5 : (activeTab === 'exames' ? 7 : 6)} style={{ textAlign: 'center', padding: '3rem' }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', color: '#64748b' }}>
                                                     <span className="lab-spinner" style={{width: 24, height: 24, border: '3px solid rgba(59,130,246,0.2)', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite'}}></span>
-                                                    <span>Carregando dados reais do banco...</span>
+                                                    <span>Carregando dados...</span>
                                                 </div>
                                             </td>
                                         </tr>
-                                    ) : attendances.length > 0 ? (
-                                        attendances.map((att, idx) => {
-                                            const dataFormatada = formatDataToBR(att.attendance_date);
-                                            const codPaciente = att.pacienteCodigo || '-';
-                                            const nomePaciente = att.pacienteNome || '-';
-                                            const origemAtendimento = formatAttendanceOrigin(att.attendance_origin);
-                                            const examesList = att.examesList || [];
-
-                                            return (
-                                                <tr key={att.id || idx}>
-                                                    <td style={{ whiteSpace: 'nowrap' }}>{dataFormatada}</td>
-                                                    <td className="font-semibold text-primary" style={{ fontWeight: '600' }}>{codPaciente}</td>
-                                                    <td className="font-bold text-gray-800" style={{ fontWeight: '700' }}>{nomePaciente}</td>
-                                                    <td style={{ color: '#475569', fontSize: '0.85rem' }}>{origemAtendimento}</td>
-                                                    <td style={{ maxWidth: '350px', lineHeight: '1.8' }}>
-                                                        {examesList.length > 0 ? examesList.map(ex => (
-                                                            <span 
-                                                                key={ex.code} 
-                                                                className="lab-exam-badge-compact" 
-                                                                title={ex.name}
-                                                            >
-                                                                {ex.code}
-                                                            </span>
-                                                        )) : <span style={{ color: '#94a3b8' }}>-</span>}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    ) : hasSearched ? (
+                                    ) : hasSearched && ((activeTab === 'origem' && originReportData.length === 0) || (activeTab !== 'origem' && attendancesToRender.length === 0)) ? (
                                         <tr>
-                                            <td colSpan="5" style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>
+                                            <td colSpan={activeTab === 'origem' ? 5 : (activeTab === 'exames' ? 7 : 6)} style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
                                                     <AlertCircle size={32} color="#94a3b8" />
-                                                    <span style={{ fontSize: '1rem', fontWeight: '500' }}>Nenhum atendimento encontrado para os filtros informados.</span>
+                                                    <span style={{ fontSize: '1rem', fontWeight: '500' }}>Nenhum resultado encontrado.</span>
                                                 </div>
                                             </td>
                                         </tr>
+                                    ) : hasSearched ? (
+                                        activeTab === 'origem' ? (
+                                            <>
+                                                {originReportData.map((item, idx) => (
+                                                    <tr key={item.exame} className={idx % 2 === 0 ? 'lab-row-even' : 'lab-row-odd'}>
+                                                        <td>{item.codigo_bpa}</td>
+                                                        <td style={{ fontWeight: '500' }}>{item.exame}</td>
+                                                        <td>{item.descricao}</td>
+                                                        <td style={{ textAlign: 'right', fontWeight: '500' }}>{item.pacientes}</td>
+                                                        <td style={{ textAlign: 'right', fontWeight: '500' }}>{item.quantidade}</td>
+                                                    </tr>
+                                                ))}
+                                                <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
+                                                    <td colSpan={4} style={{ borderTop: '2px solid #e2e8f0', paddingTop: '12px', paddingBottom: '12px' }}>TOTAL DE EXAMES</td>
+                                                    <td style={{ textAlign: 'right', borderTop: '2px solid #e2e8f0', paddingTop: '12px', paddingBottom: '12px' }}>{totalExamesOrigem.toLocaleString('pt-BR')}</td>
+                                                </tr>
+                                            </>
+                                        ) : (
+                                            attendancesToRender.map((att, index) => {
+                                                const isEven = index % 2 === 0;
+                                                const examesList = att.examesList || [];
+                                                return (
+                                                    <React.Fragment key={att.id + (activeTab === 'exames' ? att.exameUnico : '')}>
+                                                        <tr className={isEven ? 'lab-row-even' : 'lab-row-odd'} style={{ borderBottom: activeTab === 'periodo' ? 'none' : undefined }}>
+                                                            <td style={{ whiteSpace: 'nowrap' }}>{formatDataToBR(att.attendance_date)}</td>
+                                                            <td style={{ fontWeight: '600', color: '#2563eb' }}>{att.pacienteCodigo || '-'}</td>
+                                                            <td style={{ fontWeight: '700', color: '#1e293b' }}>{att.pacienteNome || '-'}</td>
+                                                            <td>{formatDataToBR(att.pacienteNascimento)}</td>
+                                                            <td style={{ maxWidth: '100px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={att.medico || '-'}>{att.medico || '-'}</td>
+                                                            <td style={{ fontSize: '0.85rem' }}>
+                                                                <span className="lab-badge-origin">{formatAttendanceOrigin(att.attendance_origin)}</span>
+                                                            </td>
+                                                            {activeTab === 'exames' && <td style={{ fontWeight: 'bold' }}>{att.exameUnico}</td>}
+                                                        </tr>
+                                                        {activeTab === 'periodo' && (
+                                                            <tr className={isEven ? 'lab-row-even' : 'lab-row-odd'}>
+                                                                <td colSpan="6" style={{ padding: '4px 12px 12px 12px', fontSize: '0.8rem', color: '#475569', borderTop: 'none' }}>
+                                                                    {examesList.length > 0 ? (
+                                                                        <>
+                                                                            <span style={{ fontWeight: '600' }}>Exames:</span>{' '}
+                                                                            {examesList.map((ex, i) => (
+                                                                                <React.Fragment key={ex.code}>
+                                                                                    <span>{ex.code}</span>
+                                                                                    {i < examesList.length - 1 && <span style={{ margin: '0 4px', color: '#9ca3af' }}>|</span>}
+                                                                                </React.Fragment>
+                                                                            ))}
+                                                                        </>
+                                                                    ) : (
+                                                                        <span style={{ color: '#94a3b8' }}>Nenhum exame vinculado</span>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </React.Fragment>
+                                                );
+                                            })
+                                        )
                                     ) : (
                                         <tr>
-                                            <td colSpan="5" style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>
+                                            <td colSpan="7" style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
                                                     <Search size={32} color="#94a3b8" />
-                                                    <span style={{ fontSize: '1rem', fontWeight: '500' }}>Preencha os filtros e clique em Buscar para exibir os atendimentos.</span>
+                                                    <span style={{ fontSize: '1rem', fontWeight: '500' }}>
+                                                        {activeTab === 'origem' 
+                                                            ? 'Preencha os filtros e clique em Buscar para exibir os exames.'
+                                                            : 'Preencha os filtros e clique em Buscar para exibir os atendimentos.'}
+                                                    </span>
                                                 </div>
                                             </td>
                                         </tr>
