@@ -177,6 +177,17 @@ const LaboratorioRelatorios = () => {
     const [totalExames, setTotalExames] = useState(0);
 
     useEffect(() => {
+        // Fetch initial exams for dropdown filter
+        const fetchExams = async () => {
+            try {
+                const exams = await laboratorioConfiguracoesService.getExames({ status: 'ativos' });
+                setBaseExamsList(exams.map(e => ({ id: e.id, code: e.code, name: e.name })));
+            } catch (err) {
+                console.error('Erro ao carregar exames:', err);
+            }
+        };
+        fetchExams();
+
         // Isolar a regra de impressão (paisagem) exclusivamente para o ciclo de vida desta tela
         const printStyle = document.createElement('style');
         printStyle.id = 'lab-relatorio-print-style';
@@ -309,11 +320,8 @@ const LaboratorioRelatorios = () => {
                     att.examesList = Array.from(uniqueExamsMap.values()).sort((a, b) => a.sortOrder - b.sortOrder);
                 });
                 
-                // Store global exams available BEFORE filtering
-                baseExamsForDropdown = Array.from(globalExamsMap.values()).sort((a, b) => a.code.localeCompare(b.code));
-                setBaseExamsList(baseExamsForDropdown);
-            } else {
-                setBaseExamsList([]);
+                // Note: baseExamsList is now fetched on mount, we don't overwrite it here
+                // to allow filtering by any registered exam.
             }
 
             // Local filter by exam if selected
@@ -782,49 +790,37 @@ const LaboratorioRelatorios = () => {
                     {activeTab !== 'origem' && (
                         <div className="lab-filter-item" ref={examRef}>
                             <label>Exame</label>
-                            <div className="lab-custom-select" onClick={() => setIsExamOpen(!isExamOpen)}>
-                                <span>{formFilters.exame ? baseExamsList.find(e => e.id === formFilters.exame)?.name || 'Desconhecido' : 'Opcional (Todos)'}</span>
-                                <span className={`lab-select-arrow ${isExamOpen ? 'open' : ''}`}>▼</span>
-                            </div>
-                            
-                            {isExamOpen && (
-                                <div className="lab-dropdown-menu">
-                                    <div className="lab-dropdown-search">
-                                        <input 
-                                            type="text" 
-                                            placeholder="Buscar exame..." 
-                                            value={examSearch}
-                                            onChange={(e) => setExamSearch(e.target.value)}
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                    </div>
-                                    <div className="lab-dropdown-options">
-                                        <div 
-                                            className={`lab-dropdown-option ${!formFilters.exame ? 'selected' : ''}`}
-                                            onClick={() => {
-                                                setFormFilters({...formFilters, exame: ''});
-                                                setIsExamOpen(false);
-                                                setExamSearch('');
-                                            }}
-                                        >
-                                            Todos
-                                        </div>
-                                        {filteredExams.map(ex => (
+                            <div className="lab-custom-dropdown">
+                                <input
+                                    type="text"
+                                    placeholder="Todos"
+                                    value={isExamOpen ? examSearch : (formFilters.exame ? (baseExamsList.find(e => e.id === formFilters.exame)?.name || 'Desconhecido') : 'Todos')}
+                                    onChange={(e) => {
+                                        setExamSearch(e.target.value);
+                                        setIsExamOpen(true);
+                                    }}
+                                    onClick={() => {
+                                        setIsExamOpen(true);
+                                        setExamSearch('');
+                                    }}
+                                />
+                                {isExamOpen && (
+                                    <div className="lab-custom-dropdown-list">
+                                        {filteredExams.length > 0 ? filteredExams.map(ex => (
                                             <div 
-                                                key={ex.id}
-                                                className={`lab-dropdown-option ${formFilters.exame === ex.id ? 'selected' : ''}`}
+                                                key={ex.id || 'todos'}
+                                                className={`lab-custom-dropdown-item ${formFilters.exame === (ex.id || '') ? 'highlighted' : ''}`}
                                                 onClick={() => {
-                                                    setFormFilters({...formFilters, exame: ex.id});
+                                                    setFormFilters({...formFilters, exame: ex.id || ''});
                                                     setIsExamOpen(false);
-                                                    setExamSearch('');
                                                 }}
                                             >
-                                                {ex.code} — {ex.name}
+                                                {ex.code ? `${ex.code} — ${ex.name}` : ex.name}
                                             </div>
-                                        ))}
+                                        )) : <div className="lab-custom-dropdown-item" style={{color:'#94a3b8'}}>Nenhum exame encontrado</div>}
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     )}
 
