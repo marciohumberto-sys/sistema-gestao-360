@@ -606,7 +606,7 @@ class LaboratorioResultadosService {
         // A reabertura deve acontecer antes, pela RPC específica.
         const { data: currentResult, error: currentResultError } = await supabase
             .from('lab_results')
-            .select('status')
+            .select('status, tenant_id')
             .eq('id', resultId)
             .single();
 
@@ -662,6 +662,7 @@ class LaboratorioResultadosService {
                         ...payload,
                         result_id: resultId,
                         parameter_id: v.parameter_id,
+                        tenant_id: currentResult.tenant_id,
                         created_at: new Date().toISOString()
                     };
                     
