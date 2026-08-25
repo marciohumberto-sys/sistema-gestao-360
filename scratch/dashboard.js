@@ -11,30 +11,6 @@ function parseRecifeDateTime(dateStr, timeStr) {
     return timestamp;
 }
 
-// Helper de paginação para contornar limite de 1000 registros do PostgREST
-async function fetchAllPages(queryFn) {
-    let allData = [];
-    let from = 0;
-    const limit = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-        const { data, error } = await queryFn().range(from, from + limit - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-            allData = allData.concat(data);
-            if (data.length < limit) {
-                hasMore = false;
-            } else {
-                from += limit;
-            }
-        } else {
-            hasMore = false;
-        }
-    }
-    return allData;
-}
-
 // Helper para formatar durações em minutos para apresentação (ex: 4 min, 1h 05min)
 export function formatDurationMinutes(minutes) {
     if (minutes === null || minutes === undefined || isNaN(minutes) || minutes < 0) {
@@ -113,12 +89,15 @@ class LaboratorioDashboardService {
             };
 
             // 2. Atendimentos do Dia (com attendance_time e attendance_origin para indicadores)
-            const attData = await fetchAllPages(() => supabase
+            const { data: attendances, error: attError } = await supabase
                 .from('lab_attendances')
                 .select('id, patient_id, attendance_date, attendance_time, attendance_origin')
                 .eq('tenant_id', tenantId)
-                .eq('attendance_date', localDateStr)
-            );
+                .eq('attendance_date', localDateStr);
+
+            if (attError) throw attError;
+
+            const attData = attendances || [];
             const attendanceIds = attData.map(a => a.id);
             const patientIds = [...new Set(attData.map(a => a.patient_id))];
 
@@ -131,12 +110,13 @@ class LaboratorioDashboardService {
 
             if (attendanceIds.length > 0) {
                 // 3. Exames Solicitados Hoje
-                const attExams = await fetchAllPages(() => supabase
+                const { data: attExams, error: attExamsError } = await supabase
                     .from('lab_attendance_exams')
                     .select('id, attendance_id, exam_id, sector_id, status, collection_date, collection_time')
                     .eq('tenant_id', tenantId)
-                    .in('attendance_id', attendanceIds)
-                );
+                    .in('attendance_id', attendanceIds);
+
+                if (attExamsError) throw attExamsError;
 
                 examesSolicitados = attExams || [];
                 examesHoje = examesSolicitados.length;
@@ -149,12 +129,13 @@ class LaboratorioDashboardService {
                 });
 
                 // 4. Resultados para verificar laudos liberados e status dos atendimentos de hoje
-                const resultsToday = await fetchAllPages(() => supabase
+                const { data: resultsToday, error: resultsTodayError } = await supabase
                     .from('lab_results')
                     .select('id, attendance_id, exam_id, status, created_at, typed_at, checked_at, released_at')
                     .eq('tenant_id', tenantId)
-                    .in('attendance_id', attendanceIds)
-                );
+                    .in('attendance_id', attendanceIds);
+
+                if (resultsTodayError) throw resultsTodayError;
 
                 // Tratar duplicidade de resultados
                 const resultsMap = {};
@@ -271,24 +252,28 @@ class LaboratorioDashboardService {
                 : 0;
 
             // 6. Aguardando Conferência (Estoque Operacional)
-            const { data: examsConf, error: examsConfError } = await supabase
-                .from('lab_exams')
-                .select('id')
-                .eq('requires_conference', true);
+            const { data: digitados, error: digError } = await supabase
+                .from('lab_results')
+                .select('id, exam_id')
+                .eq('tenant_id', tenantId)
+                .eq('status', 'DIGITADO');
+
+            if (digError) throw digError;
+
+            const resDigitados = digitados || [];
+            if (resDigitados.length > 0) {
+                const uniqueExamIds = [...new Set(resDigitados.map(r => r.exam_id))];
                 
-            if (examsConfError) throw examsConfError;
-            
-            const examsReqConfIds = (examsConf || []).map(e => e.id);
-            if (examsReqConfIds.length > 0) {
-                const { count, error: countError } = await supabase
-                    .from('lab_results')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('tenant_id', tenantId)
-                    .eq('status', 'DIGITADO')
-                    .in('exam_id', examsReqConfIds);
+                const { data: examsConf, error: examsConfError } = await supabase
+                    .from('lab_exams')
+                    .select('id, requires_conference')
+                    .in('id', uniqueExamIds)
+                    .eq('requires_conference', true);
                     
-                if (countError) throw countError;
-                resultData.cards.aguardandoConferencia = count || 0;
+                if (examsConfError) throw examsConfError;
+                
+                const examsReqConfIds = (examsConf || []).map(e => e.id);
+                resultData.cards.aguardandoConferencia = resDigitados.filter(r => examsReqConfIds.includes(r.exam_id)).length;
             } else {
                 resultData.cards.aguardandoConferencia = 0;
             }
@@ -385,14 +370,17 @@ class LaboratorioDashboardService {
             // Regra: released_at - (collection_date + collection_time)
             // Relacionamento por attendance_id + exam_id.
             try {
-                const relResults = await fetchAllPages(() => supabase
+                const { data: releasedTodayResults, error: relError } = await supabase
                     .from('lab_results')
                     .select('id, attendance_id, exam_id, released_at')
                     .eq('tenant_id', tenantId)
                     .eq('status', 'LIBERADO')
                     .gte('released_at', startOfDayIso)
-                    .lte('released_at', endOfDayIso)
-                );
+                    .lte('released_at', endOfDayIso);
+
+                if (relError) throw relError;
+
+                const relResults = releasedTodayResults || [];
                 if (relResults.length > 0) {
                     // Mapear os exames de atendimento necessários para obter a coleta
                     const neededAttIds = [...new Set(relResults.map(r => r.attendance_id))];
@@ -450,12 +438,13 @@ class LaboratorioDashboardService {
             // Universo: atendimentos com origem normalizada === 'URGENCIA'.
             // Exames vinculados que não estejam concluídos (não possuem resultado, ou resultado PENDENTE, DIGITADO ou CONFERIDO).
             try {
-                const urgentAttendances = await fetchAllPages(() => supabase
+                const { data: urgentAttendances, error: urgAttError } = await supabase
                     .from('lab_attendances')
                     .select('id, attendance_origin')
                     .eq('tenant_id', tenantId)
-                    .ilike('attendance_origin', '%urg%')
-                );
+                    .ilike('attendance_origin', '%urg%');
+
+                if (urgAttError) throw urgAttError;
 
                 const filteredUrgentAtts = (urgentAttendances || []).filter(att => {
                     const norm = (att.attendance_origin || '')
@@ -469,23 +458,24 @@ class LaboratorioDashboardService {
                 const urgentAttIds = filteredUrgentAtts.map(a => a.id);
 
                 if (urgentAttIds.length > 0) {
-                    const [urgExamsResData, urgResultsResData] = await Promise.all([
-                        fetchAllPages(() => supabase
+                    const [urgExamsRes, urgResultsRes] = await Promise.all([
+                        supabase
                             .from('lab_attendance_exams')
                             .select('attendance_id, exam_id')
                             .eq('tenant_id', tenantId)
-                            .in('attendance_id', urgentAttIds)
-                        ),
-                        fetchAllPages(() => supabase
+                            .in('attendance_id', urgentAttIds),
+                        supabase
                             .from('lab_results')
                             .select('attendance_id, exam_id, status')
                             .eq('tenant_id', tenantId)
                             .in('attendance_id', urgentAttIds)
-                        )
                     ]);
 
+                    if (urgExamsRes.error) throw urgExamsRes.error;
+                    if (urgResultsRes.error) throw urgResultsRes.error;
+
                     const urgResultsMap = {};
-                    (urgResultsResData || []).forEach(r => {
+                    (urgResultsRes.data || []).forEach(r => {
                         const key = `${r.attendance_id}::${r.exam_id}`;
                         urgResultsMap[key] = r;
                     });
@@ -494,7 +484,7 @@ class LaboratorioDashboardService {
                     const seenUrgentKeys = new Set();
                     let pendingUrgentCount = 0;
 
-                    (urgExamsResData || []).forEach(ex => {
+                    (urgExamsRes.data || []).forEach(ex => {
                         const key = `${ex.attendance_id}::${ex.exam_id}`;
                         if (seenUrgentKeys.has(key)) return;
                         seenUrgentKeys.add(key);
@@ -518,15 +508,18 @@ class LaboratorioDashboardService {
             // Universo: resultados conferidos no dia local (checked_at no dia local).
             // Regra: checked_at - typed_at
             try {
-                const confResults = await fetchAllPages(() => supabase
+                const { data: checkedTodayResults, error: checkError } = await supabase
                     .from('lab_results')
                     .select('id, typed_at, checked_at')
                     .eq('tenant_id', tenantId)
                     .not('checked_at', 'is', null)
                     .not('typed_at', 'is', null)
                     .gte('checked_at', startOfDayIso)
-                    .lte('checked_at', endOfDayIso)
-                );
+                    .lte('checked_at', endOfDayIso);
+
+                if (checkError) throw checkError;
+
+                const confResults = checkedTodayResults || [];
                 let totalConferenciaDiffMinutes = 0;
                 let conferidosValidos = 0;
 
