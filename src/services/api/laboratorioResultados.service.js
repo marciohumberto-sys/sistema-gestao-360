@@ -623,17 +623,7 @@ class LaboratorioResultadosService {
             const operation = v.value_id ? 'UPDATE' : 'INSERT';
             const normalizedValue = v.result_type === 'NUMERICO' && v.value_numeric !== '' && v.value_numeric !== null ? parseFloat(v.value_numeric) : v.value_text;
 
-            console.debug('[TESTANDO PARÂMETRO]', {
-                code: v.parameter_code || v.code,
-                resultType: v.result_type,
-                rawValue: v.value_numeric !== null && v.value_numeric !== undefined ? v.value_numeric : v.value_text,
-                normalizedValue: normalizedValue,
-                parameterId: v.parameter_id,
-                resultValueId: v.value_id,
-                attendanceExamId: resultId,
-                examId: v.exam_id,
-                operation
-            });
+
 
             try {
                 const payload = {
@@ -662,6 +652,7 @@ class LaboratorioResultadosService {
                         ...payload,
                         result_id: resultId,
                         parameter_id: v.parameter_id,
+                        exam_id: v.exam_id,
                         tenant_id: currentResult.tenant_id,
                         created_at: new Date().toISOString()
                     };
@@ -680,13 +671,7 @@ class LaboratorioResultadosService {
                     if (error) throw error;
                 }
             } catch (error) {
-                console.error('[PARÂMETRO QUE FALHOU]', {
-                    code: v.parameter_code || v.code,
-                    value: v.value_numeric !== null && v.value_numeric !== undefined ? v.value_numeric : v.value_text,
-                    resultValueId: v.value_id,
-                    operation,
-                    error
-                });
+                console.error('[ERRO SALVANDO PARÂMETRO]', error);
                 throw error;
             }
         }
