@@ -650,10 +650,18 @@ class LaboratorioResultadosService {
                     
                     const insertPayload = {
                         ...payload,
-                        result_id: resultId,
-                        parameter_id: v.parameter_id,
-                        exam_id: v.exam_id,
                         tenant_id: currentResult.tenant_id,
+                        result_id: resultId,
+                        exam_id: v.exam_id,
+                        parameter_id: v.parameter_id,
+                        display_order: v.display_order,
+                        parameter_code: v.parameter_code || v.code,
+                        parameter_name: v.name,
+                        result_type: v.result_type,
+                        unit: v.unit,
+                        reference_text: v.reference_text,
+                        min_value: v.min_value,
+                        max_value: v.max_value,
                         created_at: new Date().toISOString()
                     };
                     
