@@ -1277,23 +1277,86 @@ const LaboratorioResultados = () => {
             setSaveStatus('success');
 
             const results = updatedData && updatedData.length > 0 && updatedData[0].resultados ? updatedData[0].resultados : [];
-            const hasPendente = results.some(r => String(r.status || 'PENDENTE').toUpperCase() === 'PENDENTE');
-            const shouldRemoveFromView = searchFilters.status === 'Em digitação' && !hasPendente;
+            const isPendingStatus = (st) => String(st || 'PENDENTE').trim().toUpperCase() === 'PENDENTE';
+            const hasPendente = results.some(r => isPendingStatus(r.status));
 
-            if (shouldRemoveFromView) {
-                 setFeedbackMsg({ type: 'success', text: 'Todos os exames deste atendimento foram digitados.' });
-                 setSearchResults(prev => (prev || []).filter(att => att.id !== selectedAttendance?.id));
-                 setSelectedAttendance(null);
-                 setSelectedExamId(null);
-                 setAttendances([]);
+            const sortedResults = [...results].sort((a, b) => {
+                const isHemoA = String(a.exameCodigo || a.exame_codigo || '').trim().toUpperCase() === 'HEMO';
+                const isHemoB = String(b.exameCodigo || b.exame_codigo || '').trim().toUpperCase() === 'HEMO';
+                if (isHemoA && !isHemoB) return -1;
+                if (!isHemoA && isHemoB) return 1;
+
+                const sectorA = String(a.exameSetor || '').toLowerCase();
+                const sectorB = String(b.exameSetor || '').toLowerCase();
+                if (sectorA < sectorB) return -1;
+                if (sectorA > sectorB) return 1;
+
+                const codeA = String(a.exameCodigo || a.exame_codigo || '').toLowerCase();
+                const codeB = String(b.exameCodigo || b.exame_codigo || '').toLowerCase();
+                if (codeA < codeB) return -1;
+                if (codeA > codeB) return 1;
+                
+                return (a.id || 0) - (b.id || 0);
+            });
+
+            if (hasPendente) {
+                const currentIdx = sortedResults.findIndex(r => r.id === selectedExamId);
+                let nextPendingExam = null;
+                for (let i = currentIdx + 1; i < sortedResults.length; i++) {
+                    if (isPendingStatus(sortedResults[i].status)) {
+                        nextPendingExam = sortedResults[i];
+                        break;
+                    }
+                }
+                if (!nextPendingExam) {
+                    for (let i = 0; i < currentIdx; i++) {
+                        if (isPendingStatus(sortedResults[i].status)) {
+                            nextPendingExam = sortedResults[i];
+                            break;
+                        }
+                    }
+                }
+                
+                if (wasDigitado) {
+                    setFeedbackMsg({ type: 'success', text: 'Alterações salvas com sucesso.' });
+                } else {
+                    setFeedbackMsg({ type: 'success', text: 'Resultado salvo com sucesso.' });
+                }
+                shouldScrollToTopRef.current = true;
+                
+                if (nextPendingExam) {
+                    handleSelectExamWithCheck(nextPendingExam, true);
+                } else {
+                    goToNextExam({ skipUnsavedCheck: true });
+                }
             } else {
-                 if (wasDigitado) {
-                     setFeedbackMsg({ type: 'success', text: 'Alterações salvas com sucesso.' });
-                 } else {
-                     setFeedbackMsg({ type: 'success', text: 'Resultado salvo com sucesso.' });
-                 }
-                 shouldScrollToTopRef.current = true;
-                 goToNextExam({ skipUnsavedCheck: true });
+                let nextPatient = null;
+                const currentSearchIdx = searchResults.findIndex(a => a.id === selectedAttendance?.id);
+                if (currentSearchIdx !== -1 && searchResults.length > 1) {
+                    for (let i = currentSearchIdx + 1; i < searchResults.length; i++) {
+                        if (searchResults[i].examesPendentes > 0) {
+                            nextPatient = searchResults[i];
+                            break;
+                        }
+                    }
+                }
+
+                const baseMsg = wasDigitado ? 'Alterações salvas com sucesso.' : 'Resultado salvo com sucesso.';
+
+                if (nextPatient) {
+                    setFeedbackMsg({ type: 'success', text: `${baseMsg} Abrindo próximo paciente...` });
+                    
+                    const shouldRemoveFromView = searchFilters.status === 'Em digitação';
+                    if (shouldRemoveFromView) {
+                        setSearchResults(prev => (prev || []).filter(att => att.id !== selectedAttendance?.id));
+                    }
+                    
+                    shouldScrollToTopRef.current = true;
+                    executePatientNavigation(nextPatient, null);
+                } else {
+                    setFeedbackMsg({ type: 'success', text: `${baseMsg} Não há mais pacientes com resultados em aberto.` });
+                    shouldScrollToTopRef.current = true;
+                }
             }
 
             setTimeout(() => {
