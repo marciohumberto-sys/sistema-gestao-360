@@ -627,6 +627,137 @@ const LaboratorioOperacionalModal = ({ isOpen, onClose, initialPatient = null, o
             saveCachedAttendanceOrigin(attendanceData.attendance_origin);
             initialAttendanceOriginRef.current = attendanceData.attendance_origin;
             
+            // Função para gerar e imprimir o protocolo
+            const gerarEImprimirProtocolo = () => {
+                return new Promise((resolve) => {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    document.body.appendChild(iframe);
+                    
+                    const formatDataBR = (dataString) => {
+                        if (!dataString) return '';
+                        const partes = dataString.split('-');
+                        if (partes.length !== 3) return dataString;
+                        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+                    };
+
+                    const patientAge = calculateAge(currentPatientData.birth_date);
+                    const docName = attendanceData.requesting_doctor ? attendanceData.requesting_doctor.toUpperCase() : '0000 - NÃO INFORMADO';
+                    const obs = attendanceData.observations ? attendanceData.observations : '';
+                    const dataAtend = formatDataBR(attendanceData.attendance_date);
+                    
+                    let examesHtml = '';
+                    for (let i = 0; i < examesSolicitados.length; i += 2) {
+                        const leftIndex = i;
+                        const rightIndex = i + 1;
+                        
+                        const leftExam = examesSolicitados[leftIndex];
+                        const rightExam = examesSolicitados[rightIndex];
+                        
+                        const leftNum = String(leftIndex + 1).padStart(2, '0');
+                        const leftName = leftExam ? leftExam.name : '';
+                        
+                        let rightNum = '';
+                        let rightName = '';
+                        if (rightExam) {
+                            rightNum = String(rightIndex + 1).padStart(2, '0');
+                            rightName = rightExam.name;
+                        }
+                        
+                        examesHtml += `
+                            <tr>
+                                <td style="width: 5%; border-right: 1px solid #000; padding: 4px;">${leftNum}</td>
+                                <td style="width: 45%; border-right: 1px solid #000; padding: 4px;">${leftName}</td>
+                                <td style="width: 5%; border-right: 1px solid #000; padding: 4px;">${rightNum}</td>
+                                <td style="width: 45%; padding: 4px;">${rightName}</td>
+                            </tr>
+                        `;
+                    }
+
+                    const html = `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>Protocolo de Atendimento</title>
+                            <style>
+                                body { font-family: Arial, sans-serif; font-size: 13px; color: #000; margin: 0; padding: 20px; }
+                                .protocol-box { border: 2px solid #000; padding: 15px; width: 100%; max-width: 800px; margin: 0 auto; box-sizing: border-box; }
+                                .header-line { display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: bold; font-size: 14px; }
+                                .info-line { margin-bottom: 6px; }
+                                .divider { border-bottom: 1px solid #000; margin: 15px 0; }
+                                .result-line { font-weight: bold; margin: 20px 0; font-size: 14px; }
+                                table { width: 100%; border-collapse: collapse; border: 1px solid #000; font-size: 12px; margin-bottom: 15px; }
+                                th { border: 1px solid #000; text-align: left; padding: 6px; }
+                                td { border-bottom: 1px dashed #ccc; padding: 4px; }
+                                tr { page-break-inside: avoid; }
+                                .obs-box { margin-top: 20px; border: 1px solid #000; padding: 10px; min-height: 50px; }
+                                @media print {
+                                    body { padding: 0; }
+                                    .protocol-box { border: 2px solid #000; }
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="protocol-box">
+                                <div class="header-line">
+                                    <span>N.${currentPatientData.code || '---'}</span>
+                                    <span>${attendanceData.attendance_origin || '---'}</span>
+                                </div>
+                                <div class="info-line">Sr.(a) <strong>${currentPatientData.full_name || '---'}</strong></div>
+                                <div class="info-line">Convênio: SUS</div>
+                                <div class="info-line">Idade: ${patientAge}</div>
+                                <div class="info-line">Médico: ${docName}</div>
+                                <div class="info-line">Data: ${dataAtend} Hora: ${attendanceData.attendance_time}</div>
+                                
+                                <div class="divider"></div>
+                                
+                                <div class="result-line">Resultado: __/__/____ após 15:00 h</div>
+                                
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 5%;">IT</th>
+                                            <th style="width: 45%; border-right: 1px solid #000;">EXAME</th>
+                                            <th style="width: 5%;">IT</th>
+                                            <th style="width: 45%;">EXAME</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${examesHtml}
+                                    </tbody>
+                                </table>
+                                
+                                <div class="obs-box">
+                                    <strong>Obs:</strong> ${obs}
+                                </div>
+                            </div>
+                        </body>
+                        </html>
+                    `;
+
+                    const doc = iframe.contentWindow.document;
+                    doc.open();
+                    doc.write(html);
+                    doc.close();
+
+                    iframe.contentWindow.focus();
+                    setTimeout(() => {
+                        try {
+                            iframe.contentWindow.print();
+                        } catch (e) {
+                            console.error('Erro ao imprimir protocolo:', e);
+                        }
+                        
+                        setTimeout(() => {
+                            try { document.body.removeChild(iframe); } catch(e){}
+                            resolve();
+                        }, 500);
+                    }, 250);
+                });
+            };
+
+            await gerarEImprimirProtocolo();
+            
             if (onSuccess) {
                 isSuccessRef.current = true;
                 onSuccess(`Atendimento salvo com sucesso. Protocolo: ${result.protocolo}`);
