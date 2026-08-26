@@ -618,11 +618,12 @@ const LaboratorioRelatorios = () => {
                             </tr>
                         ) : (
                             <tr>
-                                <th>DATA</th>
-                                <th>CÓD. PACIENTE</th>
+                                <th style={{ width: '70px' }}>DATA</th>
+                                <th style={{ width: '100px' }}>CÓD. PACIENTE</th>
                                 <th>PACIENTE</th>
-                                <th>ORIGEM</th>
-                                {activeTab === 'exames' ? <th>EXAME</th> : <th>EXAMES</th>}
+                                {activeTab === 'exames' && <th style={{ width: '85px' }}>DT. NASC.</th>}
+                                <th style={{ width: '140px' }}>ORIGEM</th>
+                                {activeTab === 'exames' ? <th style={{ width: '120px' }}>EXAME</th> : <th>EXAMES</th>}
                             </tr>
                         )}
                     </thead>
@@ -652,6 +653,7 @@ const LaboratorioRelatorios = () => {
                                         <td>{dataFormatada}</td>
                                         <td>{att.pacienteCodigo || '-'}</td>
                                         <td>{att.pacienteNome || '-'}</td>
+                                        {activeTab === 'exames' && <td>{att.pacienteNascimento ? formatDataToBR(att.pacienteNascimento) : '-'}</td>}
                                         <td>{formatAttendanceOrigin(att.attendance_origin)}</td>
                                         {activeTab === 'exames' ? <td>{att.exameUnico}</td> : <td>{examesStr || '-'}</td>}
                                     </tr>

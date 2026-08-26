@@ -10,7 +10,7 @@ import { jsPDF } from 'jspdf';
 import './LaboratorioConferencia.css';
 import './LaboratorioLaudos.css';
 import { laboratorioLaudosService } from '../../services/api/laboratorioLaudos.service';
-import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, parseHemoNumber, formatHemoResultValue, formatHemoReferenceText, resolveHemoReference, expandHemogramaMorphologyAbbreviations, formatDateTimeRecife, formatDateOnlyBR, formatTimeOnly } from '../../utils/laboratorioHelpers';
+import { ATTENDANCE_ORIGINS, formatAttendanceOrigin, parseHemoNumber, formatHemoResultValue, formatHemoReferenceText, resolveHemoReference, expandHemogramaMorphologyAbbreviations, formatDateTimeRecife, formatDateOnlyBR, formatTimeOnly, normalizeString, POSTOS_UNIDADES_ORDENADOS, TODAS_ORIGENS } from '../../utils/laboratorioHelpers';
 import { useAuth } from '../../context/AuthContext';
 import { canWriteLaboratorio } from '../../utils/laboratorioAcl';
 
@@ -1920,6 +1920,29 @@ const LaboratorioLaudos = () => {
         attendance_origin: ''
     });
     const [activeFilters, setActiveFilters] = useState(searchFilters);
+    
+    // Filtro de Origem Inteligente (Scroll + Busca)
+    const [isOriginDropdownOpen, setIsOriginDropdownOpen] = useState(false);
+    const [originSearchText, setOriginSearchText] = useState('');
+    const [originHighlightedIndex, setOriginHighlightedIndex] = useState(0);
+    const originRef = useRef(null);
+
+    const filteredGerais = useMemo(() => {
+        const base = [{ value: '', label: 'Todos' }, ...ATTENDANCE_ORIGINS];
+        if (!originSearchText) return base;
+        const s = normalizeString(originSearchText);
+        return base.filter(o => normalizeString(o.label).includes(s));
+    }, [originSearchText]);
+    
+    const filteredPostos = useMemo(() => {
+        if (!originSearchText) return POSTOS_UNIDADES_ORDENADOS;
+        const s = normalizeString(originSearchText);
+        return POSTOS_UNIDADES_ORDENADOS.filter(o => normalizeString(o.label).includes(s));
+    }, [originSearchText]);
+
+    const flatFilteredOrigens = useMemo(() => {
+        return [...filteredGerais, ...filteredPostos];
+    }, [filteredGerais, filteredPostos]);
     
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
@@ -3839,15 +3862,121 @@ const LaboratorioLaudos = () => {
                     </div>
                     <div className="lab-filter-item lab-filter-group" style={{ margin: 0 }}>
                         <label>Origem</label>
-                        <select 
-                            value={searchFilters.attendance_origin}
-                            onChange={(e) => setSearchFilters({...searchFilters, attendance_origin: e.target.value})}
+                        <div 
+                            ref={originRef}
+                            style={{ 
+                                position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                cursor: 'text', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#fff',
+                                outline: 'none', minHeight: '36px', padding: 0, width: '100%'
+                            }}
                         >
-                            <option value="">Todos</option>
-                            {ATTENDANCE_ORIGINS.map(origin => (
-                                <option key={origin.value} value={origin.value}>{origin.label}</option>
-                            ))}
-                        </select>
+                            <input 
+                                type="text"
+                                placeholder="Todos"
+                                disabled={loading}
+                                value={isOriginDropdownOpen ? originSearchText : (searchFilters.attendance_origin === '' ? 'Todos' : (TODAS_ORIGENS.find(o => o.value === searchFilters.attendance_origin)?.label || ''))}
+                                onChange={(e) => {
+                                    setOriginSearchText(e.target.value);
+                                    if (!isOriginDropdownOpen) setIsOriginDropdownOpen(true);
+                                    setOriginHighlightedIndex(0);
+                                }}
+                                onFocus={(e) => {
+                                    setIsOriginDropdownOpen(true);
+                                    setOriginSearchText(searchFilters.attendance_origin === '' ? 'Todos' : (TODAS_ORIGENS.find(o => o.value === searchFilters.attendance_origin)?.label || ''));
+                                    setOriginHighlightedIndex(0);
+                                    setTimeout(() => e.target.select(), 10);
+                                }}
+                                onBlur={() => setIsOriginDropdownOpen(false)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'ArrowDown') {
+                                        e.preventDefault();
+                                        if (!isOriginDropdownOpen) {
+                                            setIsOriginDropdownOpen(true);
+                                            setOriginHighlightedIndex(0);
+                                        } else {
+                                            setOriginHighlightedIndex(prev => (prev < flatFilteredOrigens.length - 1 ? prev + 1 : prev));
+                                        }
+                                    } else if (e.key === 'ArrowUp') {
+                                        e.preventDefault();
+                                        setOriginHighlightedIndex(prev => (prev > 0 ? prev - 1 : 0));
+                                    } else if (e.key === 'Enter') {
+                                        if (isOriginDropdownOpen) {
+                                            e.preventDefault();
+                                            if (flatFilteredOrigens.length > 0) {
+                                                const idx = originHighlightedIndex >= 0 && originHighlightedIndex < flatFilteredOrigens.length ? originHighlightedIndex : 0;
+                                                const selected = flatFilteredOrigens[idx];
+                                                setSearchFilters({...searchFilters, attendance_origin: selected.value});
+                                                setIsOriginDropdownOpen(false);
+                                            }
+                                        }
+                                    } else if (e.key === 'Escape') {
+                                        if (isOriginDropdownOpen) {
+                                            e.preventDefault();
+                                            setIsOriginDropdownOpen(false);
+                                        }
+                                    }
+                                }}
+                                style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', color: '#0f172a', padding: '0.35rem 0.6rem', fontSize: '0.85rem' }}
+                            />
+                            <ChevronDown size={14} color="#64748b" style={{ transform: isOriginDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms ease', marginRight: '0.6rem', flexShrink: 0, cursor: 'pointer' }} onMouseDown={(e) => e.preventDefault()} onClick={() => {
+                                if (!loading) {
+                                    if (isOriginDropdownOpen) setIsOriginDropdownOpen(false);
+                                    else {
+                                        const input = originRef.current?.querySelector('input');
+                                        if (input) input.focus();
+                                    }
+                                }
+                            }}/>
+                            
+                            {isOriginDropdownOpen && !loading && (
+                                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', zIndex: 50, overflowY: 'auto', maxHeight: '250px' }}>
+                                    {flatFilteredOrigens.length === 0 ? (
+                                        <div style={{ padding: '0.5rem', color: '#64748b', fontSize: '0.8rem', textAlign: 'center' }}>Nenhuma origem encontrada.</div>
+                                    ) : (
+                                        <>
+                                            {filteredGerais.length > 0 && (
+                                                <div style={{ padding: '0.4rem 0.6rem', fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                                                    ORIGENS GERAIS
+                                                </div>
+                                            )}
+                                            {filteredGerais.map((origin) => {
+                                                const idx = flatFilteredOrigens.findIndex(o => o.value === origin.value);
+                                                return (
+                                                    <div 
+                                                        key={origin.value}
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={(e) => { e.stopPropagation(); setSearchFilters({...searchFilters, attendance_origin: origin.value}); setIsOriginDropdownOpen(false); }}
+                                                        style={{ padding: '0.4rem 0.6rem', cursor: 'pointer', background: originHighlightedIndex === idx || (originHighlightedIndex === -1 && searchFilters.attendance_origin === origin.value) ? '#eff6ff' : 'transparent', color: searchFilters.attendance_origin === origin.value ? '#1d4ed8' : '#334155', fontWeight: searchFilters.attendance_origin === origin.value ? '600' : '500', fontSize: '0.85rem' }}
+                                                        onMouseEnter={() => setOriginHighlightedIndex(idx)}
+                                                    >
+                                                        {origin.label}
+                                                    </div>
+                                                );
+                                            })}
+                                            {filteredPostos.length > 0 && (
+                                                <div style={{ padding: '0.4rem 0.6rem', fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', borderTop: filteredGerais.length > 0 ? '1px solid #e2e8f0' : 'none' }}>
+                                                    POSTOS / UNIDADES
+                                                </div>
+                                            )}
+                                            {filteredPostos.map((origin) => {
+                                                const idx = flatFilteredOrigens.findIndex(o => o.value === origin.value);
+                                                return (
+                                                    <div 
+                                                        key={origin.value}
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={(e) => { e.stopPropagation(); setSearchFilters({...searchFilters, attendance_origin: origin.value}); setIsOriginDropdownOpen(false); }}
+                                                        style={{ padding: '0.4rem 0.6rem', cursor: 'pointer', background: originHighlightedIndex === idx || (originHighlightedIndex === -1 && searchFilters.attendance_origin === origin.value) ? '#eff6ff' : 'transparent', color: searchFilters.attendance_origin === origin.value ? '#1d4ed8' : '#334155', fontWeight: searchFilters.attendance_origin === origin.value ? '600' : '500', fontSize: '0.85rem' }}
+                                                        onMouseEnter={() => setOriginHighlightedIndex(idx)}
+                                                    >
+                                                        {origin.label}
+                                                    </div>
+                                                );
+                                            })}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div className="lab-filter-item lab-filter-group lab-filter-actions">
                         <label className="filter-label-spacer" aria-hidden="true">Ação</label>
