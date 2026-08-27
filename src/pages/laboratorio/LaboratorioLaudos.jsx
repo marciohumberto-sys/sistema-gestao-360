@@ -7,6 +7,7 @@ import {
 import html2pdf from 'html2pdf.js';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import JSZip from 'jszip';
 import './LaboratorioConferencia.css';
 import './LaboratorioLaudos.css';
 import { laboratorioLaudosService } from '../../services/api/laboratorioLaudos.service';
@@ -1921,6 +1922,11 @@ const LaboratorioLaudos = () => {
     });
     const [activeFilters, setActiveFilters] = useState(searchFilters);
     
+    // Download em Lote (ZIP)
+    const [selectedBatchExams, setSelectedBatchExams] = useState(new Set());
+    const [isBatchDownloading, setIsBatchDownloading] = useState(false);
+    const [batchProgress, setBatchProgress] = useState(null);
+
     // Filtro de Origem Inteligente (Scroll + Busca)
     const [isOriginDropdownOpen, setIsOriginDropdownOpen] = useState(false);
     const [originSearchText, setOriginSearchText] = useState('');
@@ -1981,6 +1987,9 @@ const LaboratorioLaudos = () => {
     const paginatedPreviewRef = useRef(null);
     const paginationAdjustmentCountRef = useRef(0);
     const paginationAdjustmentFrameRef = useRef(null);
+    const [batchContext, setBatchContext] = useState(null);
+    const batchContainerRef = useRef(null);
+    const batchRenderResolverRef = useRef(null);
     const [completeExamDataById, setCompleteExamDataById] = useState({});
     const [loadingCompletePreview, setLoadingCompletePreview] = useState(false);
     const completeExamDataCacheRef = useRef({});
@@ -1988,6 +1997,13 @@ const LaboratorioLaudos = () => {
     // Controle do drawer de seleção de exames
     const [drawerOpen, setDrawerOpen] = useState(false);
     const laudoRef = useRef(null);
+
+    useLayoutEffect(() => {
+        if (batchContext && batchRenderResolverRef.current) {
+            batchRenderResolverRef.current();
+            batchRenderResolverRef.current = null;
+        }
+    }, [batchContext]);
 
     useEffect(() => {
         handleSearch();
@@ -2360,12 +2376,18 @@ const LaboratorioLaudos = () => {
         return () => observer.disconnect();
     }, [loadMore]);
 
+    // Limpa seleções de lote sempre que os filtros mudarem
+    useEffect(() => {
+        setSelectedBatchExams(new Set());
+    }, [searchFilters]);
+
     const handleSearch = async () => {
         try {
             setLoading(true);
             setPage(0);
             setHasMore(true);
             setActiveFilters(searchFilters);
+            setSelectedBatchExams(new Set());
             const { data, hasMore: more } = await laboratorioLaudosService.buscarLaudos({
                 ...searchFilters,
                 page: 0
@@ -2502,6 +2524,166 @@ const LaboratorioLaudos = () => {
         selectedExamsForReport.length
     ]);
 
+    const calculatePaginationPlan = (root, examDataToMeasure) => {
+        const composedPage = root.querySelector('[data-composed-page="true"]');
+        const bottom = root.querySelector('[data-composed-bottom="true"]');
+        const examBlocks = Array.from(root.querySelectorAll('[data-composed-exam-id]'));
+
+        if (!composedPage || !bottom || examBlocks.length === 0) {
+            throw new Error('Elementos necessários para medir a paginação não foram encontrados.');
+        }
+
+        const MM_TO_PX = 96 / 25.4;
+        const PAGE_HEIGHT_PX = 297 * MM_TO_PX;
+        const PAGE_SAFETY_PX = 10 * MM_TO_PX;
+        const EXAM_GAP_PX = 4 * MM_TO_PX;
+
+        const pageRect = composedPage.getBoundingClientRect();
+        const firstExamRect = examBlocks[0].getBoundingClientRect();
+        const bottomRect = bottom.getBoundingClientRect();
+
+        const pageStyle = window.getComputedStyle(composedPage);
+        const bottomStyle = window.getComputedStyle(bottom);
+
+        const paddingBottom = Number.parseFloat(pageStyle.paddingBottom) || 0;
+        const bottomMarginTop = Number.parseFloat(bottomStyle.marginTop) || 0;
+        const bottomMarginBottom = Number.parseFloat(bottomStyle.marginBottom) || 0;
+
+        const topReservedHeight = firstExamRect.top - pageRect.top;
+        const bottomReservedHeight = bottomRect.height + bottomMarginTop + bottomMarginBottom + paddingBottom;
+
+        const availableExamHeight = PAGE_HEIGHT_PX - topReservedHeight - bottomReservedHeight - PAGE_SAFETY_PX;
+
+        if (availableExamHeight <= 0) {
+            throw new Error('A área útil calculada para os exames é inválida.');
+        }
+
+        const heightById = {};
+        examBlocks.forEach(block => {
+            const resultId = block.dataset.composedExamId;
+            const wrapperRect = block.getBoundingClientRect();
+            const visualHeight = getElementVisualHeight(block);
+            heightById[resultId] = visualHeight;
+
+            console.debug('[Paginação A4] Altura do exame', {
+                resultId,
+                examCode: block.dataset.composedExamCode,
+                wrapperHeight: Math.ceil(wrapperRect.height),
+                visualHeight,
+                overflowHeight: Math.max(0, visualHeight - Math.ceil(wrapperRect.height))
+            });
+        });
+
+        const pages = [];
+        let currentPage = null;
+
+        const flushPage = () => {
+            if (currentPage && currentPage.exams.length > 0) {
+                pages.push(currentPage);
+            }
+            currentPage = null;
+        };
+
+        examDataToMeasure.forEach(examData => {
+            const exam = examData.exam;
+            const resultId = String(exam.id);
+            const examCode = getExamCode(exam);
+            const examHeight = heightById[resultId];
+
+            if (!examHeight) {
+                throw new Error(`Altura não encontrada para o exame ${examCode}.`);
+            }
+
+            const responsibleKey = getPaginationResponsibleKey(examData);
+            const isHemo = examCode === 'HEMO';
+            const isOversized = examHeight > availableExamHeight;
+
+            if (isHemo) {
+                flushPage();
+                pages.push({
+                    exams: [examData],
+                    usedHeight: examHeight,
+                    availableHeight: availableExamHeight,
+                    responsibleKey,
+                    exclusive: true,
+                    oversized: isOversized
+                });
+                return;
+            }
+
+            if (currentPage && currentPage.responsibleKey !== responsibleKey) {
+                flushPage();
+            }
+
+            if (!currentPage) {
+                currentPage = {
+                    exams: [],
+                    usedHeight: 0,
+                    availableHeight: availableExamHeight,
+                    responsibleKey,
+                    exclusive: false,
+                    oversized: false
+                };
+            }
+
+            const additionalHeight = currentPage.exams.length === 0 ? examHeight : EXAM_GAP_PX + examHeight;
+
+            if (currentPage.exams.length > 0 && currentPage.usedHeight + additionalHeight > availableExamHeight) {
+                flushPage();
+                currentPage = {
+                    exams: [],
+                    usedHeight: 0,
+                    availableHeight: availableExamHeight,
+                    responsibleKey,
+                    exclusive: false,
+                    oversized: false
+                };
+            }
+
+            const pageExamHeight = currentPage.exams.length === 0 ? examHeight : EXAM_GAP_PX + examHeight;
+
+            currentPage.exams.push(examData);
+            currentPage.usedHeight += pageExamHeight;
+
+            if (isOversized) {
+                currentPage.oversized = true;
+            }
+        });
+
+        flushPage();
+
+        const normalizedPages = pages.map((page, index) => ({
+            ...page,
+            pageNumber: index + 1,
+            resultIds: page.exams.map(item => item.exam.id),
+            examCodes: page.exams.map(item => getExamCode(item.exam))
+        }));
+
+        const measuredResultIds = normalizedPages.flatMap(page => page.resultIds.map(String));
+        const expectedResultIds = examDataToMeasure.map(item => String(item.exam.id));
+
+        const hasCompleteMeasurement = expectedResultIds.every(
+            resultId => measuredResultIds.includes(resultId) && Number.isFinite(heightById[resultId]) && heightById[resultId] > 0
+        );
+
+        if (!hasCompleteMeasurement) {
+            throw new Error('Nem todos os exames tiveram sua altura visual medida corretamente.');
+        }
+
+        const oversizedCodes = normalizedPages.filter(page => page.oversized).flatMap(page => page.examCodes);
+
+        return {
+            normalizedPages,
+            metrics: {
+                pageHeightPx: PAGE_HEIGHT_PX,
+                topReservedHeight,
+                bottomReservedHeight,
+                availableExamHeight,
+                oversizedCodes
+            }
+        };
+    };
+
     useEffect(() => {
         if (
             previewMode !== 'complete' ||
@@ -2522,288 +2704,27 @@ const LaboratorioLaudos = () => {
                 setPaginationStatus('measuring');
                 setIsRenderedPaginationValidated(false);
 
-                await new Promise(resolve =>
-                    requestAnimationFrame(() =>
-                        requestAnimationFrame(resolve)
-                    )
-                );
+                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
                 const root = completePreviewMeasureRef.current;
 
                 if (!root) {
-                    throw new Error(
-                        'Área da Prévia completa não localizada.'
-                    );
+                    throw new Error('Área da Prévia completa não localizada.');
                 }
 
                 await waitForStableExamLayout(root);
 
-                await new Promise(resolve =>
-                    requestAnimationFrame(resolve)
-                );
+                await new Promise(resolve => requestAnimationFrame(resolve));
 
                 if (cancelled) return;
 
-                const composedPage =
-                    root.querySelector('[data-composed-page="true"]');
-
-                const bottom =
-                    root.querySelector('[data-composed-bottom="true"]');
-
-                const examBlocks = Array.from(
-                    root.querySelectorAll('[data-composed-exam-id]')
-                );
-
-                if (!composedPage || !bottom || examBlocks.length === 0) {
-                    throw new Error(
-                        'Elementos necessários para medir a paginação não foram encontrados.'
-                    );
-                }
-
-                const MM_TO_PX = 96 / 25.4;
-                const PAGE_HEIGHT_PX = 297 * MM_TO_PX;
-                const PAGE_SAFETY_PX = 10 * MM_TO_PX;
-                const EXAM_GAP_PX = 4 * MM_TO_PX;
-
-                const pageRect = composedPage.getBoundingClientRect();
-                const firstExamRect = examBlocks[0].getBoundingClientRect();
-                const bottomRect = bottom.getBoundingClientRect();
-
-                const pageStyle = window.getComputedStyle(composedPage);
-                const bottomStyle = window.getComputedStyle(bottom);
-
-                const paddingBottom =
-                    Number.parseFloat(pageStyle.paddingBottom) || 0;
-
-                const bottomMarginTop =
-                    Number.parseFloat(bottomStyle.marginTop) || 0;
-
-                const bottomMarginBottom =
-                    Number.parseFloat(bottomStyle.marginBottom) || 0;
-
-                const topReservedHeight =
-                    firstExamRect.top - pageRect.top;
-
-                const bottomReservedHeight =
-                    bottomRect.height +
-                    bottomMarginTop +
-                    bottomMarginBottom +
-                    paddingBottom;
-
-                const availableExamHeight =
-                    PAGE_HEIGHT_PX -
-                    topReservedHeight -
-                    bottomReservedHeight -
-                    PAGE_SAFETY_PX;
-
-                if (availableExamHeight <= 0) {
-                    throw new Error(
-                        'A área útil calculada para os exames é inválida.'
-                    );
-                }
-
-                const heightById = {};
-
-                examBlocks.forEach(block => {
-                    const resultId =
-                        block.dataset.composedExamId;
-
-                    const wrapperRect =
-                        block.getBoundingClientRect();
-
-                    const visualHeight =
-                        getElementVisualHeight(block);
-
-                    heightById[resultId] =
-                        visualHeight;
-
-                    console.debug(
-                        '[Paginação A4] Altura do exame',
-                        {
-                            resultId,
-                            examCode:
-                                block.dataset.composedExamCode,
-                            wrapperHeight:
-                                Math.ceil(wrapperRect.height),
-                            visualHeight,
-                            overflowHeight:
-                                Math.max(
-                                    0,
-                                    visualHeight -
-                                    Math.ceil(wrapperRect.height)
-                                )
-                        }
-                    );
-                });
-
-                const pages = [];
-                let currentPage = null;
-
-                const flushPage = () => {
-                    if (
-                        currentPage &&
-                        currentPage.exams.length > 0
-                    ) {
-                        pages.push(currentPage);
-                    }
-
-                    currentPage = null;
-                };
-
-                completePreviewExamData.forEach(examData => {
-                    const exam = examData.exam;
-                    const resultId = String(exam.id);
-                    const examCode =
-                        getExamCode(exam);
-
-                    const examHeight =
-                        heightById[resultId];
-
-                    if (!examHeight) {
-                        throw new Error(
-                            `Altura não encontrada para o exame ${examCode}.`
-                        );
-                    }
-
-                    const responsibleKey =
-                        getPaginationResponsibleKey(examData);
-
-                    const isHemo =
-                        examCode === 'HEMO';
-
-                    const isOversized =
-                        examHeight > availableExamHeight;
-
-                    if (isHemo) {
-                        flushPage();
-
-                        pages.push({
-                            exams: [examData],
-                            usedHeight: examHeight,
-                            availableHeight: availableExamHeight,
-                            responsibleKey,
-                            exclusive: true,
-                            oversized: isOversized
-                        });
-
-                        return;
-                    }
-
-                    if (
-                        currentPage &&
-                        currentPage.responsibleKey !== responsibleKey
-                    ) {
-                        flushPage();
-                    }
-
-                    if (!currentPage) {
-                        currentPage = {
-                            exams: [],
-                            usedHeight: 0,
-                            availableHeight: availableExamHeight,
-                            responsibleKey,
-                            exclusive: false,
-                            oversized: false
-                        };
-                    }
-
-                    const additionalHeight =
-                        currentPage.exams.length === 0
-                            ? examHeight
-                            : EXAM_GAP_PX + examHeight;
-
-                    if (
-                        currentPage.exams.length > 0 &&
-                        currentPage.usedHeight + additionalHeight >
-                            availableExamHeight
-                    ) {
-                        flushPage();
-
-                        currentPage = {
-                            exams: [],
-                            usedHeight: 0,
-                            availableHeight: availableExamHeight,
-                            responsibleKey,
-                            exclusive: false,
-                            oversized: false
-                        };
-                    }
-
-                    const pageExamHeight =
-                        currentPage.exams.length === 0
-                            ? examHeight
-                            : EXAM_GAP_PX + examHeight;
-
-                    currentPage.exams.push(examData);
-                    currentPage.usedHeight += pageExamHeight;
-
-                    if (isOversized) {
-                        currentPage.oversized = true;
-                    }
-                });
-
-                flushPage();
-
-                const normalizedPages = pages.map(
-                    (page, index) => ({
-                        ...page,
-                        pageNumber: index + 1,
-                        resultIds: page.exams.map(
-                            item => item.exam.id
-                        ),
-                        examCodes: page.exams.map(
-                            item => getExamCode(item.exam)
-                        )
-                    })
-                );
-
-                const measuredResultIds =
-                    normalizedPages.flatMap(
-                        page => page.resultIds.map(String)
-                    );
-
-                const expectedResultIds =
-                    completePreviewExamData.map(
-                        item => String(item.exam.id)
-                    );
-
-                const hasCompleteMeasurement =
-                    expectedResultIds.every(
-                        resultId =>
-                            measuredResultIds.includes(resultId) &&
-                            Number.isFinite(
-                                heightById[resultId]
-                            ) &&
-                            heightById[resultId] > 0
-                    );
-
-                if (!hasCompleteMeasurement) {
-                    throw new Error(
-                        'Nem todos os exames tiveram sua altura visual medida corretamente.'
-                    );
-                }
-
-                const oversizedCodes = normalizedPages
-                    .filter(page => page.oversized)
-                    .flatMap(page => page.examCodes);
+                const { normalizedPages, metrics } = calculatePaginationPlan(root, completePreviewExamData);
 
                 if (cancelled) return;
 
                 setPaginationPlan(normalizedPages);
-
-                setPaginationMetrics({
-                    pageHeightPx: PAGE_HEIGHT_PX,
-                    topReservedHeight,
-                    bottomReservedHeight,
-                    availableExamHeight,
-                    oversizedCodes
-                });
-
-                setPaginationStatus(
-                    oversizedCodes.length > 0
-                        ? 'warning'
-                        : 'ready'
-                );
+                setPaginationMetrics(metrics);
+                setPaginationStatus(metrics.oversizedCodes.length > 0 ? 'warning' : 'ready');
                 setIsRenderedPaginationValidated(false);
             } catch (error) {
                 console.error(
@@ -3407,8 +3328,8 @@ const LaboratorioLaudos = () => {
     };
 
     const handleDownloadCompletePreviewPdf =
-        async () => {
-            if (!canDownloadCompletePreview) {
+        async (returnBlob = false) => {
+            if (!canDownloadCompletePreview && !returnBlob) {
                 setFeedbackMsg({
                     type: 'warning',
                     text: 'Aguarde a preparação dos exames antes de baixar o PDF.'
@@ -3626,6 +3547,13 @@ const LaboratorioLaudos = () => {
                         ? `Laudo-${patientCodeForFile}-${patientNameForFile || 'PACIENTE'}.pdf`
                         : `Laudo-${patientNameForFile || 'PACIENTE'}.pdf`;
 
+                if (returnBlob) {
+                    return {
+                        blob: pdf.output('blob'),
+                        fileName
+                    };
+                }
+
                 pdf.save(fileName);
                 handleActionSuccess('DOWNLOAD');
             } catch (error) {
@@ -3671,6 +3599,22 @@ const LaboratorioLaudos = () => {
             }
         } catch (error) {
             console.error('Erro ao registrar ação localmente:', error);
+        }
+    };
+
+    const handleActionSuccessBatch = async (ids, action) => {
+        if (ids.length === 0) return;
+        try {
+            await laboratorioLaudosService.registrarAcaoLaudos(ids, action);
+            const now = new Date().toISOString();
+            setSearchResults(prev => prev.map(laudo => {
+                if (ids.includes(laudo.id)) {
+                    return { ...laudo, last_downloaded_at: action === 'DOWNLOAD' ? now : laudo.last_downloaded_at };
+                }
+                return laudo;
+            }));
+        } catch (error) {
+            console.error('Erro ao registrar ação localmente no lote:', error);
         }
     };
 
@@ -3765,6 +3709,196 @@ const LaboratorioLaudos = () => {
         } finally {
             laudoRef.current?.classList.remove('pdf-export-mode');
             setGeneratingPdf(false);
+        }
+    };
+    const handleBatchDownload = async () => {
+        if (selectedBatchExams.size === 0) return;
+        setIsBatchDownloading(true);
+        setBatchProgress({ current: 0, total: selectedBatchExams.size });
+
+        try {
+            const zip = new JSZip();
+            let currentIndex = 0;
+            let successCount = 0;
+            
+            const selectedProtocolsArr = Array.from(selectedBatchExams)
+                .map(id => groupedProtocols.find(g => g.protocolo === id))
+                .filter(Boolean);
+
+            for (const group of selectedProtocolsArr) {
+                currentIndex++;
+                setBatchProgress({ current: currentIndex, total: selectedBatchExams.size });
+
+                const releasedExams = (group.exams || []).filter(ex => String(ex.status || '').trim().toUpperCase() === 'LIBERADO');
+                if (releasedExams.length === 0) continue;
+
+                try {
+                    // 1. Carrega dados do cache e API isoladamente
+                    const loadedEntries = await Promise.all(
+                        releasedExams.map(async ex => {
+                            const resultId = ex.id ?? ex.result_id ?? ex.resultId;
+                            if (completeExamDataCacheRef.current[resultId]) {
+                                return [resultId, completeExamDataCacheRef.current[resultId]];
+                            }
+                            const details = await laboratorioLaudosService.carregarDetalhesLaudo(resultId);
+                            let completeSignatureSignedUrl = null;
+                            const signaturePath = ex.responsible_signature_path;
+                            if (signaturePath) {
+                                if (completeSignatureCacheRef.current[signaturePath]) {
+                                    completeSignatureSignedUrl = completeSignatureCacheRef.current[signaturePath];
+                                } else {
+                                    try {
+                                        completeSignatureSignedUrl = await laboratorioLaudosService.getLaboratorioSignatureSignedUrl(signaturePath);
+                                        completeSignatureCacheRef.current[signaturePath] = completeSignatureSignedUrl;
+                                    } catch (signatureError) {
+                                        console.warn(`Erro assinatura ${ex.exameCodigo}`, signatureError);
+                                    }
+                                }
+                            }
+                            const data = { exam: ex, details, signatureSignedUrl: completeSignatureSignedUrl, history: null };
+                            completeExamDataCacheRef.current[resultId] = data;
+                            return [resultId, data];
+                        })
+                    );
+                    
+                    const loadedDataArr = loadedEntries.map(e => e[1]);
+
+                    // 2. Etapa de Medição
+                    setBatchContext({ stage: 'measure', data: loadedDataArr, protocol: group, paginationPlan: null });
+                    
+                    // Sinal de BATCH RENDER READY
+                    await new Promise(resolve => { batchRenderResolverRef.current = resolve; });
+                    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                    if (document.fonts?.ready) await document.fonts.ready;
+                    
+                    // Aguarda estabilização do DOM off-screen
+                    const root = batchContainerRef.current;
+                    if (!root) throw new Error("Área da Prévia completa não localizada no lote.");
+                    await waitForStableExamLayout(root);
+                    await new Promise(resolve => requestAnimationFrame(resolve));
+                    
+                    const { normalizedPages } = calculatePaginationPlan(root, loadedDataArr);
+
+                    // 3. Etapa de Paginação (Renderização)
+                    setBatchContext({ stage: 'render', data: loadedDataArr, protocol: group, paginationPlan: normalizedPages });
+                    
+                    // Sinal de BATCH RENDER READY
+                    await new Promise(resolve => { batchRenderResolverRef.current = resolve; });
+                    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                    
+                    const pageElements = Array.from(root.querySelectorAll('[data-composed-page="true"]'));
+                    if (pageElements.length === 0) throw new Error('As páginas do laudo não puderam ser geradas.');
+
+                    const waitForPageImages = async pageElement => {
+                        const images = Array.from(pageElement.querySelectorAll('img'));
+                        await Promise.all(images.map(image => {
+                            if (image.complete && image.naturalWidth > 0) return Promise.resolve();
+                            return new Promise(resolve => {
+                                const finish = () => resolve();
+                                image.addEventListener('load', finish, { once: true });
+                                image.addEventListener('error', finish, { once: true });
+                            });
+                        }));
+                    };
+
+                    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                    const PDF_WIDTH_MM = 210;
+                    const PDF_HEIGHT_MM = 297;
+
+                    for (let index = 0; index < pageElements.length; index += 1) {
+                        const pageElement = pageElements[index];
+                        await waitForPageImages(pageElement);
+                        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                        const previousBoxShadow = pageElement.style.boxShadow;
+                        const previousMargin = pageElement.style.margin;
+                        pageElement.style.boxShadow = 'none';
+                        pageElement.style.margin = '0';
+                        try {
+                            const canvas = await html2canvas(pageElement, { scale: 2, useCORS: true, allowTaint: false, backgroundColor: '#ffffff', logging: false, scrollX: 0, scrollY: 0 });
+                            const imageData = canvas.toDataURL('image/jpeg', 0.96);
+                            const canvasRatio = canvas.width / canvas.height;
+                            const pageRatio = PDF_WIDTH_MM / PDF_HEIGHT_MM;
+                            let imageWidth, imageHeight;
+                            if (canvasRatio > pageRatio) { imageWidth = PDF_WIDTH_MM; imageHeight = imageWidth / canvasRatio; } 
+                            else { imageHeight = PDF_HEIGHT_MM; imageWidth = imageHeight * canvasRatio; }
+                            const imageX = (PDF_WIDTH_MM - imageWidth) / 2;
+                            const imageY = (PDF_HEIGHT_MM - imageHeight) / 2;
+                            if (index > 0) pdf.addPage('a4', 'portrait');
+                            pdf.addImage(imageData, 'JPEG', imageX, imageY, imageWidth, imageHeight, undefined, 'FAST');
+                        } finally {
+                            pageElement.style.boxShadow = previousBoxShadow;
+                            pageElement.style.margin = previousMargin;
+                        }
+                    }
+
+                    const blob = pdf.output('blob');
+                    
+                    if (!blob || !(blob instanceof Blob) || blob.size === 0) {
+                        throw new Error('Falha na geração do arquivo PDF.');
+                    }
+
+                    const sanitizeFilePart = (value) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                    const patientCodeForFile = sanitizeFilePart(group.pacienteCode);
+                    const patientNameForFile = sanitizeFilePart(group.pacienteNome);
+                    const pdfFileName = patientCodeForFile ? `Laudo-${patientCodeForFile}-${patientNameForFile || 'PACIENTE'}.pdf` : `Laudo-${patientNameForFile || 'PACIENTE'}.pdf`;
+
+                    zip.file(pdfFileName, blob);
+                    
+                    try {
+                        await handleActionSuccessBatch(releasedExams.map(ex => ex.id), 'DOWNLOAD');
+                        successCount++;
+                    } catch (e) {
+                        console.error('Erro ao atualizar status de download', e);
+                    }
+                } catch (error) {
+                    console.error(`Erro ao processar laudo para o lote: ${group.protocolo}`, error);
+                }
+            }
+
+            if (successCount !== selectedProtocolsArr.length) {
+                const errorMsg = `${successCount} de ${selectedProtocolsArr.length} laudos gerados com sucesso. O download do ZIP foi abortado para evitar arquivos parciais.`;
+                setFeedbackMsg({ type: 'error', text: errorMsg });
+                return;
+            }
+
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            if (zipBlob.size === 0) {
+                setFeedbackMsg({ type: 'error', text: 'Arquivo ZIP final gerado com 0 bytes.' });
+                return;
+            }
+            
+            const sanitizeFileName = (name) => {
+                return String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+            };
+            
+            const now = new Date();
+            const dataFormatada = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+            
+            let nomePostoSafe = "LAUDOS";
+            if (searchFilters.attendance_origin && searchFilters.attendance_origin !== 'todos') {
+                const orName = TODAS_ORIGENS.find(o => o.value === searchFilters.attendance_origin)?.label || searchFilters.attendance_origin;
+                nomePostoSafe = sanitizeFileName(orName);
+            }
+            
+            const zipFileName = `LAUDOS_${nomePostoSafe}_${dataFormatada}.zip`;
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(zipBlob);
+            link.download = zipFileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            setFeedbackMsg({ type: 'success', text: 'Download em lote concluído com sucesso.' });
+            setSelectedBatchExams(new Set());
+
+        } catch (error) {
+            console.error('Erro na geração em lote:', error);
+            setFeedbackMsg({ type: 'error', text: 'Erro ao gerar PDFs. Tente novamente.' });
+        } finally {
+            setIsBatchDownloading(false);
+            setBatchProgress(null);
+            setBatchContext(null);
         }
     };
 
@@ -4001,6 +4135,56 @@ const LaboratorioLaudos = () => {
                             </span>
                         </div>
                         <div className="lab-queue-list">
+                            {/* Ações em Lote */}
+                            {selectedBatchExams.size > 0 && (
+                                <div style={{ background: '#f8fafc', padding: '10px 12px', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px', sticky: 'top', zIndex: 10 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#334155' }}>
+                                            {selectedBatchExams.size} / 100 selecionados
+                                        </span>
+                                        <button 
+                                            onClick={() => setSelectedBatchExams(new Set())}
+                                            disabled={isBatchDownloading}
+                                            style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}
+                                        >
+                                            Limpar seleção
+                                        </button>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button 
+                                            onClick={() => {
+                                                const total = groupedProtocols.length;
+                                                if (total > 100) {
+                                                    alert(`Foram encontrados ${total} laudos. Refine os filtros para selecionar todos de uma vez. O limite por download é de 100 laudos.`);
+                                                    return;
+                                                }
+                                                const allIds = groupedProtocols.map(g => g.protocolo);
+                                                setSelectedBatchExams(new Set(allIds));
+                                            }}
+                                            disabled={isBatchDownloading}
+                                            className="lab-btn"
+                                            style={{ flex: 1, padding: '6px', fontSize: '12px', justifyContent: 'center' }}
+                                        >
+                                            Selecionar todos
+                                        </button>
+                                        <button 
+                                            onClick={handleBatchDownload}
+                                            disabled={isBatchDownloading}
+                                            className="lab-btn lab-btn-primary"
+                                            style={{ flex: 1, padding: '6px', fontSize: '12px', justifyContent: 'center' }}
+                                        >
+                                            {isBatchDownloading ? <Loader2 size={14} className="spin" /> : <Download size={14} />}
+                                            Baixar ZIP
+                                        </button>
+                                    </div>
+                                    {isBatchDownloading && batchProgress && (
+                                        <div style={{ fontSize: '12px', color: '#2563eb', textAlign: 'center', marginTop: '4px', fontWeight: '500' }}>
+                                            Gerando laudos... {batchProgress.current} de {batchProgress.total}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {(searchResults || []).length === 0 && !loading && (
                                 <div className="text-center p-6 text-gray-500" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', marginTop: '2rem' }}>
                                     <Search size={32} className="text-gray-300" />
@@ -4051,65 +4235,93 @@ const LaboratorioLaudos = () => {
                                             handleSelectExam(group.exams[0]);
                                         }}
                                     >
-                                        <div className="lab-qi-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>Cód. {group.pacienteCode || 'N/I'}</span>
-                                            <span style={{ fontSize: '13px', color: '#64748b' }}>Atend.: {group.dataAtendimento}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '5px', gap: '8px' }}>
-                                            <div style={{ fontSize: '14.5px', fontWeight: '600', color: '#0f172a', lineHeight: '1.2', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', minWidth: '0' }}>
-                                                {group.pacienteNome}
-                                            </div>
-                                            <span style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'nowrap', paddingTop: '1px' }}>
-                                                {group.exams.length} {group.exams.length === 1 ? 'exame' : 'exames'}
-                                            </span>
-                                        </div>
-                                        {(() => {
-                                            const totalExams = group.exams.length;
-                                            const printedExams = group.exams.filter(e => e.last_printed_at);
-                                            const downloadedExams = group.exams.filter(e => e.last_downloaded_at);
-                                            
-                                            if (printedExams.length === 0 && downloadedExams.length === 0) return null;
-
-                                            const formatDate = (dateStr) => {
-                                                const d = new Date(dateStr);
-                                                return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}`;
-                                            };
-
-                                            let printBadge = null;
-                                            if (printedExams.length > 0) {
-                                                const maxDate = new Date(Math.max(...printedExams.map(e => new Date(e.last_printed_at).getTime()))).toISOString();
-                                                if (printedExams.length === totalExams) {
-                                                    printBadge = { text: 'IMPRESSO', style: { background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' }, title: `Última impressão: ${formatDate(maxDate)}` };
-                                                } else {
-                                                    printBadge = { text: 'IMP. PARCIAL', style: { background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }, title: `${printedExams.length} de ${totalExams} exames impressos\nÚltima impressão: ${formatDate(maxDate)}` };
-                                                }
-                                            }
-
-                                            let pdfBadge = null;
-                                            if (downloadedExams.length > 0) {
-                                                const maxDate = new Date(Math.max(...downloadedExams.map(e => new Date(e.last_downloaded_at).getTime()))).toISOString();
-                                                if (downloadedExams.length === totalExams) {
-                                                    pdfBadge = { text: 'PDF', style: { background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }, title: `Último PDF: ${formatDate(maxDate)}` };
-                                                } else {
-                                                    pdfBadge = { text: 'PDF PARCIAL', style: { background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }, title: `${downloadedExams.length} de ${totalExams} exames em PDF\nÚltimo PDF: ${formatDate(maxDate)}` };
-                                                }
-                                            }
-
-                                            return (
-                                                <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
-                                                    {printBadge && (
-                                                        <div title={printBadge.title} style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 'bold', borderRadius: '4px', cursor: 'help', ...printBadge.style }}>
-                                                            {printBadge.text}
-                                                        </div>
-                                                    )}
-                                                    {pdfBadge && (
-                                                        <div title={pdfBadge.title} style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 'bold', borderRadius: '4px', cursor: 'help', ...pdfBadge.style }}>
-                                                            {pdfBadge.text}
-                                                        </div>
-                                                    )}
+                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                                            <input 
+                                                type="checkbox"
+                                                checked={selectedBatchExams.has(group.protocolo)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onChange={(e) => {
+                                                    const isChecked = e.target.checked;
+                                                    setSelectedBatchExams(prev => {
+                                                        const newSet = new Set(prev);
+                                                        if (isChecked) {
+                                                            if (newSet.size >= 100) {
+                                                                setFeedbackMsg({ type: 'warning', text: 'Limite de 100 laudos por download atingido.' });
+                                                                setTimeout(() => setFeedbackMsg(null), 3000);
+                                                                return prev;
+                                                            }
+                                                            newSet.add(group.protocolo);
+                                                        } else {
+                                                            newSet.delete(group.protocolo);
+                                                        }
+                                                        return newSet;
+                                                    });
+                                                }}
+                                                disabled={isBatchDownloading}
+                                                style={{ marginTop: '2px', cursor: 'pointer' }}
+                                            />
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div className="lab-qi-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>Cód. {group.pacienteCode || 'N/I'}</span>
+                                                    <span style={{ fontSize: '13px', color: '#64748b' }}>Atend.: {group.dataAtendimento}</span>
                                                 </div>
-                                            );
-                                        })()}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '5px', gap: '8px' }}>
+                                                    <div style={{ fontSize: '14.5px', fontWeight: '600', color: '#0f172a', lineHeight: '1.2', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', minWidth: '0' }}>
+                                                        {group.pacienteNome}
+                                                    </div>
+                                                    <span style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'nowrap', paddingTop: '1px' }}>
+                                                        {group.exams.length} {group.exams.length === 1 ? 'exame' : 'exames'}
+                                                    </span>
+                                                </div>
+                                                {(() => {
+                                                    const totalExams = group.exams.length;
+                                                    const printedExams = group.exams.filter(e => e.last_printed_at);
+                                                    const downloadedExams = group.exams.filter(e => e.last_downloaded_at);
+                                                    
+                                                    if (printedExams.length === 0 && downloadedExams.length === 0) return null;
+
+                                                    const formatDate = (dateStr) => {
+                                                        const d = new Date(dateStr);
+                                                        return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}`;
+                                                    };
+
+                                                    let printBadge = null;
+                                                    if (printedExams.length > 0) {
+                                                        const maxDate = new Date(Math.max(...printedExams.map(e => new Date(e.last_printed_at).getTime()))).toISOString();
+                                                        if (printedExams.length === totalExams) {
+                                                            printBadge = { text: 'IMPRESSO', style: { background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' }, title: `Última impressão: ${formatDate(maxDate)}` };
+                                                        } else {
+                                                            printBadge = { text: 'IMP. PARCIAL', style: { background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }, title: `${printedExams.length} de ${totalExams} exames impressos\nÚltima impressão: ${formatDate(maxDate)}` };
+                                                        }
+                                                    }
+
+                                                    let pdfBadge = null;
+                                                    if (downloadedExams.length > 0) {
+                                                        const maxDate = new Date(Math.max(...downloadedExams.map(e => new Date(e.last_downloaded_at).getTime()))).toISOString();
+                                                        if (downloadedExams.length === totalExams) {
+                                                            pdfBadge = { text: 'PDF', style: { background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }, title: `Último PDF: ${formatDate(maxDate)}` };
+                                                        } else {
+                                                            pdfBadge = { text: 'PDF PARCIAL', style: { background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }, title: `${downloadedExams.length} de ${totalExams} exames em PDF\nÚltimo PDF: ${formatDate(maxDate)}` };
+                                                        }
+                                                    }
+
+                                                    return (
+                                                        <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+                                                            {printBadge && (
+                                                                <div title={printBadge.title} style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 'bold', borderRadius: '4px', cursor: 'help', ...printBadge.style }}>
+                                                                    {printBadge.text}
+                                                                </div>
+                                                            )}
+                                                            {pdfBadge && (
+                                                                <div title={pdfBadge.title} style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 'bold', borderRadius: '4px', cursor: 'help', ...pdfBadge.style }}>
+                                                                    {pdfBadge.text}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -4475,6 +4687,42 @@ const LaboratorioLaudos = () => {
                         </>
                     )}
                 </div>
+            </div>
+
+            {/* CONTAINER OFFSCREEN PARA LOTE SEMPRE MONTADO */}
+            <div 
+                ref={batchContainerRef} 
+                className="no-print laudos-batch-offscreen"
+                style={{ position: 'fixed', left: '-100000px', top: '0', pointerEvents: 'none', background: '#fff', width: '210mm' }}
+            >
+                {batchContext && batchContext.stage === 'measure' && (
+                    <div className="lab-complete-preview lab-complete-preview-unpaginated">
+                        <LaudoA4Page 
+                            pageExamData={batchContext.data} 
+                            patientCode={batchContext.protocol?.pacienteCode}
+                            selectedProtocol={batchContext.protocol}
+                            formatDateTimeH={formatDateTimeHForReport}
+                            formatAttendanceOrigin={formatAttendanceOrigin}
+                            statusReal={statusReal}
+                        />
+                    </div>
+                )}
+                {batchContext && batchContext.stage === 'render' && batchContext.paginationPlan && (
+                    <div className="lab-complete-preview lab-complete-preview-paginated">
+                        {batchContext.paginationPlan.map(page => (
+                            <LaudoA4Page 
+                                key={`batch-page-${page.pageNumber}`}
+                                pageNumber={page.pageNumber}
+                                pageExamData={page.exams}
+                                patientCode={batchContext.protocol?.pacienteCode}
+                                selectedProtocol={batchContext.protocol}
+                                formatDateTimeH={formatDateTimeHForReport}
+                                formatAttendanceOrigin={formatAttendanceOrigin}
+                                statusReal={statusReal}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
