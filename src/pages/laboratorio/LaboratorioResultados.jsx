@@ -677,6 +677,18 @@ const LaboratorioResultados = () => {
             if (!hasPersistedUriResults(result)) {
                 activeForm = applyUriInitialValues(activeForm, result?.structuredValues || []);
             }
+        } else if (examCode === 'GSRH') {
+            const dFracoParam = result?.structuredValues?.find(v => {
+                const name = String(v.parameter_name || v.name || '').toUpperCase();
+                return name.includes('VARIANTE') || name.includes('D FRACO');
+            });
+            if (dFracoParam) {
+                const pid = dFracoParam.parameter_id;
+                const currentText = activeForm[pid]?.value_text;
+                if (currentText === null || currentText === undefined || String(currentText).trim() === '') {
+                    activeForm[pid] = { ...activeForm[pid], value_text: 'NÃO REALIZAMOS' };
+                }
+            }
         }
         
         const obs = result?.general_observation || '';
@@ -2284,7 +2296,7 @@ const LaboratorioResultados = () => {
                                                             {(() => {
                                                                 const displayName = isUri ? getUriParameterDisplayName(param) : (param.name || 'Parâmetro');
                                                                 return (
-                                                                    <label style={{ color: isMissing ? '#ef4444' : undefined, flex: isCompactRef ? '0 0 35%' : 'none', minWidth: isCompactRef ? '120px' : undefined, margin: 0, fontSize: isCompactRef ? '0.9rem' : undefined, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: isPCRExam ? 'none' : undefined }} title={displayName}>
+                                                                    <label style={{ color: isMissing ? '#ef4444' : undefined, flex: isCompactRef ? '0 0 35%' : (examCodeUpper === 'GSRH' ? '0 0 170px' : 'none'), minWidth: isCompactRef ? '120px' : undefined, margin: 0, fontSize: isCompactRef ? '0.9rem' : undefined, whiteSpace: examCodeUpper === 'GSRH' ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: isPCRExam ? 'none' : undefined, lineHeight: examCodeUpper === 'GSRH' ? '1.2' : undefined }} title={displayName}>
                                                                         {displayName}
                                                                     </label>
                                                                 );
