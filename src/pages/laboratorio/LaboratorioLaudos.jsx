@@ -3646,7 +3646,32 @@ const LaboratorioLaudos = () => {
 
             await html2pdf().set(opt).from(element).toPdf().get('pdf').then(function(pdf) {
                 const totalPages = pdf.internal.getNumberOfPages();
-                for (let i = 2; i <= totalPages; i++) {
+                let realPages = totalPages;
+
+                // Determina a página final baseada no último conteúdo real do laudo (o rodapé)
+                const footerElement = element.querySelector('.hemo-report-bottom') || element.querySelector('.hemo-signature-area');
+                if (footerElement) {
+                    const elementRect = element.getBoundingClientRect();
+                    const footerRect = footerElement.getBoundingClientRect();
+                    
+                    // O html2pdf dimensiona a largura do elemento para 190mm
+                    const pxToMm = 190 / elementRect.width;
+                    const contentBottomMm = (footerRect.bottom - elementRect.top) * pxToMm;
+                    
+                    // Altura da página: 297mm - 26mm(top) - 10mm(bottom) = 261mm de área útil
+                    const pageHeightMm = 261;
+                    const semanticEndPage = Math.ceil(contentBottomMm / pageHeightMm);
+                    
+                    if (semanticEndPage > 0 && semanticEndPage < totalPages) {
+                        realPages = semanticEndPage;
+                        // Remove as páginas extras que contêm apenas whitespace
+                        for (let i = totalPages; i > realPages; i--) {
+                            pdf.deletePage(i);
+                        }
+                    }
+                }
+
+                for (let i = 2; i <= realPages; i++) {
                     pdf.setPage(i);
                     
                     // Fundo da faixa do título do exame
