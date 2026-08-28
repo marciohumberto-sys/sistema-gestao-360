@@ -324,13 +324,14 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
                     <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam.pacienteCode || selectedExam.patientCode || '---'}</div>
                     <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam.pacienteDataNascimento}</div>
                     <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(selectedExam?.attendance_created_at || selectedExam?.created_at)}</div>
+                    <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH(selectedExam.released_at || selectedExam.checked_at)}</div>
                 </div>
                 <div className="hemo-patient-col right">
                     <div><span className="hemo-lbl">Idade:</span> {selectedExam.pacienteIdade}</div>
                     <div><span className="hemo-lbl">Sexo:</span> {selectedExam.pacienteSexo || 'NÃO INFORMADO'}</div>
                     <div><span className="hemo-lbl">RG:</span> {selectedExam.pacienteRg || '---'}</div>
+                    <div><span className="hemo-lbl">CPF:</span> {selectedExam.pacienteCpf ? formatCpf(selectedExam.pacienteCpf) : '---'}</div>
                     <div><span className="hemo-lbl">CNS:</span> {selectedExam.pacienteCns || '---'}</div>
-                    <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH(selectedExam.released_at || selectedExam.checked_at)}</div>
                     <div><span className="hemo-lbl">Origem:</span> {formatAttendanceOrigin(selectedExam.attendance_origin)}</div>
                 </div>
             </div>
@@ -628,13 +629,14 @@ const LaudoURI = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
                         <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam?.pacienteCode || selectedExam?.patientCode || '---'}</div>
                         <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam?.pacienteDataNascimento}</div>
                         <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(selectedExam?.attendance_created_at || selectedExam?.created_at)}</div>
+                        <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.released_at || selectedExam?.checked_at) : ''}</div>
                     </div>
                     <div className="hemo-patient-col right">
                         <div><span className="hemo-lbl">Idade:</span> {selectedExam?.pacienteIdade}</div>
                         <div><span className="hemo-lbl">Sexo:</span> {selectedExam?.pacienteSexo || 'NÃO INFORMADO'}</div>
                         <div><span className="hemo-lbl">RG:</span> {selectedExam?.pacienteRg || '---'}</div>
+                        <div><span className="hemo-lbl">CPF:</span> {selectedExam?.pacienteCpf ? formatCpf(selectedExam.pacienteCpf) : '---'}</div>
                         <div><span className="hemo-lbl">CNS:</span> {selectedExam?.pacienteCns || '---'}</div>
-                        <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.released_at || selectedExam?.checked_at) : ''}</div>
                         <div><span className="hemo-lbl">Origem:</span> {formatAttendanceOrigin && selectedExam?.attendance_origin ? formatAttendanceOrigin(selectedExam?.attendance_origin) : ''}</div>
                     </div>
                 </div>
@@ -796,13 +798,14 @@ const LaudoPAR = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
                         <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam?.pacienteCode || selectedExam?.patientCode || '---'}</div>
                         <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam?.pacienteDataNascimento}</div>
                         <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(selectedExam?.attendance_created_at || selectedExam?.created_at)}</div>
+                        <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.released_at || selectedExam?.checked_at) : ''}</div>
                     </div>
                     <div className="hemo-patient-col right">
                         <div><span className="hemo-lbl">Idade:</span> {selectedExam?.pacienteIdade}</div>
                         <div><span className="hemo-lbl">Sexo:</span> {selectedExam?.pacienteSexo || 'NÃO INFORMADO'}</div>
                         <div><span className="hemo-lbl">RG:</span> {selectedExam?.pacienteRg || '---'}</div>
+                        <div><span className="hemo-lbl">CPF:</span> {selectedExam?.pacienteCpf ? formatCpf(selectedExam.pacienteCpf) : '---'}</div>
                         <div><span className="hemo-lbl">CNS:</span> {selectedExam?.pacienteCns || '---'}</div>
-                        <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.released_at || selectedExam?.checked_at) : ''}</div>
                         <div><span className="hemo-lbl">Origem:</span> {formatAttendanceOrigin && selectedExam?.attendance_origin ? formatAttendanceOrigin(selectedExam?.attendance_origin) : ''}</div>
                     </div>
                 </div>
@@ -1336,13 +1339,14 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
                         <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam?.pacienteCode || selectedExam?.patientCode || '---'}</div>
                         <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam?.pacienteDataNascimento}</div>
                         <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(selectedExam?.attendance_created_at || selectedExam?.created_at)}</div>
+                        <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.released_at || selectedExam?.checked_at) : ''}</div>
                     </div>
                     <div className="hemo-patient-col right">
                         <div><span className="hemo-lbl">Idade:</span> {selectedExam?.pacienteIdade}</div>
                         <div><span className="hemo-lbl">Sexo:</span> {selectedExam?.pacienteSexo || 'NÃO INFORMADO'}</div>
                         <div><span className="hemo-lbl">RG:</span> {selectedExam?.pacienteRg || '---'}</div>
+                        <div><span className="hemo-lbl">CPF:</span> {selectedExam?.pacienteCpf ? formatCpf(selectedExam.pacienteCpf) : '---'}</div>
                         <div><span className="hemo-lbl">CNS:</span> {selectedExam?.pacienteCns || '---'}</div>
-                        <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.released_at || selectedExam?.checked_at) : ''}</div>
                         <div><span className="hemo-lbl">Origem:</span> {formatAttendanceOrigin && selectedExam?.attendance_origin ? formatAttendanceOrigin(selectedExam?.attendance_origin) : ''}</div>
                     </div>
                 </div>
@@ -1848,13 +1852,14 @@ const LaudoA4Page = ({ pageExamData, pageNumber, patientCode, selectedProtocol, 
                     <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || firstExam?.pacienteCode || firstExam?.patientCode || '---'}</div>
                     <div><span className="hemo-lbl">Data Nasc.:</span> {firstExam?.pacienteDataNascimento}</div>
                     <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(firstExam?.attendance_created_at || firstExam?.created_at)}</div>
+                    <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(firstExam?.released_at || firstExam?.checked_at) : ''}</div>
                 </div>
                 <div className="hemo-patient-col right">
                     <div><span className="hemo-lbl">Idade:</span> {firstExam?.pacienteIdade}</div>
                     <div><span className="hemo-lbl">Sexo:</span> {firstExam?.pacienteSexo || 'NÃO INFORMADO'}</div>
                     <div><span className="hemo-lbl">RG:</span> {firstExam?.pacienteRg || '---'}</div>
+                    <div><span className="hemo-lbl">CPF:</span> {firstExam?.pacienteCpf ? formatCpf(firstExam.pacienteCpf) : '---'}</div>
                     <div><span className="hemo-lbl">CNS:</span> {firstExam?.pacienteCns || '---'}</div>
-                    <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(firstExam?.released_at || firstExam?.checked_at) : ''}</div>
                     <div><span className="hemo-lbl">Origem:</span> {formatAttendanceOrigin && firstExam?.attendance_origin ? formatAttendanceOrigin(firstExam?.attendance_origin) : ''}</div>
                 </div>
             </div>
