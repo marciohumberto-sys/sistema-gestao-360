@@ -12,7 +12,28 @@ export const laboratorioConferenciaService = {
 
     buscarExamesParaConferencia: async (filters = {}) => {
         try {
-            // Passo 1: Filtrar atendimentos
+            let patients = [];
+            let matchedPatientIds = new Set();
+
+            // Passo 1A: Buscar pacientes primeiro se houver filtro
+            if (filters.patient || filters.patientCode) {
+                let patQuery = supabase.from('lab_patients').select('id, code, full_name, birth_date, sex, cns, cpf');
+                if (filters.patient) {
+                    patQuery = patQuery.ilike('full_name', `%${filters.patient.trim()}%`);
+                }
+                if (filters.patientCode) {
+                    patQuery = patQuery.eq('code', String(filters.patientCode).trim());
+                }
+                const { data: patData, error: patError } = await patQuery;
+                if (patError) throw patError;
+                
+                patients = patData || [];
+                if (patients.length === 0) return [];
+                
+                patients.forEach(p => matchedPatientIds.add(p.id));
+            }
+
+            // Passo 1B: Filtrar atendimentos
             let attendancesQuery = supabase.from('lab_attendances').select('id, protocol_number, patient_id, attendance_date, requesting_doctor, delivery_location, agreement, attendance_origin');
             
             if (filters.protocol) {
@@ -25,29 +46,18 @@ export const laboratorioConferenciaService = {
             if (filters.attendance_origin) {
                 attendancesQuery = attendancesQuery.eq('attendance_origin', filters.attendance_origin);
             }
+            if (matchedPatientIds.size > 0) {
+                attendancesQuery = attendancesQuery.in('patient_id', Array.from(matchedPatientIds));
+            }
             
             const { data: attendances, error: attError } = await attendancesQuery;
             if (attError) throw attError;
             if (!attendances || attendances.length === 0) return [];
             
-            // Pacientes
-            let patients = [];
             let filteredAttendances = attendances;
 
-            if (filters.patient || filters.patientCode) {
-                let patQuery = supabase.from('lab_patients').select('id, code, full_name, birth_date, sex, cns, cpf');
-                if (filters.patient) {
-                    patQuery = patQuery.ilike('full_name', `%${filters.patient.trim()}%`);
-                }
-                if (filters.patientCode) {
-                    patQuery = patQuery.eq('code', String(filters.patientCode).trim());
-                }
-                const { data: patData, error: patError } = await patQuery;
-                if (patError) throw patError;
-                patients = patData || [];
-                const matchedPatientIds = new Set(patients.map(p => p.id));
-                filteredAttendances = attendances.filter(a => matchedPatientIds.has(a.patient_id));
-            } else {
+            // Passo 1C: Buscar pacientes caso não tenham sido buscados no passo 1A
+            if (matchedPatientIds.size === 0) {
                 const uniquePatIds = [...new Set(attendances.map(a => a.patient_id).filter(Boolean))];
                 for (let i = 0; i < uniquePatIds.length; i += 100) {
                     const chunk = uniquePatIds.slice(i, i + 100);
