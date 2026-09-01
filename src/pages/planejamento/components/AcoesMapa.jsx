@@ -3,6 +3,8 @@ import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { supabase } from '../../../lib/supabase';
 
+const CARTO_BASEMAP_KEY = import.meta.env.VITE_CARTO_BASEMAP_KEY;
+
 // Componente para capturar a instância do mapa e converter coordenadas para pixels
 const HoverManager = ({ pontos, hoveredPoint, setHoveredPoint }) => {
     const map = useMap();
@@ -178,7 +180,25 @@ const formatStatus = (status) => {
 
 const BEZERROS_CENTER = [-8.2359, -35.7967];
 
-const FitBoundsManager = () => {
+const MapAutoFocus = ({ pontos, searchQuery }) => {
+    const map = useMap();
+    const previousSearchQuery = React.useRef(searchQuery);
+    
+    useEffect(() => {
+        if (previousSearchQuery.current !== searchQuery) {
+            previousSearchQuery.current = searchQuery;
+            
+            if (!pontos || pontos.length === 0) return;
+            
+            if (pontos.length === 1) {
+                map.flyTo([pontos[0].lat, pontos[0].lng], 16, { duration: 0.5 });
+            } else {
+                const bounds = pontos.map(p => [p.lat, p.lng]);
+                map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: true, duration: 0.5 });
+            }
+        }
+    }, [searchQuery, pontos, map]);
+
     return null;
 };
 
@@ -459,8 +479,20 @@ const AcoesMapa = ({ data }) => {
                     )}
                 </div>
                 {searchQuery && acoes.length === 0 ? (
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(248, 250, 252, 0.9)', zIndex: 1000, backdropFilter: 'blur(2px)' }}>
-                        <span style={{ color: '#64748b', fontSize: '0.95rem', fontWeight: 500 }}>Nenhuma ação localizada para esta busca.</span>
+                    <div style={{ 
+                        position: 'absolute', 
+                        top: '50%', 
+                        left: '50%', 
+                        transform: 'translate(-50%, -50%)', 
+                        background: 'rgba(255, 255, 255, 0.95)', 
+                        padding: '10px 20px', 
+                        borderRadius: '20px', 
+                        zIndex: 900, 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                        pointerEvents: 'none',
+                        border: '1px solid #e2e8f0'
+                    }}>
+                        <span style={{ color: '#475569', fontSize: '0.9rem', fontWeight: 600 }}>Nenhuma ação localizada para esta busca.</span>
                     </div>
                 ) : null}
 
@@ -473,10 +505,15 @@ const AcoesMapa = ({ data }) => {
                     scrollWheelZoom={false}
                 >
                     <TileLayer
-                        attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
-                        url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                    />
+					  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>'
+					  url={
+						CARTO_BASEMAP_KEY
+						  ? `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${CARTO_BASEMAP_KEY}`
+						  : `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png`
+					  }
+					/>
                     <HoverManager pontos={pontosGeorreferenciados} hoveredPoint={hoveredPoint} setHoveredPoint={setHoveredPoint} />
+                    <MapAutoFocus pontos={pontosGeorreferenciados} searchQuery={searchQuery} />
                     {renderLegend()}
                 </MapContainer>
             </div>
