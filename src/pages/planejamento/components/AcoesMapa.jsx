@@ -67,7 +67,8 @@ const HoverManager = ({ pontos, hoveredPoint, setHoveredPoint }) => {
                         left: hoveredPoint.x > 200 ? hoveredPoint.x - 225 : hoveredPoint.x + 20,
                         top: hoveredPoint.y > 150 ? hoveredPoint.y - 150 : hoveredPoint.y + 20,
                         zIndex: 1000,
-                        width: '210px',
+                        width: '240px',
+                        maxWidth: '280px',
                         backgroundColor: 'white',
                         borderRadius: '10px',
                         padding: '16px',
@@ -77,7 +78,10 @@ const HoverManager = ({ pontos, hoveredPoint, setHoveredPoint }) => {
                         borderLeft: `5px solid ${hoveredPoint.color}`,
                     }}
                 >
-                    <strong style={{ color: '#0f172a', display: 'block', fontSize: '0.9rem', marginBottom: '10px', fontWeight: 600, lineHeight: '1.3' }}>
+                    <strong style={{ 
+                        color: '#0f172a', display: 'block', fontSize: '0.9rem', marginBottom: '10px', fontWeight: 600, lineHeight: '1.3',
+                        minWidth: 0, maxWidth: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word'
+                    }}>
                         {hoveredPoint.title}
                     </strong>
                     
@@ -124,22 +128,22 @@ const HoverManager = ({ pontos, hoveredPoint, setHoveredPoint }) => {
                         </div>
 
                         {/* Informações Extras */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.75rem' }}>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                                <span style={{ color: '#64748b', fontWeight: 500 }}>Local:</span>
-                                <span style={{ color: '#1e293b', fontWeight: 600 }}>{hoveredPoint.bairro}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.75rem', minWidth: 0 }}>
+                            <div style={{ display: 'flex', gap: '4px', minWidth: 0 }}>
+                                <span style={{ color: '#64748b', fontWeight: 500, flexShrink: 0 }}>Local:</span>
+                                <span style={{ color: '#1e293b', fontWeight: 600, minWidth: 0, maxWidth: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.25 }}>{hoveredPoint.bairro}</span>
                             </div>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                                <span style={{ color: '#64748b', fontWeight: 500 }}>Responsável:</span>
-                                <span style={{ color: '#1e293b', fontWeight: 600 }}>{hoveredPoint.responsavel}</span>
+                            <div style={{ display: 'flex', gap: '4px', minWidth: 0 }}>
+                                <span style={{ color: '#64748b', fontWeight: 500, flexShrink: 0 }}>Responsável:</span>
+                                <span style={{ color: '#1e293b', fontWeight: 600, minWidth: 0, maxWidth: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.25 }}>{hoveredPoint.responsavel}</span>
                             </div>
                         </div>
 
                         {/* Divisor e Secretaria */}
-                        <div style={{ marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #f1f5f9' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b' }}>
-                                <span style={{ fontSize: '0.8rem' }}>🏛</span>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        <div style={{ marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #f1f5f9', minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', color: '#64748b', minWidth: 0 }}>
+                                <span style={{ fontSize: '0.8rem', flexShrink: 0 }}>🏛</span>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em', minWidth: 0, maxWidth: '100%', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.25 }}>
                                     {hoveredPoint.secretaria && hoveredPoint.secretaria !== 'Não informada' && !hoveredPoint.secretaria.toLowerCase().startsWith('secretaria') 
                                         ? `Secretaria de ${hoveredPoint.secretaria}` 
                                         : hoveredPoint.secretaria}
@@ -182,6 +186,7 @@ const AcoesMapa = ({ data }) => {
     const [hoveredPoint, setHoveredPoint] = useState(null);
     const [geocodedActions, setGeocodedActions] = useState([]);
     const [isGeocoding, setIsGeocoding] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     if (!data && !true) { // Workaround for prop check if needed, but data is currently unused
         return (
@@ -196,7 +201,34 @@ const AcoesMapa = ({ data }) => {
 
     const MUNICIPALITY_CENTER = [-8.234777256840292, -35.75168643326829];
 
-    const acoes = (data || []).filter(acao => acao.show_on_map === true);
+    const normalizeText = (text) => {
+        if (!text) return '';
+        return text.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    };
+
+    const searchNormalized = normalizeText(searchQuery);
+
+    const acoes = (data || []).filter(acao => {
+        if (acao.show_on_map !== true) return false;
+        
+        if (searchNormalized) {
+            const fieldsToSearch = [
+                acao.title,
+                acao.nome,
+                acao.address_street,
+                acao.address_district,
+                acao.local,
+                acao.address_reference,
+                acao.address_city,
+                acao.address_zipcode
+            ];
+            const match = fieldsToSearch.some(field => normalizeText(field).includes(searchNormalized));
+            if (!match) return false;
+        }
+        
+        return true;
+    });
+
     const baseComCoordenadas = [];
     const baseSemCoordenadas = [];
 
@@ -375,7 +407,7 @@ const AcoesMapa = ({ data }) => {
 
     return (
         <div className="dashboard-card animate-fade-in-up delay-300" style={{ height: '100%', minHeight: '400px', display: 'flex', flexDirection: 'column' }}>
-            <h2 className="card-title">Mapa de Execução das Ações</h2>
+            <h2 className="card-title" style={{ marginBottom: '12px' }}>Mapa de Execução das Ações</h2>
             
             <div style={{ 
                 flex: 1, 
@@ -386,39 +418,52 @@ const AcoesMapa = ({ data }) => {
                 border: '1px solid #f1f5f9',
                 margin: '0 4px 4px 4px'
             }}>
-                {(qtdSemLocalizacao > 0 || isGeocoding) && (
-                    <div style={{
-                        position: 'absolute',
-                        top: '12px',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        padding: '6px 14px',
-                        borderRadius: '20px',
-                        fontSize: '0.72rem',
-                        fontWeight: 600,
-                        color: '#475569',
-                        zIndex: 1000,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                        border: '1px solid #e2e8f0',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        backdropFilter: 'blur(4px)'
-                    }}>
-                        {isGeocoding ? (
-                            <>
-                                <span style={{color: '#3b82f6', fontSize: '0.8rem', animation: 'spin 1s linear infinite'}}>⟳</span>
-                                Buscando endereços no mapa...
-                            </>
-                        ) : (
-                            <>
-                                <span style={{color: '#f59e0b', fontSize: '0.8rem'}}>ℹ</span>
-                                {qtdSemLocalizacao} {qtdSemLocalizacao === 1 ? 'ação sem localização georreferenciada' : 'ações sem localização georreferenciada'}
-                            </>
-                        )}
+                <div style={{ 
+                    position: 'absolute', 
+                    top: '12px', 
+                    right: '12px', 
+                    width: '300px', 
+                    zIndex: 1000,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    borderRadius: '8px',
+                    backgroundColor: 'white'
+                }}>
+                    <div style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', display: 'flex' }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     </div>
-                )}
+                    <input 
+                        type="text" 
+                        placeholder="Buscar bairro, rua, referência ou ação..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{
+                            width: '100%',
+                            height: '36px',
+                            padding: '0 30px',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0',
+                            fontSize: '0.8rem',
+                            outline: 'none',
+                            color: '#1e293b',
+                            backgroundColor: 'transparent'
+                        }}
+                    />
+                    {searchQuery && (
+                        <button 
+                            onClick={() => setSearchQuery('')}
+                            style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', padding: 4 }}
+                            title="Limpar busca"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    )}
+                </div>
+                {searchQuery && acoes.length === 0 ? (
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(248, 250, 252, 0.9)', zIndex: 1000, backdropFilter: 'blur(2px)' }}>
+                        <span style={{ color: '#64748b', fontSize: '0.95rem', fontWeight: 500 }}>Nenhuma ação localizada para esta busca.</span>
+                    </div>
+                ) : null}
+
                 <MapContainer 
                     center={MUNICIPALITY_CENTER} 
                     zoom={zoom} 
