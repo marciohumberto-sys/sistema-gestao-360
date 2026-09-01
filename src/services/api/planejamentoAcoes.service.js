@@ -3,6 +3,12 @@ import { supabase } from '../../lib/supabase';
 // module_id fixo do módulo PLANEJAMENTO_ESTRATEGICO
 const MODULE_ID = '2d53a6f6-5638-45bc-a87e-1ab5d88d6134';
 
+const normalizeOptionalUuid = (value) => {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  return value;
+};
+
 // ── Vínculos de Secretarias Participantes ───────────────────────────────────────
 export const fetchActionSecretariats = async (actionId) => {
     if (!actionId) return [];
@@ -194,7 +200,7 @@ export const syncActionObjectives = async (actionId, tenantId, primaryObjectiveI
     try {
         // 1. Sanitizar relatedObjectiveIds
         const validRelatedIds = [...new Set(relatedObjectiveIds || [])]
-            .filter(id => id && id !== primaryObjectiveId);
+            .filter(id => id && typeof id === 'string' && id.trim() !== '' && id !== primaryObjectiveId);
             
         // 2. Deletar vínculos antigos
         const { error: errDelete } = await supabase
@@ -489,7 +495,10 @@ export const createAcao = async (tenantId, formData, axes, context = null) => {
     }
 
     // 5. Obter objetivo fornecido pelo form, ou fallback para o primeiro ativo do eixo
-    const objectiveIdFound = formData.objectiveId || await fetchFirstObjectiveByAxis(tenantId, formData.axisId);
+    let objectiveIdFound = normalizeOptionalUuid(formData.objectiveId);
+    if (!objectiveIdFound) {
+        objectiveIdFound = await fetchFirstObjectiveByAxis(tenantId, formData.axisId);
+    }
 
     // Lógica defensiva de Conclusão automática para satisfazer a constraint do banco
     let finalStatus = formData.status;
@@ -677,7 +686,7 @@ export const updateAcao = async (tenantId, id, formData) => {
         show_on_map: formData.show_on_map ?? false,
         ...(formData.axisId && { axis_id: formData.axisId }),
         ...(formData.secretariatId && { secretariat_id: formData.secretariatId }),
-        objective_id: formData.objectiveId !== undefined ? formData.objectiveId : null,
+        objective_id: normalizeOptionalUuid(formData.objectiveId),
     };
 
     console.log('[planningActions] payload update', payload);

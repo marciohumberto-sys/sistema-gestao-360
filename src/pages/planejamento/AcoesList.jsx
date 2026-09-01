@@ -887,6 +887,17 @@ const AcoesList = () => {
         
         let finalData = { ...formData };
 
+        const normalizeOptionalUuid = (value) => {
+            if (value === undefined || value === null) return null;
+            if (typeof value === 'string' && value.trim() === '') return null;
+            return value;
+        };
+
+        finalData.objectiveId = normalizeOptionalUuid(finalData.objectiveId);
+        if (finalData.relatedObjectives && Array.isArray(finalData.relatedObjectives)) {
+            finalData.relatedObjectives = finalData.relatedObjectives.filter(id => typeof id === 'string' && id.trim() !== '');
+        }
+
         if (contextoPlanejamento.hasRestrictedAccess && !contextoPlanejamento.hasMultipleRestrictedSecretariats && contextoPlanejamento.primarySecretariatId) {
             finalData.secretariatId = contextoPlanejamento.primarySecretariatId;
         }
