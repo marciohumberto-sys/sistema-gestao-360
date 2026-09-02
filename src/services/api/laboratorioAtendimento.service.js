@@ -68,7 +68,10 @@ class LaboratorioAtendimentoService {
         return Array.isArray(data) ? data : [];
     }
 
-    async buscarPacientesRecentes(limit = 10) {
+    async buscarPacientesCadastradosHoje() {
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+
         let query = supabase
             .from('lab_patients')
             .select(`
@@ -90,13 +93,13 @@ class LaboratorioAtendimentoService {
                 created_at
             `)
             .eq('tenant_id', LaboratorioAtendimentoService.TENANT_ID)
-            .order('created_at', { ascending: false })
-            .limit(limit);
+            .gte('created_at', startOfDay.toISOString())
+            .order('code', { ascending: false });
 
         const { data, error } = await query;
 
         if (error) {
-            console.error('[LaboratorioAtendimento][buscarPacientesRecentes] Erro', error);
+            console.error('[LaboratorioAtendimento][buscarPacientesCadastradosHoje] Erro', error);
             throw error;
         }
 

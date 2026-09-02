@@ -106,10 +106,10 @@ const LaboratorioAtendimento = () => {
     const carregarPacientesRecentes = async () => {
         try {
             setIsLoadingRecent(true);
-            const pacientes = await laboratorioAtendimentoService.buscarPacientesRecentes(10);
+            const pacientes = await laboratorioAtendimentoService.buscarPacientesCadastradosHoje();
             setRecentPatients(Array.isArray(pacientes) ? pacientes : []);
         } catch (error) {
-            console.error('Erro ao buscar pacientes recentes:', error);
+            console.error('Erro ao buscar pacientes cadastrados hoje:', error);
             setRecentPatients([]);
         } finally {
             setIsLoadingRecent(false);
@@ -275,13 +275,13 @@ const LaboratorioAtendimento = () => {
                                         {paciente.name || paciente.full_name || '---'}
                                     </strong>
                                     <span style={{ 
-                                        backgroundColor: '#f1f5f9', 
-                                        color: '#334155', 
+                                        backgroundColor: '#eff6ff', 
+                                        color: '#1d4ed8', 
                                         padding: '2px 8px', 
                                         borderRadius: '4px', 
-                                        fontSize: '0.75rem', 
-                                        fontWeight: 500, 
-                                        border: '1px solid #e2e8f0' 
+                                        fontSize: '0.8rem', 
+                                        fontWeight: 600, 
+                                        border: '1px solid #bfdbfe' 
                                     }}>
                                         {paciente.code ? `Cód. ${paciente.code}` : 'Código não informado'}
                                     </span>
@@ -404,9 +404,9 @@ const LaboratorioAtendimento = () => {
                     ) : (
                         renderPatientList(
                             recentPatients,
-                            `Pacientes recentes (${recentPatients.length})`,
+                            `Pacientes cadastrados hoje (${recentPatients.length})`,
                             "Selecione um paciente para iniciar o atendimento ou cadastre um novo.",
-                            "Cadastre um paciente para iniciar.",
+                            "Nenhum paciente cadastrado hoje.",
                             false
                         )
                     )
