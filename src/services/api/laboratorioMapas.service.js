@@ -9,15 +9,60 @@ class LaboratorioMapasService {
             
             const { data, error } = await supabase
                 .from('lab_map_batches')
-                .select('*')
+                .select('id, tenant_id, status, generated_at, reference_date')
                 .eq('tenant_id', tenantId)
-                .order('generated_at', { ascending: false });
+                .order('generated_at', { ascending: false })
+                .limit(50);
 
             if (error) throw error;
             return data || [];
         } catch (error) {
             console.error('[LaboratorioMapasService] Erro ao listar lotes:', error);
             throw error;
+        }
+    }
+
+    // Busca detalhes completos de um lote (inclui document_snapshot pesado)
+    async buscarDetalhesLote(tenantId, loteId) {
+        try {
+            if (!tenantId || !loteId) return null;
+            const { data, error } = await supabase
+                .from('lab_map_batches')
+                .select('document_snapshot')
+                .eq('tenant_id', tenantId)
+                .eq('id', loteId)
+                .single();
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('[LaboratorioMapasService] Erro ao buscar detalhes do lote:', error);
+            throw error;
+        }
+    }
+
+    // Carrega totalizadores usando count no banco
+    async carregarEstatisticas(tenantId) {
+        try {
+            if (!tenantId) return { pendentes: 0, impressos: 0, pacientes: 0, exames: 0 };
+            
+            const [pendentesReq, impressosReq, pacientesReq, examesReq] = await Promise.all([
+                supabase.from('lab_map_batches').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('status', 'PENDING'),
+                supabase.from('lab_map_batches').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('status', 'PRINTED'),
+                // O card "Pacientes" historicamente contava Atendimentos impressos em mapas. Aproximamos usando lab_attendances.
+                supabase.from('lab_attendances').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+                // O card "Exames" contava os exames contidos nos mapas. Usamos lab_map_batch_items.
+                supabase.from('lab_map_batch_items').select('*', { count: 'exact', head: true })
+            ]);
+            
+            return {
+                pendentes: pendentesReq.count || 0,
+                impressos: impressosReq.count || 0,
+                pacientes: pacientesReq.count || 0,
+                exames: examesReq.count || 0
+            };
+        } catch (error) {
+            console.error('[LaboratorioMapasService] Erro ao carregar estatísticas:', error);
+            return { pendentes: 0, impressos: 0, pacientes: 0, exames: 0 };
         }
     }
 

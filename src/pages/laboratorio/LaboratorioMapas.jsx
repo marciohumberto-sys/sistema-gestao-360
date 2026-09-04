@@ -46,6 +46,9 @@ const LaboratorioMapas = () => {
     const [loadingList, setLoadingList] = useState(false);
     const [loadingGen, setLoadingGen] = useState(false);
     const [loadingAction, setLoadingAction] = useState(false);
+    const [loadingPreview, setLoadingPreview] = useState(false);
+
+    const [estatisticas, setEstatisticas] = useState({ pendentes: 0, impressos: 0, pacientes: 0, exames: 0 });
 
     const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
     const [confirmModal, setConfirmModal] = useState({ visible: false, type: '', loteId: null, message: '', batchIds: [] });
@@ -73,7 +76,9 @@ const LaboratorioMapas = () => {
             }
         };
         fetchSectores();
+        fetchSectores();
         carregarLotes();
+        laboratorioMapasService.carregarEstatisticas(currentTenantId).then(setEstatisticas);
     }, [currentTenantId]);
 
     const updateSectorOptionsPosition = () => {
@@ -181,6 +186,26 @@ const LaboratorioMapas = () => {
             showToast('Erro ao listar lotes históricos.', 'error');
         } finally {
             setLoadingList(false);
+        }
+    };
+
+    const handleSelectLote = async (id) => {
+        setSelectedLoteId(id);
+        if (!id || !currentTenantId) return;
+        
+        const loteExistente = lotes.find(l => l.id === id);
+        if (loteExistente && !loteExistente.document_snapshot) {
+            setLoadingPreview(true);
+            try {
+                const detalhes = await laboratorioMapasService.buscarDetalhesLote(currentTenantId, id);
+                if (detalhes && detalhes.document_snapshot) {
+                    setLotes(listaAtual => listaAtual.map(l => l.id === id ? { ...l, document_snapshot: detalhes.document_snapshot } : l));
+                }
+            } catch (err) {
+                console.error('Erro ao buscar detalhes do lote', err);
+            } finally {
+                setLoadingPreview(false);
+            }
         }
     };
     const buildConsolidatedBatch = (allBatchIds, dateRef, sectorId, startCodeStr, endCodeStr, lotesData) => {
@@ -351,7 +376,7 @@ const LaboratorioMapas = () => {
                         const novaLista = listaAtual.filter(l => l.id !== batch.id);
                         return [batch, ...novaLista];
                     });
-                    setSelectedLoteId(batch.id);
+                    handleSelectLote(batch.id);
                     setPendingAutoPrintBatchId(batch.id);
                 }
                 await carregarLotes(batch?.id);
@@ -360,9 +385,26 @@ const LaboratorioMapas = () => {
                 const prIds = printed_batch_ids || [];
                 const allIds = [...pIds, ...prIds];
                 
-                // Carregar para garantir que os lotes existam na lista atual
-                const dataLotes = await laboratorioMapasService.listarLotes(currentTenantId);
-                setLotes(dataLotes || []);
+                // Carregar lotes e buscar snapshots faltantes para montar o consolidado
+                let dataLotes = await laboratorioMapasService.listarLotes(currentTenantId) || [];
+                
+                // Buscar detalhes dos lotes necessários
+                const promessas = allIds.map(async (id) => {
+                    const loteExistente = dataLotes.find(l => l.id === id);
+                    if (loteExistente && !loteExistente.document_snapshot) {
+                        try {
+                            const detalhes = await laboratorioMapasService.buscarDetalhesLote(currentTenantId, id);
+                            if (detalhes && detalhes.document_snapshot) {
+                                loteExistente.document_snapshot = detalhes.document_snapshot;
+                            }
+                        } catch (err) {
+                            console.error('Erro ao buscar detalhes do lote', err);
+                        }
+                    }
+                });
+                await Promise.all(promessas);
+
+                setLotes(dataLotes);
 
                 const vLote = buildConsolidatedBatch(allIds, filters.data, filters.setor, filters.codigoInicial, filters.codigoFinal, dataLotes || []);
                 
@@ -1032,10 +1074,10 @@ const LaboratorioMapas = () => {
         if (selectedLote.status === 'PENDING') pendentes = 1;
         if (selectedLote.status === 'PRINTED') impressos = 1;
     } else {
-        totalPacientes = lotes.reduce((acc, l) => acc + (l.document_snapshot?.patients?.length || 0), 0);
-        totalExames = lotes.reduce((acc, l) => acc + (l.document_snapshot?.patients?.reduce((a, p) => a + (p.exams?.length || 0), 0) || 0), 0);
-        pendentes = lotes.filter(l => l.status === 'PENDING').length;
-        impressos = lotes.filter(l => l.status === 'PRINTED').length;
+        totalPacientes = estatisticas.pacientes;
+        totalExames = estatisticas.exames;
+        pendentes = estatisticas.pendentes;
+        impressos = estatisticas.impressos;
     }
 
     return (
@@ -1088,7 +1130,7 @@ const LaboratorioMapas = () => {
                                                 <button 
                                                     className={`lab-btn lab-btn-sm ${bData.status === 'PENDING' ? 'lab-btn-primary' : 'lab-btn-success'}`}
                                                     onClick={() => {
-                                                        setSelectedLoteId(bData.id);
+                                                        handleSelectLote(bData.id);
                                                         setPendingAutoPrintBatchId(bData.id);
                                                         setConfirmModal({ visible: false, type: '', loteId: null, message: '', batchIds: [] });
                                                     }}
@@ -1298,7 +1340,7 @@ const LaboratorioMapas = () => {
                                 const statusObj = getStatusInfo(lote.status);
 
                                 return (
-                                    <div key={lote.id} className={`lab-list-item ${selectedLoteId === lote.id ? 'selected' : ''}`} onClick={() => setSelectedLoteId(lote.id)}>
+                                    <div key={lote.id} className={`lab-list-item ${selectedLoteId === lote.id ? 'selected' : ''}`} onClick={() => handleSelectLote(lote.id)}>
                                         <div className="lab-item-header">
                                             <span className="lab-item-sector">{secName}</span>
                                             <span className="lab-item-date">{formatDateTime(lote.generated_at)}</span>
@@ -1310,17 +1352,17 @@ const LaboratorioMapas = () => {
                                         <div className="lab-item-footer">
                                             <span className={`lab-status-tag ${statusObj.cls}`}>{statusObj.text}</span>
                                             <div className="lab-item-actions">
-                                                <button className="lab-icon-btn lab-text-primary" title="Visualizar" onClick={(e) => { e.stopPropagation(); setSelectedLoteId(lote.id); }}><Eye size={16} /></button>
+                                                <button className="lab-icon-btn lab-text-primary" title="Visualizar" onClick={(e) => { e.stopPropagation(); handleSelectLote(lote.id); }}><Eye size={16} /></button>
                                                 {lote.status === 'PENDING' && (
                                                     <>
-                                                        <button className="lab-icon-btn lab-text-gray" title="Imprimir" onClick={(e) => { e.stopPropagation(); setSelectedLoteId(lote.id); handleImprimirDocumento(lote); }}><Printer size={16} /></button>
+                                                        <button className="lab-icon-btn lab-text-gray" title="Imprimir" onClick={(e) => { e.stopPropagation(); handleSelectLote(lote.id); handleImprimirDocumento(lote); }}><Printer size={16} /></button>
                                                         {canWriteLaboratorio(tenantLink?.role) && (
                                                             <button className="lab-icon-btn lab-text-gray" title="Cancelar Lote" onClick={(e) => { e.stopPropagation(); handleSolicitarCancelamento(lote.id); }}><XCircle size={16} /></button>
                                                         )}
                                                     </>
                                                 )}
                                                 {lote.status === 'PRINTED' && (
-                                                    <button className="lab-icon-btn lab-text-success" title="Reimprimir" onClick={(e) => { e.stopPropagation(); setSelectedLoteId(lote.id); handleImprimirDocumento(lote); }}><Printer size={16} /></button>
+                                                    <button className="lab-icon-btn lab-text-success" title="Reimprimir" onClick={(e) => { e.stopPropagation(); handleSelectLote(lote.id); handleImprimirDocumento(lote); }}><Printer size={16} /></button>
                                                 )}
                                             </div>
                                         </div>
