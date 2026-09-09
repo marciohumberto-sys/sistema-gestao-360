@@ -48,9 +48,9 @@ export const validatePacienteForm = (formData, setFormErrors) => {
     if (!formData.birth_date) {
         errs.birth_date = 'Informe uma data de nascimento válida.';
     } else {
-        const dateObj = new Date(formData.birth_date + 'T12:00:00');
-        const now = new Date();
-        if (dateObj > now) errs.birth_date = 'Não permitir data futura.';
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        if (formData.birth_date > todayStr) errs.birth_date = 'Não permitir data futura.';
     }
     if (!formData.sex) errs.sex = 'Informe o sexo.';
     
