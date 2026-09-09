@@ -31,7 +31,7 @@ class CommitmentsService {
         } as Commitment;
     }
 
-    async list(tenantId?: string): Promise<Commitment[]> {
+    async list(tenantId?: string, entidadeGestoraId?: string): Promise<Commitment[]> {
         let query = supabase
             .from("commitments")
             .select(`
@@ -45,14 +45,18 @@ class CommitmentsService {
         if (tenantId) {
             query = query.eq('tenant_id', tenantId);
         }
+        
+        if (entidadeGestoraId) {
+            query = query.eq('entidade_gestora_id', entidadeGestoraId);
+        }
 
         const { data, error } = await query;
         if (error) throw error;
         return (data || []).map(c => this.enrichCommitment(c));
     }
 
-    async getById(id: string): Promise<Commitment> {
-        const { data, error } = await supabase
+    async getById(id: string, tenantId?: string, entidadeGestoraId?: string): Promise<Commitment> {
+        let query = supabase
             .from("commitments")
             .select(`
                 *,
@@ -60,10 +64,21 @@ class CommitmentsService {
                 secretariats (id, name),
                 commitment_movements ( amount, movement_type )
             `)
-            .eq("id", id)
-            .single();
+            .eq("id", id);
+
+        if (tenantId) {
+            query = query.eq('tenant_id', tenantId);
+        }
+
+        if (entidadeGestoraId) {
+            query = query.eq('entidade_gestora_id', entidadeGestoraId);
+        }
+
+        const { data, error } = await query.maybeSingle();
 
         if (error) throw error;
+        if (!data) return null; // Fallback se não achar no contexto
+        
         return this.enrichCommitment(data);
     }
 
@@ -78,32 +93,58 @@ class CommitmentsService {
         return data as CommitmentMovement[];
     }
 
-    async create(payload: Partial<Commitment>, tenantId: string): Promise<Commitment> {
+    async create(payload: Partial<Commitment>, tenantId: string, entidadeGestoraId?: string): Promise<Commitment> {
         if (!tenantId) throw new Error("tenantId is required");
 
         const initialAmount = Number(payload.initial_amount) || 0;
 
-        const rpcPayload = {
-            p_tenant_id: tenantId,
-            p_contract_id: payload.contract_id,
-            p_secretariat_id: payload.secretariat_id,
-            p_number: payload.number,
-            p_issue_date: payload.issue_date,
-            p_initial_amount: initialAmount,
-            p_status: 'EMPENHADO',
-            p_description: payload.notes || null
-        };
+        let commitmentId;
 
-        const { data: commitmentId, error } = await supabase
-            .rpc('create_commitment', rpcPayload);
+        if (entidadeGestoraId) {
+            const rpcPayloadV2 = {
+                p_tenant_id: tenantId,
+                p_entidade_gestora_id: entidadeGestoraId,
+                p_contract_id: payload.contract_id,
+                p_secretariat_id: payload.secretariat_id,
+                p_number: payload.number,
+                p_issue_date: payload.issue_date,
+                p_initial_amount: initialAmount,
+                p_status: 'EMPENHADO',
+                p_description: payload.notes || null
+            };
 
-        if (error) {
-            console.error("RPC Error:", error);
-            throw new Error(error.message || "Erro ao criar empenho.");
+            const { data: newId, error } = await supabase
+                .rpc('create_commitment_v2', rpcPayloadV2);
+
+            if (error) {
+                console.error("RPC V2 Error:", error);
+                throw new Error(error.message || "Erro ao criar empenho.");
+            }
+            commitmentId = newId;
+        } else {
+            const rpcPayload = {
+                p_tenant_id: tenantId,
+                p_contract_id: payload.contract_id,
+                p_secretariat_id: payload.secretariat_id,
+                p_number: payload.number,
+                p_issue_date: payload.issue_date,
+                p_initial_amount: initialAmount,
+                p_status: 'EMPENHADO',
+                p_description: payload.notes || null
+            };
+
+            const { data: newId, error } = await supabase
+                .rpc('create_commitment', rpcPayload);
+
+            if (error) {
+                console.error("RPC Error:", error);
+                throw new Error(error.message || "Erro ao criar empenho.");
+            }
+            commitmentId = newId;
         }
 
         // The RPC returns the new commitment ID (UUID). We need to fetch the full enriched object to return to UI.
-        return this.getById(commitmentId);
+        return this.getById(commitmentId, tenantId, entidadeGestoraId);
     }
 
     async addValue(id: string, value: number, description: string, tenantId: string): Promise<void> {

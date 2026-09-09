@@ -4,6 +4,7 @@ import { Search, FileText, TrendingUp, Eye, FileCheck, AlertCircle, Plus, PenSqu
 import { useLocation, useNavigate } from 'react-router-dom';
 import { invoicesService } from '../services/api/invoices.service';
 import { useTenant } from '../context/TenantContext';
+import { useCompras } from '../context/ComprasContext';
 import { formatLocalDate } from '../utils/dateUtils';
 import NovaNfModal from './components/NovaNfModal';
 import EdicaoNfModal from './components/EdicaoNfModal';
@@ -17,6 +18,16 @@ const NotasFiscais = () => {
     const { tenantId } = useTenant();
     const { tenantLink, isSuperAdmin } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
+
+    const {
+        entidadeAtiva,
+        entidadeAtivaId,
+        loading: comprasContextLoading
+    } = useCompras();
+
+    const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
+    const canWrite = isAdministracao && canWriteCompras(role);
+    const canRegisterNf = canWriteCompras(role) && !comprasContextLoading && (isAdministracao || entidadeAtivaId);
 
     // Data State
     const [invoices, setInvoices] = useState([]);
@@ -34,10 +45,13 @@ const NotasFiscais = () => {
     const [feedback, setFeedback] = useState(null);
 
     const loadData = async () => {
-        if (!tenantId) return;
+        if (!tenantId || comprasContextLoading || !entidadeAtivaId) {
+            setInvoices([]);
+            return;
+        }
         try {
             setIsLoading(true);
-            const data = await invoicesService.list(tenantId);
+            const data = await invoicesService.list(tenantId, entidadeAtivaId);
             setInvoices(data || []);
         } catch (error) {
             console.error("Erro ao carregar notas fiscais:", error);
@@ -49,15 +63,17 @@ const NotasFiscais = () => {
 
     useEffect(() => {
         if (location.state?.openModal === 'nova-nf') {
-            setIsNovaNfModalOpen(true);
+            if (isAdministracao && !comprasContextLoading && entidadeAtivaId) {
+                setIsNovaNfModalOpen(true);
+            }
             // Clear state so it doesn't reopen on refresh/navigation back
             window.history.replaceState({}, document.title);
         }
-    }, [location.state]);
+    }, [location.state, isAdministracao, comprasContextLoading, entidadeAtivaId]);
 
     useEffect(() => {
         loadData();
-    }, [tenantId]);
+    }, [tenantId, entidadeAtivaId, comprasContextLoading]);
 
     const showFeedback = (type, message) => {
         setFeedback({ type, message });
@@ -66,7 +82,7 @@ const NotasFiscais = () => {
     };
 
     const handleDeleteNf = async () => {
-        if (!canWriteCompras(role)) return;
+        if (!canWrite) return;
         if (!nfToDelete) return;
         try {
             setIsSubmitting(true);
@@ -129,11 +145,19 @@ const NotasFiscais = () => {
                     <h1 className="ct-title">Notas Fiscais</h1>
                     <p className="ct-subtitle">Gestão e acompanhamento de faturamentos das OFs</p>
                 </div>
-                {canWriteCompras(role) && (
+                {canRegisterNf && (
                 <button 
                     className="btn-primary" 
-                    onClick={() => setIsNovaNfModalOpen(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#00967d', color: 'white', fontWeight: 600, cursor: 'pointer' }}
+                    onClick={() => {
+                        setIsNovaNfModalOpen(true);
+                    }}
+                    style={{ 
+                        display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', 
+                        borderRadius: '8px', border: 'none', 
+                        background: '#00967d', 
+                        color: 'white', fontWeight: 600, 
+                        cursor: 'pointer'
+                    }}
                 >
                     <Plus size={20} /> Registrar NF
                 </button>
@@ -278,7 +302,7 @@ const NotasFiscais = () => {
                                         </td>
                                         <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
-                                                {canWriteCompras(role) && hasFinancialPendency(inv) ? (
+                                                {canWrite && hasFinancialPendency(inv) ? (
                                                     <button 
                                                         style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', width: '32px', height: '32px', cursor: 'pointer', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
                                                         title="Completar Informações Financeiras"
@@ -299,7 +323,7 @@ const NotasFiscais = () => {
                                                         <Eye size={16} />
                                                     </button>
                                                 )}
-                                                {canWriteCompras(role) && (
+                                                {canWrite && (
                                                 <button
                                                     style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', width: '32px', height: '32px', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
                                                     title="Excluir Nota Fiscal"

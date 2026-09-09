@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { ofsService } from '../services/api/ofs.service';
 import { commitmentsService } from '../services/api/commitments.service';
+import { useCompras } from '../context/ComprasContext';
 import { ArrowLeft, FileText, CheckCircle, XCircle, Trash2, Plus, AlertCircle, Play, Printer, Download } from 'lucide-react';
 import { normalizeQuantityInput, isValidQuantity, parseQuantity, formatQuantityDisplay, safeParseQuantity, normalizeQuantityOnBlur } from '../utils/quantityUtils';
 import { formatLocalDate } from '../utils/dateUtils';
@@ -17,6 +18,16 @@ const OfDetails = () => {
     const { tenantId } = useTenant();
     const { user, tenantLink, isSuperAdmin } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
+
+    const {
+        entidadeAtiva,
+        entidadeAtivaId,
+        loading: comprasContextLoading
+    } = useCompras();
+
+    const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
+    const canWrite = isAdministracao && canWriteCompras(role);
+    const canWriteSaude = !isAdministracao && canWriteCompras(role) && ofData?.entidade_gestora_id === entidadeAtivaId;
 
     const [ofData, setOfData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -61,10 +72,24 @@ const OfDetails = () => {
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
     const loadData = async () => {
-        if (!tenantId || !id) return;
+        if (!tenantId || !id || comprasContextLoading || !entidadeAtivaId) {
+            setOfData(null);
+            setContractItems([]);
+            setAllocations([]);
+            setOtherOfs([]);
+            setEligibleCommitments([]);
+            setAdjustmentHistory([]);
+            return;
+        }
         try {
             setIsLoading(true);
-            const data = await ofsService.getById(id);
+            const data = await ofsService.getById(id, tenantId, entidadeAtivaId);
+            
+            if (!data) {
+                navigate('/compras/ordens-fornecimento', { replace: true });
+                return;
+            }
+
             // Sort items by creation
             if (data.items) {
                 data.items.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -91,14 +116,17 @@ const OfDetails = () => {
                 }
 
                 // Fetch other OFs (ISSUED and DRAFT) to calculate balanced consumed for THIS secretariat
-                const { data: oOfs } = await supabase
+                let oOfsQuery = supabase
                     .from('ofs')
                     .select('id, status, items:of_items(contract_item_id, quantity)')
                     .eq('contract_id', data.contract_id)
                     .eq('secretariat_id', data.secretariat_id)
                     .eq('tenant_id', tenantId)
-                    .neq('status', 'CANCELED')
                     .neq('status', 'CANCELLED');
+                if (entidadeAtivaId) {
+                    oOfsQuery = oOfsQuery.eq('entidade_gestora_id', entidadeAtivaId);
+                }
+                const { data: oOfs } = await oOfsQuery;
                 setOtherOfs(oOfs || []);
             }
         } catch (error) {
@@ -112,7 +140,7 @@ const OfDetails = () => {
     useEffect(() => {
         loadData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [id, tenantId]);
+    }, [id, tenantId, entidadeAtivaId, comprasContextLoading]);
 
     const formatCurrency = (value) => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -149,7 +177,7 @@ const OfDetails = () => {
 
     const handleIssueOf = async () => {
         if (isSubmitting) return;
-        if (!canWriteCompras(role)) return;
+        if (!canWrite && !canWriteSaude) return;
         if (!selectedSignatory) {
             setSignatoryContext('emission');
             setIsSignatoryModalOpen(true);
@@ -158,7 +186,12 @@ const OfDetails = () => {
 
         try {
             setIsSubmitting(true);
-            await ofsService.issueOf(id, tenantId, selectedSignatory);
+            if (!isAdministracao) {
+                if (!entidadeAtivaId) throw new Error("Contexto de entidade inválido");
+                await ofsService.issueOf(id, tenantId, selectedSignatory, entidadeAtivaId, user?.id);
+            } else {
+                await ofsService.issueOf(id, tenantId, selectedSignatory);
+            }
             setFeedback({ type: 'success', message: 'Reserva emitida com sucesso!' });
             setIsSignatoryModalOpen(false);
             setSelectedSignatory(null);
@@ -174,7 +207,7 @@ const OfDetails = () => {
 
     const handleCancelOf = async () => {
         if (isSubmitting) return;
-        if (!canWriteCompras(role)) return;
+        if (!canWrite) return;
         if (!tenantId || !user?.id) {
             setFeedback({ type: 'error', message: 'Erro de sessão: IDs necessários não encontrados.' });
             return;
@@ -195,13 +228,13 @@ const OfDetails = () => {
     };
 
     const handleDeleteOf = async () => {
-        if (!canWriteCompras(role)) return;
+        if (!canWrite) return;
         setShowDeleteModal(true);
     };
 
     const confirmDeleteOf = async () => {
         if (isSubmitting) return;
-        if (!canWriteCompras(role)) return;
+        if (!canWrite) return;
         try {
             setIsSubmitting(true);
             setShowDeleteModal(false);
@@ -219,7 +252,7 @@ const OfDetails = () => {
     };
 
     const confirmRectifyOf = async () => {
-        if (!canWriteCompras(role)) return;
+        if (!canWrite) return;
         if (!retificationReason.trim()) {
             setFeedback({ type: 'error', message: 'O motivo da retificação é obrigatório.' });
             return;
@@ -257,7 +290,7 @@ const OfDetails = () => {
     };
 
     const handleSaveNumber = async () => {
-        if (!canWriteCompras(role)) return;
+        if (!canWrite) return;
         const trimmed = editNumberValue.trim();
         if (!trimmed) {
             setFeedback({ type: 'error', message: 'O número da OF não pode ser vazio.' });
@@ -271,13 +304,17 @@ const OfDetails = () => {
         try {
             setIsSavingNumber(true);
             // Check for duplicate number in ofs table
-            const { data: existing, error: checkErr } = await supabase
+            let checkQuery = supabase
                 .from('ofs')
                 .select('id')
                 .eq('tenant_id', tenantId)
                 .eq('number', trimmed)
                 .neq('id', id)
                 .limit(1);
+            if (entidadeAtivaId) {
+                checkQuery = checkQuery.eq('entidade_gestora_id', entidadeAtivaId);
+            }
+            const { data: existing, error: checkErr } = await checkQuery;
             if (checkErr) throw new Error('Erro ao verificar duplicidade do número.');
             if (existing && existing.length > 0) {
                 throw new Error(`Já existe uma OF com o número "${trimmed}". Informe um número único.`);
@@ -298,7 +335,7 @@ const OfDetails = () => {
 
     const handleAddItem = async (e) => {
         e.preventDefault();
-        if (!canWriteCompras(role)) return;
+        if (!canWrite && !canWriteSaude) return;
         try {
             setIsSubmitting(true);
             
@@ -347,8 +384,7 @@ const OfDetails = () => {
             }
 
             if (editItemId) {
-                const quantityInput = newItemObj.quantity;
-                const unitPriceInput = newItemObj.unit_price;
+                if (!isAdministracao) throw new Error("A Saúde não pode editar itens de OF nesta fase.");
                 const quantityPayload = requestedQty;
                 const unitPricePayload = Number(newItemObj.unit_price);
                 const totalPricePayload = Number((quantityPayload * unitPricePayload).toFixed(2));
@@ -362,23 +398,12 @@ const OfDetails = () => {
                     total_price: totalPricePayload
                 };
                 
-                console.log({
-                  quantityInput,
-                  unitPriceInput,
-                  quantityPayload,
-                  unitPricePayload,
-                  totalPricePayload,
-                  payload
-                });
-
                 await ofsService.updateOfItem(editItemId, tenantId, payload);
                 await ofsService.recalculateOfTotal(id, tenantId);
                 setFeedback({ type: 'success', message: 'Item atualizado.' });
             } else {
                 let actualItemNumber = newItemObj.item_number || "1";
 
-                const quantityInput = newItemObj.quantity;
-                const unitPriceInput = newItemObj.unit_price;
                 const quantityPayload = requestedQty;
                 const unitPricePayload = Number(newItemObj.unit_price);
                 const totalPricePayload = Number((quantityPayload * unitPricePayload).toFixed(2));
@@ -407,8 +432,14 @@ const OfDetails = () => {
                   payload
                 });
 
-                await ofsService.addOfItem(payload);
-                await ofsService.recalculateOfTotal(id, tenantId);
+                if (!isAdministracao) {
+                    if (!entidadeAtivaId) throw new Error("Contexto de entidade inválido");
+                    await ofsService.addOfItem(payload, entidadeAtivaId);
+                    // O recálculo é automático via Trigger/RPC V2
+                } else {
+                    await ofsService.addOfItem(payload);
+                    await ofsService.recalculateOfTotal(id, tenantId);
+                }
                 setFeedback({ type: 'success', message: 'Item adicionado.' });
             }
             
@@ -426,7 +457,7 @@ const OfDetails = () => {
     };
 
     const handleDeleteItem = async (itemId) => {
-        if (!canWriteCompras(role)) return;
+        if (!canWrite) return;
         if (!window.confirm('Tem certeza que deseja remover este item?')) return;
         try {
             setIsLoading(true);
@@ -464,7 +495,7 @@ const OfDetails = () => {
         setIsLinkModalOpen(true);
         setIsLoadingCommitments(true);
         try {
-            const allCommitments = await commitmentsService.list(tenantId);
+            const allCommitments = await commitmentsService.list(tenantId, entidadeAtivaId);
             const filtered = allCommitments.filter(c => 
                 c.status === 'EMPENHADO' && 
                 c.contract_id === ofData?.contract_id &&
@@ -480,7 +511,7 @@ const OfDetails = () => {
     };
 
     const handleLinkCommitment = async (commitmentId) => {
-        if (!canWriteCompras(role)) return;
+        if (!canWrite) return;
         try {
             setIsSubmitting(true);
             await ofsService.updateOf(id, tenantId, { commitment_id: commitmentId });
@@ -497,7 +528,7 @@ const OfDetails = () => {
     };
 
     const handleRemoveLink = async () => {
-        if (!canWriteCompras(role)) return;
+        if (!canWrite) return;
         if (!window.confirm('Tem certeza que deseja remover o vínculo deste empenho?')) return;
         try {
             setIsLoading(true);

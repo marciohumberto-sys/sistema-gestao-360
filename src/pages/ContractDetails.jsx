@@ -22,6 +22,7 @@ import {
     ShieldAlert
 } from 'lucide-react';
 import NovaOfModal from './components/NovaOfModal';
+import { useCompras } from '../context/ComprasContext';
 import { contractsService } from '../services/api/contracts.service';
 import { empenhosService } from '../services/api/empenhos.service';
 import { contractItemsService } from '../services/api/contractItems.service';
@@ -42,7 +43,16 @@ const ContractDetails = () => {
     const { tenantId } = useTenant();
     const { tenantLink, isSuperAdmin } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
-    const canWrite = canWriteCompras(role);
+    
+    const {
+        entidadeAtiva,
+        entidadeAtivaId,
+        loading: comprasContextLoading
+    } = useCompras();
+
+    const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
+    const canWrite = isAdministracao && canWriteCompras(role);
+    const canWriteSaudeItems = !isAdministracao && canWriteCompras(role) && contract?.entidade_gestora_id === entidadeAtivaId;
 
     const [contract, setContract] = useState(null);
     const [empenhos, setEmpenhos] = useState([]);
@@ -420,12 +430,35 @@ const ContractDetails = () => {
 
     useEffect(() => {
         const fetchContract = async () => {
+            if (!tenantId || !id || comprasContextLoading || !entidadeAtivaId) {
+                setContract(null);
+                setItems([]);
+                setItemAllocations({});
+                setAllocationsSummaryByItemId({});
+                setEmpenhos([]);
+                setContractHistory([]);
+                setContractOfs([]);
+                setContractActs([]);
+                return;
+            }
             try {
                 setIsLoadingContract(true);
                 setError(false);
-                const contractData = await contractsService.getById(id);
+                const contractData = await contractsService.getById(id, tenantId, entidadeAtivaId);
+                
+                if (!contractData) {
+                    navigate('/compras/contratos', { replace: true });
+                    return;
+                }
+
                 if (isMounted.current) {
                     setContract(contractData);
+                    fetchOfs();
+                    fetchHistory();
+                    loadSecretariats();
+                    fetchItemsCount();
+                    fetchContractActs();
+                    fetchEmpenhos();
                 }
             } catch (err) {
                 console.error("Erro ao detalhar contrato:", err);
@@ -437,13 +470,8 @@ const ContractDetails = () => {
 
         if (id) {
             fetchContract();
-            fetchOfs();
-            fetchHistory();
-            loadSecretariats();
-            fetchItemsCount();
-            fetchContractActs();
         }
-    }, [id, tenantId]);
+    }, [id, tenantId, entidadeAtivaId, comprasContextLoading, navigate]);
 
     const fetchOfs = async () => {
         try {
@@ -498,24 +526,16 @@ const ContractDetails = () => {
         try {
             setIsLoadingEmpenhos(true);
             const data = await empenhosService.listByContract(id);
-            console.log('contractId:', id);
-            console.log('Empenhos retornados:', data);
             setEmpenhos(data || []);
         } catch (error) {
             console.error('Erro ao buscar empenhos:', error);
         } finally {
-            setIsLoadingEmpenhos(false);
+            if (isMounted.current) setIsLoadingEmpenhos(false);
         }
     };
 
-    useEffect(() => {
-        if (id) {
-            fetchEmpenhos();
-        }
-    }, [id]);
-
     const fetchItemsTab = async () => {
-        if (!tenantId || !id || activeTab !== 'itens') return;
+        if (!tenantId || !id || activeTab !== 'itens' || !contract) return;
         try {
             setIsLoadingItems(true);
             const itemsData = await contractItemsService.listContractItems(id, tenantId);
@@ -557,7 +577,7 @@ const ContractDetails = () => {
     }, [activeTab, items.length]);
 
     const loadAllocationsForItem = async (itemId) => {
-        if (!tenantId) return;
+        if (!tenantId || !contract) return;
         try {
             const allocs = await allocationsService.listAllocationsByItem(itemId, tenantId);
             setItemAllocations(prev => ({ ...prev, [itemId]: allocs }));
@@ -599,13 +619,25 @@ const ContractDetails = () => {
                         return; // No need to create 0 entries. Optional: cleanup.
                     }
                     if (qty === 0 && existingAlloc) {
+                        if (!isAdministracao) throw new Error("A Saúde não pode excluir um rateio já existente nesta fase.");
                         await allocationsService.deleteAllocation(item.id, sec.id, tenantId);
                     } else {
-                        await allocationsService.upsertAllocation({
-                            contract_item_id: item.id,
-                            secretariat_id: sec.id,
-                            quantity_allocated: qty
-                        }, tenantId);
+                        if (!isAdministracao && existingAlloc) throw new Error("A Saúde não pode editar um rateio já existente nesta fase.");
+                        
+                        if (!isAdministracao) {
+                            if (!entidadeAtivaId) throw new Error("Entidade ativa não resolvida");
+                            await allocationsService.upsertAllocation({
+                                contract_item_id: item.id,
+                                secretariat_id: sec.id,
+                                quantity_allocated: qty
+                            }, tenantId, entidadeAtivaId);
+                        } else {
+                            await allocationsService.upsertAllocation({
+                                contract_item_id: item.id,
+                                secretariat_id: sec.id,
+                                quantity_allocated: qty
+                            }, tenantId);
+                        }
                     }
                 }
             });
@@ -655,9 +687,15 @@ const ContractDetails = () => {
             };
 
             if (editingItemId) {
+                if (!isAdministracao) throw new Error("A Saúde não pode editar itens nesta fase.");
                 await contractItemsService.updateContractItem(editingItemId, payload, tenantId);
             } else {
-                await contractItemsService.createContractItem(payload, tenantId);
+                if (!isAdministracao) {
+                    if (!entidadeAtivaId) throw new Error("Entidade ativa não resolvida");
+                    await contractItemsService.createContractItem(payload, tenantId, entidadeAtivaId);
+                } else {
+                    await contractItemsService.createContractItem(payload, tenantId);
+                }
             }
 
             setGlobalItemsCount(prev => editingItemId ? prev : prev + 1); // update count purely visually 
@@ -1550,7 +1588,7 @@ const ContractDetails = () => {
                         <div className="cd-tab-panel">
                             <div className="cd-tab-panel-header">
                                 <h3>Itens do Contrato</h3>
-                                {canWrite && (
+                                {(canWrite || canWriteSaudeItems) && (
                                     <button className="cd-btn-primary" onClick={() => {
                                         setEditingItemId(null);
                                         setItemFormData({

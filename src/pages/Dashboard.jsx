@@ -35,6 +35,7 @@ import { useNavigate } from 'react-router-dom';
 import { contractsService } from '../services/api/contracts.service';
 import { ofsService } from '../services/api/ofs.service';
 import { useTenant } from '../context/TenantContext';
+import { useCompras } from '../context/ComprasContext';
 import './Dashboard.css';
 
 const useScrollReveal = (threshold = 0.3, delay = 1000) => {
@@ -212,6 +213,13 @@ const PendenciesDrawer = ({ isOpen, onClose, contracts, metrics, navigate }) => 
 const Dashboard = () => {
     const navigate = useNavigate();
     const { tenantId } = useTenant();
+    const {
+        entidadeAtiva,
+        entidadeAtivaId,
+        loading: comprasContextLoading
+    } = useCompras();
+
+    const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
     const [metrics, setMetrics] = useState({
         totalContracts: 0,
         expiringContracts: 0,
@@ -230,12 +238,21 @@ const Dashboard = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
+    // TODO COMPRAS MULTI-ENTIDADE:
+    // remover esta compatibilidade quando métricas de NF
+    // passarem a ser calculadas a partir de invoices reais.
+    const displayPendingNfs = isAdministracao ? (metrics.pendingNfs || 0) : 0;
+    const displayNfsExpiringThisWeek = isAdministracao ? (metrics.nfsExpiringThisWeek || 0) : 0;
+
     useEffect(() => {
-        if (!tenantId) return;
+        if (!tenantId || comprasContextLoading || !entidadeAtivaId) {
+            setContracts([]);
+            return;
+        }
 
         async function testContracts() {
             try {
-                const data = await contractsService.list(tenantId);
+                const data = await contractsService.list(tenantId, entidadeAtivaId);
                 setContracts(data);
             } catch (error) {
                 console.error("Error fetching contracts:", error);
@@ -243,18 +260,34 @@ const Dashboard = () => {
         }
 
         testContracts();
-    }, [tenantId]);
+    }, [tenantId, comprasContextLoading, entidadeAtivaId]);
 
     useEffect(() => {
         let isMounted = true;
 
         const loadMetrics = async () => {
-            if (!tenantId) return;
+            if (!tenantId || comprasContextLoading || !entidadeAtivaId) {
+                setMetrics({
+                    totalContracts: 0,
+                    expiringContracts: 0,
+                    expiredContracts: 0,
+                    totalValueSum: 0,
+                    balanceValueSum: 0,
+                    ofsThisMonth: 0,
+                    ofsChangePercentage: 0,
+                    pendingNfs: 0,
+                    nfsExpiringThisWeek: 0,
+                    totalPendingContracts: 0
+                });
+                setSecretariatData([]);
+                setQueueContracts([]);
+                return;
+            }
             try {
                 const [data, contractsList, secData] = await Promise.all([
-                    contractsService.getDashboardMetrics(tenantId),
-                    contractsService.list(tenantId),
-                    ofsService.getConsumptionBySecretariat(tenantId)
+                    contractsService.getDashboardMetrics(tenantId, entidadeAtivaId),
+                    contractsService.list(tenantId, entidadeAtivaId),
+                    ofsService.getConsumptionBySecretariat(tenantId, entidadeAtivaId)
                 ]);
 
                 if (isMounted) {
@@ -295,7 +328,7 @@ const Dashboard = () => {
         return () => {
             isMounted = false;
         };
-    }, [tenantId]);
+    }, [tenantId, comprasContextLoading, entidadeAtivaId]);
 
     return (
         <div className="dashboard-container">
@@ -384,9 +417,15 @@ const Dashboard = () => {
                     <div className="metric-value">
                         {!isLoading && <AnimatedCounter value={contracts.length} />}
                     </div>
-                    <div className="metric-footer positive">
-                        <TrendingUp size={14} />
-                        <span>+3 neste mês</span>
+                    <div className={contracts.length > 0 ? "metric-footer positive" : "metric-footer neutral"}>
+                        {contracts.length > 0 ? (
+                            <>
+                                <TrendingUp size={14} />
+                                <span>+3 neste mês</span>
+                            </>
+                        ) : (
+                            <span>Nenhum contrato registrado</span>
+                        )}
                     </div>
                 </div>
 
@@ -453,11 +492,11 @@ const Dashboard = () => {
                         </div>
                     </div>
                     <div className="metric-value">
-                        {!isLoading && <AnimatedCounter value={metrics.pendingNfs || 0} />}
+                        {!isLoading && <AnimatedCounter value={displayPendingNfs} />}
                     </div>
                     <div className="metric-footer danger">
                         <AlertCircle size={14} />
-                        <span>{metrics.nfsExpiringThisWeek || 0} vencem esta semana</span>
+                        <span>{displayNfsExpiringThisWeek} vencem esta semana</span>
                     </div>
                 </div>
 
@@ -589,11 +628,17 @@ const Dashboard = () => {
                         <h3>Insights de Consumo</h3>
                         <TrendingUp className="insight-watermark" size={140} />
                         
-                        <div className="insight-item success">
-                            <span className="insight-tag">Alta Emissão</span>
-                            <span className="insight-item-title">Crescimento de <span className="insight-highlight">{metrics.ofsChangePercentage}%</span></span>
-                            <p className="insight-item-desc">O volume de OFs emitidas este mês (<span className="insight-highlight">{metrics.ofsThisMonth}</span>) supera a média do último trimestre.</p>
-                        </div>
+                        {contracts.length === 0 && metrics.ofsThisMonth === 0 ? (
+                            <div className="insight-item" style={{ background: '#f8fafc', color: '#64748b', border: '1px solid #e2e8f0', boxShadow: 'none' }}>
+                                <span className="insight-item-title" style={{ fontSize: '0.875rem' }}>Sem dados suficientes para gerar insights no momento.</span>
+                            </div>
+                        ) : (
+                            <div className="insight-item success">
+                                <span className="insight-tag">Alta Emissão</span>
+                                <span className="insight-item-title">Crescimento de <span className="insight-highlight">{metrics.ofsChangePercentage}%</span></span>
+                                <p className="insight-item-desc">O volume de OFs emitidas este mês (<span className="insight-highlight">{metrics.ofsThisMonth}</span>) supera a média do último trimestre.</p>
+                            </div>
+                        )}
 
                         {(() => {
                             const lowBalanceContracts = contracts.filter(c => {
@@ -615,9 +660,11 @@ const Dashboard = () => {
                             return null;
                         })()}
 
-                        <div className="insight-footer">
-                            → Avaliar aditivos para contratos abaixo de 15%.
-                        </div>
+                        {contracts.length > 0 && (
+                            <div className="insight-footer">
+                                → Avaliar aditivos para contratos abaixo de 15%.
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -625,7 +672,11 @@ const Dashboard = () => {
                 isOpen={isDrawerOpen} 
                 onClose={() => setIsDrawerOpen(false)} 
                 contracts={contracts} 
-                metrics={metrics}
+                metrics={{
+                    ...metrics,
+                    pendingNfs: displayPendingNfs,
+                    nfsExpiringThisWeek: displayNfsExpiringThisWeek
+                }}
                 navigate={navigate}
             />
         </div>

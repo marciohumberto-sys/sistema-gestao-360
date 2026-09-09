@@ -29,14 +29,20 @@ export interface OF {
 }
 
 class OFsService {
-    async list(tenantId: string): Promise<OF[]> {
+    async list(tenantId: string, entidadeGestoraId?: string): Promise<OF[]> {
         if (!tenantId) return [];
         
-        const { data, error } = await supabase
+        let query = supabase
             .from('ofs')
             .select('*, contract:contracts(number, title), secretariat:secretariats(name)')
             .eq('tenant_id', tenantId)
             .order('created_at', { ascending: false });
+
+        if (entidadeGestoraId) {
+            query = query.eq('entidade_gestora_id', entidadeGestoraId);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
         
@@ -82,23 +88,30 @@ class OFsService {
             secretariat: item.secretariat ? (Array.isArray(item.secretariat) ? item.secretariat[0] : item.secretariat) : null
         }));
     }
-    async getConsumptionBySecretariat(tenantId: string): Promise<Array<{ label: string, value: number, color: string }>> {
+    async getConsumptionBySecretariat(tenantId: string, entidadeGestoraId?: string): Promise<Array<{ label: string, value: number, color: string }>> {
         if (!tenantId) return [];
 
         // Fetches ALL of_items with its OF status and Secretariat name
         // We filter by tenant_id and status != 'CANCELLED'
-        const { data, error } = await supabase
+        let query = supabase
             .from('of_items')
             .select(`
                 total_price,
                 of:ofs!inner(
                     status,
                     tenant_id,
+                    entidade_gestora_id,
                     secretariat:secretariats(name)
                 )
             `)
             .eq('of.tenant_id', tenantId)
             .neq('of.status', 'CANCELLED');
+
+        if (entidadeGestoraId) {
+            query = query.eq('of.entidade_gestora_id', entidadeGestoraId);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
 
@@ -123,8 +136,8 @@ class OFsService {
             }));
     }
 
-    async getById(id: string): Promise<OF> {
-        const { data, error } = await supabase
+    async getById(id: string, tenantId?: string, entidadeGestoraId?: string): Promise<OF | null> {
+        let query = supabase
             .from('ofs')
             .select(`
                 id,
@@ -166,10 +179,20 @@ class OFsService {
                 items:of_items(*, contract_item:contract_items(item_number, marca)), 
                 commitment:commitments(id, number, current_balance, status)
             `)
-            .eq('id', id)
-            .single();
+            .eq('id', id);
+
+        if (tenantId) {
+            query = query.eq('tenant_id', tenantId);
+        }
+        
+        if (entidadeGestoraId) {
+            query = query.eq('entidade_gestora_id', entidadeGestoraId);
+        }
+
+        const { data, error } = await query.maybeSingle();
 
         if (error) throw error;
+        if (!data) return null;
         
         return {
             ...data,
@@ -185,31 +208,50 @@ class OFsService {
         };
     }
 
-    async createOf(tenantId: string, contractId: string, secretariatId: string, issueDate: string, commitmentId: string | null = null): Promise<any> {
+    async createOf(tenantId: string, contractId: string, secretariatId: string, issueDate: string, commitmentId: string | null = null, entidadeGestoraId?: string): Promise<any> {
         if (!tenantId) throw new Error("tenantId is required");
 
         const targetDate = issueDate || new Date().toISOString().split('T')[0];
 
-        // 1. Generate the OF number using the database function
-        const { data: generatedNumber, error: rpcErr } = await supabase
-            .rpc('generate_of_number', { p_issue_date: targetDate });
-
-        if (rpcErr) throw new Error(`Erro ao gerar número da OF: ${rpcErr.message}`);
-        if (!generatedNumber) throw new Error("A função do banco não retornou um número válido.");
-
-        const payload = {
+        let generatedNumber;
+        const payload: any = {
             tenant_id: tenantId,
             contract_id: contractId,
             secretariat_id: secretariatId,
             commitment_id: commitmentId,
             status: 'DRAFT',
             issue_date: targetDate,
-            number: generatedNumber,
             total_amount: 0,
             requester_name: null,
             requester_department: null,
             notes: null
         };
+
+        if (entidadeGestoraId) {
+            const { data: v2Number, error: rpcErrV2 } = await supabase
+                .rpc('generate_of_number_v2', { 
+                    p_tenant_id: tenantId,
+                    p_entidade_gestora_id: entidadeGestoraId,
+                    p_issue_date: targetDate 
+                });
+
+            if (rpcErrV2) throw new Error(`Erro ao gerar número da OF V2: ${rpcErrV2.message}`);
+            if (!v2Number) throw new Error("A função do banco V2 não retornou um número válido.");
+            
+            generatedNumber = v2Number;
+            payload.entidade_gestora_id = entidadeGestoraId;
+        } else {
+            // 1. Generate the OF number using the database function (Legacy)
+            const { data: v1Number, error: rpcErr } = await supabase
+                .rpc('generate_of_number', { p_issue_date: targetDate });
+
+            if (rpcErr) throw new Error(`Erro ao gerar número da OF: ${rpcErr.message}`);
+            if (!v1Number) throw new Error("A função do banco não retornou um número válido.");
+            
+            generatedNumber = v1Number;
+        }
+
+        payload.number = generatedNumber;
 
         const { data, error } = await supabase
             .from('ofs')
@@ -233,29 +275,50 @@ class OFsService {
         if (error) throw error;
     }
 
-    async addOfItem(payload: any): Promise<void> {
+    async addOfItem(payload: any, entidadeGestoraId?: string): Promise<void> {
         if (!payload.tenant_id) throw new Error("tenant_id is required");
         
-        const quantity = Number(payload.quantity || 0);
-        const unit_price = Number(payload.unit_price || 0);
-        const total_price = Number((quantity * unit_price).toFixed(2));
+        if (entidadeGestoraId) {
+            const rpcPayload = {
+                p_tenant_id: payload.tenant_id,
+                p_entidade_gestora_id: entidadeGestoraId,
+                p_of_id: payload.of_id,
+                p_contract_item_id: payload.contract_item_id,
+                p_item_number: payload.item_number || '1',
+                p_description: payload.description,
+                p_unit: payload.unit || 'UN',
+                p_quantity: Number(payload.quantity || 0),
+                p_unit_price: Number(payload.unit_price || 0),
+                p_description_snapshot: payload.description_snapshot || null,
+                p_unit_snapshot: payload.unit_snapshot || null,
+                p_unit_price_snapshot: payload.unit_price_snapshot ?? null,
+                p_marca: payload.marca || null
+            };
 
-        const { error } = await supabase.from('of_items').insert([{
-            tenant_id: payload.tenant_id,
-            of_id: payload.of_id,
-            contract_item_id: payload.contract_item_id,
-            item_number: payload.item_number || '1',
-            description: payload.description,
-            unit: payload.unit || 'UN',
-            quantity: quantity,
-            unit_price: unit_price,
-            total_price: total_price,
-            description_snapshot: payload.description_snapshot,
-            unit_snapshot: payload.unit_snapshot,
-            unit_price_snapshot: payload.unit_price_snapshot
-        }]);
-        
-        if (error) throw error;
+            const { error } = await supabase.rpc('add_of_item_v2', rpcPayload);
+            if (error) throw new Error(`Erro ao adicionar item via V2: ${error.message}`);
+        } else {
+            const quantity = Number(payload.quantity || 0);
+            const unit_price = Number(payload.unit_price || 0);
+            const total_price = Number((quantity * unit_price).toFixed(2));
+
+            const { error } = await supabase.from('of_items').insert([{
+                tenant_id: payload.tenant_id,
+                of_id: payload.of_id,
+                contract_item_id: payload.contract_item_id,
+                item_number: payload.item_number || '1',
+                description: payload.description,
+                unit: payload.unit || 'UN',
+                quantity: quantity,
+                unit_price: unit_price,
+                total_price: total_price,
+                description_snapshot: payload.description_snapshot,
+                unit_snapshot: payload.unit_snapshot,
+                unit_price_snapshot: payload.unit_price_snapshot
+            }]);
+
+            if (error) throw error;
+        }
     }
 
     async updateOfItem(itemId: string, tenantId: string, updates: any): Promise<void> {
@@ -352,8 +415,24 @@ class OFsService {
         if (error) throw error;
     }
 
-    async issueOf(id: string, tenantId: string, signatoryInfo: { name: string, role: string, registration?: string }): Promise<void> {
+    async issueOf(id: string, tenantId: string, signatoryInfo: { name: string, role: string, registration?: string }, entidadeGestoraId?: string, updatedBy?: string): Promise<void> {
         if (!tenantId) throw new Error("tenantId is required");
+
+        if (entidadeGestoraId) {
+            const rpcPayload = {
+                p_of_id: id,
+                p_tenant_id: tenantId,
+                p_entidade_gestora_id: entidadeGestoraId,
+                p_signatory_name: signatoryInfo.name,
+                p_signatory_role: signatoryInfo.role,
+                p_signatory_registration: signatoryInfo.registration || null,
+                p_updated_by: updatedBy || null
+            };
+
+            const { error } = await supabase.rpc('issue_of_v2', rpcPayload);
+            if (error) throw new Error(`Erro ao emitir OF via V2: ${error.message}`);
+            return;
+        }
 
         // 1. Fetch current OF
         const { data: ofData, error: err1 } = await supabase

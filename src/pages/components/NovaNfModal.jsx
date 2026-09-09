@@ -8,10 +8,15 @@ import { useTenant } from '../../context/TenantContext';
 import { useAuth } from '../../context/AuthContext';
 import { canWriteCompras } from '../../utils/comprasAcl';
 
+import { useCompras } from '../../context/ComprasContext';
+
 const NovaNfModal = ({ isOpen, onClose, onSuccess }) => {
     const { tenantId } = useTenant();
-    const { tenantLink, isSuperAdmin } = useAuth();
+    const { tenantLink, isSuperAdmin, authUser } = useAuth();
+    const { entidadeAtiva, entidadeAtivaId, loading: comprasContextLoading } = useCompras();
+
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
+    const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
 
     const [currentStep, setCurrentStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
@@ -62,7 +67,13 @@ const NovaNfModal = ({ isOpen, onClose, onSuccess }) => {
 
     const loadInitialData = async () => {
         try {
-            const contData = await contractsService.list(tenantId);
+            // FAIL CLOSED
+            if (!isAdministracao && (!entidadeAtivaId || comprasContextLoading)) {
+                setContracts([]);
+                return;
+            }
+
+            const contData = await contractsService.list(tenantId, isAdministracao ? undefined : entidadeAtivaId);
             setContracts(contData || []);
         } catch (error) {
             setErrorMsg('Erro ao carregar contratos válidos.');
@@ -72,11 +83,13 @@ const NovaNfModal = ({ isOpen, onClose, onSuccess }) => {
     const loadOfsForContract = async (contractId) => {
         try {
             setIsLoading(true);
-            const { data } = await ofsService.listByContract ? await ofsService.listByContract(contractId) : []; // fallback if method isn't robust
-            // We just fetch from general or filtered
-            // Actually, listByContract doesn't take tenantId usually, but we can filter from general list.
-            const allOfs = await ofsService.list(tenantId);
-            const contractOfs = allOfs.filter(o => o.contract_id === contractId && o.status === 'ISSUED' && o.is_active === true);
+            const allOfs = await ofsService.list(tenantId, isAdministracao ? undefined : entidadeAtivaId);
+            const contractOfs = allOfs.filter(o => 
+                o.contract_id === contractId && 
+                o.status === 'ISSUED' && 
+                o.is_active === true &&
+                (isAdministracao ? true : o.entidade_gestora_id === entidadeAtivaId)
+            );
             setOfs(contractOfs);
         } catch (error) {
             setErrorMsg('Erro ao carregar OFs deste contrato.');
@@ -92,7 +105,11 @@ const NovaNfModal = ({ isOpen, onClose, onSuccess }) => {
             setSelectedOf(ofFull);
 
             // Buscar itens consolidados
-            const items = await invoicesService.getOfItemsWithInvoicedBalances(ofId, tenantId);
+            const items = await invoicesService.getOfItemsWithInvoicedBalances(
+                ofId, 
+                tenantId,
+                isAdministracao ? undefined : entidadeAtivaId
+            );
             setOfItems(items);
 
             // Inicializar faturamento com zero
@@ -172,6 +189,15 @@ const NovaNfModal = ({ isOpen, onClose, onSuccess }) => {
     const handleSave = async () => {
         if (!canWriteCompras(role)) return;
         if (!tenantId) return;
+
+        // FAIL CLOSED SAÚDE
+        if (!isAdministracao) {
+            if (!entidadeAtivaId || comprasContextLoading || !selectedOf) {
+                setErrorMsg('Contexto de entidade inválido ou em carregamento.');
+                return;
+            }
+        }
+
         if (nfTotalAmount <= 0) {
             setErrorMsg('O valor total da Nota Fiscal deve ser maior que zero.');
             return;
@@ -207,7 +233,13 @@ const NovaNfModal = ({ isOpen, onClose, onSuccess }) => {
                 secretariat_name_snapshot: selectedOf?.secretariat?.name || null
             };
 
-            await invoicesService.createInvoice(tenantId, headerPayload, itemsPayload);
+            await invoicesService.createInvoice(
+                tenantId, 
+                headerPayload, 
+                itemsPayload,
+                isAdministracao ? undefined : entidadeAtivaId,
+                authUser?.id
+            );
             onSuccess();
         } catch (error) {
             setErrorMsg(error.message || 'Erro inesperado ao salvar.');

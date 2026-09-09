@@ -38,6 +38,7 @@ import { canAccessFarmacia } from '../../utils/farmaciaAcl';
 import { canAccessLaboratorio } from '../../utils/laboratorioAcl';
 import { getPlanejamentoContext } from '../../utils/planejamentoAccess';
 import { canWriteCompras } from '../../utils/comprasAcl';
+import { useCompras } from '../../context/ComprasContext';
 import './Sidebar.css';
 
 const MENU_ITEMS = [
@@ -191,6 +192,17 @@ const Sidebar = ({ isPinned, togglePin }) => {
     const isFarmacia = location.pathname.startsWith('/farmacia');
     const isPlanejamento = location.pathname.startsWith('/planejamento');
     const isLaboratorio = location.pathname.startsWith('/laboratorio');
+
+    const { entidadeAtiva, loading: comprasContextLoading } = useCompras();
+    
+    const isComprasRoute = !isFarmacia && !isPlanejamento && !isLaboratorio;
+    const comprasWriteBlocked = 
+        isComprasRoute && 
+        (
+            comprasContextLoading || 
+            !entidadeAtiva || 
+            entidadeAtiva.codigo !== 'ADMINISTRACAO'
+        );
     
     // Obter contexto do Planejamento para restrições locais de menu
     const planejamentoContext = getPlanejamentoContext(tenantLink?.role, scopes);
@@ -328,11 +340,23 @@ const Sidebar = ({ isPinned, togglePin }) => {
             {!isFarmacia && !isPlanejamento && !isLaboratorio && canWriteCompras(role) && (
             <div className="sidebar-footer">
                 <div className="footer-actions">
-                    <button className="footer-btn btn-primary" title={!isPinned ? "Nova Ordem de Fornecimento" : ""} onClick={() => navigate('/compras/ordens-fornecimento', { state: { openModal: 'nova-of' } })}>
+                    <button 
+                        className="footer-btn btn-primary" 
+                        title={comprasWriteBlocked ? "Criação de OF da Saúde ainda não habilitada nesta etapa." : (!isPinned ? "Nova Ordem de Fornecimento" : "")} 
+                        onClick={comprasWriteBlocked ? undefined : () => navigate('/compras/ordens-fornecimento', { state: { openModal: 'nova-of' } })}
+                        disabled={comprasWriteBlocked}
+                        style={comprasWriteBlocked ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                    >
                         <Plus size={18} strokeWidth={2.5} className="footer-icon" />
                         <span className="footer-btn-label">Nova OF</span>
                     </button>
-                    <button className="footer-btn btn-secondary" title={!isPinned ? "Registrar Nota Fiscal" : ""} onClick={() => navigate('/compras/notas-fiscais', { state: { openModal: 'nova-nf' } })}>
+                    <button 
+                        className="footer-btn btn-secondary" 
+                        title={comprasWriteBlocked ? "Registro de NF da Saúde ainda não habilitado nesta etapa." : (!isPinned ? "Registrar Nota Fiscal" : "")} 
+                        onClick={comprasWriteBlocked ? undefined : () => navigate('/compras/notas-fiscais', { state: { openModal: 'nova-nf' } })}
+                        disabled={comprasWriteBlocked}
+                        style={comprasWriteBlocked ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                    >
                         <FilePlus size={18} strokeWidth={2} className="footer-icon" />
                         <span className="footer-btn-label">Registrar NF</span>
                     </button>

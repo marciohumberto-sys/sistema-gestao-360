@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getLogoClickRedirectPath } from '../../utils/authUtils';
 import { supabase } from '../../lib/supabase';
 import { updateFarmaciaUser } from '../../services/farmaciaUsers.service';
+import { useCompras } from '../../context/ComprasContext';
 
 const Topbar = () => {
     const location = useLocation();
@@ -23,6 +24,14 @@ const Topbar = () => {
     const isFarmacia = location.pathname.startsWith('/farmacia');
     const isCompras = location.pathname.startsWith('/compras');
     const isPlanejamento = location.pathname.startsWith('/planejamento');
+
+    const { 
+        entidadesPermitidas, 
+        entidadeAtiva, 
+        podeTrocarEntidade, 
+        setEntidadeAtiva, 
+        loading: comprasContextLoading 
+    } = useCompras();
 
     const [currentUnitName, setCurrentUnitName] = useState('');
     const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
@@ -170,7 +179,7 @@ const Topbar = () => {
                                 )}
                             </div>
                             
-                            {accessibleModules.includes('FARMACIA') && !isSuperAdmin && (
+                            {isFarmacia && accessibleModules.includes('FARMACIA') && !isSuperAdmin && (
                                 <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
                                     <span style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#64748b', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Minha unidade</span>
                                     <button
@@ -183,6 +192,27 @@ const Topbar = () => {
                                     >
                                         {currentUnitName || 'Carregando...'}
                                     </button>
+                                </div>
+                            )}
+
+                            {isCompras && (
+                                <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                                    <span style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#64748b', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Minha entidade</span>
+                                    {podeTrocarEntidade ? (
+                                        <select
+                                            value={entidadeAtiva?.id || ''}
+                                            onChange={(e) => setEntidadeAtiva(e.target.value)}
+                                            style={{ display: 'block', width: '100%', textAlign: 'left', background: 'var(--bg-muted-light)', border: '1px solid var(--border)', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: 'var(--color-primary)', outline: 'none', appearance: 'menulist' }}
+                                        >
+                                            {entidadesPermitidas.map(ent => (
+                                                <option key={ent.id} value={ent.id}>{ent.nome}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div style={{ display: 'block', width: '100%', textAlign: 'left', background: 'var(--bg-muted-light)', border: '1px solid var(--border)', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--color-primary)' }}>
+                                            {comprasContextLoading ? 'Carregando...' : (entidadeAtiva?.nome || 'Nenhuma entidade vinculada')}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

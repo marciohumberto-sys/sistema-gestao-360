@@ -8,6 +8,7 @@ import { contractItemsService } from '../services/api/contractItems.service';
 import { allocationsService } from '../services/api/allocations.service';
 import { useTenant } from '../context/TenantContext';
 import { useAuth } from '../context/AuthContext';
+import { useCompras } from '../context/ComprasContext';
 import { canWriteCompras } from '../utils/comprasAcl';
 import { formatLocalDate, getTodayLocalDateString } from '../utils/dateUtils';
 import './Contratos.css';
@@ -19,6 +20,14 @@ const Empenhos = () => {
     const { tenantLink, isSuperAdmin } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const canWrite = canWriteCompras(role);
+    
+    const {
+        entidadeAtiva,
+        entidadeAtivaId,
+        loading: comprasContextLoading
+    } = useCompras();
+
+    const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
 
     // 1. Data State
     const [commitments, setCommitments] = useState([]);
@@ -78,12 +87,12 @@ const Empenhos = () => {
     });
 
     const loadData = async () => {
-        if (!tenantId) return;
+        if (!tenantId || comprasContextLoading || !entidadeAtivaId) return;
         try {
             setIsLoading(true);
             const [commsData, contData, secData] = await Promise.all([
-                commitmentsService.list(tenantId),
-                contractsService.list(tenantId),
+                commitmentsService.list(tenantId, entidadeAtivaId),
+                contractsService.list(tenantId, entidadeAtivaId),
                 secretariatsService.listSecretariats(tenantId)
             ]);
             setCommitments(commsData);
@@ -100,7 +109,14 @@ const Empenhos = () => {
         let isMounted = true;
         if (isMounted) loadData();
         return () => { isMounted = false; };
-    }, [tenantId]);
+    }, [tenantId, entidadeAtivaId, comprasContextLoading]);
+
+    // Limpar filtro de contrato quando mudar de entidade
+    useEffect(() => {
+        if (contractFilter !== 'ALL') {
+            setContractFilter('ALL');
+        }
+    }, [entidadeAtivaId]);
 
     // Filtragem dinâmica de secretarias com base no contrato selecionado
     useEffect(() => {
@@ -199,13 +215,22 @@ const Empenhos = () => {
     const handleCreateSubmit = async (e) => {
         e.preventDefault();
         if (!canWrite) return;
+        if (!isAdministracao && (!tenantId || comprasContextLoading || !entidadeAtivaId)) return;
+        
         setFeedback(null);
         try {
             setIsSubmitting(true);
-            await commitmentsService.create({
-                ...createForm,
-                initial_amount: parseFloat(createForm.initial_amount) || 0
-            }, tenantId);
+            if (isAdministracao) {
+                await commitmentsService.create({
+                    ...createForm,
+                    initial_amount: parseFloat(createForm.initial_amount) || 0
+                }, tenantId);
+            } else {
+                await commitmentsService.create({
+                    ...createForm,
+                    initial_amount: parseFloat(createForm.initial_amount) || 0
+                }, tenantId, entidadeAtivaId);
+            }
             setIsCreateModalOpen(false);
             setCreateForm({
                 contract_id: '',
@@ -229,7 +254,7 @@ const Empenhos = () => {
 
     const handleAddValueSubmit = async (e) => {
         e.preventDefault();
-        if (!canWrite) return;
+        if (!canWrite || !isAdministracao) return;
         try {
             setIsSubmitting(true);
             await commitmentsService.addValue(
@@ -255,7 +280,7 @@ const Empenhos = () => {
 
     const handleAnnulValueSubmit = async (e) => {
         e.preventDefault();
-        if (!canWrite) return;
+        if (!canWrite || !isAdministracao) return;
         try {
             setIsSubmitting(true);
             await commitmentsService.annulValue(
@@ -321,7 +346,7 @@ const Empenhos = () => {
 
     const handleEditSubmit = async (e) => {
         e.preventDefault();
-        if (!canWrite) return;
+        if (!canWrite || !isAdministracao) return;
         try {
             setIsSubmitting(true);
             await commitmentsService.updateCommitment(
@@ -344,7 +369,7 @@ const Empenhos = () => {
     };
 
     const handleDeleteSubmit = async () => {
-        if (!canWrite) return;
+        if (!canWrite || !isAdministracao) return;
         try {
             setIsSubmitting(true);
             await commitmentsService.deleteCommitment(selectedCommitment.id, tenantId);
@@ -371,8 +396,13 @@ const Empenhos = () => {
                     <h1 className="ct-title">Empenhos</h1>
                     <p className="ct-subtitle">Gestão e acompanhamento de dotações e saldos</p>
                 </div>
-                {canWrite && (
-                <button className="ct-primary-btn" onClick={() => setIsCreateModalOpen(true)}>
+                {canWriteCompras(role) && (
+                <button 
+                    className="ct-primary-btn" 
+                    onClick={() => setIsCreateModalOpen(true)}
+                    disabled={!isAdministracao && (!entidadeAtivaId || comprasContextLoading)}
+                    title={!isAdministracao && !entidadeAtivaId ? "Carregando contexto da entidade..." : ""}
+                >
                     <Plus size={18} />
                     <span>Novo Empenho</span>
                 </button>
@@ -628,9 +658,11 @@ const Empenhos = () => {
                                                         <button 
                                                             className="action-btn" 
                                                             style={{ color: '#16a34a' }}
+                                                            disabled={!isAdministracao}
+                                                            title={!isAdministracao ? "Operação da Saúde ainda não habilitada nesta etapa." : ""}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                openAddValueModal(emp);
+                                                                if (isAdministracao) openAddValueModal(emp);
                                                             }}
                                                         >
                                                             <PlusCircle size={18} />
@@ -641,9 +673,11 @@ const Empenhos = () => {
                                                         <button 
                                                             className="action-btn" 
                                                             style={{ color: '#ef4444' }}
+                                                            disabled={!isAdministracao}
+                                                            title={!isAdministracao ? "Operação da Saúde ainda não habilitada nesta etapa." : ""}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                openAnnulValueModal(emp);
+                                                                if (isAdministracao) openAnnulValueModal(emp);
                                                             }}
                                                         >
                                                             <MinusCircle size={18} />
@@ -667,9 +701,11 @@ const Empenhos = () => {
                                                             <button 
                                                                 className="action-btn" 
                                                                 style={{ color: '#64748b' }}
+                                                                disabled={!isAdministracao}
+                                                                title={!isAdministracao ? "Operação da Saúde ainda não habilitada nesta etapa." : ""}
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    setOpenActionMenuId(openActionMenuId === emp.id ? null : emp.id);
+                                                                    if (isAdministracao) setOpenActionMenuId(openActionMenuId === emp.id ? null : emp.id);
                                                                 }}
                                                             >
                                                                 <MoreVertical size={18} />

@@ -5,6 +5,7 @@ import { TenantProvider, useTenant } from './context/TenantContext';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
+import { ComprasProvider } from './context/ComprasContext';
 
 import Login from './pages/auth/Login';
 import AcessoNegado from './pages/auth/AcessoNegado';
@@ -87,9 +88,10 @@ function App() {
       <ScrollToTop />
       <AuthProvider>
         <TenantProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/acesso-negado" element={<AcessoNegado />} />
+          <ComprasProvider>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/acesso-negado" element={<AcessoNegado />} />
             
             <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
 
@@ -183,6 +185,7 @@ function App() {
                 
             </Route>
           </Routes>
+          </ComprasProvider>
         </TenantProvider>
       </AuthProvider>
     </BrowserRouter>

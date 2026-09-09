@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { commitmentsService } from '../services/api/commitments.service';
 import { ofsService } from '../services/api/ofs.service';
+import { useCompras } from '../context/ComprasContext';
 import { ArrowLeft, Loader2, FileText, Activity, Eye, Plus } from 'lucide-react';
 import { formatLocalDate } from '../utils/dateUtils';
 import './EmpenhoDetails.css';
@@ -12,6 +13,14 @@ const EmpenhoDetails = () => {
     const navigate = useNavigate();
     const { tenantId } = useTenant();
 
+    const {
+        entidadeAtiva,
+        entidadeAtivaId,
+        loading: comprasContextLoading
+    } = useCompras();
+
+    const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
+
     const [commitment, setCommitment] = useState(null);
     const [movements, setMovements] = useState([]);
     const [linkedOfs, setLinkedOfs] = useState([]);
@@ -20,20 +29,35 @@ const EmpenhoDetails = () => {
     const [isCreatingOf, setIsCreatingOf] = useState(false);
 
     useEffect(() => {
+        // Ao mudar id ou entidadeAtivaId, limpa os dados antes da nova busca
+        setCommitment(null);
+        setMovements([]);
+        setLinkedOfs([]);
+
         const loadDetails = async () => {
-            if (!id || !tenantId) return;
+            if (!id || !tenantId || comprasContextLoading || !entidadeAtivaId) return;
             try {
                 setIsLoading(true);
-                const [commData, movData, ofsData] = await Promise.all([
-                    commitmentsService.getById(id),
+                // Busca validando a entidade e o tenant
+                const commData = await commitmentsService.getById(id, tenantId, entidadeAtivaId);
+                
+                if (!commData) {
+                    navigate('/compras/empenhos', { replace: true, state: { message: 'Empenho não encontrado na entidade selecionada.' } });
+                    return;
+                }
+
+                // Somente carrega movimentações e OFs se o empenho principal foi confirmado para a entidade atual
+                const [movData, ofsData] = await Promise.all([
                     commitmentsService.getMovements(id),
                     ofsService.listByCommitment(id)
                 ]);
+                
                 setCommitment(commData);
                 setMovements(movData);
                 setLinkedOfs(ofsData);
             } catch (error) {
                 console.error("Erro ao carregar detalhes do empenho:", error);
+                navigate('/compras/empenhos', { replace: true });
             } finally {
                 setIsLoading(false);
             }
@@ -42,7 +66,7 @@ const EmpenhoDetails = () => {
         let isMounted = true;
         if (isMounted) loadDetails();
         return () => { isMounted = false; };
-    }, [id, tenantId]);
+    }, [id, tenantId, entidadeAtivaId, comprasContextLoading, navigate]);
 
     useEffect(() => {
         if (!isLoading) {
@@ -52,7 +76,7 @@ const EmpenhoDetails = () => {
     }, [isLoading, movements, linkedOfs]);
 
     const handleCreateOf = async () => {
-        if (!commitment || isCreatingOf) return;
+        if (!commitment || isCreatingOf || !isAdministracao) return;
         setIsCreatingOf(true);
         try {
             const today = new Date().toISOString().split('T')[0];
@@ -153,7 +177,8 @@ const EmpenhoDetails = () => {
                         <button 
                             className="ct-primary-btn" 
                             onClick={handleCreateOf}
-                            disabled={isCreatingOf || commitment.status === 'CANCELADO' || (current_balance || 0) <= 0}
+                            disabled={!isAdministracao || isCreatingOf || commitment.status === 'CANCELADO' || (current_balance || 0) <= 0}
+                            title={!isAdministracao ? "Geração de OF da Saúde ainda não habilitada nesta etapa." : ""}
                             style={{ 
                                 height: '48px', 
                                 padding: '0 1.5rem', 
@@ -166,7 +191,7 @@ const EmpenhoDetails = () => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '8px',
-                                opacity: (isCreatingOf || commitment.status === 'CANCELADO' || (current_balance || 0) <= 0) ? 0.6 : 1
+                                opacity: (!isAdministracao || isCreatingOf || commitment.status === 'CANCELADO' || (current_balance || 0) <= 0) ? 0.6 : 1
                             }}
                         >
                             {isCreatingOf ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}

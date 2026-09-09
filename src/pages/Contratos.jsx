@@ -7,6 +7,7 @@ import { ofsService } from '../services/api/ofs.service';
 import { filesService } from '../services/api/files.service';
 import { useTenant } from '../context/TenantContext';
 import { useAuth } from '../context/AuthContext';
+import { useCompras } from '../context/ComprasContext';
 import { formatLocalDate, getTodayLocalDateString, getDaysDiffFromToday } from '../utils/dateUtils';
 import { canWriteCompras } from '../utils/comprasAcl';
 import './Contratos.css';
@@ -16,6 +17,11 @@ const Contratos = () => {
     const location = useLocation();
     const { tenantId } = useTenant();
     const { tenantLink, isSuperAdmin } = useAuth();
+    const { 
+        entidadeAtiva, 
+        entidadeAtivaId, 
+        loading: comprasContextLoading 
+    } = useCompras();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const [contracts, setContracts] = useState([]);
     const [secretariats, setSecretariats] = useState([]);
@@ -69,10 +75,10 @@ const Contratos = () => {
     };
 
     const loadContracts = async () => {
-        if (!tenantId) return;
+        if (!tenantId || comprasContextLoading || !entidadeAtivaId) return;
         try {
             setIsLoading(true);
-            const data = await contractsService.list(tenantId);
+            const data = await contractsService.list(tenantId, entidadeAtivaId);
             setContracts(data);
         } catch (error) {
             console.error("Erro ao carregar contratos:", error);
@@ -113,7 +119,7 @@ const Contratos = () => {
         return () => {
             document.body.style.overflow = 'unset'; // Restore scroll
         };
-    }, [tenantId, location.search]);
+    }, [tenantId, entidadeAtivaId, comprasContextLoading, location.search]);
 
     // Helper formatting
     const formatCurrency = (value) => {
@@ -302,7 +308,7 @@ const Contratos = () => {
 
     const mapErrorToMessage = (error) => {
         const msg = error?.message || "";
-        if (msg.includes('contracts_tenant_id_code_key')) {
+        if (msg.includes('contracts_tenant_id_code_key') || msg.includes('uq_contracts_tenant_entidade_code')) {
             return "Já existe um contrato com este código. Informe outro código para continuar.";
         }
         if (msg.includes('ofs_contract_id_fkey')) {
@@ -465,7 +471,7 @@ const Contratos = () => {
             if (editingContract) {
                 // Objective 1: Check for duplicate code during update
                 if (trimmedCode) {
-                    const isDuplicate = await contractsService.checkDuplicateCode(trimmedCode, tenantId, editingContract.id);
+                    const isDuplicate = await contractsService.checkDuplicateCode(trimmedCode, tenantId, editingContract.id, entidadeAtivaId);
                     if (isDuplicate) {
                         setFeedback({ type: 'error', message: 'Já existe um contrato com este código. Informe outro código para continuar.' });
                         setIsSubmitting(false);
@@ -480,7 +486,7 @@ const Contratos = () => {
             } else {
                 // Objective 1: Check for duplicate code during creation
                 if (trimmedCode) {
-                    const isDuplicate = await contractsService.checkDuplicateCode(trimmedCode, tenantId);
+                    const isDuplicate = await contractsService.checkDuplicateCode(trimmedCode, tenantId, undefined, entidadeAtivaId);
                     if (isDuplicate) {
                         setFeedback({ type: 'error', message: 'Já existe um contrato com este código. Informe outro código para continuar.' });
                         setIsSubmitting(false);
@@ -491,7 +497,7 @@ const Contratos = () => {
                 payload.code = trimmedCode || null;
                 console.log("PAYLOAD_CREATE_CONTRACT:", { ...payload, tenantId });
 
-                const { error } = await contractsService.createContract(payload, tenantId);
+                const { error } = await contractsService.createContract(payload, tenantId, entidadeAtivaId);
                 if (error) throw error;
                 setFeedback({ type: 'success', message: 'Contrato criado com sucesso!' });
             }
@@ -570,7 +576,12 @@ const Contratos = () => {
                     <p className="ct-subtitle">Gestão e acompanhamento de vigência e saldos</p>
                 </div>
                 {canWriteCompras(role) && (
-                    <button className="ct-primary-btn" onClick={handleNewContract}>
+                    <button 
+                        className="ct-primary-btn" 
+                        onClick={handleNewContract}
+                        disabled={!entidadeAtivaId || comprasContextLoading}
+                        title={!entidadeAtivaId ? "Carregando contexto da entidade..." : undefined}
+                    >
                         <Plus size={18} />
                         <span>Novo Contrato</span>
                     </button>
@@ -858,7 +869,7 @@ const Contratos = () => {
 
                                             {isPdfSectionExpanded && (
                                                 <div className="collapsible-content" style={{ padding: '15px', border: '1px solid #e2e8f0', borderTop: 'none', borderRadius: '0 0 8px 8px', background: '#fff', marginBottom: '1rem' }}>
-                                                    <label htmlFor="contract-pdf-upload" className={`upload-card ${contractFile ? 'has-file' : ''}`}>
+                                                    <label htmlFor="contract-pdf-upload" className={`upload-card ${contractFile ? 'has-file' : ''}`} style={entidadeAtiva?.codigo !== 'ADMINISTRACAO' ? { opacity: 0.5, cursor: 'not-allowed' } : {}} title={entidadeAtiva?.codigo !== 'ADMINISTRACAO' ? "Anexos da Saúde serão habilitados após a segregação do armazenamento." : undefined}>
                                                         <div className="upload-icon-wrapper">
                                                             {contractFile ? <FileText size={24} /> : <UploadCloud size={24} />}
                                                         </div>
@@ -943,6 +954,7 @@ const Contratos = () => {
                                                             id="contract-pdf-upload"
                                                             type="file"
                                                             accept="application/pdf"
+                                                            disabled={entidadeAtiva?.codigo !== 'ADMINISTRACAO'}
                                                             onChange={e => setContractFile(e.target.files[0])}
                                                             style={{ display: 'none' }}
                                                         />

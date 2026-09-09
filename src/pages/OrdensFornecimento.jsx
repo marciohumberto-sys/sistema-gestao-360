@@ -7,6 +7,7 @@ import { contractsService } from '../services/api/contracts.service';
 import { secretariatsService } from '../services/api/secretariats.service';
 import { useTenant } from '../context/TenantContext';
 import { useAuth } from '../context/AuthContext';
+import { useCompras } from '../context/ComprasContext';
 import { supabase } from '../lib/supabase';
 import { formatLocalDate } from '../utils/dateUtils';
 import NovaOfModal from './components/NovaOfModal';
@@ -20,6 +21,15 @@ const OrdensFornecimento = () => {
     const location = useLocation();
     const { tenantId } = useTenant();
     const { user, tenantLink, isSuperAdmin } = useAuth();
+    
+    const {
+        entidadeAtiva,
+        entidadeAtivaId,
+        loading: comprasContextLoading
+    } = useCompras();
+
+    const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
+
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const canWrite = canWriteCompras(role);
     const isGestor = ['SUPERADMIN', 'ADMIN', 'GESTOR'].includes(role);
@@ -75,11 +85,13 @@ const OrdensFornecimento = () => {
     // Listen to route state to open modal automatically
     useEffect(() => {
         if (location.state?.openModal === 'nova-of') {
-            setIsNovaOfModalOpen(true);
+            if ((isAdministracao || (!isAdministracao && entidadeAtivaId)) && comprasContextLoading === false && entidadeAtivaId) {
+                setIsNovaOfModalOpen(true);
+            }
             // Clear state so it doesn't reopen on refresh/navigation back
             window.history.replaceState({}, document.title);
         }
-    }, [location.state]);
+    }, [location.state, isAdministracao, comprasContextLoading, entidadeAtivaId]);
 
     // Click outside handler for dropdown
     useEffect(() => {
@@ -93,12 +105,16 @@ const OrdensFornecimento = () => {
     }, []);
 
     const loadData = async () => {
-        if (!tenantId) return;
+        if (!tenantId || comprasContextLoading || !entidadeAtivaId) {
+            setOfs([]);
+            setContracts([]);
+            return;
+        }
         try {
             setIsLoading(true);
             const [ofsData, contData, secData] = await Promise.all([
-                ofsService.list(tenantId),
-                contractsService.list(tenantId),
+                ofsService.list(tenantId, entidadeAtivaId),
+                contractsService.list(tenantId, entidadeAtivaId),
                 secretariatsService.listSecretariats(tenantId)
             ]);
             setOfs(ofsData);
@@ -112,12 +128,14 @@ const OrdensFornecimento = () => {
         }
     };
 
-     
     useEffect(() => {
         let isMounted = true;
+        setOfs([]);
+        setContracts([]);
+        setContractFilter('ALL');
         if (isMounted) loadData();
         return () => { isMounted = false; };
-    }, [tenantId]);
+    }, [tenantId, entidadeAtivaId, comprasContextLoading]);
 
     const formatCurrency = (value) => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -232,7 +250,7 @@ const OrdensFornecimento = () => {
     
     // Actions
     const handleIssueOf = async (ofId) => {
-        if (!canWrite) return;
+        if (!canWrite || !isAdministracao) return;
         try {
             setIsSubmitting(true);
             await ofsService.issueOf(ofId, tenantId);
@@ -250,7 +268,7 @@ const OrdensFornecimento = () => {
     };
 
     const handleCancelOfClick = (of) => {
-        if (!canWrite) return;
+        if (!canWrite || !isAdministracao) return;
         setOfToCancel(of);
         setCancelReason('');
         setIsCancelModalOpen(true);
@@ -305,7 +323,7 @@ const OrdensFornecimento = () => {
     };
 
     const handleRectifyOfClick = (of) => {
-        if (!canWrite) return;
+        if (!canWrite || !isAdministracao) return;
         setOfToRectify(of);
         setRetificationReason('');
         setIsRetificationModalOpen(true);
@@ -348,7 +366,7 @@ const OrdensFornecimento = () => {
     };
 
     const handleDeleteOf = async (ofId) => {
-        if (!canWrite) return;
+        if (!canWrite || !isAdministracao) return;
         setOpenActionMenuId(null);
         setOfToDelete(ofId);
     };
@@ -381,6 +399,16 @@ const OrdensFornecimento = () => {
                     <h1 className="ct-title">Ordens de Fornecimento</h1>
                     <p className="ct-subtitle">Gestão e acompanhamento das OFs geradas</p>
                 </div>
+                {canWrite && (
+                    <button 
+                        className="btn-primary" 
+                        onClick={() => setIsNovaOfModalOpen(true)}
+                        disabled={!isAdministracao && (!entidadeAtivaId || comprasContextLoading)}
+                        title={!isAdministracao && (!entidadeAtivaId || comprasContextLoading) ? "Carregando contexto da entidade..." : ""}
+                    >
+                        <Plus size={20} /> Nova OF
+                    </button>
+                )}
             </header>
 
             {/* Summary Cards */}

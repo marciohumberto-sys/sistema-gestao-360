@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
+import { useCompras } from '../context/ComprasContext';
 import { ofsService } from '../services/api/ofs.service';
 import { Printer, ArrowLeft } from 'lucide-react';
 import logoBezerros from '../assets/logo-bezerros.png';
@@ -9,7 +10,14 @@ import './OfPreview.css';
 
 const OfPreview = () => {
     const { id } = useParams();
+    const navigate = useNavigate();
     const { tenantId } = useTenant();
+    
+    const { 
+        entidadeAtivaId, 
+        loading: comprasContextLoading 
+    } = useCompras();
+
     const [searchParams] = React.useState(new URLSearchParams(window.location.search));
 
     const [ofData, setOfData] = useState(null);
@@ -39,10 +47,18 @@ const OfPreview = () => {
 
     useEffect(() => {
         const loadData = async () => {
-            if (!tenantId || !id) return;
+            if (!tenantId || !id || comprasContextLoading || !entidadeAtivaId) {
+                setOfData(null);
+                return;
+            }
             try {
                 setIsLoading(true);
-                const data = await ofsService.getById(id);
+                const data = await ofsService.getById(id, tenantId, entidadeAtivaId);
+                
+                if (!data) {
+                    navigate('/compras/ordens-fornecimento', { replace: true });
+                    return;
+                }
                 
                 if (data.items) {
                     data.items.sort((a, b) => (Number(a.item_number) || 0) - (Number(b.item_number) || 0));
@@ -57,7 +73,7 @@ const OfPreview = () => {
         };
 
         loadData();
-    }, [id, tenantId]);
+    }, [id, tenantId, entidadeAtivaId, comprasContextLoading, navigate]);
 
     const formatCurrency = (value) => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);

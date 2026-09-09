@@ -43,17 +43,46 @@ class ContractItemsService {
         return count || 0;
     }
 
-    async createContractItem(payload: Partial<ContractItem>, tenantId: string): Promise<ContractItem> {
+    async createContractItem(payload: Partial<ContractItem>, tenantId: string, entidadeGestoraId?: string): Promise<ContractItem> {
         if (!tenantId) throw new Error("A tenantId is required.");
 
-        const { data, error } = await supabase
-            .from("contract_items")
-            .insert([{ ...payload, tenant_id: tenantId }])
-            .select()
-            .single();
+        if (entidadeGestoraId) {
+            const rpcPayload = {
+                p_tenant_id: tenantId,
+                p_entidade_gestora_id: entidadeGestoraId,
+                p_contract_id: payload.contract_id,
+                p_item_number: payload.item_number || null,
+                p_description: payload.description,
+                p_unit: payload.unit || null,
+                p_unit_price: Number(payload.unit_price || 0),
+                p_total_quantity: Number(payload.quantity || payload.total_quantity || 0),
+                p_marca: payload.marca || null,
+                p_allow_decimal_quantity: Boolean(payload.allow_decimal_quantity)
+            };
 
-        if (error) throw error;
-        return data;
+            const { data: newId, error: rpcErr } = await supabase
+                .rpc('create_contract_item_v2', rpcPayload);
+
+            if (rpcErr) throw new Error(`Erro ao criar item via V2: ${rpcErr.message}`);
+            
+            const { data, error } = await supabase
+                .from("contract_items")
+                .select()
+                .eq("id", newId)
+                .eq("tenant_id", tenantId)
+                .single();
+            if (error) throw error;
+            return data;
+        } else {
+            const { data, error } = await supabase
+                .from("contract_items")
+                .insert([{ ...payload, tenant_id: tenantId }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        }
     }
 
     async updateContractItem(itemId: string, payload: Partial<ContractItem>, tenantId: string): Promise<ContractItem> {

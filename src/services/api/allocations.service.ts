@@ -37,41 +37,65 @@ class AllocationsService {
         return data || [];
     }
 
-    async upsertAllocation(payload: { contract_item_id: string, secretariat_id: string, quantity_allocated: number }, tenantId: string): Promise<Allocation> {
+    async upsertAllocation(payload: { contract_item_id: string, secretariat_id: string, quantity_allocated: number }, tenantId: string, entidadeGestoraId?: string): Promise<Allocation> {
         if (!tenantId) throw new Error("A tenantId is required.");
 
-        // First, try to fetch to determine if we update or insert manually
-        const { data: existing, error: fetchError } = await supabase
-            .from("contract_item_allocations")
-            .select("id")
-            .eq("tenant_id", tenantId)
-            .eq("contract_item_id", payload.contract_item_id)
-            .eq("secretariat_id", payload.secretariat_id)
-            .maybeSingle(); // Does not throw error if 0 rows returned
+        if (entidadeGestoraId) {
+            const rpcPayload = {
+                p_tenant_id: tenantId,
+                p_entidade_gestora_id: entidadeGestoraId,
+                p_contract_item_id: payload.contract_item_id,
+                p_secretariat_id: payload.secretariat_id,
+                p_quantity_allocated: Number(payload.quantity_allocated || 0)
+            };
 
-        if (fetchError) throw fetchError;
+            const { data: newId, error: rpcErr } = await supabase
+                .rpc('upsert_contract_item_allocation_v2', rpcPayload);
 
-        if (existing) {
-            // Update
+            if (rpcErr) throw new Error(`Erro ao salvar rateio via V2: ${rpcErr.message}`);
+
             const { data, error } = await supabase
                 .from("contract_item_allocations")
-                .update({ quantity_allocated: payload.quantity_allocated })
-                .eq("id", existing.id)
                 .select()
+                .eq("id", newId)
+                .eq("tenant_id", tenantId)
                 .single();
-
             if (error) throw error;
             return data;
         } else {
-            // Insert
-            const { data, error } = await supabase
+            // First, try to fetch to determine if we update or insert manually
+            const { data: existing, error: fetchError } = await supabase
                 .from("contract_item_allocations")
-                .insert([{ ...payload, tenant_id: tenantId }])
-                .select()
-                .single();
+                .select("id")
+                .eq("tenant_id", tenantId)
+                .eq("contract_item_id", payload.contract_item_id)
+                .eq("secretariat_id", payload.secretariat_id)
+                .maybeSingle(); // Does not throw error if 0 rows returned
 
-            if (error) throw error;
-            return data;
+            if (fetchError) throw fetchError;
+
+            if (existing) {
+                // Update
+                const { data, error } = await supabase
+                    .from("contract_item_allocations")
+                    .update({ quantity_allocated: payload.quantity_allocated })
+                    .eq("id", existing.id)
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                return data;
+            } else {
+                // Insert
+                const { data, error } = await supabase
+                    .from("contract_item_allocations")
+                    .insert([{ ...payload, tenant_id: tenantId }])
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                return data;
+            }
         }
     }
 

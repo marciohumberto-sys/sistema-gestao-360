@@ -22,10 +22,10 @@ export interface Invoice {
 }
 
 class InvoicesService {
-    async list(tenantId: string): Promise<Invoice[]> {
+    async list(tenantId: string, entidadeGestoraId?: string): Promise<Invoice[]> {
         if (!tenantId) return [];
 
-        const { data, error } = await supabase
+        let query = supabase
             .from('invoices')
             .select(`
                 *,
@@ -35,6 +35,12 @@ class InvoicesService {
             `)
             .eq('tenant_id', tenantId)
             .order('created_at', { ascending: false });
+
+        if (entidadeGestoraId) {
+            query = query.eq('entidade_gestora_id', entidadeGestoraId);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
 
@@ -69,8 +75,25 @@ class InvoicesService {
         };
     }
 
-    async getOfItemsWithInvoicedBalances(ofId: string, tenantId: string): Promise<any[]> {
+    async getOfItemsWithInvoicedBalances(ofId: string, tenantId: string, entidadeGestoraId?: string): Promise<any[]> {
         if (!tenantId) throw new Error("tenantId is required");
+
+        // Validação da OF para Saúde (FAIL CLOSED)
+        if (entidadeGestoraId) {
+            const { data: ofData, error: ofErr } = await supabase
+                .from('ofs')
+                .select('id')
+                .eq('id', ofId)
+                .eq('tenant_id', tenantId)
+                .eq('entidade_gestora_id', entidadeGestoraId)
+                .eq('status', 'ISSUED')
+                .eq('is_active', true)
+                .single();
+                
+            if (ofErr || !ofData) {
+                throw new Error("Acesso negado ou OF inválida/não pertence a esta entidade.");
+            }
+        }
 
         // 1. Fetch all items of this OF
         const { data: ofItems, error: ofItemsErr } = await supabase
@@ -116,11 +139,40 @@ class InvoicesService {
         });
     }
 
-    async createInvoice(tenantId: string, headerData: any, itemsData: any[]): Promise<any> {
+    async createInvoice(tenantId: string, headerData: any, itemsData: any[], entidadeGestoraId?: string, createdBy?: string): Promise<any> {
         if (!tenantId) throw new Error("tenantId is required");
         if (!itemsData || itemsData.length === 0) throw new Error("Nenhum item faturado fornecido.");
 
-        // Sequencial Save: 1. Header
+        if (entidadeGestoraId) {
+            // Fluxo V2 SAÚDE - Transacional via RPC
+            const payloadItems = itemsData
+                .filter((item: any) => Number(item.quantity) > 0)
+                .map((item: any) => ({
+                    of_item_id: item.of_item_id || item.id,
+                    quantity: Number(item.quantity)
+                }));
+
+            const payloadV2 = {
+                p_tenant_id: tenantId,
+                p_entidade_gestora_id: entidadeGestoraId,
+                p_of_id: headerData.of_id,
+                p_number: headerData.number,
+                p_issue_date: headerData.issue_date,
+                p_notes: headerData.notes || null,
+                p_items: payloadItems,
+                p_created_by: createdBy || null
+            };
+
+            const { data, error } = await supabase.rpc('create_invoice_v2', payloadV2);
+
+            if (error) {
+                throw new Error("Erro ao registrar NF: " + error.message);
+            }
+            return { id: data }; // Compatibilidade com legado que retorna objeto
+        }
+
+        // Sequencial Save: 1. Header (Fluxo Legado)
+
         const invoiceHeaderPayload = {
             tenant_id: tenantId,
             contract_id: headerData.contract_id,

@@ -72,7 +72,7 @@ class ContractsService {
         return enriched;
     }
 
-    async list(tenantId?: string): Promise<Contract[]> {
+    async list(tenantId?: string, entidadeGestoraId?: string): Promise<Contract[]> {
         let query = supabase
             .from("contracts")
             .select("*, contract_items(count)")
@@ -82,23 +82,38 @@ class ContractsService {
             query = query.eq('tenant_id', tenantId);
         }
 
+        if (entidadeGestoraId) {
+            query = query.eq('entidade_gestora_id', entidadeGestoraId);
+        }
+
         const { data, error } = await query;
         if (error) throw error;
         return (data || []).map(c => this.enrichContract(c));
     }
 
-    async getById(id: string): Promise<Contract> {
-        const { data, error } = await supabase
+    async getById(id: string, tenantId?: string, entidadeGestoraId?: string): Promise<Contract | null> {
+        let query = supabase
             .from("contracts")
             .select("*, contract_items(count)")
-            .eq("id", id)
-            .single();
+            .eq("id", id);
+
+        if (tenantId) {
+            query = query.eq('tenant_id', tenantId);
+        }
+        
+        if (entidadeGestoraId) {
+            query = query.eq('entidade_gestora_id', entidadeGestoraId);
+        }
+
+        const { data, error } = await query.maybeSingle();
 
         if (error) throw error;
+        if (!data) return null;
+        
         return this.enrichContract(data);
     }
 
-    async checkDuplicateCode(code: string, tenantId: string, excludeId?: string): Promise<boolean> {
+    async checkDuplicateCode(code: string, tenantId: string, excludeId?: string, entidadeGestoraId?: string): Promise<boolean> {
         const trimmedCode = code?.trim();
         if (!trimmedCode || !tenantId) return false;
         
@@ -112,6 +127,10 @@ class ContractsService {
             query = query.neq("id", excludeId);
         }
 
+        if (entidadeGestoraId) {
+            query = query.eq('entidade_gestora_id', entidadeGestoraId);
+        }
+
         const { data, error } = await query;
         if (error) {
             console.error("Erro ao validar duplicidade de código:", error);
@@ -121,13 +140,13 @@ class ContractsService {
         return data && data.length > 0;
     }
 
-    async createContract(input: any, tenantId: string) {
+    async createContract(input: any, tenantId: string, entidadeGestoraId?: string) {
         if (!tenantId) {
             return { data: null, error: new Error("tenantId is required to create a contract.") };
         }
 
         // Map camelCase UI to snake_case DB
-        const payload = {
+        const payload: any = {
             number: input.number,
             code: input.code,
             title: input.title,
@@ -155,6 +174,10 @@ class ContractsService {
             rescission_pdf_url: input.rescission_pdf_url,
             tenant_id: tenantId
         };
+
+        if (entidadeGestoraId) {
+            payload.entidade_gestora_id = entidadeGestoraId;
+        }
 
         const { data: result, error } = await supabase
             .from("contracts")
@@ -200,8 +223,8 @@ class ContractsService {
         return { data: result ? this.enrichContract(result) : null, error };
     }
 
-    async create(data: any, tenantId: string): Promise<Contract> {
-        const { data: result, error } = await this.createContract(data, tenantId);
+    async create(data: any, tenantId: string, entidadeGestoraId?: string): Promise<Contract> {
+        const { data: result, error } = await this.createContract(data, tenantId, entidadeGestoraId);
         if (error) throw error;
         return result!;
     }
@@ -385,8 +408,8 @@ class ContractsService {
         if (error) throw error;
     }
 
-    async getDashboardMetrics(tenantId?: string): Promise<DashboardMetrics> {
-        const contracts = await this.list(tenantId);
+    async getDashboardMetrics(tenantId?: string, entidadeGestoraId?: string): Promise<DashboardMetrics> {
+        const contracts = await this.list(tenantId, entidadeGestoraId);
 
         let activeCount = 0;
         let expiringCount = 0;
@@ -409,17 +432,32 @@ class ContractsService {
         let compPercent = 0;
 
         try {
-            const { data: rpcData } = await supabase.rpc('get_compras_dashboard_financeiro');
-            const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+            if (tenantId && entidadeGestoraId) {
+                const { data: rpcData } = await supabase.rpc('get_compras_dashboard_financeiro_v2', {
+                    p_tenant_id: tenantId,
+                    p_entidade_gestora_id: entidadeGestoraId
+                });
+                const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
 
-            if (row) {
-                balanceValSumCount = Number(row.saldo_total ?? 0);
-                totalValSumCount = Number(row.contrato_total ?? 0);
-                compPercent = Number(row.comprometido_percent ?? 0);
+                if (row) {
+                    balanceValSumCount = Number(row.saldo_total ?? 0);
+                    totalValSumCount = Number(row.contrato_total ?? 0);
+                    compPercent = Number(row.comprometido_percent ?? 0);
+                }
+            } else {
+                const { data: rpcData } = await supabase.rpc('get_compras_dashboard_financeiro');
+                const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+
+                if (row) {
+                    balanceValSumCount = Number(row.saldo_total ?? 0);
+                    totalValSumCount = Number(row.contrato_total ?? 0);
+                    compPercent = Number(row.comprometido_percent ?? 0);
+                }
             }
         } catch (err) {
             console.error("Critical failure calling financial RPC:", err);
             balanceValSumCount = 0;
+            compPercent = 0;
         }
 
         const now = new Date();
@@ -433,6 +471,10 @@ class ContractsService {
 
         if (tenantId) {
             ofsQuery = ofsQuery.eq('tenant_id', tenantId);
+        }
+
+        if (entidadeGestoraId) {
+            ofsQuery = ofsQuery.eq('entidade_gestora_id', entidadeGestoraId);
         }
 
         const { data: ofsData, error: ofsError } = await ofsQuery.gte('issue_date', startOfLastMonth);

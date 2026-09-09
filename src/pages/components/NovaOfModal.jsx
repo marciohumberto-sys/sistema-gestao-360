@@ -8,10 +8,13 @@ import { ofsService } from '../../services/api/ofs.service';
 import { contractItemsService } from '../../services/api/contractItems.service';
 import { allocationsService } from '../../services/api/allocations.service';
 import { useTenant } from '../../context/TenantContext';
+import { useCompras } from '../../context/ComprasContext';
 
 const NovaOfModal = ({ isOpen, onClose, initialContractId = null }) => {
     const navigate = useNavigate();
     const { tenantId } = useTenant();
+    const { entidadeAtivaId, entidadeAtiva, loading: comprasLoading } = useCompras();
+    const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
 
     const [contracts, setContracts] = useState([]);
     const [selectedContractId, setSelectedContractId] = useState(initialContractId || '');
@@ -41,7 +44,7 @@ const NovaOfModal = ({ isOpen, onClose, initialContractId = null }) => {
             if (!tenantId || initialContractId) return;
             try {
                 setIsLoadingContracts(true);
-                const data = await contractsService.list(tenantId);
+                const data = await contractsService.list(tenantId, entidadeAtivaId);
                 setContracts(data.filter(c => c.status !== 'RESCINDIDO'));
             } catch (error) {
                 console.error("Erro ao carregar contratos:", error);
@@ -51,7 +54,7 @@ const NovaOfModal = ({ isOpen, onClose, initialContractId = null }) => {
         };
 
         if (isOpen) fetchContracts();
-    }, [isOpen, tenantId, initialContractId]);
+    }, [isOpen, tenantId, initialContractId, entidadeAtivaId]);
 
     // Update selectedContractId if initialContractId changes
     useEffect(() => {
@@ -108,6 +111,8 @@ const NovaOfModal = ({ isOpen, onClose, initialContractId = null }) => {
 
     const handleConfirmCreateOf = async () => {
         if (!selectedContractId || !selectedSecretariatId || isCreatingOf) return;
+        if (!isAdministracao && !selectedCommitmentId) return; // Saúde exige empenho
+        if (!isAdministracao && (!tenantId || !entidadeAtivaId || comprasLoading)) return; // Fail closed sem contexto da Saúde
 
         setIsCreatingOf(true);
         try {
@@ -117,7 +122,8 @@ const NovaOfModal = ({ isOpen, onClose, initialContractId = null }) => {
                 selectedContractId,
                 selectedSecretariatId,
                 today,
-                selectedCommitmentId || null
+                selectedCommitmentId || null,
+                isAdministracao ? undefined : entidadeAtivaId
             );
             
             onClose();
