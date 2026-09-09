@@ -33,25 +33,52 @@ export const laboratorioConferenciaService = {
                 patients.forEach(p => matchedPatientIds.add(p.id));
             }
 
-            // Passo 1B: Filtrar atendimentos
-            let attendancesQuery = supabase.from('lab_attendances').select('id, protocol_number, patient_id, attendance_date, requesting_doctor, delivery_location, agreement, attendance_origin');
+            // Passo 1B: Filtrar atendimentos com inner join no lab_results e lab_patients
+            const statusFilter = filters.status;
+            let selectStr = 'id, protocol_number, patient_id, attendance_date, requesting_doctor, delivery_location, agreement, attendance_origin, lab_results!inner(status), lab_patients!inner(code)';
+            
+            // Query para contar o total real (independente do limite de 1000 registros do PostgREST)
+            let countQuery = supabase.from('lab_attendances').select('id, lab_results!inner(status), lab_patients!inner(code)', { count: 'exact', head: true });
+            
+            let attendancesQuery = supabase.from('lab_attendances').select(selectStr);
             
             if (filters.protocol) {
                 attendancesQuery = attendancesQuery.ilike('protocol_number', `%${filters.protocol}%`);
+                countQuery = countQuery.ilike('protocol_number', `%${filters.protocol}%`);
             }
             if (filters.date) {
-                attendancesQuery = attendancesQuery.gte('attendance_date', `${filters.date}T00:00:00Z`)
-                                                   .lte('attendance_date', `${filters.date}T23:59:59Z`);
+                attendancesQuery = attendancesQuery.gte('attendance_date', `${filters.date}T00:00:00Z`).lte('attendance_date', `${filters.date}T23:59:59Z`);
+                countQuery = countQuery.gte('attendance_date', `${filters.date}T00:00:00Z`).lte('attendance_date', `${filters.date}T23:59:59Z`);
             }
             if (filters.attendance_origin) {
                 attendancesQuery = attendancesQuery.eq('attendance_origin', filters.attendance_origin);
+                countQuery = countQuery.eq('attendance_origin', filters.attendance_origin);
             }
             if (matchedPatientIds.size > 0) {
                 attendancesQuery = attendancesQuery.in('patient_id', Array.from(matchedPatientIds));
+                countQuery = countQuery.in('patient_id', Array.from(matchedPatientIds));
+            }
+
+            // Aplicar o filtro de status diretamente na raiz
+            if (statusFilter === 'LIBERADO') {
+                attendancesQuery = attendancesQuery.eq('lab_results.status', 'LIBERADO');
+                countQuery = countQuery.eq('lab_results.status', 'LIBERADO');
+            } else if (statusFilter === 'TODOS') {
+                attendancesQuery = attendancesQuery.in('lab_results.status', ['DIGITADO', 'LIBERADO']);
+                countQuery = countQuery.in('lab_results.status', ['DIGITADO', 'LIBERADO']);
+            } else {
+                attendancesQuery = attendancesQuery.eq('lab_results.status', 'DIGITADO');
+                countQuery = countQuery.eq('lab_results.status', 'DIGITADO');
             }
             
-            const { data: attendances, error: attError } = await attendancesQuery;
-            if (attError) throw attError;
+            // Garantir ordenação decrescente por código no banco antes de qualquer limite de paginação (1000)
+            attendancesQuery = attendancesQuery.order('lab_patients(code)', { ascending: false });
+            
+            const [attRes, countRes] = await Promise.all([attendancesQuery, countQuery]);
+            if (attRes.error) throw attRes.error;
+            
+            const attendances = attRes.data;
+            const totalAttendances = countRes.count || 0;
             if (!attendances || attendances.length === 0) return [];
             
             let filteredAttendances = attendances;
@@ -74,7 +101,6 @@ export const laboratorioConferenciaService = {
             const attIds = filteredAttendances.map(a => a.id);
 
             // Passo 2: Buscar resultados (exames) com status filtrado
-            const statusFilter = filters.status;
             
             let results = [];
             for (let i = 0; i < attIds.length; i += 100) {
@@ -183,6 +209,14 @@ export const laboratorioConferenciaService = {
                       fila.forEach(f => { f.parametros = counts[f.id] || 0; });
                  }
             }
+
+            fila.sort((a, b) => {
+                const codeA = parseInt(a.pacienteCode, 10) || 0;
+                const codeB = parseInt(b.pacienteCode, 10) || 0;
+                return codeB - codeA;
+            });
+
+            fila.totalAttendancesReal = totalAttendances;
 
             return fila;
         } catch (error) {

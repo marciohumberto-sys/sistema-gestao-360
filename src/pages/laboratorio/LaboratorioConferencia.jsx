@@ -255,25 +255,9 @@ const LaboratorioConferencia = () => {
             groups[ex.protocolo].exams.push(ex);
         });
         return Object.values(groups).sort((a, b) => {
-            const parseDate = (dStr) => {
-                if (!dStr) return 0;
-                if (dStr.includes('/')) {
-                    const [d, m, y] = dStr.split('/');
-                    return new Date(`${y}-${m}-${d}`).getTime();
-                }
-                return new Date(dStr).getTime();
-            };
-            
-            const dateA = parseDate(a.dataAtendimento);
-            const dateB = parseDate(b.dataAtendimento);
-            
-            if (dateA !== dateB) {
-                return dateA - dateB;
-            }
-            
-            const codeA = parseInt(a.pacienteCode) || 0;
-            const codeB = parseInt(b.pacienteCode) || 0;
-            return codeA - codeB;
+            const codeA = parseInt(a.pacienteCode, 10) || 0;
+            const codeB = parseInt(b.pacienteCode, 10) || 0;
+            return codeB - codeA;
         });
     }, [filteredResults]);
 
@@ -678,7 +662,7 @@ const LaboratorioConferencia = () => {
                                      'Todos os Atendimentos'}
                                 </h3>
                                 <span className="lab-conf-queue-count-badge">
-                                    {groupedProtocols.length} {groupedProtocols.length === 1 ? 'atendimento' : 'atendimentos'} • {filteredResults.length} {filteredResults.length === 1 ? (searchFilters.status === 'DIGITADO' ? 'exame pendente' : searchFilters.status === 'LIBERADO' ? 'exame liberado' : 'exame') : (searchFilters.status === 'DIGITADO' ? 'exames pendentes' : searchFilters.status === 'LIBERADO' ? 'exames liberados' : 'exames')}
+                                    {searchResults.totalAttendancesReal ? searchResults.totalAttendancesReal : groupedProtocols.length} {((searchResults.totalAttendancesReal || groupedProtocols.length) === 1) ? 'atendimento' : 'atendimentos'} • {filteredResults.length} {filteredResults.length === 1 ? (searchFilters.status === 'DIGITADO' ? 'exame pendente' : searchFilters.status === 'LIBERADO' ? 'exame liberado' : 'exame') : (searchFilters.status === 'DIGITADO' ? 'exames pendentes' : searchFilters.status === 'LIBERADO' ? 'exames liberados' : 'exames')}
                                     {groupedProtocols.length > 0 && (
                                         <span className="lab-conf-queue-loaded-tag">
                                             ({displayedProtocols.length} carregados)
