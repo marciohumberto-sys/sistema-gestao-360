@@ -424,8 +424,8 @@ const OfDetails = () => {
                 };
                 
                 console.log({
-                  quantityInput,
-                  unitPriceInput,
+                  quantityInput: newItemObj.quantity,
+                  unitPriceInput: newItemObj.unit_price,
                   quantityPayload,
                   unitPricePayload,
                   totalPricePayload,
