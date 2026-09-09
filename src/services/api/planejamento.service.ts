@@ -414,13 +414,15 @@ class PlanejamentoService {
             else if (action.status === 'PARALISADA')   color = '#f59e0b';
 
             return {
+                ...action,
                 id: action.id,
                 title: action.title || 'Sem título',
-                bairro: action.neighborhood || 'Centro',
+                bairro: action.neighborhood || action.address_district || action.address_neighborhood || '',
                 status: action.status || 'NAO_INICIADA',
                 progresso: action.progress_percent ?? 0,
                 secretaria: sec?.name || 'Não informada',
                 responsavel: action.responsible_name || 'Não informado',
+                eixo: action.planning_axes?.name || action.axis?.name || action.axis_name || action.eixo || '',
                 color,
                 latitude: action.latitude ?? null,
                 longitude: action.longitude ?? null,

@@ -31,6 +31,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { fetchAcoes, fetchAxes, fetchSecretariats, createAcao, updateAcao, deleteAcao, fetchObjectivesByAxis, fetchAllObjectives, fetchActionObjectives, createAtualizacao, fetchActionSecretariats, recordActionHistory, fetchActionDeletions, fetchUpdatesByAction } from '../../services/api/planejamentoAcoes.service';
 import { getPlanejamentoContext, canWritePlanejamento } from '../../utils/planejamentoAccess';
+import { geocodeActionAddressProgressive } from '../../services/api/cartoGeocoding.service';
 
 import { PLANNING_ACTION_TYPES_ARRAY, getActionTypeConfig, getActionTypeStages } from '../../modules/planejamento/constants/planningActionTypes';
 
@@ -948,6 +949,15 @@ const AcoesList = () => {
         setSaveLoading(true);
         setSaveError(null);
         try {
+            if (finalData.show_on_map && (!finalData.latitude || !finalData.longitude)) {
+                if (finalData.address_street || finalData.address_district || finalData.address_reference || finalData.referencia || finalData.nome || finalData.title || finalData.local) {
+                    const coords = await geocodeActionAddressProgressive(finalData);
+                    if (coords) {
+                        finalData.latitude = coords.lat;
+                        finalData.longitude = coords.lng;
+                    }
+                }
+            }
 
             if (editingAcao) {
                 // Snapshot ANTES do save (editingAcao contém os valores originais)
