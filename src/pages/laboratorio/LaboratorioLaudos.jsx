@@ -22,6 +22,20 @@ const getLocalDateInputValue = (date = new Date()) => {
     return `${year}-${month}-${day}`;
 };
 
+const EmissionAtContext = React.createContext(null);
+
+const formatCompactDateTime = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const HH = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}/${mm}/${yyyy} ${HH}:${min}`;
+};
+
 // ==============================================================
 // LÓGICAS EXCLUSIVAS DO HEMOGRAMA COMPACTO
 // ==============================================================
@@ -91,6 +105,7 @@ const GraficoHemo = ({ value, min, max, parameterCode, containerMaxWidth = '80px
 };
 
 const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, patientCode, signatureSignedUrl, isComposed = false }) => {
+    const emissionAt = React.useContext(EmissionAtContext);
     const bDate = selectedExam.pacienteDataNascimento ? new Date(selectedExam.pacienteDataNascimento.split('/').reverse().join('-')) : null;
     let aDateStr = selectedExam.dataAtendimentoRaw || selectedExam.dataAtendimento;
     if (aDateStr && aDateStr.includes('/')) aDateStr = aDateStr.split('/').reverse().join('-');
@@ -323,8 +338,12 @@ const HemogramaCompactoCompleto = ({ selectedExam, examDetails, statusReal, pati
                     <div><span className="hemo-lbl">Médico:</span> {selectedExam.medico || 'NÃO INFORMADO'}</div>
                     <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam.pacienteCode || selectedExam.patientCode || '---'}</div>
                     <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam.pacienteDataNascimento}</div>
-                    <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(selectedExam?.attendance_created_at || selectedExam?.created_at)}</div>
-                    <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH(selectedExam.released_at || selectedExam.checked_at)}</div>
+                    <div>
+                        <span className="hemo-lbl">Cadastro:</span> {formatCompactDateTime(selectedExam?.attendance_created_at || selectedExam?.created_at)}
+                        <span style={{ display: 'inline-block', width: '12px' }}></span>
+                        <span className="hemo-lbl">Conferência:</span> {formatCompactDateTime(selectedExam?.checked_at || selectedExam?.released_at)}
+                    </div>
+                    <div><span className="hemo-lbl">Emissão:</span> {formatCompactDateTime(emissionAt)}</div>
                 </div>
                 <div className="hemo-patient-col right">
                     <div><span className="hemo-lbl">Idade:</span> {selectedExam.pacienteIdade}</div>
@@ -565,6 +584,7 @@ const cleanValueURI = (val) => {
 };
 
 const LaudoURI = ({ selectedExam, examDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl, isComposed = false }) => {
+    const emissionAt = React.useContext(EmissionAtContext);
     const getParam = (names) => {
         return examDetails.find(p => {
             const code = (p.parameter_code || p.code || p.parameter_name || '').toUpperCase().trim();
@@ -628,8 +648,12 @@ const LaudoURI = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
                         <div><span className="hemo-lbl">Médico:</span> {selectedExam?.medico || 'NÃO INFORMADO'}</div>
                         <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam?.pacienteCode || selectedExam?.patientCode || '---'}</div>
                         <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam?.pacienteDataNascimento}</div>
-                        <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(selectedExam?.attendance_created_at || selectedExam?.created_at)}</div>
-                        <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.released_at || selectedExam?.checked_at) : ''}</div>
+                        <div>
+                            <span className="hemo-lbl">Cadastro:</span> {formatCompactDateTime(selectedExam?.attendance_created_at || selectedExam?.created_at)}
+                            <span style={{ display: 'inline-block', width: '12px' }}></span>
+                            <span className="hemo-lbl">Conferência:</span> {formatCompactDateTime(selectedExam?.checked_at || selectedExam?.released_at)}
+                        </div>
+                        <div><span className="hemo-lbl">Emissão:</span> {formatCompactDateTime(emissionAt)}</div>
                     </div>
                     <div className="hemo-patient-col right">
                         <div><span className="hemo-lbl">Idade:</span> {selectedExam?.pacienteIdade}</div>
@@ -751,6 +775,7 @@ const LaudoURI = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
 };
 
 const LaudoPAR = ({ selectedExam, examDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl, isComposed = false }) => {
+    const emissionAt = React.useContext(EmissionAtContext);
     const isObs = (name) => {
         const n = (name || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         return n === 'OBSERVACAO' || n === 'OBSERVACAO GERAL';
@@ -797,8 +822,12 @@ const LaudoPAR = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
                         <div><span className="hemo-lbl">Médico:</span> {selectedExam?.medico || 'NÃO INFORMADO'}</div>
                         <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam?.pacienteCode || selectedExam?.patientCode || '---'}</div>
                         <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam?.pacienteDataNascimento}</div>
-                        <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(selectedExam?.attendance_created_at || selectedExam?.created_at)}</div>
-                        <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.released_at || selectedExam?.checked_at) : ''}</div>
+                        <div>
+                            <span className="hemo-lbl">Cadastro:</span> {formatCompactDateTime(selectedExam?.attendance_created_at || selectedExam?.created_at)}
+                            <span style={{ display: 'inline-block', width: '12px' }}></span>
+                            <span className="hemo-lbl">Conferência:</span> {formatCompactDateTime(selectedExam?.checked_at || selectedExam?.released_at)}
+                        </div>
+                        <div><span className="hemo-lbl">Emissão:</span> {formatCompactDateTime(emissionAt)}</div>
                     </div>
                     <div className="hemo-patient-col right">
                         <div><span className="hemo-lbl">Idade:</span> {selectedExam?.pacienteIdade}</div>
@@ -1113,6 +1142,7 @@ const GraficoHistoricoExame = ({ historico, refMin, refMax, subtitle, examCode }
 };
 
 const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDateTimeH, patientCode, formatAttendanceOrigin, signatureSignedUrl, isComposed = false }) => {
+    const emissionAt = React.useContext(EmissionAtContext);
     const [historicoExame, setHistoricoExame] = useState(null);
     const [loadingHistorico, setLoadingHistorico] = useState(false);
 
@@ -1338,8 +1368,12 @@ const LaudoExameSimples = ({ selectedExam, examDetails, loadingDetails, formatDa
                         <div><span className="hemo-lbl">Médico:</span> {selectedExam?.medico || 'NÃO INFORMADO'}</div>
                         <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || selectedExam?.pacienteCode || selectedExam?.patientCode || '---'}</div>
                         <div><span className="hemo-lbl">Data Nasc.:</span> {selectedExam?.pacienteDataNascimento}</div>
-                        <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(selectedExam?.attendance_created_at || selectedExam?.created_at)}</div>
-                        <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(selectedExam?.released_at || selectedExam?.checked_at) : ''}</div>
+                        <div>
+                            <span className="hemo-lbl">Cadastro:</span> {formatCompactDateTime(selectedExam?.attendance_created_at || selectedExam?.created_at)}
+                            <span style={{ display: 'inline-block', width: '12px' }}></span>
+                            <span className="hemo-lbl">Conferência:</span> {formatCompactDateTime(selectedExam?.checked_at || selectedExam?.released_at)}
+                        </div>
+                        <div><span className="hemo-lbl">Emissão:</span> {formatCompactDateTime(emissionAt)}</div>
                     </div>
                     <div className="hemo-patient-col right">
                         <div><span className="hemo-lbl">Idade:</span> {selectedExam?.pacienteIdade}</div>
@@ -1821,6 +1855,7 @@ const LaudoExameRender = ({ examData, formatDateTimeH, formatAttendanceOrigin, s
 };
 
 const LaudoA4Page = ({ pageExamData, pageNumber, patientCode, selectedProtocol, formatDateTimeH, formatAttendanceOrigin, statusReal }) => {
+    const emissionAt = React.useContext(EmissionAtContext);
     const firstExamData = pageExamData?.[0] ?? null;
 
     if (!firstExamData) {
@@ -1851,8 +1886,12 @@ const LaudoA4Page = ({ pageExamData, pageNumber, patientCode, selectedProtocol, 
                     <div><span className="hemo-lbl">Médico:</span> {firstExam?.medico || 'NÃO INFORMADO'}</div>
                     <div><span className="hemo-lbl">Cód. Paciente:</span> {patientCode || firstExam?.pacienteCode || firstExam?.patientCode || '---'}</div>
                     <div><span className="hemo-lbl">Data Nasc.:</span> {firstExam?.pacienteDataNascimento}</div>
-                    <div><span className="hemo-lbl">Cadastro:</span> {formatDateTimeRecife(firstExam?.attendance_created_at || firstExam?.created_at)}</div>
-                    <div><span className="hemo-lbl">Emissão:</span> {formatDateTimeH ? formatDateTimeH(firstExam?.released_at || firstExam?.checked_at) : ''}</div>
+                    <div>
+                        <span className="hemo-lbl">Cadastro:</span> {formatCompactDateTime(firstExam?.attendance_created_at || firstExam?.created_at)}
+                        <span style={{ display: 'inline-block', width: '12px' }}></span>
+                        <span className="hemo-lbl">Conferência:</span> {formatCompactDateTime(firstExam?.checked_at || firstExam?.released_at)}
+                    </div>
+                    <div><span className="hemo-lbl">Emissão:</span> {formatCompactDateTime(emissionAt)}</div>
                 </div>
                 <div className="hemo-patient-col right">
                     <div><span className="hemo-lbl">Idade:</span> {firstExam?.pacienteIdade}</div>
@@ -1995,6 +2034,8 @@ const LaboratorioLaudos = () => {
     const [batchContext, setBatchContext] = useState(null);
     const batchContainerRef = useRef(null);
     const batchRenderResolverRef = useRef(null);
+
+    const emissionAtDate = useMemo(() => new Date().toISOString(), [selectedExam?.id, batchContext]);
     const [completeExamDataById, setCompleteExamDataById] = useState({});
     const [loadingCompletePreview, setLoadingCompletePreview] = useState(false);
     const completeExamDataCacheRef = useRef({});
@@ -3935,6 +3976,7 @@ const LaboratorioLaudos = () => {
     const statusReal = selectedExam ? String(selectedExam.status || '').trim().toUpperCase() : '';
 
     return (
+        <EmissionAtContext.Provider value={emissionAtDate}>
         <div className="lab-laudos-container">
             <style>{`
                 .result-value-long {
@@ -4755,6 +4797,7 @@ const LaboratorioLaudos = () => {
                 )}
             </div>
         </div>
+        </EmissionAtContext.Provider>
     );
 };
 

@@ -437,17 +437,46 @@ const LaboratorioResultados = () => {
                     attendance_origin: searchFilters.attendance_origin
                 };
 
-                const res = await executeSearch({
-                    targetPage: 1,
-                    keepSelectedAttendance: true,
-                    filtersOverride: { ...searchFilters, ...filtrosAmpliados }
-                });
+                // Removemos o selectedAttendance temporariamente para mostrar o loading caso demore
+                let currentCursor = 0;
+                let found = false;
+                let accumulatedItems = [];
+                let hasMoreItems = true;
+                let pagesLoaded = 0;
+                
+                // Busca até 4 páginas de 50 itens (200 itens) para tentar achar a posição natural do paciente
+                while (!found && hasMoreItems && pagesLoaded < 4) {
+                    const res = await laboratorioResultadosService.buscarAtendimentosProgressivos({
+                        filtros: filtrosAmpliados,
+                        cursor: currentCursor,
+                        limit: 50
+                    });
 
-                if (res?.items && res.items.length > 0) {
-                    const foundInExpanded = res.items.find(a => a.id === att.id);
-                    if (foundInExpanded) {
-                        setSelectedAttendance(foundInExpanded);
+                    if (res?.items && res.items.length > 0) {
+                        accumulatedItems = [...accumulatedItems, ...res.items];
+                        currentCursor = res.nextCursor || 0;
+                        hasMoreItems = !!res.hasMore;
+                        if (res.items.find(a => a.id === att.id)) {
+                            found = true;
+                        }
+                    } else {
+                        hasMoreItems = false;
                     }
+                    pagesLoaded++;
+                }
+
+                if (found) {
+                    setSearchResults(accumulatedItems);
+                    setNextCursor(currentCursor);
+                    setHasMore(hasMoreItems);
+                    const foundInExpanded = accumulatedItems.find(a => a.id === att.id);
+                    setSelectedAttendance(foundInExpanded || att);
+                } else {
+                    // Se o paciente estiver muito longe na fila (mais de 200 registros de distância)
+                    // ou não corresponder mais aos filtros (ex: data diferente),
+                    // isolamos ele na fila para evitar navegação inconsistente.
+                    setSearchResults([att]);
+                    setSelectedAttendance(att);
                 }
             } catch (err) {
                 console.error('[LaboratorioResultados] Erro ao carregar fila ampliada:', err);
