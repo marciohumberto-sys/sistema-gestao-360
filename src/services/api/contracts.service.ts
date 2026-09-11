@@ -145,10 +145,16 @@ class ContractsService {
             return { data: null, error: new Error("tenantId is required to create a contract.") };
         }
 
+        const normalizedCode = input.code?.trim() || input.number?.trim();
+
+        if (!normalizedCode) {
+            return { data: null, error: new Error("É obrigatório informar o Número ou Código do contrato.") };
+        }
+
         // Map camelCase UI to snake_case DB
         const payload: any = {
             number: input.number,
-            code: input.code,
+            code: normalizedCode,
             title: input.title,
             supplier_name: input.supplierName,
             total_value: input.totalValue,

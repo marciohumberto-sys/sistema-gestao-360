@@ -405,25 +405,61 @@ const Contratos = () => {
         if (!tenantId) return;
 
         setIsSubmitting(true);
+        let newlyUploadedContractPath = null;
+        let newlyUploadedRescissionPath = null;
+
         try {
+            const isAdm = entidadeAtiva?.codigo === 'ADMINISTRACAO';
+            const normalizedCode = formData.code?.trim() || formData.number?.trim();
+
+            if (editingContract) {
+                if (normalizedCode) {
+                    const isDuplicate = await contractsService.checkDuplicateCode(normalizedCode, tenantId, editingContract.id, entidadeAtivaId);
+                    if (isDuplicate) {
+                        setFeedback({ type: 'error', message: 'Já existe um contrato com este código. Informe outro código para continuar.' });
+                        setIsSubmitting(false);
+                        return;
+                    }
+                }
+            } else {
+                if (normalizedCode) {
+                    const isDuplicate = await contractsService.checkDuplicateCode(normalizedCode, tenantId, undefined, entidadeAtivaId);
+                    if (isDuplicate) {
+                        setFeedback({ type: 'error', message: 'Já existe um contrato com este código. Informe outro código para continuar.' });
+                        setIsSubmitting(false);
+                        return;
+                    }
+                }
+            }
+
             let finalContract_pdf_url = formData.contract_pdf_url;
             let finalRescission_pdf_url = formData.rescission_pdf_url;
 
             // Handle file uploads
             if (contractFile) {
+                if (!isAdm && !entidadeAtivaId) {
+                    throw new Error("Contexto da entidade não carregado (faltando entidadeAtivaId). Tente novamente.");
+                }
                 const sanitizedName = sanitizeFilename(contractFile.name);
-                const path = `${tenantId}/${Date.now()}_${sanitizedName}`;
+                const path = isAdm ? `${tenantId}/${Date.now()}_${sanitizedName}` : `${tenantId}/${entidadeAtivaId}/${Date.now()}_${sanitizedName}`;
+                
                 const { publicUrl, error: uploadError } = await filesService.uploadFile(contractFile, 'contracts_files', path);
                 if (uploadError) throw new Error("Erro no upload do arquivo do contrato.");
                 finalContract_pdf_url = publicUrl;
+                newlyUploadedContractPath = path;
             }
 
             if (isRescissionActive && rescissionFile) {
+                if (!isAdm && !entidadeAtivaId) {
+                    throw new Error("Contexto da entidade não carregado (faltando entidadeAtivaId). Tente novamente.");
+                }
                 const sanitizedName = sanitizeFilename(rescissionFile.name);
-                const path = `${tenantId}/${Date.now()}_${sanitizedName}`;
+                const path = isAdm ? `${tenantId}/${Date.now()}_${sanitizedName}` : `${tenantId}/${entidadeAtivaId}/${Date.now()}_${sanitizedName}`;
+                
                 const { publicUrl, error: uploadError } = await filesService.uploadFile(rescissionFile, 'contracts_files', path);
                 if (uploadError) throw new Error("Erro no upload do arquivo de rescisão.");
                 finalRescission_pdf_url = publicUrl;
+                newlyUploadedRescissionPath = path;
             }
 
             const payload = {
@@ -466,35 +502,13 @@ const Contratos = () => {
                 })
             };
 
-            const trimmedCode = formData.code?.trim();
-
             if (editingContract) {
-                // Objective 1: Check for duplicate code during update
-                if (trimmedCode) {
-                    const isDuplicate = await contractsService.checkDuplicateCode(trimmedCode, tenantId, editingContract.id, entidadeAtivaId);
-                    if (isDuplicate) {
-                        setFeedback({ type: 'error', message: 'Já existe um contrato com este código. Informe outro código para continuar.' });
-                        setIsSubmitting(false);
-                        return;
-                    }
-                }
-
-                payload.code = trimmedCode || null;
+                payload.code = normalizedCode;
 
                 await contractsService.update(editingContract.id, payload);
                 setFeedback({ type: 'success', message: 'Contrato atualizado com sucesso!' });
             } else {
-                // Objective 1: Check for duplicate code during creation
-                if (trimmedCode) {
-                    const isDuplicate = await contractsService.checkDuplicateCode(trimmedCode, tenantId, undefined, entidadeAtivaId);
-                    if (isDuplicate) {
-                        setFeedback({ type: 'error', message: 'Já existe um contrato com este código. Informe outro código para continuar.' });
-                        setIsSubmitting(false);
-                        return;
-                    }
-                }
-
-                payload.code = trimmedCode || null;
+                payload.code = normalizedCode;
                 console.log("PAYLOAD_CREATE_CONTRACT:", { ...payload, tenantId });
 
                 const { error } = await contractsService.createContract(payload, tenantId, entidadeAtivaId);
@@ -510,6 +524,16 @@ const Contratos = () => {
 
         } catch (error) {
             console.error(editingContract ? "Erro ao atualizar contrato:" : "Erro ao criar contrato:", error);
+            
+            if (!editingContract && entidadeAtiva?.codigo !== 'ADMINISTRACAO') {
+                if (newlyUploadedContractPath) {
+                    try { await filesService.deleteFile('contracts_files', newlyUploadedContractPath); } catch (e) { console.error("Erro ao limpar arquivo órfão", e); }
+                }
+                if (newlyUploadedRescissionPath) {
+                    try { await filesService.deleteFile('contracts_files', newlyUploadedRescissionPath); } catch (e) { console.error("Erro ao limpar arquivo órfão", e); }
+                }
+            }
+
             setFeedback({ 
                 type: 'error', 
                 message: (editingContract ? "Erro ao atualizar contrato: " : "Erro ao criar contrato: ") + mapErrorToMessage(error) 
@@ -869,7 +893,7 @@ const Contratos = () => {
 
                                             {isPdfSectionExpanded && (
                                                 <div className="collapsible-content" style={{ padding: '15px', border: '1px solid #e2e8f0', borderTop: 'none', borderRadius: '0 0 8px 8px', background: '#fff', marginBottom: '1rem' }}>
-                                                    <label htmlFor="contract-pdf-upload" className={`upload-card ${contractFile ? 'has-file' : ''}`} style={entidadeAtiva?.codigo !== 'ADMINISTRACAO' ? { opacity: 0.5, cursor: 'not-allowed' } : {}} title={entidadeAtiva?.codigo !== 'ADMINISTRACAO' ? "Anexos da Saúde serão habilitados após a segregação do armazenamento." : undefined}>
+                                                    <label htmlFor="contract-pdf-upload" className={`upload-card ${contractFile ? 'has-file' : ''}`}>
                                                         <div className="upload-icon-wrapper">
                                                             {contractFile ? <FileText size={24} /> : <UploadCloud size={24} />}
                                                         </div>
@@ -954,7 +978,6 @@ const Contratos = () => {
                                                             id="contract-pdf-upload"
                                                             type="file"
                                                             accept="application/pdf"
-                                                            disabled={entidadeAtiva?.codigo !== 'ADMINISTRACAO'}
                                                             onChange={e => setContractFile(e.target.files[0])}
                                                             style={{ display: 'none' }}
                                                         />
