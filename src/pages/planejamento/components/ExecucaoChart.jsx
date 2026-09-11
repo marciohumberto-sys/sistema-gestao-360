@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     LineChart,
     Line,
@@ -96,6 +96,9 @@ const StatRow = ({ label, value, pct, color, divider }) => (
 
 // ── Componente principal ──────────────────────────────────────────────────────
 const ExecucaoChart = ({ data: execucao }) => {
+    const anoAtual = new Date().getFullYear();
+    const [mostrarFuturo, setMostrarFuturo] = useState(false);
+
     if (!execucao || execucao.length === 0) {
         return (
             <div className="dashboard-card animate-fade-in-up delay-100" style={{
@@ -118,10 +121,28 @@ const ExecucaoChart = ({ data: execucao }) => {
     // Dados dinâmicos — todos vindos do cálculo/banco
     // total é TOTAL_OFICIAL_PLANO = 221 (definido no serviço)
     const totalObjetivos   = execucao[execucao.length - 1]?.total       ?? 0;
-    const ultimo           = execucao[execucao.length - 1]              ?? {};
-    const iniciados2028    = ultimo.iniciadas                            ?? 0;
-    const concluidos2028   = ultimo.concluidas                          ?? 0;
-    const naoIniciados2028 = ultimo.naoIniciadas                        ?? 0;
+
+    // Filtra os anos futuros do gráfico se a opção estiver desmarcada
+    const chartData = mostrarFuturo 
+        ? execucao 
+        : execucao.filter(d => {
+            const anoMatch = d.name?.match(/^(\d{4})/);
+            if (anoMatch) {
+                return parseInt(anoMatch[1], 10) <= anoAtual;
+            }
+            return true; // fallback
+        });
+
+    // O painel lateral sempre mostra os dados do último período visível
+    const ultimoVisivel = chartData[chartData.length - 1] ?? {};
+    
+    // O ano do último ponto visível para compor os textos
+    const anoUltimoVisivelMatch = ultimoVisivel.name?.match(/^(\d{4})/);
+    const anoExibidoPainel = anoUltimoVisivelMatch ? anoUltimoVisivelMatch[1] : 2028;
+
+    const iniciados2028    = ultimoVisivel.iniciadas                            ?? 0;
+    const concluidos2028   = ultimoVisivel.concluidas                          ?? 0;
+    const naoIniciados2028 = ultimoVisivel.naoIniciadas                        ?? 0;
     const pct = (val) => totalObjetivos > 0 ? (val / totalObjetivos * 100).toFixed(1) : '0.0';
 
     return (
@@ -191,7 +212,7 @@ const ExecucaoChart = ({ data: execucao }) => {
                                     Período exibido
                                 </div>
                                 <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#334155', lineHeight: 1.1 }}>
-                                    2024&nbsp;&nbsp; a&nbsp;&nbsp; 2028
+                                    2024&nbsp;&nbsp; a&nbsp;&nbsp; {anoExibidoPainel}
                                 </div>
                             </div>
                         </div>
@@ -203,7 +224,7 @@ const ExecucaoChart = ({ data: execucao }) => {
                             Quantidade de objetivos
                         </div>
                         <ResponsiveContainer width="100%" height={280}>
-                            <LineChart data={execucao} margin={{ top: 22, right: 20, bottom: 4 }}>
+                            <LineChart data={chartData} margin={{ top: 22, right: 20, bottom: 4 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis
                                     dataKey="name"
@@ -301,9 +322,19 @@ const ExecucaoChart = ({ data: execucao }) => {
                 }}>
                     <div style={{
                         fontSize: '0.85rem', fontWeight: 700, color: '#0f172a',
-                        paddingBottom: '10px', borderBottom: '1px solid #f1f5f9', marginBottom: '2px'
+                        paddingBottom: '10px', borderBottom: '1px solid #f1f5f9', marginBottom: '2px',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                     }}>
-                        Situação atual (2028)
+                        <span>Situação atual ({anoExibidoPainel})</span>
+                        <label style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', background: '#f8fafc', padding: '2px 6px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                            <input 
+                                type="checkbox" 
+                                checked={mostrarFuturo} 
+                                onChange={(e) => setMostrarFuturo(e.target.checked)} 
+                                style={{ margin: 0, cursor: 'pointer', width: '12px', height: '12px' }}
+                            />
+                            Futuro
+                        </label>
                     </div>
 
                     <StatRow label="Objetivos iniciados"     value={iniciados2028}    pct={pct(iniciados2028)}    color={COR_INICIADAS}  divider={true} />

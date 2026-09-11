@@ -201,6 +201,122 @@ const getDisplayName = (del, usersMap) => {
     return 'Usuário não identificado';
 };
 
+const BairroCombobox = ({ value, onChange, options }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+                setSearch('');
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const filteredOptions = useMemo(() => {
+        if (!search.trim()) return options;
+        const s = search.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return options.filter(opt => opt.display.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(s));
+    }, [options, search]);
+
+    const displayValue = value === 'Todas' ? 'Bairro: Todos' : (options.find(o => o.norm === value)?.display || value);
+
+    return (
+        <div ref={dropdownRef} className="farmacia-select-wrapper localizacao-wrapper" style={{ minWidth: '180px', position: 'relative' }}>
+            <div 
+                className="farmacia-filter-select"
+                style={{ 
+                    width: '100%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    paddingRight: '12px'
+                }}
+                onClick={() => {
+                    setIsOpen(!isOpen);
+                    if (!isOpen) setSearch('');
+                }}
+            >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {displayValue}
+                </span>
+                <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            </div>
+
+            {isOpen && (
+                <div style={{
+                    position: 'absolute', top: '100%', right: 0, left: 'auto',
+                    minWidth: '230px',
+                    marginTop: '4px', background: '#fff', border: '1px solid #e2e8f0',
+                    borderRadius: '6px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
+                    zIndex: 50, display: 'flex', flexDirection: 'column'
+                }}>
+                    <div style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <Search size={14} style={{ position: 'absolute', left: '8px', color: '#94a3b8' }} />
+                            <input
+                                autoFocus
+                                type="text"
+                                placeholder="Buscar bairro..."
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                style={{
+                                    width: '100%', padding: '6px 8px 6px 28px',
+                                    border: '1px solid #cbd5e1', borderRadius: '4px',
+                                    fontSize: '0.85rem', outline: 'none'
+                                }}
+                            />
+                        </div>
+                    </div>
+                    <div style={{ overflowX: 'hidden', overflowY: 'auto', maxHeight: '280px', flex: 1, padding: '4px 0' }}>
+                        <div 
+                            style={{ 
+                                padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', 
+                                background: value === 'Todas' ? '#f0f9ff' : 'transparent', 
+                                color: value === 'Todas' ? '#0369a1' : '#334155',
+                                whiteSpace: 'normal', wordBreak: 'break-word'
+                            }}
+                            onClick={() => { onChange('Todas'); setIsOpen(false); setSearch(''); }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                            onMouseLeave={e => e.currentTarget.style.background = value === 'Todas' ? '#f0f9ff' : 'transparent'}
+                        >
+                            Bairro: Todos
+                        </div>
+                        {filteredOptions.length === 0 ? (
+                            <div style={{ padding: '8px 12px', fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center' }}>
+                                Nenhum bairro encontrado
+                            </div>
+                        ) : (
+                            filteredOptions.map(loc => (
+                                <div
+                                    key={loc.norm}
+                                    style={{ 
+                                        padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', 
+                                        background: value === loc.norm ? '#f0f9ff' : 'transparent', 
+                                        color: value === loc.norm ? '#0369a1' : '#334155',
+                                        whiteSpace: 'normal', wordBreak: 'break-word' 
+                                    }}
+                                    onClick={() => { onChange(loc.norm); setIsOpen(false); setSearch(''); }}
+                                    onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                                    onMouseLeave={e => e.currentTarget.style.background = value === loc.norm ? '#f0f9ff' : 'transparent'}
+                                >
+                                    {loc.display}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const AcoesList = () => {
     const { authUser, tenantLink, scopes, isSuperAdmin } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
@@ -214,6 +330,7 @@ const AcoesList = () => {
     const [secretariaFiltro, setSecretariaFiltro] = useState(contextoPlanejamento.hasMultipleRestrictedSecretariats ? 'todas_minhas' : (contextoPlanejamento.hasRestrictedAccess ? (contextoPlanejamento.primarySecretariatId || 'nenhuma') : 'Todas'));
     const [tipoFiltro, setTipoFiltro] = useState('Todos');
     const [eixoFiltro, setEixoFiltro] = useState('Todos');
+    const [localizacaoFiltro, setLocalizacaoFiltro] = useState('Todas');
     const [secretariatsTooltip, setSecretariatsTooltip] = useState(null);
 
     // Estado dos dados reais
@@ -991,6 +1108,42 @@ const AcoesList = () => {
         return objectivesList.length > 0 && objectivesList.some(o => o.is_active);
     }, [objectivesList, editingAcao]);
 
+    const normalizarTexto = (value = '') => {
+        return String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, ' ');
+    };
+
+    const locaisDisponiveis = useMemo(() => {
+        const map = new Map();
+        
+        const formatarExibicao = (str) => {
+            if (!str) return '';
+            return str.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        };
+
+        acoes.forEach(a => {
+            const campos = [
+                a.neighborhood, a.address_district, a.address_neighborhood, a.bairro
+            ];
+            
+            campos.forEach(c => {
+                if (c && typeof c === 'string' && c.trim() !== '') {
+                    const norm = normalizarTexto(c);
+                    if (!map.has(norm)) {
+                        map.set(norm, formatarExibicao(c));
+                    }
+                }
+            });
+        });
+        
+        return Array.from(map.entries()).map(([norm, display]) => ({ norm, display }))
+            .sort((a, b) => a.display.localeCompare(b.display, 'pt-BR'));
+    }, [acoes]);
+
     const handleSort = (key) => {
         let direction = 'asc';
         if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -1001,7 +1154,25 @@ const AcoesList = () => {
 
     const acoesFiltradas = useMemo(() => {
         let filtered = acoes.filter(a => {
-            const mBusca = (a.nome || '').toLowerCase().includes(busca.toLowerCase()) || (a.local || '').toLowerCase().includes(busca.toLowerCase());
+            const b = normalizarTexto(busca);
+            const mBusca = b === '' || (() => {
+                const searchableText = normalizarTexto([
+                    a.title, a.nome, a.description, a.descricao, 
+                    a.action_type, a.type, a.status,
+                    a.axis_name, a.eixo,
+                    a.objective_title, a.objective_name, a.objective,
+                    a.secretaria, a.secretaria_nome,
+                    a.responsavel, a.responsible_name,
+                    ...(a.participantes || []).map(p => p.nome),
+                    a.neighborhood, a.address_district, a.address_neighborhood, a.bairro,
+                    a.address_street, a.street, a.rua,
+                    a.address_number, a.numero,
+                    a.address_complement, a.complemento,
+                    a.reference, a.reference_point, a.address_reference, a.referencia, a.ponto_referencia, a.local,
+                    a.address_city, a.cidade
+                ].filter(Boolean).join(' '));
+                return searchableText.includes(b);
+            })();
             const mStatus = statusFiltro === 'Todos' || a.status === statusFiltro;
             let mSec = false;
             if (secretariaFiltro === 'Todas') {
@@ -1014,7 +1185,15 @@ const AcoesList = () => {
             }
             const mTipo = tipoFiltro === 'Todos' || (a.action_type || 'PROJETO') === tipoFiltro || (tipoFiltro === 'ACAO_PONTUAL' && a.action_type === 'ACAO');
             const mEixo = eixoFiltro === 'Todos' || a.axis_id === eixoFiltro || a.eixoId === eixoFiltro || a.axisId === eixoFiltro || a.eixo_id === eixoFiltro;
-            return mBusca && mStatus && mSec && mTipo && mEixo;
+            
+            const mLocalizacao = localizacaoFiltro === 'Todas' || (() => {
+                const campos = [
+                    a.neighborhood, a.address_district, a.address_neighborhood, a.bairro
+                ];
+                return campos.some(c => c && typeof c === 'string' && normalizarTexto(c) === localizacaoFiltro);
+            })();
+
+            return mBusca && mStatus && mSec && mTipo && mEixo && mLocalizacao;
         });
 
         if (sortConfig.key) {
@@ -1038,7 +1217,7 @@ const AcoesList = () => {
         }
 
         return filtered;
-    }, [busca, statusFiltro, secretariaFiltro, tipoFiltro, eixoFiltro, acoes, sortConfig]);
+    }, [busca, statusFiltro, secretariaFiltro, tipoFiltro, eixoFiltro, localizacaoFiltro, acoes, sortConfig]);
 
     const metrics = useMemo(() => {
         const now = new Date();
@@ -1270,7 +1449,7 @@ const AcoesList = () => {
                             <input
                                 type="text"
                                 className="farmacia-search-input"
-                                placeholder="Buscar ação ou local..."
+                                placeholder="Buscar ação, bairro, rua ou referência..."
                                 value={busca}
                                 onChange={(e) => setBusca(e.target.value)}
                             />
@@ -1348,6 +1527,12 @@ const AcoesList = () => {
                             </select>
                             <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                         </div>
+
+                        <BairroCombobox 
+                            value={localizacaoFiltro}
+                            onChange={setLocalizacaoFiltro}
+                            options={locaisDisponiveis}
+                        />
                     </div>
                 </div>
 
@@ -1389,6 +1574,11 @@ const AcoesList = () => {
                         max-width: 160px !important;
                     }
                     .eixo-wrapper {
+                        flex: 1 1 0% !important;
+                        min-width: 120px !important;
+                        max-width: 160px !important;
+                    }
+                    .localizacao-wrapper {
                         flex: 1 1 0% !important;
                         min-width: 120px !important;
                         max-width: 160px !important;
