@@ -732,6 +732,46 @@ class LaboratorioResultadosService {
         return Array.isArray(data) ? data[0] : data;
     }
 
+    async getVizinhoAttendance(currentPatientCode, direction) {
+        if (!currentPatientCode) return null;
+
+        // direction: 'next' (Próximo paciente - código menor na ordem DESC)
+        // direction: 'prev' (Paciente anterior - código maior na ordem DESC)
+        
+        let query = supabase
+            .from('lab_patients')
+            .select('id, code, lab_attendances!inner(protocol_number, attendance_date)');
+
+        if (direction === 'next') {
+            query = query.lt('code', currentPatientCode).order('code', { ascending: false });
+        } else {
+            query = query.gt('code', currentPatientCode).order('code', { ascending: true });
+        }
+
+        const { data, error } = await query.limit(1);
+
+        if (error) {
+            console.error('[getVizinhoAttendance] Erro:', error);
+            return null;
+        }
+
+        if (data && data.length > 0) {
+            const patient = data[0];
+            if (patient.lab_attendances && patient.lab_attendances.length > 0) {
+                // Ordena os atendimentos do paciente pelo mais recente
+                const attendances = [...patient.lab_attendances].sort((a, b) => {
+                    return new Date(b.attendance_date) - new Date(a.attendance_date);
+                });
+                return {
+                    protocol_number: attendances[0].protocol_number,
+                    patient_code: patient.code
+                };
+            }
+        }
+
+        return null;
+    }
+
     async updateAttendanceOrigin(attendanceId, newOrigin) {
         if (!attendanceId) throw new Error('Atendimento não informado.');
         if (!newOrigin) throw new Error('Nova origem não informada.');

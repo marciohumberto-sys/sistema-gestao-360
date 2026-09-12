@@ -75,7 +75,7 @@ const LaboratorioConferencia = () => {
         patient: '',
         patientCode: '',
         attendance_origin: '',
-        status: 'DIGITADO'
+        status: 'TODOS'
     });
 
     const { tenantLink, isSuperAdmin } = useAuth();

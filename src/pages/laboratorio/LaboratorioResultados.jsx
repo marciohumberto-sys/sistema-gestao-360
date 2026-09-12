@@ -741,27 +741,32 @@ const LaboratorioResultados = () => {
     };
 
     const handleNavigatePatient = async (direction) => {
-        if (!searchResults || !selectedAttendance || loading || saving) return;
+        if (!selectedAttendance || loading || saving) return;
         
-        const currentIndex = searchResults.findIndex(a => a.id === selectedAttendance.id);
-        if (currentIndex === -1) return;
-        
-        let targetAttendance;
-        if (direction === 'prev' && currentIndex > 0) {
-            targetAttendance = searchResults[currentIndex - 1];
-        } else if (direction === 'next' && currentIndex < searchResults.length - 1) {
-            targetAttendance = searchResults[currentIndex + 1];
-        } else {
-            return;
-        }
+        try {
+            setLoading(true);
+            const currentPatientCode = currentAttendance?.pacienteCodigo || selectedAttendance?.pacienteCodigo;
+            const vizinho = await laboratorioResultadosService.getVizinhoAttendance(currentPatientCode, direction);
 
-        if (checkUnsavedChanges()) {
-            setPendingNavigation({ type: 'patient', direction, targetAttendance, targetExamCode: selectedResult?.exameCodigo });
-            setShowUnsavedModal(true);
-            return;
-        }
+            if (!vizinho) {
+                setFeedbackMsg({ type: 'info', text: direction === 'prev' ? 'Não há paciente anterior na sequência.' : 'Fim da sequência de pacientes.' });
+                setTimeout(() => setFeedbackMsg(null), 3000);
+                setLoading(false);
+                return;
+            }
 
-        executePatientNavigation(targetAttendance, selectedResult?.exameCodigo);
+            if (checkUnsavedChanges()) {
+                setPendingNavigation({ type: 'patient_global', direction, targetProtocol: vizinho.protocol_number, targetExamCode: selectedResult?.exameCodigo });
+                setShowUnsavedModal(true);
+                setLoading(false);
+                return;
+            }
+
+            executePatientNavigation({ protocol_number: vizinho.protocol_number }, selectedResult?.exameCodigo);
+        } catch (error) {
+            console.error('Erro ao navegar:', error);
+            setLoading(false);
+        }
     };
 
     const handleSelectExamWithCheck = (result, skipUnsavedCheck = false) => {
@@ -802,6 +807,8 @@ const LaboratorioResultados = () => {
             setInitialGeneralObservation('');
         } else if (pendingNavigation?.type === 'patient') {
             executePatientNavigation(pendingNavigation.targetAttendance, pendingNavigation.targetExamCode);
+        } else if (pendingNavigation?.type === 'patient_global') {
+            executePatientNavigation({ protocol_number: pendingNavigation.targetProtocol }, pendingNavigation.targetExamCode);
         } else if (pendingNavigation) {
             selecionarExame(pendingNavigation);
         }
@@ -946,22 +953,15 @@ const LaboratorioResultados = () => {
 
                 if (isEditable) return;
 
-                // Só navega se houver um atendimento aberto e uma fila com mais de 1 paciente
-                if (!selectedAttendance || !searchResults || searchResults.length <= 1) return;
-
-                const currentIndex = searchResults.findIndex(a => a.id === selectedAttendance.id);
-                if (currentIndex === -1) return;
+                // Só navega se houver um atendimento aberto
+                if (!selectedAttendance) return;
 
                 if (e.key === 'ArrowLeft') {
-                    if (currentIndex > 0) {
-                        e.preventDefault();
-                        handleNavigatePatient('prev');
-                    }
+                    e.preventDefault();
+                    handleNavigatePatient('prev');
                 } else if (e.key === 'ArrowRight') {
-                    if (currentIndex < searchResults.length - 1) {
-                        e.preventDefault();
-                        handleNavigatePatient('next');
-                    }
+                    e.preventDefault();
+                    handleNavigatePatient('next');
                 }
             }
         };
@@ -1867,23 +1867,23 @@ const LaboratorioResultados = () => {
                                 {searchResults && selectedAttendance && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.25rem' }}>
                                         <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600, marginRight: '0.4rem' }}>
-                                            {searchResults.findIndex(a => a.id === selectedAttendance.id) + 1} de {searchResults.length}
+                                            
                                         </span>
                                         <button 
                                             className="lab-btn" 
-                                            style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: searchResults.findIndex(a => a.id === selectedAttendance.id) > 0 ? '#fff' : '#f8fafc', borderRadius: '6px', color: searchResults.findIndex(a => a.id === selectedAttendance.id) > 0 ? '#334155' : '#cbd5e1', cursor: searchResults.findIndex(a => a.id === selectedAttendance.id) > 0 ? 'pointer' : 'not-allowed' }}
+                                            style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: '#fff', borderRadius: '6px', color: '#334155', cursor: 'pointer' }}
                                             onClick={() => handleNavigatePatient('prev')}
-                                            disabled={loading || saving || searchResults.findIndex(a => a.id === selectedAttendance.id) <= 0}
-                                            title={searchResults.findIndex(a => a.id === selectedAttendance.id) <= 0 ? 'Primeiro atendimento da lista' : 'Paciente anterior'}
+                                            disabled={loading || saving}
+                                            title="Paciente anterior"
                                         >
                                             <ChevronLeft size={16} />
                                         </button>
                                         <button 
                                             className="lab-btn" 
-                                            style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: searchResults.findIndex(a => a.id === selectedAttendance.id) < searchResults.length - 1 ? '#fff' : '#f8fafc', borderRadius: '6px', color: searchResults.findIndex(a => a.id === selectedAttendance.id) < searchResults.length - 1 ? '#334155' : '#cbd5e1', cursor: searchResults.findIndex(a => a.id === selectedAttendance.id) < searchResults.length - 1 ? 'pointer' : 'not-allowed' }}
+                                            style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: '#fff', borderRadius: '6px', color: '#334155', cursor: 'pointer' }}
                                             onClick={() => handleNavigatePatient('next')}
-                                            disabled={loading || saving || searchResults.findIndex(a => a.id === selectedAttendance.id) >= searchResults.length - 1}
-                                            title={searchResults.findIndex(a => a.id === selectedAttendance.id) >= searchResults.length - 1 ? 'Último atendimento da lista' : 'Próximo paciente'}
+                                            disabled={loading || saving}
+                                            title="Próximo paciente"
                                         >
                                             <ChevronRight size={16} />
                                         </button>
