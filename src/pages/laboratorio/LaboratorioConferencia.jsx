@@ -81,9 +81,7 @@ const LaboratorioConferencia = () => {
     const { tenantLink, isSuperAdmin } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const currentUserRole = isSuperAdmin ? 'SUPERADMIN' : String(tenantLink?.role || tenantLink?.profile || '').trim().toUpperCase();
-    const canReopenReleasedResult = [
-        'SUPERADMIN', 'ADMIN', 'GESTOR', 'ADMINISTRADOR', 'RECEPCAO', 'TECNICO', 'BANCADA', 'OPERADOR'
-    ].includes(currentUserRole) || Boolean(isSuperAdmin);
+    const canReopenReleasedResult = canWriteLaboratorio(role);
     
     const [localSearch, setLocalSearch] = useState('');
     const [selectedProtocol, setSelectedProtocol] = useState(null);
@@ -910,13 +908,12 @@ const LaboratorioConferencia = () => {
                                 {selectedExam?.status === 'LIBERADO' && canReopenReleasedResult && (
                                     <button
                                         type="button"
-                                        className="lab-btn lab-btn-outline"
+                                        className="lab-conf-btn-reopen"
                                         onClick={handleOpenReopenModal}
                                         disabled={reopeningResult || saving || returning}
-                                        style={{ whiteSpace: 'nowrap', background: '#fff', marginRight: '0.5rem' }}
                                         title="Reabrir este exame para correção e nova conferência"
                                     >
-                                        {reopeningResult ? <Loader2 className="animate-spin" size={16} /> : <RotateCcw size={16} />}
+                                        {reopeningResult ? <Loader2 className="spin" size={14} /> : <RotateCcw size={14} />}
                                         Corrigir resultado
                                     </button>
                                 )}
