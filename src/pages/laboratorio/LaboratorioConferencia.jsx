@@ -4,7 +4,7 @@ import {
     CheckCircle2, AlertTriangle, Search, RefreshCw, 
     Activity, Clock, ShieldCheck, User, Eye, 
     ChevronLeft, ChevronRight, ArrowLeft, Info, ListChecks, Loader2,
-    Edit2, Save, X, FileText
+    Edit2, Save, X, FileText, RotateCcw
 } from 'lucide-react';
 import './LaboratorioConferencia.css';
 import { laboratorioConferenciaService } from '../../services/api/laboratorioConferencia.service';
@@ -80,6 +80,10 @@ const LaboratorioConferencia = () => {
 
     const { tenantLink, isSuperAdmin } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
+    const currentUserRole = isSuperAdmin ? 'SUPERADMIN' : String(tenantLink?.role || tenantLink?.profile || '').trim().toUpperCase();
+    const canReopenReleasedResult = [
+        'SUPERADMIN', 'ADMIN', 'GESTOR', 'ADMINISTRADOR', 'RECEPCAO', 'TECNICO', 'BANCADA', 'OPERADOR'
+    ].includes(currentUserRole) || Boolean(isSuperAdmin);
     
     const [localSearch, setLocalSearch] = useState('');
     const [selectedProtocol, setSelectedProtocol] = useState(null);
@@ -106,6 +110,9 @@ const LaboratorioConferencia = () => {
     const [showUnsavedModal, setShowUnsavedModal] = useState(false);
     const [pendingAction, setPendingAction] = useState(null);
 
+    const [showReopenModal, setShowReopenModal] = useState(false);
+    const [reopeningResult, setReopeningResult] = useState(false);
+
     const activeExamTabRef = useRef(null);
     const handleConfirmarConferenciaRef = useRef(null);
     const examTabsRef = useRef(null);
@@ -114,6 +121,54 @@ const LaboratorioConferencia = () => {
         canScrollLeft: false,
         canScrollRight: false
     });
+
+    const handleOpenReopenModal = () => {
+        if (selectedExam?.status !== 'LIBERADO' || !canReopenReleasedResult || reopeningResult) return;
+        setShowReopenModal(true);
+    };
+
+    const handleConfirmReopen = async () => {
+        if (!selectedExam?.id || reopeningResult) return;
+
+        try {
+            setReopeningResult(true);
+            setFeedbackMsg(null);
+
+            await laboratorioResultadosService.reabrirResultadoParaCorrecao(selectedExam.id);
+            setShowReopenModal(false);
+
+            setFeedbackMsg({
+                type: 'success',
+                text: 'Exame reaberto para correção. Após salvar, ele deverá ser conferido novamente.'
+            });
+            setTimeout(() => setFeedbackMsg(null), 5000);
+
+            // Atualiza status localmente para 'DIGITADO'
+            const updatedExam = { ...selectedExam, status: 'DIGITADO' };
+            setSelectedExam(updatedExam);
+
+            const updatedProtocol = {
+                ...selectedProtocol,
+                exams: selectedProtocol.exams.map(e => e.id === selectedExam.id ? updatedExam : e)
+            };
+            setSelectedProtocol(updatedProtocol);
+
+            const updatedSearchResults = searchResults.map(ex => 
+                ex.id === selectedExam.id ? { ...ex, status: 'DIGITADO' } : ex
+            );
+            setSearchResults(updatedSearchResults);
+            
+        } catch (error) {
+            console.error('[LaboratorioConferencia] Erro ao reabrir resultado:', error);
+            setFeedbackMsg({
+                type: 'error',
+                text: error?.message || 'Não foi possível reabrir o exame para correção.'
+            });
+            setTimeout(() => setFeedbackMsg(null), 6000);
+        } finally {
+            setReopeningResult(false);
+        }
+    };
 
     const checkTabsScroll = () => {
         const el = examTabsRef.current;
@@ -841,30 +896,7 @@ const LaboratorioConferencia = () => {
                                         {feedbackMsg.text}
                                     </div>
                                 )}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '1rem' }}>
-                                    <button 
-                                        className="lab-btn" 
-                                        style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) > 0 ? '#fff' : '#f8fafc', borderRadius: '6px', color: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) > 0 ? '#334155' : '#cbd5e1', cursor: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) > 0 ? 'pointer' : 'not-allowed' }}
-                                        onClick={() => handleNavigateProtocol('prev')}
-                                        disabled={loading || saving || returning || groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) <= 0}
-                                        title={groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) <= 0 ? 'Primeiro atendimento da fila' : 'Paciente anterior'}
-                                    >
-                                        <ChevronLeft size={16} />
-                                    </button>
-                                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', minWidth: '60px', textAlign: 'center' }}>
-                                        {groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) + 1} de {groupedProtocols.length}
-                                    </span>
-                                    <button 
-                                        className="lab-btn" 
-                                        style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) < groupedProtocols.length - 1 ? '#fff' : '#f8fafc', borderRadius: '6px', color: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) < groupedProtocols.length - 1 ? '#334155' : '#cbd5e1', cursor: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) < groupedProtocols.length - 1 ? 'pointer' : 'not-allowed' }}
-                                        onClick={() => handleNavigateProtocol('next')}
-                                        disabled={loading || saving || returning || groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) >= groupedProtocols.length - 1}
-                                        title={groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) >= groupedProtocols.length - 1 ? 'Último atendimento da fila' : 'Próximo paciente'}
-                                    >
-                                        <ChevronRight size={16} />
-                                    </button>
-                                </div>
-                                {canWriteLaboratorio(role) && (
+                                {canWriteLaboratorio(role) && selectedExam?.status !== 'LIBERADO' && (
                                     <button 
                                         className="lab-conf-btn-confirm" 
                                         onClick={handleConfirmarConferencia} 
@@ -875,6 +907,39 @@ const LaboratorioConferencia = () => {
                                         {saving ? 'Confirmando...' : 'Confirmar'}
                                     </button>
                                 )}
+                                {selectedExam?.status === 'LIBERADO' && canReopenReleasedResult && (
+                                    <button
+                                        type="button"
+                                        className="lab-btn lab-btn-outline"
+                                        onClick={handleOpenReopenModal}
+                                        disabled={reopeningResult || saving || returning}
+                                        style={{ whiteSpace: 'nowrap', background: '#fff', marginRight: '0.5rem' }}
+                                        title="Reabrir este exame para correção e nova conferência"
+                                    >
+                                        {reopeningResult ? <Loader2 className="animate-spin" size={16} /> : <RotateCcw size={16} />}
+                                        Corrigir resultado
+                                    </button>
+                                )}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                    <button 
+                                        className="lab-btn" 
+                                        style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) > 0 ? '#fff' : '#f8fafc', borderRadius: '6px', color: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) > 0 ? '#334155' : '#cbd5e1', cursor: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) > 0 ? 'pointer' : 'not-allowed' }}
+                                        onClick={() => handleNavigateProtocol('prev')}
+                                        disabled={loading || saving || returning || groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) <= 0}
+                                        title={groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) <= 0 ? 'Primeiro atendimento da fila' : 'Paciente anterior'}
+                                    >
+                                        <ChevronLeft size={16} />
+                                    </button>
+                                    <button 
+                                        className="lab-btn" 
+                                        style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) < groupedProtocols.length - 1 ? '#fff' : '#f8fafc', borderRadius: '6px', color: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) < groupedProtocols.length - 1 ? '#334155' : '#cbd5e1', cursor: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) < groupedProtocols.length - 1 ? 'pointer' : 'not-allowed' }}
+                                        onClick={() => handleNavigateProtocol('next')}
+                                        disabled={loading || saving || returning || groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) >= groupedProtocols.length - 1}
+                                        title={groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) >= groupedProtocols.length - 1 ? 'Último atendimento da fila' : 'Próximo paciente'}
+                                    >
+                                        <ChevronRight size={16} />
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -1042,6 +1107,52 @@ const LaboratorioConferencia = () => {
                                 }
                             }}>
                                 Descartar alteração
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Reabertura de Resultado (Correção) */}
+            {showReopenModal && (
+                <div className="unsaved-result-modal-overlay" role="dialog" aria-modal="true">
+                    <div className="unsaved-result-modal">
+                        <div className="unsaved-result-modal-header">
+                            <div className="unsaved-result-modal-icon" style={{ color: '#b45309', background: '#fef3c7' }}>
+                                <RotateCcw size={24} />
+                            </div>
+                            <div>
+                                <h2 id="reopen-result-modal-title" className="unsaved-result-modal-title">
+                                    Corrigir resultado liberado
+                                </h2>
+                                <p className="unsaved-result-modal-subtitle">
+                                    {selectedExam?.exameCodigo} — {selectedExam?.exameNome}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="unsaved-result-modal-body" style={{ lineHeight: 1.5 }}>
+                            Os valores atuais serão preservados. O exame voltará para <strong>DIGITADO</strong>,
+                            ficará disponível para correção e precisará ser conferido e liberado novamente pelo biomédico.
+                        </div>
+
+                        <div className="unsaved-result-modal-footer">
+                            <button
+                                type="button"
+                                className="unsaved-btn-neutral"
+                                onClick={() => setShowReopenModal(false)}
+                                disabled={reopeningResult}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                className="lab-btn-danger"
+                                style={{ background: '#d97706', color: '#fff', border: 'none', fontWeight: 600, padding: '0 1.2rem', borderRadius: '6px', cursor: 'pointer' }}
+                                onClick={handleConfirmReopen}
+                                disabled={reopeningResult}
+                            >
+                                {reopeningResult ? <Loader2 className="animate-spin" size={16} /> : 'Sim, reabrir para correção'}
                             </button>
                         </div>
                     </div>
