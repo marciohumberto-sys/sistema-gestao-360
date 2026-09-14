@@ -137,6 +137,16 @@ const LaboratorioConferencia = () => {
             setFeedbackMsg(null);
 
             await laboratorioResultadosService.reabrirResultadoParaCorrecao(selectedExam.id);
+            
+            // Buscar o NOVO status do banco para garantir consistência
+            const { data: updatedDbExam, error: fetchErr } = await supabase
+                .from('lab_results')
+                .select('status')
+                .eq('id', selectedExam.id)
+                .single();
+                
+            if (fetchErr) throw fetchErr;
+
             setShowReopenModal(false);
 
             setFeedbackMsg({
@@ -145,8 +155,8 @@ const LaboratorioConferencia = () => {
             });
             setTimeout(() => setFeedbackMsg(null), 5000);
 
-            // Atualiza status localmente para 'DIGITADO'
-            const updatedExam = { ...selectedExam, status: 'DIGITADO' };
+            // Atualiza status localmente com o status real do banco
+            const updatedExam = { ...selectedExam, status: updatedDbExam.status };
             setSelectedExam(updatedExam);
 
             const updatedProtocol = {
@@ -156,7 +166,7 @@ const LaboratorioConferencia = () => {
             setSelectedProtocol(updatedProtocol);
 
             const updatedSearchResults = searchResults.map(ex => 
-                ex.id === selectedExam.id ? { ...ex, status: 'DIGITADO' } : ex
+                ex.id === selectedExam.id ? { ...ex, status: updatedDbExam.status } : ex
             );
             setSearchResults(updatedSearchResults);
             
@@ -1126,7 +1136,7 @@ const LaboratorioConferencia = () => {
                                 handleSaveParam={handleSaveParam}
                                 saving={saving}
                                 isAbnormal={isAbnormal}
-                                canWrite={canWriteLaboratorio(role)}
+                                canWrite={canWriteLaboratorio(role) && selectedExam?.status !== 'LIBERADO'}
                             />
                         ) : isUri ? (
                             <UriExamView 
@@ -1138,7 +1148,7 @@ const LaboratorioConferencia = () => {
                                 handleSaveParam={handleSaveParam}
                                 saving={saving}
                                 isAbnormal={isAbnormal}
-                                canWrite={canWriteLaboratorio(role)}
+                                canWrite={canWriteLaboratorio(role) && selectedExam?.status !== 'LIBERADO'}
                             />
                         ) : (
                             <SimpleExamView 
@@ -1149,7 +1159,7 @@ const LaboratorioConferencia = () => {
                                 handleSaveParam={handleSaveParam}
                                 saving={saving}
                                 isAbnormal={isAbnormal}
-                                canWrite={canWriteLaboratorio(role)}
+                                canWrite={canWriteLaboratorio(role) && selectedExam?.status !== 'LIBERADO'}
                             />
                         )}
                     </div>
