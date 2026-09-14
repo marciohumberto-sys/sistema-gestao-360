@@ -1371,20 +1371,17 @@ const LaboratorioResultados = () => {
                     goToNextExam({ skipUnsavedCheck: true });
                 }
             } else {
-                let nextPatient = null;
-                const currentSearchIdx = searchResults.findIndex(a => a.id === selectedAttendance?.id);
-                if (currentSearchIdx !== -1 && searchResults.length > 1) {
-                    for (let i = currentSearchIdx + 1; i < searchResults.length; i++) {
-                        if (searchResults[i].examesPendentes > 0) {
-                            nextPatient = searchResults[i];
-                            break;
-                        }
-                    }
+                const currentPatientCode = currentAttendance?.pacienteCodigo || selectedAttendance?.pacienteCodigo;
+                let vizinho = null;
+                try {
+                    vizinho = await laboratorioResultadosService.getVizinhoAttendance(currentPatientCode, 'next');
+                } catch (error) {
+                    console.error('[LaboratorioResultados] Erro ao buscar próximo paciente após salvar:', error);
                 }
 
                 const baseMsg = wasDigitado ? 'Alterações salvas com sucesso.' : 'Resultado salvo com sucesso.';
 
-                if (nextPatient) {
+                if (vizinho) {
                     setFeedbackMsg({ type: 'success', text: `${baseMsg} Abrindo próximo paciente...` });
                     
                     const shouldRemoveFromView = searchFilters.status === 'Em digitação';
@@ -1393,9 +1390,9 @@ const LaboratorioResultados = () => {
                     }
                     
                     shouldScrollToTopRef.current = true;
-                    executePatientNavigation(nextPatient, null);
+                    executePatientNavigation({ protocol_number: vizinho.protocol_number }, null);
                 } else {
-                    setFeedbackMsg({ type: 'success', text: `${baseMsg} Não há mais pacientes com resultados em aberto.` });
+                    setFeedbackMsg({ type: 'success', text: `${baseMsg} Fim da sequência de pacientes.` });
                     shouldScrollToTopRef.current = true;
                 }
             }
