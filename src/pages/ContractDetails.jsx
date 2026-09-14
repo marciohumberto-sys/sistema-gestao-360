@@ -50,10 +50,6 @@ const ContractDetails = () => {
         loading: comprasContextLoading
     } = useCompras();
 
-    const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
-    const canWrite = isAdministracao && canWriteCompras(role);
-    const canWriteSaudeItems = !isAdministracao && canWriteCompras(role) && contract?.entidade_gestora_id === entidadeAtivaId;
-
     const [contract, setContract] = useState(null);
     const [empenhos, setEmpenhos] = useState([]);
     const [contractHistory, setContractHistory] = useState([]);
@@ -175,6 +171,10 @@ const ContractDetails = () => {
     const [isPdfSectionExpanded, setIsPdfSectionExpanded] = useState(false);
     const [contractFile, setContractFile] = useState(null);
     const [rescissionFile, setRescissionFile] = useState(null);
+
+    const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
+    const canWrite = isAdministracao && canWriteCompras(role);
+    const canWriteSaudeItems = !isAdministracao && canWriteCompras(role) && contract?.entidade_gestora_id === entidadeAtivaId;
 
     const formatCnpj = (val) => {
         const v = val.replace(/\D/g, '').slice(0, 14);
