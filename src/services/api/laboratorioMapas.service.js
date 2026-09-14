@@ -9,13 +9,51 @@ class LaboratorioMapasService {
             
             const { data, error } = await supabase
                 .from('lab_map_batches')
-                .select('id, tenant_id, status, generated_at, reference_date')
+                .select('id, tenant_id, status, generated_at, reference_date, sector_id, start_patient_code, end_patient_code, lab_exam_sectors(name)')
                 .eq('tenant_id', tenantId)
                 .order('generated_at', { ascending: false })
                 .limit(50);
 
             if (error) throw error;
-            return data || [];
+            const batches = data || [];
+            
+            if (batches.length > 0) {
+                const batchIds = batches.map(b => b.id);
+                
+                // Buscar agregados dos itens para enriquecer o resumo sem N+1
+                const { data: items, error: itemsErr } = await supabase
+                    .from('lab_map_batch_items')
+                    .select('batch_id, lab_attendance_exams!inner(attendance_id)')
+                    .in('batch_id', batchIds);
+                    
+                if (!itemsErr && items) {
+                    const countsByBatch = {};
+                    for (const item of items) {
+                        if (!countsByBatch[item.batch_id]) {
+                            countsByBatch[item.batch_id] = { exams: 0, patientsSet: new Set() };
+                        }
+                        countsByBatch[item.batch_id].exams++;
+                        if (item.lab_attendance_exams?.attendance_id) {
+                            countsByBatch[item.batch_id].patientsSet.add(item.lab_attendance_exams.attendance_id);
+                        }
+                    }
+                    
+                    for (const b of batches) {
+                        const cb = countsByBatch[b.id];
+                        b.patient_count = cb ? cb.patientsSet.size : 0;
+                        b.exam_count = cb ? cb.exams : 0;
+                        b.sector_name = b.lab_exam_sectors?.name || 'Setor';
+                    }
+                } else {
+                    for (const b of batches) {
+                        b.patient_count = 0;
+                        b.exam_count = 0;
+                        b.sector_name = b.lab_exam_sectors?.name || 'Setor';
+                    }
+                }
+            }
+
+            return batches;
         } catch (error) {
             console.error('[LaboratorioMapasService] Erro ao listar lotes:', error);
             throw error;

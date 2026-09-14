@@ -9,6 +9,82 @@ export const laboratorioConferenciaService = {
         const [year, month, day] = parts;
         return `${day}/${month}/${year}`;
     },
+    getVizinhoConferencia: async (currentPatientCode, direction, statusFilter) => {
+        let hasMore = true;
+        let referenceCode = currentPatientCode;
+        
+        while (hasMore) {
+            let patQuery = supabase.from('lab_patients').select('id, code');
+            
+            if (direction === 'next') {
+                patQuery = patQuery.lt('code', referenceCode).order('code', { ascending: false }).limit(20);
+            } else {
+                patQuery = patQuery.gt('code', referenceCode).order('code', { ascending: true }).limit(20);
+            }
+            
+            const { data: patients, error: patErr } = await patQuery;
+            if (patErr) throw patErr;
+            
+            if (!patients || patients.length === 0) return null;
+            
+            const patIds = patients.map(p => p.id);
+            
+            let attQuery = supabase.from('lab_attendances')
+                .select('id, protocol_number, patient_id')
+                .in('patient_id', patIds);
+                
+            const { data: attendances, error: attErr } = await attQuery;
+            if (attErr) throw attErr;
+            
+            if (attendances && attendances.length > 0) {
+                const attIds = attendances.map(a => a.id);
+                
+                let resQuery = supabase.from('lab_results')
+                    .select('attendance_id, exam_id, status')
+                    .in('attendance_id', attIds);
+                    
+                if (statusFilter === 'LIBERADO') {
+                    resQuery = resQuery.eq('status', 'LIBERADO');
+                } else if (statusFilter === 'TODOS') {
+                    resQuery = resQuery.in('status', ['DIGITADO', 'LIBERADO']);
+                } else {
+                    resQuery = resQuery.eq('status', 'DIGITADO');
+                }
+                
+                const { data: results, error: resErr } = await resQuery;
+                if (resErr) throw resErr;
+                
+                if (results && results.length > 0) {
+                    const examIds = [...new Set(results.map(r => r.exam_id))];
+                    
+                    const { data: exams, error: exErr } = await supabase.from('lab_exams')
+                        .select('id, requires_conference')
+                        .in('id', examIds)
+                        .eq('requires_conference', true);
+                        
+                    if (exErr) throw exErr;
+                    
+                    if (exams && exams.length > 0) {
+                        const validExamIds = new Set(exams.map(e => e.id));
+                        
+                        for (const pat of patients) {
+                            const patAtts = attendances.filter(a => a.patient_id === pat.id);
+                            for (const att of patAtts) {
+                                const patResults = results.filter(r => r.attendance_id === att.id);
+                                const hasValid = patResults.some(r => validExamIds.has(r.exam_id));
+                                if (hasValid) {
+                                    return { protocol_number: att.protocol_number, code: pat.code };
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            referenceCode = patients[patients.length - 1].code;
+        }
+        return null;
+    },
 
     buscarExamesParaConferencia: async (filters = {}) => {
         try {
@@ -107,7 +183,7 @@ export const laboratorioConferenciaService = {
                 const chunk = attIds.slice(i, i + 100);
                 let query = supabase
                     .from('lab_results')
-                    .select('id, attendance_id, exam_id, status, created_at')
+                    .select('id, attendance_id, exam_id, status, created_at, checked_by, released_by, responsible_name')
                     .in('attendance_id', chunk);
 
                 // Filtro de status
@@ -195,6 +271,9 @@ export const laboratorioConferenciaService = {
                     exameMetodo: ex.method,
                     dataAtendimento: laboratorioConferenciaService.formatDateOnly(att.attendance_date),
                     status: r.status,
+                    checked_by: r.checked_by,
+                    released_by: r.released_by,
+                    responsible_name: r.responsible_name,
                     parametros: 0
                 };
             }).filter(Boolean);

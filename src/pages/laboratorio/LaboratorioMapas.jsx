@@ -1109,9 +1109,9 @@ const LaboratorioMapas = () => {
                                     if (!bData) return null;
                                     
                                     const snapInfo = typeof bData.document_snapshot === 'string' ? JSON.parse(bData.document_snapshot) : (bData.document_snapshot || {});
-                                    const secName = snapInfo?.metadata?.sector?.name || 'Setor';
-                                    const patCount = snapInfo?.patients?.length || 0;
-                                    const exCount = snapInfo?.patients?.reduce((acc, p) => acc + (p.exams?.length || 0), 0) || 0;
+                                    const secName = snapInfo?.metadata?.sector?.name || bData.sector_name || 'Setor';
+                                    const patCount = snapInfo?.patients?.length || bData.patient_count || 0;
+                                    const exCount = snapInfo?.patients?.reduce((acc, p) => acc + (p.exams?.length || 0), 0) || bData.exam_count || 0;
                                     const codeStart = snapInfo?.metadata?.code_range?.start || bData.start_patient_code;
                                     const codeEnd = snapInfo?.metadata?.code_range?.end || bData.end_patient_code;
                                     const statusObj = getStatusInfo(bData.status);
@@ -1332,9 +1332,9 @@ const LaboratorioMapas = () => {
                         ) : (
                             filteredLotes.map(lote => {
                                 const snapInfo = typeof lote.document_snapshot === 'string' ? JSON.parse(lote.document_snapshot) : (lote.document_snapshot || {});
-                                const secName = snapInfo?.metadata?.sector?.name || 'Setor';
-                                const patCount = snapInfo?.patients?.length || 0;
-                                const exCount = snapInfo?.patients?.reduce((acc, p) => acc + (p.exams?.length || 0), 0) || 0;
+                                const secName = snapInfo?.metadata?.sector?.name || lote.sector_name || 'Setor';
+                                const patCount = snapInfo?.patients?.length || lote.patient_count || 0;
+                                const exCount = snapInfo?.patients?.reduce((acc, p) => acc + (p.exams?.length || 0), 0) || lote.exam_count || 0;
                                 const codeStart = snapInfo?.metadata?.code_range?.start || lote.start_patient_code;
                                 const codeEnd = snapInfo?.metadata?.code_range?.end || lote.end_patient_code;
                                 const statusObj = getStatusInfo(lote.status);

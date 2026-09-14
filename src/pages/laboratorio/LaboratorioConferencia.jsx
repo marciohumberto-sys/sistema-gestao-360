@@ -78,11 +78,12 @@ const LaboratorioConferencia = () => {
         status: 'TODOS'
     });
 
-    const { tenantLink, isSuperAdmin } = useAuth();
+    const { tenantLink, isSuperAdmin, authUser } = useAuth();
     const role = isSuperAdmin ? 'SUPERADMIN' : (tenantLink?.role || 'VISUALIZADOR');
     const currentUserRole = isSuperAdmin ? 'SUPERADMIN' : String(tenantLink?.role || tenantLink?.profile || '').trim().toUpperCase();
-    const canReopenReleasedResult = canWriteLaboratorio(role);
     
+    
+
     const [localSearch, setLocalSearch] = useState('');
     const [selectedProtocol, setSelectedProtocol] = useState(null);
     
@@ -97,6 +98,9 @@ const LaboratorioConferencia = () => {
     const [searchResults, setSearchResults] = useState([]);
     
     const [selectedExam, setSelectedExam] = useState(null);
+
+    const canSeeReopenButton = canWriteLaboratorio(role);
+    const isOwnerOfReleasedResult = selectedExam && (selectedExam.checked_by === authUser?.id || selectedExam.released_by === authUser?.id);
     const [examDetails, setExamDetails] = useState([]);
     const [loadingDetails, setLoadingDetails] = useState(false);
     
@@ -121,7 +125,7 @@ const LaboratorioConferencia = () => {
     });
 
     const handleOpenReopenModal = () => {
-        if (selectedExam?.status !== 'LIBERADO' || !canReopenReleasedResult || reopeningResult) return;
+        if (selectedExam?.status !== 'LIBERADO' || !canSeeReopenButton || !isOwnerOfReleasedResult || reopeningResult) return;
         setShowReopenModal(true);
     };
 
@@ -446,28 +450,98 @@ const LaboratorioConferencia = () => {
         }
     };
 
-    const handleNavigateProtocol = (direction) => {
-        if (!selectedProtocol) return;
+    const fetchAndOpenProtocol = async (protocol_number) => {
+        try {
+            setLoading(true);
+            if (queueListRef.current) {
+                queueScrollPosRef.current = queueListRef.current.scrollTop;
+            }
 
-        const currentIndex = groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo);
-        if (currentIndex === -1) return;
+            const data = await laboratorioConferenciaService.buscarExamesParaConferencia({
+                protocol: protocol_number,
+                status: 'TODOS'
+            });
 
-        let targetProtocol;
-        if (direction === 'prev' && currentIndex > 0) {
-            targetProtocol = groupedProtocols[currentIndex - 1];
-        } else if (direction === 'next' && currentIndex < groupedProtocols.length - 1) {
-            targetProtocol = groupedProtocols[currentIndex + 1];
-        } else {
-            return;
+            if (!data || data.length === 0) {
+                setFeedbackMsg({ type: 'info', text: 'Atendimento não encontrado ou sem exames para conferência.' });
+                setTimeout(() => setFeedbackMsg(null), 3000);
+                setLoading(false);
+                return;
+            }
+
+            const grouped = {};
+            data.forEach(ex => {
+                if (!grouped[ex.protocolo]) {
+                    grouped[ex.protocolo] = {
+                        protocolo: ex.protocolo,
+                        pacienteCode: ex.pacienteCode,
+                        pacienteNome: ex.pacienteNome,
+                        pacienteIdade: ex.pacienteIdade,
+                        pacienteSexo: ex.pacienteSexo,
+                        pacienteSexoRaw: ex.pacienteSexoRaw,
+                        pacienteDataNasc: ex.pacienteDataNasc,
+                        pacienteCns: ex.pacienteCns,
+                        pacienteCpf: ex.pacienteCpf,
+                        convenio: ex.convenio,
+                        medico: ex.medico,
+                        local_entrega: ex.local_entrega,
+                        attendance_origin: ex.attendance_origin,
+                        dataAtendimento: ex.dataAtendimento,
+                        exams: []
+                    };
+                }
+                grouped[ex.protocolo].exams.push(ex);
+            });
+
+            const groupsArray = Object.values(grouped);
+            if (groupsArray.length > 0) {
+                const group = groupsArray[0];
+                setSelectedProtocol(group);
+                if (group.exams && group.exams.length > 0) {
+                    handleSelectExam(group.exams[0]);
+                } else {
+                    setSelectedExam(null);
+                    setExamDetails([]);
+                }
+            }
+            setLoading(false);
+        } catch (err) {
+            console.error('Erro fetchAndOpenProtocol:', err);
+            setFeedbackMsg({ type: 'error', text: 'Erro ao buscar o protocolo.' });
+            setTimeout(() => setFeedbackMsg(null), 3000);
+            setLoading(false);
         }
+    };
 
-        if (editingParam) {
-            setPendingAction(() => () => handleNavigateProtocol(direction));
-            setShowUnsavedModal(true);
-            return;
+    const handleNavigateProtocol = async (direction) => {
+        if (!selectedProtocol || loading || saving || returning) return;
+
+        try {
+            setLoading(true);
+            const currentPatientCode = selectedProtocol.pacienteCode;
+            const vizinho = await laboratorioConferenciaService.getVizinhoConferencia(currentPatientCode, direction, searchFilters.status);
+
+            if (!vizinho) {
+                setFeedbackMsg({ type: 'info', text: direction === 'prev' ? 'Não há paciente anterior na sequência.' : 'Fim da sequência de pacientes.' });
+                setTimeout(() => setFeedbackMsg(null), 3000);
+                setLoading(false);
+                return;
+            }
+
+            if (editingParam) {
+                setPendingAction(() => () => fetchAndOpenProtocol(vizinho.protocol_number));
+                setShowUnsavedModal(true);
+                setLoading(false);
+                return;
+            }
+
+            await fetchAndOpenProtocol(vizinho.protocol_number);
+        } catch (error) {
+            console.error('Erro ao navegar:', error);
+            setFeedbackMsg({ type: 'error', text: 'Erro ao navegar. Tente novamente.' });
+            setTimeout(() => setFeedbackMsg(null), 3000);
+            setLoading(false);
         }
-
-        handleOpenConference(targetProtocol);
     };
 
     const handleBackToQueue = () => {
@@ -905,13 +979,14 @@ const LaboratorioConferencia = () => {
                                         {saving ? 'Confirmando...' : 'Confirmar'}
                                     </button>
                                 )}
-                                {selectedExam?.status === 'LIBERADO' && canReopenReleasedResult && (
+                                {selectedExam?.status === 'LIBERADO' && canSeeReopenButton && (
                                     <button
                                         type="button"
                                         className="lab-conf-btn-reopen"
                                         onClick={handleOpenReopenModal}
-                                        disabled={reopeningResult || saving || returning}
-                                        title="Reabrir este exame para correção e nova conferência"
+                                        disabled={reopeningResult || saving || returning || !isOwnerOfReleasedResult}
+                                        title={!isOwnerOfReleasedResult ? "Somente o biomédico que conferiu este resultado pode corrigi-lo." : "Reabrir este exame para correção e nova conferência"}
+                                        style={!isOwnerOfReleasedResult ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
                                     >
                                         {reopeningResult ? <Loader2 className="spin" size={14} /> : <RotateCcw size={14} />}
                                         Corrigir resultado
@@ -920,19 +995,19 @@ const LaboratorioConferencia = () => {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                     <button 
                                         className="lab-btn" 
-                                        style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) > 0 ? '#fff' : '#f8fafc', borderRadius: '6px', color: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) > 0 ? '#334155' : '#cbd5e1', cursor: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) > 0 ? 'pointer' : 'not-allowed' }}
-                                        onClick={() => handleNavigateProtocol('prev')}
-                                        disabled={loading || saving || returning || groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) <= 0}
-                                        title={groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) <= 0 ? 'Primeiro atendimento da fila' : 'Paciente anterior'}
+                                        style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: '#fff', borderRadius: '6px', color: '#334155', cursor: 'pointer' }}
+                                        onClick={() => handleNavigateProtocol('next')}
+                                        disabled={loading || saving || returning}
+                                        title="Paciente anterior"
                                     >
                                         <ChevronLeft size={16} />
                                     </button>
                                     <button 
                                         className="lab-btn" 
-                                        style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) < groupedProtocols.length - 1 ? '#fff' : '#f8fafc', borderRadius: '6px', color: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) < groupedProtocols.length - 1 ? '#334155' : '#cbd5e1', cursor: groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) < groupedProtocols.length - 1 ? 'pointer' : 'not-allowed' }}
-                                        onClick={() => handleNavigateProtocol('next')}
-                                        disabled={loading || saving || returning || groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) >= groupedProtocols.length - 1}
-                                        title={groupedProtocols.findIndex(p => p.protocolo === selectedProtocol.protocolo) >= groupedProtocols.length - 1 ? 'Último atendimento da fila' : 'Próximo paciente'}
+                                        style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: '#fff', borderRadius: '6px', color: '#334155', cursor: 'pointer' }}
+                                        onClick={() => handleNavigateProtocol('prev')}
+                                        disabled={loading || saving || returning}
+                                        title="Próximo paciente"
                                     >
                                         <ChevronRight size={16} />
                                     </button>
@@ -951,6 +1026,12 @@ const LaboratorioConferencia = () => {
                             <span className="lab-conf-meta-item"><strong>Protocolo:</strong> {selectedProtocol.protocolo}</span>
                             <span className="lab-conf-meta-dot">•</span>
                             <span className="lab-conf-meta-item"><strong>Médico:</strong> {selectedProtocol.medico || 'Não informado'}</span>
+                            {selectedExam?.status === 'LIBERADO' && selectedExam?.responsible_name && (
+                                <>
+                                    <span className="lab-conf-meta-dot">•</span>
+                                    <span className="lab-conf-meta-item"><strong>Conferido por:</strong> {selectedExam.responsible_name}</span>
+                                </>
+                            )}
                             {selectedProtocol.pacienteCpf && (
                                 <>
                                     <span className="lab-conf-meta-dot">•</span>

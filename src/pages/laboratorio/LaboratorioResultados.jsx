@@ -1869,7 +1869,7 @@ const LaboratorioResultados = () => {
                                         <button 
                                             className="lab-btn" 
                                             style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: '#fff', borderRadius: '6px', color: '#334155', cursor: 'pointer' }}
-                                            onClick={() => handleNavigatePatient('prev')}
+                                            onClick={() => handleNavigatePatient('next')}
                                             disabled={loading || saving}
                                             title="Paciente anterior"
                                         >
@@ -1878,7 +1878,7 @@ const LaboratorioResultados = () => {
                                         <button 
                                             className="lab-btn" 
                                             style={{ padding: '0.4rem', border: '1px solid #e2e8f0', background: '#fff', borderRadius: '6px', color: '#334155', cursor: 'pointer' }}
-                                            onClick={() => handleNavigatePatient('next')}
+                                            onClick={() => handleNavigatePatient('prev')}
                                             disabled={loading || saving}
                                             title="Próximo paciente"
                                         >
