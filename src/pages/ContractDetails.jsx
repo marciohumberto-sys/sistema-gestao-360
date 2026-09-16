@@ -174,7 +174,7 @@ const ContractDetails = () => {
 
     const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
     const canWrite = isAdministracao && canWriteCompras(role);
-    const canWriteSaudeItems = !isAdministracao && canWriteCompras(role) && !!contract && contract.entidade_gestora_id === entidadeAtivaId && !!tenantId && !!entidadeAtivaId && !comprasContextLoading;
+    const canWriteSaudeItems = !isAdministracao && canWriteCompras(role) && !!contract && (contract.entidade_gestora_id ? contract.entidade_gestora_id === entidadeAtivaId : true) && !!tenantId && !!entidadeAtivaId && !comprasContextLoading;
 
     const formatCnpj = (val) => {
         const v = val.replace(/\D/g, '').slice(0, 14);
@@ -619,10 +619,10 @@ const ContractDetails = () => {
                         return; // No need to create 0 entries. Optional: cleanup.
                     }
                     if (qty === 0 && existingAlloc) {
-                        if (!isAdministracao) throw new Error("A Saúde não pode excluir um rateio já existente nesta fase.");
+                        if (!isAdministracao && !canWriteSaudeItems) throw new Error("Sem permissão para excluir rateio.");
                         await allocationsService.deleteAllocation(item.id, sec.id, tenantId);
                     } else {
-                        if (!isAdministracao && existingAlloc) throw new Error("A Saúde não pode editar um rateio já existente nesta fase.");
+                        if (!isAdministracao && !canWriteSaudeItems) throw new Error("Sem permissão para editar rateio.");
                         
                         if (!isAdministracao) {
                             if (!entidadeAtivaId) throw new Error("Entidade ativa não resolvida");
@@ -945,7 +945,7 @@ const ContractDetails = () => {
                             <span>Este contrato está ATIVO mas não possui itens cadastrados.</span>
                         </div>
                     </div>
-                    {canWrite && (
+                    {(canWrite || canWriteSaudeItems) && (
                     <button
                         className="cd-pendency-banner-action"
                         onClick={handleQuickAddItem}
@@ -970,10 +970,10 @@ const ContractDetails = () => {
                         <span className={`status-badge-lg ${contract.status.toLowerCase()}`}>
                             {contract.status}
                         </span>
-                        {canWrite && (
+                        {(canWrite || canWriteSaudeItems) && (
                         <button className="cd-btn-secondary" onClick={handleEditClick}>Editar</button>
                         )}
-                        {canWrite && (
+                        {(canWrite || canWriteSaudeItems) && (
                         <button className="cd-btn-ato" onClick={() => {
                             setAtoFormData({
                                 act_type: 'ADITIVO',
@@ -1706,7 +1706,7 @@ const ContractDetails = () => {
                                                                                 <Edit2 size={16} />
                                                                             </button>
                                                                         )}
-                                                                        {canWrite && (
+                                                                        {(canWrite || canWriteSaudeItems) && (
                                                                             <button
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();

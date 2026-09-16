@@ -147,35 +147,49 @@ class CommitmentsService {
         return this.getById(commitmentId, tenantId, entidadeGestoraId);
     }
 
-    async addValue(id: string, value: number, description: string, tenantId: string): Promise<void> {
-        const rpcPayload = {
-            p_tenant_id: tenantId,
-            p_commitment_id: id,
-            p_amount: value,
-            p_description: description || 'Acréscimo de valor'
-        };
-
-        const { error } = await supabase.rpc('add_commitment_amount', rpcPayload);
-        
-        if (error) {
-            console.error("add_commitment_amount RPC Error:", error);
-            throw new Error(error.message || "Erro ao adicionar valor ao empenho.");
+    async addValue(id: string, value: number, description: string, tenantId: string, entidadeGestoraId?: string): Promise<void> {
+        if (entidadeGestoraId) {
+            const rpcPayload = {
+                p_tenant_id: tenantId,
+                p_entidade_gestora_id: entidadeGestoraId,
+                p_commitment_id: id,
+                p_amount: value,
+                p_description: description || 'Acréscimo de valor'
+            };
+            const { error } = await supabase.rpc('add_commitment_amount_v2', rpcPayload);
+            if (error) throw new Error(error.message || "Erro ao adicionar valor ao empenho.");
+        } else {
+            const rpcPayload = {
+                p_tenant_id: tenantId,
+                p_commitment_id: id,
+                p_amount: value,
+                p_description: description || 'Acréscimo de valor'
+            };
+            const { error } = await supabase.rpc('add_commitment_amount', rpcPayload);
+            if (error) throw new Error(error.message || "Erro ao adicionar valor ao empenho.");
         }
     }
 
-    async annulValue(id: string, value: number, description: string, tenantId: string): Promise<void> {
-        const rpcPayload = {
-            p_tenant_id: tenantId,
-            p_commitment_id: id,
-            p_amount: value,
-            p_description: description || 'Anulação parcial de valor'
-        };
-
-        const { error } = await supabase.rpc('annul_commitment_amount', rpcPayload);
-        
-        if (error) {
-            console.error("annul_commitment_amount RPC Error:", error);
-            throw new Error(error.message || "Erro ao anular valor do empenho.");
+    async annulValue(id: string, value: number, description: string, tenantId: string, entidadeGestoraId?: string): Promise<void> {
+        if (entidadeGestoraId) {
+            const rpcPayload = {
+                p_tenant_id: tenantId,
+                p_entidade_gestora_id: entidadeGestoraId,
+                p_commitment_id: id,
+                p_amount: value,
+                p_description: description || 'Anulação parcial de valor'
+            };
+            const { error } = await supabase.rpc('annul_commitment_amount_v2', rpcPayload);
+            if (error) throw new Error(error.message || "Erro ao anular valor do empenho.");
+        } else {
+            const rpcPayload = {
+                p_tenant_id: tenantId,
+                p_commitment_id: id,
+                p_amount: value,
+                p_description: description || 'Anulação parcial de valor'
+            };
+            const { error } = await supabase.rpc('annul_commitment_amount', rpcPayload);
+            if (error) throw new Error(error.message || "Erro ao anular valor do empenho.");
         }
     }
 

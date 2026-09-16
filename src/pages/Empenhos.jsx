@@ -254,14 +254,16 @@ const Empenhos = () => {
 
     const handleAddValueSubmit = async (e) => {
         e.preventDefault();
-        if (!canWrite || !isAdministracao) return;
+        const canWriteSaude = !isAdministracao && canWrite && !!entidadeAtivaId;
+        if (!canWrite && !canWriteSaude) return;
         try {
             setIsSubmitting(true);
             await commitmentsService.addValue(
                 selectedCommitment.id, 
                 parseFloat(valueForm.value) || 0, 
                 valueForm.description, 
-                tenantId
+                tenantId,
+                isAdministracao ? undefined : entidadeAtivaId
             );
             setIsAddValueModalOpen(false);
             setSelectedCommitment(null);
@@ -280,14 +282,16 @@ const Empenhos = () => {
 
     const handleAnnulValueSubmit = async (e) => {
         e.preventDefault();
-        if (!canWrite || !isAdministracao) return;
+        const canWriteSaude = !isAdministracao && canWrite && !!entidadeAtivaId;
+        if (!canWrite && !canWriteSaude) return;
         try {
             setIsSubmitting(true);
             await commitmentsService.annulValue(
                 selectedCommitment.id, 
                 parseFloat(valueForm.value) || 0, 
                 valueForm.description, 
-                tenantId
+                tenantId,
+                isAdministracao ? undefined : entidadeAtivaId
             );
             setIsAnnulValueModalOpen(false);
             setSelectedCommitment(null);
@@ -658,11 +662,11 @@ const Empenhos = () => {
                                                         <button 
                                                             className="action-btn" 
                                                             style={{ color: '#16a34a' }}
-                                                            disabled={!isAdministracao}
-                                                            title={!isAdministracao ? "Operação da Saúde ainda não habilitada nesta etapa." : ""}
+                                                            disabled={!(canWrite || (!isAdministracao && canWrite && !!entidadeAtivaId))}
+                                                            title={!(canWrite || (!isAdministracao && canWrite && !!entidadeAtivaId)) ? "Sem permissão" : ""}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                if (isAdministracao) openAddValueModal(emp);
+                                                                if (canWrite || (!isAdministracao && canWrite && !!entidadeAtivaId)) openAddValueModal(emp);
                                                             }}
                                                         >
                                                             <PlusCircle size={18} />
@@ -673,11 +677,11 @@ const Empenhos = () => {
                                                         <button 
                                                             className="action-btn" 
                                                             style={{ color: '#ef4444' }}
-                                                            disabled={!isAdministracao}
-                                                            title={!isAdministracao ? "Operação da Saúde ainda não habilitada nesta etapa." : ""}
+                                                            disabled={!(canWrite || (!isAdministracao && canWrite && !!entidadeAtivaId))}
+                                                            title={!(canWrite || (!isAdministracao && canWrite && !!entidadeAtivaId)) ? "Sem permissão" : ""}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                if (isAdministracao) openAnnulValueModal(emp);
+                                                                if (canWrite || (!isAdministracao && canWrite && !!entidadeAtivaId)) openAnnulValueModal(emp);
                                                             }}
                                                         >
                                                             <MinusCircle size={18} />
@@ -701,11 +705,11 @@ const Empenhos = () => {
                                                             <button 
                                                                 className="action-btn" 
                                                                 style={{ color: '#64748b' }}
-                                                                disabled={!isAdministracao}
-                                                                title={!isAdministracao ? "Operação da Saúde ainda não habilitada nesta etapa." : ""}
+                                                                disabled={!(canWrite || (!isAdministracao && canWrite && !!entidadeAtivaId))}
+                                                                title={!(canWrite || (!isAdministracao && canWrite && !!entidadeAtivaId)) ? "Sem permissão" : ""}
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    if (isAdministracao) setOpenActionMenuId(openActionMenuId === emp.id ? null : emp.id);
+                                                                    if (canWrite || (!isAdministracao && canWrite && !!entidadeAtivaId)) setOpenActionMenuId(openActionMenuId === emp.id ? null : emp.id);
                                                                 }}
                                                             >
                                                                 <MoreVertical size={18} />

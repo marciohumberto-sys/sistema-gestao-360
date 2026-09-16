@@ -186,7 +186,7 @@ const OfDetails = () => {
 
         try {
             setIsSubmitting(true);
-            if (!isAdministracao) {
+            if (!isAdministracao && !canWriteSaude) {
                 if (!entidadeAtivaId) throw new Error("Contexto de entidade inválido");
                 await ofsService.issueOf(id, tenantId, selectedSignatory, entidadeAtivaId, user?.id);
             } else {
@@ -384,7 +384,7 @@ const OfDetails = () => {
             }
 
             if (editItemId) {
-                if (!isAdministracao) throw new Error("A Saúde não pode editar itens de OF nesta fase.");
+                if (!isAdministracao && !canWriteSaude) throw new Error("A Saúde não possui permissão para editar itens desta OF.");
                 const quantityPayload = requestedQty;
                 const unitPricePayload = Number(newItemObj.unit_price);
                 const totalPricePayload = Number((quantityPayload * unitPricePayload).toFixed(2));

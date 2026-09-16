@@ -76,7 +76,7 @@ const EmpenhoDetails = () => {
     }, [isLoading, movements, linkedOfs]);
 
     const handleCreateOf = async () => {
-        if (!commitment || isCreatingOf || !isAdministracao) return;
+        if (!commitment || isCreatingOf || (!isAdministracao && !entidadeAtivaId)) return;
         setIsCreatingOf(true);
         try {
             const today = new Date().toISOString().split('T')[0];
@@ -177,8 +177,8 @@ const EmpenhoDetails = () => {
                         <button 
                             className="ct-primary-btn" 
                             onClick={handleCreateOf}
-                            disabled={!isAdministracao || isCreatingOf || commitment.status === 'CANCELADO' || (current_balance || 0) <= 0}
-                            title={!isAdministracao ? "Geração de OF da Saúde ainda não habilitada nesta etapa." : ""}
+                            disabled={!(isAdministracao || (!isAdministracao && entidadeAtivaId)) || isCreatingOf || commitment.status === 'CANCELADO' || (current_balance || 0) <= 0}
+                            title={!(isAdministracao || (!isAdministracao && entidadeAtivaId)) ? "Sem permissão" : ""}
                             style={{ 
                                 height: '48px', 
                                 padding: '0 1.5rem', 
@@ -191,7 +191,7 @@ const EmpenhoDetails = () => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '8px',
-                                opacity: (!isAdministracao || isCreatingOf || commitment.status === 'CANCELADO' || (current_balance || 0) <= 0) ? 0.6 : 1
+                                opacity: (!(isAdministracao || (!isAdministracao && entidadeAtivaId)) || isCreatingOf || commitment.status === 'CANCELADO' || (current_balance || 0) <= 0) ? 0.6 : 1
                             }}
                         >
                             {isCreatingOf ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}

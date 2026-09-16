@@ -63,7 +63,7 @@ const NotasFiscais = () => {
 
     useEffect(() => {
         if (location.state?.openModal === 'nova-nf') {
-            if (isAdministracao && !comprasContextLoading && entidadeAtivaId) {
+            if (!comprasContextLoading && entidadeAtivaId) {
                 setIsNovaNfModalOpen(true);
             }
             // Clear state so it doesn't reopen on refresh/navigation back

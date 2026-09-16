@@ -250,10 +250,11 @@ const OrdensFornecimento = () => {
     
     // Actions
     const handleIssueOf = async (ofId) => {
-        if (!canWrite || !isAdministracao) return;
+        const canWriteSaude = !isAdministracao && canWrite && !!entidadeAtivaId;
+        if (!canWrite && !canWriteSaude) return;
         try {
             setIsSubmitting(true);
-            await ofsService.issueOf(ofId, tenantId);
+            await ofsService.issueOf(ofId, tenantId, undefined, isAdministracao ? undefined : entidadeAtivaId, user?.id);
             setFeedback({ type: 'success', message: 'OF emitida com sucesso!' });
             setTimeout(() => setFeedback(null), 3000);
             await loadData();
@@ -366,7 +367,8 @@ const OrdensFornecimento = () => {
     };
 
     const handleDeleteOf = async (ofId) => {
-        if (!canWrite || !isAdministracao) return;
+        const canWriteSaude = !isAdministracao && canWrite && !!entidadeAtivaId;
+        if (!canWrite && !canWriteSaude) return;
         setOpenActionMenuId(null);
         setOfToDelete(ofId);
     };
