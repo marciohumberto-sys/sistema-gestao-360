@@ -174,7 +174,7 @@ const ContractDetails = () => {
 
     const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
     const canWrite = isAdministracao && canWriteCompras(role);
-    const canWriteSaudeItems = !isAdministracao && canWriteCompras(role) && !!contract && !!tenantId && !!entidadeAtivaId && !comprasContextLoading;
+    const canWriteSaudeItems = !isAdministracao && canWriteCompras(role) && !!contract && contract.entidade_gestora_id === entidadeAtivaId && !!tenantId && !!entidadeAtivaId && !comprasContextLoading;
 
     const formatCnpj = (val) => {
         const v = val.replace(/\D/g, '').slice(0, 14);
@@ -687,7 +687,7 @@ const ContractDetails = () => {
             };
 
             if (editingItemId) {
-                if (!isAdministracao) throw new Error("A Saúde não pode editar itens nesta fase.");
+                if (!isAdministracao && !canWriteSaudeItems) throw new Error("A Saúde não possui permissão para editar itens neste contrato.");
                 await contractItemsService.updateContractItem(editingItemId, payload, tenantId);
             } else {
                 if (!isAdministracao) {
@@ -1680,7 +1680,7 @@ const ContractDetails = () => {
                                                                 </td>
                                                                 <td style={{ width: '100px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
-                                                                        {canWrite && (
+                                                                        {(canWrite || canWriteSaudeItems) && (
                                                                             <button
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
