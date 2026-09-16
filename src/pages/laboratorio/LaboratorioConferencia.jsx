@@ -138,15 +138,6 @@ const LaboratorioConferencia = () => {
 
             await laboratorioResultadosService.reabrirResultadoParaCorrecao(selectedExam.id);
             
-            // Buscar o NOVO status do banco para garantir consistência
-            const { data: updatedDbExam, error: fetchErr } = await supabase
-                .from('lab_results')
-                .select('status')
-                .eq('id', selectedExam.id)
-                .single();
-                
-            if (fetchErr) throw fetchErr;
-
             setShowReopenModal(false);
 
             setFeedbackMsg({
@@ -155,9 +146,8 @@ const LaboratorioConferencia = () => {
             });
             setTimeout(() => setFeedbackMsg(null), 5000);
 
-            // Atualiza status localmente com o status real do banco
-            const updatedExam = { ...selectedExam, status: updatedDbExam.status };
-            setSelectedExam(updatedExam);
+            // Atualiza status localmente para 'DIGITADO' e recarrega os dados da tela
+            const updatedExam = { ...selectedExam, status: 'DIGITADO' };
 
             const updatedProtocol = {
                 ...selectedProtocol,
@@ -166,9 +156,12 @@ const LaboratorioConferencia = () => {
             setSelectedProtocol(updatedProtocol);
 
             const updatedSearchResults = searchResults.map(ex => 
-                ex.id === selectedExam.id ? { ...ex, status: updatedDbExam.status } : ex
+                ex.id === selectedExam.id ? { ...ex, status: 'DIGITADO' } : ex
             );
             setSearchResults(updatedSearchResults);
+            
+            // Recarrega apenas os dados do exame sem tirar o usuário do lugar
+            await handleSelectExam(updatedExam);
             
         } catch (error) {
             console.error('[LaboratorioConferencia] Erro ao reabrir resultado:', error);

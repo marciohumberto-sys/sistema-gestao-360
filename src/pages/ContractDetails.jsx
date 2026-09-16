@@ -174,7 +174,7 @@ const ContractDetails = () => {
 
     const isAdministracao = entidadeAtiva?.codigo === 'ADMINISTRACAO';
     const canWrite = isAdministracao && canWriteCompras(role);
-    const canWriteSaudeItems = !isAdministracao && canWriteCompras(role) && contract?.entidade_gestora_id === entidadeAtivaId;
+    const canWriteSaudeItems = !isAdministracao && canWriteCompras(role) && !!contract && !!tenantId && !!entidadeAtivaId && !comprasContextLoading;
 
     const formatCnpj = (val) => {
         const v = val.replace(/\D/g, '').slice(0, 14);
@@ -991,7 +991,7 @@ const ContractDetails = () => {
                         </button>
                         )}
 
-                        {canWrite && (
+                        {(canWrite || canWriteSaudeItems) && (
                         <div className="cd-actions-dropdown-wrapper">
                             <button
                                 className={`cd-btn-primary ${contract.isPending ? 'is-blocked' : ''}`}

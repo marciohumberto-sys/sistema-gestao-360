@@ -196,7 +196,15 @@ const Sidebar = ({ isPinned, togglePin }) => {
     const { entidadeAtiva, loading: comprasContextLoading } = useCompras();
     
     const isComprasRoute = !isFarmacia && !isPlanejamento && !isLaboratorio;
-    const comprasWriteBlocked = 
+    
+    const comprasOfWriteBlocked = 
+        isComprasRoute && 
+        (
+            comprasContextLoading || 
+            !entidadeAtiva
+        );
+
+    const comprasNfWriteBlocked = 
         isComprasRoute && 
         (
             comprasContextLoading || 
@@ -342,20 +350,20 @@ const Sidebar = ({ isPinned, togglePin }) => {
                 <div className="footer-actions">
                     <button 
                         className="footer-btn btn-primary" 
-                        title={comprasWriteBlocked ? "Criação de OF da Saúde ainda não habilitada nesta etapa." : (!isPinned ? "Nova Ordem de Fornecimento" : "")} 
-                        onClick={comprasWriteBlocked ? undefined : () => navigate('/compras/ordens-fornecimento', { state: { openModal: 'nova-of' } })}
-                        disabled={comprasWriteBlocked}
-                        style={comprasWriteBlocked ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                        title={comprasOfWriteBlocked ? "Carregando contexto..." : (!isPinned ? "Nova Ordem de Fornecimento" : "")} 
+                        onClick={comprasOfWriteBlocked ? undefined : () => navigate('/compras/ordens-fornecimento', { state: { openModal: 'nova-of' } })}
+                        disabled={comprasOfWriteBlocked}
+                        style={comprasOfWriteBlocked ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                     >
                         <Plus size={18} strokeWidth={2.5} className="footer-icon" />
                         <span className="footer-btn-label">Nova OF</span>
                     </button>
                     <button 
                         className="footer-btn btn-secondary" 
-                        title={comprasWriteBlocked ? "Registro de NF da Saúde ainda não habilitado nesta etapa." : (!isPinned ? "Registrar Nota Fiscal" : "")} 
-                        onClick={comprasWriteBlocked ? undefined : () => navigate('/compras/notas-fiscais', { state: { openModal: 'nova-nf' } })}
-                        disabled={comprasWriteBlocked}
-                        style={comprasWriteBlocked ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                        title={comprasNfWriteBlocked ? "Registro de NF da Saúde ainda não habilitado nesta etapa." : (!isPinned ? "Registrar Nota Fiscal" : "")} 
+                        onClick={comprasNfWriteBlocked ? undefined : () => navigate('/compras/notas-fiscais', { state: { openModal: 'nova-nf' } })}
+                        disabled={comprasNfWriteBlocked}
+                        style={comprasNfWriteBlocked ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                     >
                         <FilePlus size={18} strokeWidth={2} className="footer-icon" />
                         <span className="footer-btn-label">Registrar NF</span>
