@@ -1857,7 +1857,7 @@ const ContractDetails = () => {
 
                                             return (
                                                 <>
-                                                    {canWrite && (
+                                                    {(canWrite || canWriteSaudeItems) && (
                                                     <div style={{ marginBottom: '1.25rem', padding: '1rem', background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                                                         <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                                                             <Plus size={14} style={{ color: 'var(--color-primary)' }} /> Novo Rateio
