@@ -1252,57 +1252,6 @@ const LaboratorioResultados = () => {
                 'OBS_GERAL', 'OBS_MORFOLOGICAS', 'OBSERVACOES_MORFOLOGICAS', 'OBS_MORFOLOGIA', 'MORFOLOGIA'
             ];
             
-            const missingRequiredParameters = valuesToSave.filter(v => {
-                if (isUri) return false;
-
-                const code = String(v.parameter_code || v.code || '').toUpperCase();
-                
-                if (OPCIONAIS_HEMO.includes(code)) return false;
-                if (isHemoExam && isHemoMorphologyParameter(code, v.name)) return false;
-                
-                if (v.result_type === 'TEXTO' && (v.name || '').toUpperCase().includes('OBSERVA')) return false;
-
-                if (isPCRExam) {
-                    const rawVal = (v.value_text || '').replace('mg/L', '').trim();
-                    if (rawVal.includes('—')) {
-                        const parts = rawVal.split('—').map(p => p.trim());
-                        return !parts[1]; // Result is empty
-                    }
-                    return !rawVal;
-                }
-
-                if (v.result_type === 'NUMERICO') {
-                    if (v._saveNumericAsText === true || v._hasNumericOperator === true) {
-                        return isLabValueEmpty(v.value_text);
-                    }
-                    return isLabValueEmpty(v.value_numeric);
-                } else {
-                    return isLabValueEmpty(v.value_text);
-                }
-            });
-
-            if (missingRequiredParameters.length > 0) {
-                const missingIds = missingRequiredParameters.map(p => p.parameter_id || p.id);
-                setMissingFields(missingIds);
-                
-                const count = missingRequiredParameters.length;
-                setFeedbackMsg({ type: 'error', text: `Preencha os ${count} resultados obrigatórios antes de salvar o exame.` });
-                
-                setTimeout(() => setFeedbackMsg(null), 5000);
-                setSaveStatus('idle'); // Restores the button
-                setSaving(false);
-                
-                // Foco e rolagem para o primeiro campo vazio
-                const firstMissingId = missingIds[0];
-                const index = selectedResult.structuredValues?.findIndex(p => p.id === firstMissingId);
-                if (index !== undefined && index >= 0 && inputRefs.current[index]) {
-                    inputRefs.current[index].focus();
-                    inputRefs.current[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-                
-                return false;
-            }
-
             setMissingFields([]);
 
             const finalGeneralObs = expandRcText(generalObservation);
