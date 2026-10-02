@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Navigate } from 'react-router-dom';
 import { formatCpf } from '../../utils/formatters';
 import { 
     TriangleAlert, Search, CheckCircle2, Clock, ChevronLeft, ChevronRight, Save, Activity, User, FileText,
@@ -10,7 +10,7 @@ import './LaboratorioResultados.css';
 import { laboratorioResultadosService } from '../../services/api/laboratorioResultados.service';
 import LaboratorioGerenciarExamesModal from '../../components/laboratorio/LaboratorioGerenciarExamesModal';
 import { useAuth } from '../../context/AuthContext';
-import { canWriteLaboratorio } from '../../utils/laboratorioAcl';
+import { canWriteLaboratorio, canAccessLaboratorio } from '../../utils/laboratorioAcl';
 import { ATTENDANCE_ORIGINS, POSTOS_UNIDADES_ORDENADOS, TODAS_ORIGENS, normalizeString, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue, expandRcText, isHemoMorphologyParameter, isEritrogramaParameter, formatEritrogramaDecimal } from '../../utils/laboratorioHelpers';
 import {
     isUriExam,
@@ -1593,6 +1593,11 @@ const LaboratorioResultados = () => {
     const filteredGerais = ATTENDANCE_ORIGINS.filter(o => normalizeString(o.label).includes(normalizedOriginSearch));
     const filteredPostos = POSTOS_UNIDADES_ORDENADOS.filter(o => normalizeString(o.label).includes(normalizedOriginSearch));
     const flatFilteredOrigens = [...filteredGerais, ...filteredPostos];
+
+    const hasAccess = canAccessLaboratorio(currentUserRole, '/laboratorio/resultados');
+    if (!hasAccess) {
+        return <Navigate to="/laboratorio/dashboard" replace />;
+    }
 
     return (
         <div className="lab-res-container" style={{ paddingTop: '1.25rem', paddingBottom: '1.25rem' }}>
