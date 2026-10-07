@@ -206,6 +206,10 @@ const LaboratorioResultados = () => {
     const shouldScrollToTopRef = useRef(false);
     const examTopRef = useRef(null);
 
+    const [isEditingPatientCode, setIsEditingPatientCode] = useState(false);
+    const [directPatientCodeValue, setDirectPatientCodeValue] = useState('');
+    const directPatientCodeRef = useRef(null);
+
     const location = useLocation();
     const { tenantLink, isSuperAdmin } = useAuth();
     const currentUserRole = isSuperAdmin ? 'SUPERADMIN' : String(tenantLink?.role || tenantLink?.profile || '').trim().toUpperCase();
@@ -861,6 +865,52 @@ const LaboratorioResultados = () => {
             setTimeout(() => setFeedbackMsg(null), 3000);
         } finally {
             setUpdatingOrigin(false);
+        }
+    };
+
+    const handleDirectPatientCodeSubmit = async () => {
+        if (!directPatientCodeValue || !directPatientCodeValue.trim()) {
+            setIsEditingPatientCode(false);
+            return;
+        }
+
+        const code = directPatientCodeValue.trim();
+
+        try {
+            setLoading(true);
+            const result = await laboratorioResultadosService.buscarAtendimentosProgressivos({
+                filtros: { patient_code: code, status: 'Todos' },
+                cursor: 0,
+                limit: 1
+            });
+
+            if (result && result.items && result.items.length > 0) {
+                const att = result.items[0];
+                
+                if (checkUnsavedChanges()) {
+                    setPendingNavigation({ type: 'patient_global', targetProtocol: att.protocol_number, targetExamCode: selectedResult?.exameCodigo });
+                    setShowUnsavedModal(true);
+                    setLoading(false);
+                    setIsEditingPatientCode(false);
+                    return;
+                }
+
+                executePatientNavigation({ protocol_number: att.protocol_number }, selectedResult?.exameCodigo);
+                setIsEditingPatientCode(false);
+            } else {
+                setFeedbackMsg({ type: 'error', text: 'Paciente não encontrado ou sem atendimentos.' });
+                setTimeout(() => setFeedbackMsg(null), 3000);
+                setLoading(false);
+                if (directPatientCodeRef.current) {
+                    directPatientCodeRef.current.focus();
+                    directPatientCodeRef.current.select();
+                }
+            }
+        } catch (error) {
+            console.error('Erro ao buscar paciente direto:', error);
+            setFeedbackMsg({ type: 'error', text: 'Erro ao buscar paciente.' });
+            setTimeout(() => setFeedbackMsg(null), 3000);
+            setLoading(false);
         }
     };
 
@@ -1845,7 +1895,64 @@ const LaboratorioResultados = () => {
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.4rem' }}>
-                                <div className="lab-ps-item" style={{ borderRight: '1px solid #e2e8f0', paddingRight: '1.25rem' }}><span className="lab-ps-label">Cód. Paciente:</span> <span className="lab-ps-val font-semibold">{currentAttendance.pacienteCodigo}</span></div>
+                                <div className="lab-ps-item" style={{ borderRight: '1px solid #e2e8f0', paddingRight: '1.25rem' }}>
+                                    <span className="lab-ps-label">Cód. Paciente:</span> 
+                                    {isEditingPatientCode ? (
+                                        <input
+                                            ref={directPatientCodeRef}
+                                            type="text"
+                                            className="lab-ps-val font-semibold"
+                                            value={directPatientCodeValue}
+                                            onChange={(e) => setDirectPatientCodeValue(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    handleDirectPatientCodeSubmit();
+                                                } else if (e.key === 'Escape') {
+                                                    e.preventDefault();
+                                                    setIsEditingPatientCode(false);
+                                                }
+                                            }}
+                                            onBlur={() => {
+                                                // Se clicar fora, cancela
+                                                setIsEditingPatientCode(false);
+                                            }}
+                                            style={{
+                                                width: '65px',
+                                                padding: '0.1rem 0.3rem',
+                                                border: '1px solid #cbd5e1',
+                                                borderRadius: '4px',
+                                                outline: 'none',
+                                                marginLeft: '0.1rem',
+                                                background: '#fff',
+                                                color: 'inherit',
+                                                fontFamily: 'inherit',
+                                                lineHeight: 'inherit',
+                                                margin: 0
+                                            }}
+                                        />
+                                    ) : (
+                                        <span 
+                                            className="lab-ps-val font-semibold" 
+                                            style={{ cursor: 'pointer', padding: '0.1rem 0.3rem', borderRadius: '4px', marginLeft: '0.1rem' }}
+                                            onClick={() => {
+                                                setDirectPatientCodeValue(currentAttendance.pacienteCodigo || '');
+                                                setIsEditingPatientCode(true);
+                                                setTimeout(() => {
+                                                    if (directPatientCodeRef.current) {
+                                                        directPatientCodeRef.current.focus();
+                                                        directPatientCodeRef.current.select();
+                                                    }
+                                                }, 10);
+                                            }}
+                                            title="Ir para outro paciente"
+                                            onMouseEnter={(e) => e.target.style.background = '#f1f5f9'}
+                                            onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                                        >
+                                            {currentAttendance.pacienteCodigo}
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="lab-ps-item" style={{ flex: 1 }}><span className="lab-ps-label">Paciente:</span> <span className="lab-ps-val text-primary" style={{ fontSize: '1.15rem', fontWeight: '600' }}>{currentAttendance.pacienteNome}</span></div>
                             </div>
                             
