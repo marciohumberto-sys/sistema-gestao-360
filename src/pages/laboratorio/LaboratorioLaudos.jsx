@@ -575,7 +575,7 @@ const cleanValueURI = (val) => {
     if (str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') return '';
     
     const lower = str.toLowerCase();
-    if (lower === 'não cadastrada' || lower === 'não cadastrado' || lower === 'ausente na amostra analisada') return '';
+    if (lower === 'não cadastrada' || lower === 'não cadastrado') return '';
     
     const internalCodes = ['AS', 'ACL', 'L', 'NO', 'N', 'VAR', 'ALG'];
     if (internalCodes.includes(str.toUpperCase())) return '';
