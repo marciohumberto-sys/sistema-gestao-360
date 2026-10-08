@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, UserPlus, Activity, Loader2, AlertCircle, CheckCircle2, Edit2 } from 'lucide-react';
+import { Search, UserPlus, Activity, Loader2, AlertCircle, CheckCircle2, Edit2, Printer } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { gerarEImprimirProtocolo } from '../../utils/laboratorioHelpers';
 import { laboratorioAtendimentoService } from '../../services/api/laboratorioAtendimento.service';
 import { laboratorioPacientesService } from '../../services/api/laboratorioPacientes.service';
 import { useAuth } from '../../context/AuthContext';
@@ -64,6 +66,95 @@ const formatCpf = (cpf) => {
     const num = cpf.replace(/\D/g, '');
     if (num.length !== 11) return cpf;
     return num.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+};
+
+const ReprintAttendanceButton = ({ paciente }) => {
+    const [hasAttendance, setHasAttendance] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [isPrinting, setIsPrinting] = useState(false);
+
+    useEffect(() => {
+        let isMounted = true;
+        const check = async () => {
+             const { data } = await supabase
+                 .from('lab_attendances')
+                 .select('id')
+                 .eq('patient_id', paciente.id)
+                 .limit(1);
+             if (isMounted) {
+                 setHasAttendance(data && data.length > 0);
+                 setLoading(false);
+             }
+        };
+        check();
+        return () => { isMounted = false; };
+    }, [paciente.id]);
+
+    if (loading || !hasAttendance) return null;
+
+    const handleReprint = async (e) => {
+        e.stopPropagation();
+        if (isPrinting) return;
+        setIsPrinting(true);
+        try {
+            const { data: attendanceData } = await supabase
+                .from('lab_attendances')
+                .select('*')
+                .eq('patient_id', paciente.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+                
+            if (!attendanceData) return;
+            
+            const { data: examesData } = await supabase
+                .from('lab_attendance_exams')
+                .select(`
+                    id,
+                    lab_exams (
+                        id,
+                        name,
+                        code
+                    )
+                `)
+                .eq('attendance_id', attendanceData.id);
+                
+            const examesSolicitados = examesData ? examesData.map(e => e.lab_exams).filter(Boolean) : [];
+            
+            await gerarEImprimirProtocolo(paciente, attendanceData, examesSolicitados);
+        } catch (error) {
+            console.error('Erro ao reimprimir protocolo:', error);
+        } finally {
+            setIsPrinting(false);
+        }
+    };
+
+    return (
+        <button
+            className="lab-btn"
+            style={{ 
+                justifyContent: 'center', 
+                backgroundColor: 'transparent', 
+                border: '1px solid #cbd5e1', 
+                color: '#64748b', 
+                display: 'flex', 
+                alignItems: 'center',
+                width: '36px',
+                height: '36px',
+                padding: '0',
+                borderRadius: '6px',
+                transition: 'all 0.2s',
+                boxShadow: 'none'
+            }}
+            data-tooltip="Reimprimir ficha de atendimento"
+            disabled={isPrinting}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.color = '#334155'; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
+            onClick={handleReprint}
+        >
+            {isPrinting ? <Loader2 size={16} className="spin" /> : <Printer size={16} />}
+        </button>
+    );
 };
 
 const LaboratorioAtendimento = () => {
@@ -322,6 +413,7 @@ const LaboratorioAtendimento = () => {
                                         <Edit2 size={16} />
                                     </button>
                                 )}
+                                <ReprintAttendanceButton paciente={paciente} />
                                 <button
                                     className="lab-btn lab-btn-primary"
                                     style={{ whiteSpace: 'nowrap', minWidth: '110px', justifyContent: 'center', height: '36px', padding: '0 1rem' }}

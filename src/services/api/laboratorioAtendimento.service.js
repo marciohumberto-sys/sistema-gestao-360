@@ -267,6 +267,7 @@ class LaboratorioAtendimentoService {
                     attendance_time: dadosAtendimento.attendance_time || null,
                     attendance_origin: dadosAtendimento.attendance_origin,
                     requesting_doctor: dadosAtendimento.requesting_doctor || null,
+                    requesting_doctor_crm: dadosAtendimento.requesting_doctor_crm || null,
                     agreement: 'SUS',
                     delivery_location: 'CENTRAL',
                     expected_delivery_date: dadosAtendimento.expected_delivery_date || null,

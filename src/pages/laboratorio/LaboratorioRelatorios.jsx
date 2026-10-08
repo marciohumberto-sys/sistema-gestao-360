@@ -90,6 +90,7 @@ const LaboratorioRelatorios = () => {
     const [periodResults, setPeriodResults] = useState([]);
     const [examResults, setExamResults] = useState([]);
     const [originResults, setOriginResults] = useState([]);
+    const [medicoResults, setMedicoResults] = useState([]);
     
     const attendances = activeTab === 'exames' ? examResults : periodResults;
     
@@ -114,7 +115,7 @@ const LaboratorioRelatorios = () => {
         if (activeTab !== 'origem') return [];
         const examCounts = {};
         originResults.forEach(att => {
-            const exames = att.examesList || [];
+            const exames = att.examesBrutos || att.examesList || [];
             exames.forEach(ex => {
                 if (!examCounts[ex.code]) {
                     examCounts[ex.code] = {
@@ -138,6 +139,38 @@ const LaboratorioRelatorios = () => {
         })).sort((a, b) => a.sortOrder - b.sortOrder);
         return result;
     }, [originResults, activeTab]);
+
+    const medicoReportData = useMemo(() => {
+        if (activeTab !== 'medico') return [];
+        const examCounts = {};
+        medicoResults.forEach(att => {
+            const exames = att.examesBrutos || att.examesList || [];
+            const doctorName = att.requesting_doctor || 'NÃO INFORMADO';
+            const doctorCrm = att.requesting_doctor_crm || '---';
+            
+            exames.forEach(ex => {
+                const key = `${doctorName}|${doctorCrm}|${ex.code}`;
+                if (!examCounts[key]) {
+                    examCounts[key] = {
+                        medico: doctorName,
+                        crm: doctorCrm,
+                        codigo: ex.code,
+                        exame: ex.name,
+                        quantidade: 0
+                    };
+                }
+                examCounts[key].quantidade += 1;
+            });
+        });
+        const result = Object.values(examCounts).sort((a, b) => {
+            const medicoA = a.medico === 'NÃO INFORMADO' ? 'ZZZ' : a.medico;
+            const medicoB = b.medico === 'NÃO INFORMADO' ? 'ZZZ' : b.medico;
+            if (medicoA !== medicoB) return medicoA.localeCompare(medicoB);
+            if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade;
+            return a.exame.localeCompare(b.exame);
+        });
+        return result;
+    }, [medicoResults, activeTab]);
 
     const totalExamesOrigem = useMemo(() => {
         return originReportData.reduce((acc, curr) => acc + curr.quantidade, 0);
@@ -317,6 +350,7 @@ const LaboratorioRelatorios = () => {
                         }
                     });
                     
+                    att.examesBrutos = examesBrutos;
                     att.examesList = Array.from(uniqueExamsMap.values()).sort((a, b) => a.sortOrder - b.sortOrder);
                 });
                 
@@ -345,6 +379,8 @@ const LaboratorioRelatorios = () => {
                 setExamResults(allItems);
             } else if (activeTab === 'origem') {
                 setOriginResults(allItems);
+            } else if (activeTab === 'medico') {
+                setMedicoResults(allItems);
             } else {
                 setPeriodResults(allItems);
                 
@@ -361,7 +397,7 @@ const LaboratorioRelatorios = () => {
     };
 
     const handleExportExcel = async () => {
-        if ((activeTab === 'origem' && originReportData.length === 0) || (activeTab !== 'origem' && attendancesToRender.length === 0)) return;
+        if ((activeTab === 'origem' && originReportData.length === 0) || (activeTab === 'medico' && medicoReportData.length === 0) || (activeTab !== 'origem' && activeTab !== 'medico' && attendancesToRender.length === 0)) return;
         
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Relatorio', {
@@ -375,6 +411,14 @@ const LaboratorioRelatorios = () => {
                 { key: 'exame', width: 20 },
                 { key: 'descricao', width: 70 },
                 { key: 'pacientes', width: 15 },
+                { key: 'quantidade', width: 15 }
+            ];
+        } else if (activeTab === 'medico') {
+            worksheet.columns = [
+                { key: 'medico', width: 40 },
+                { key: 'crm', width: 20 },
+                { key: 'codigo', width: 15 },
+                { key: 'exame', width: 40 },
                 { key: 'quantidade', width: 15 }
             ];
         } else {
@@ -392,7 +436,7 @@ const LaboratorioRelatorios = () => {
         worksheet.getRow(2).height = 20;
         worksheet.getRow(3).height = 20;
         
-        const lastCol = activeTab === 'origem' ? 'D' : 'E';
+        const lastCol = activeTab === 'origem' || activeTab === 'medico' ? 'E' : 'E';
         worksheet.mergeCells(`A1:${lastCol}1`);
         const title1 = worksheet.getCell('A1');
         title1.value = 'PREFEITURA DE BEZERROS';
@@ -407,7 +451,7 @@ const LaboratorioRelatorios = () => {
 
         worksheet.mergeCells(`A3:${lastCol}3`);
         const title3 = worksheet.getCell('A3');
-        title3.value = activeTab === 'origem' ? 'RELATÓRIO TOTAL DE EXAMES POR ORIGEM' : 'RELATÓRIO DE ATENDIMENTOS';
+        title3.value = activeTab === 'origem' ? 'RELATÓRIO TOTAL DE EXAMES POR ORIGEM' : (activeTab === 'medico' ? 'EXAMES SOLICITADOS POR MÉDICO' : 'RELATÓRIO DE ATENDIMENTOS');
         title3.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FF666666' } };
         title3.alignment = { horizontal: 'center', vertical: 'top' };
 
@@ -449,7 +493,9 @@ const LaboratorioRelatorios = () => {
         const filterCell = worksheet.getCell('A4');
         const filterText = activeTab === 'origem' 
             ? `Período: ${formatDataToBR(formFilters.dataInicial)} a ${formatDataToBR(formFilters.dataFinal)} | Origem: ${formFilters.origem}`
-            : `Data Incial: ${formatDataToBR(formFilters.dataInicial)} | Data Final: ${formatDataToBR(formFilters.dataFinal)} | Código: ${formFilters.codigo || 'Todos'} | Origem: ${formFilters.origem} | Exame: ${formFilters.exame ? baseExamsList.find(e=>e.id===formFilters.exame)?.code : 'Todos'}`;
+            : (activeTab === 'medico' 
+                ? `Período: ${formatDataToBR(formFilters.dataInicial)} a ${formatDataToBR(formFilters.dataFinal)}`
+                : `Data Incial: ${formatDataToBR(formFilters.dataInicial)} | Data Final: ${formatDataToBR(formFilters.dataFinal)} | Código: ${formFilters.codigo || 'Todos'} | Origem: ${formFilters.origem} | Exame: ${formFilters.exame ? baseExamsList.find(e=>e.id===formFilters.exame)?.code : 'Todos'}`);
         filterCell.value = filterText;
         filterCell.font = { name: 'Arial', size: 10, italic: true };
         
@@ -458,21 +504,28 @@ const LaboratorioRelatorios = () => {
         const summaryCell = worksheet.getCell('A5');
         summaryCell.value = activeTab === 'origem' 
             ? `${totalExamesOrigem} exames encontrados | ${originReportData.length} tipos de exame | ${distinctPatientsOrigem} pacientes distintos` 
-            : `${attendancesToRender.length} registros | ${activeTab === 'exames' ? distinctPatientsCount + ' pacientes' : totalExames + ' exames vinculados'}`;
+            : (activeTab === 'medico' 
+                ? `${medicoReportData.reduce((acc, curr) => acc + curr.quantidade, 0)} exames vinculados | ${new Set(medicoReportData.map(m=>m.medico)).size} médicos distintos`
+                : `${attendancesToRender.length} registros | ${activeTab === 'exames' ? distinctPatientsCount + ' pacientes' : totalExames + ' exames vinculados'}`);
         summaryCell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF1D4ED8' } };
         
         worksheet.addRow([]); // Espaço
 
         // Cabeçalho da tabela
-        const headers = activeTab === 'origem' 
-            ? ['CÓDIGO', 'EXAME', 'DESCRIÇÃO', 'PACIENTES', 'QUANTIDADE']
-            : ['DATA', 'CÓD. PACIENTE', 'PACIENTE', 'ORIGEM', activeTab === 'exames' ? 'EXAME' : 'EXAMES'];
+        let headers = [];
+        if (activeTab === 'origem') {
+            headers = ['CÓDIGO', 'EXAME', 'DESCRIÇÃO', 'PACIENTES', 'QUANTIDADE'];
+        } else if (activeTab === 'medico') {
+            headers = ['MÉDICO', 'CRM', 'CÓDIGO', 'EXAME', 'QUANTIDADE'];
+        } else {
+            headers = ['DATA', 'CÓD. PACIENTE', 'PACIENTE', 'ORIGEM', activeTab === 'exames' ? 'EXAME' : 'EXAMES'];
+        }
             
         const headerRow = worksheet.addRow(headers);
         headerRow.eachCell((cell) => {
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
             cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF1E293B' } };
-            cell.alignment = { vertical: 'middle', horizontal: activeTab === 'origem' && (cell.col === 4 || cell.col === 5) ? 'right' : 'left' };
+            cell.alignment = { vertical: 'middle', horizontal: (activeTab === 'origem' && (cell.col === 4 || cell.col === 5)) || (activeTab === 'medico' && cell.col === 5) ? 'right' : 'left' };
             cell.border = {
                 top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
                 bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
@@ -510,6 +563,25 @@ const LaboratorioRelatorios = () => {
                 cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF1E293B' } };
                 cell.alignment = { vertical: 'middle', horizontal: colNumber === 5 ? 'right' : 'left' };
                 cell.border = { top: { style: 'medium', color: { argb: 'FFCBD5E1' } } };
+            });
+        } else if (activeTab === 'medico') {
+            medicoReportData.forEach((item, idx) => {
+                const row = worksheet.addRow([
+                    item.medico,
+                    item.crm,
+                    item.codigo,
+                    item.exame,
+                    item.quantidade
+                ]);
+                const isEven = idx % 2 === 1; // 1-indexed visual zebra
+                row.eachCell((cell, colNumber) => {
+                    cell.font = { name: 'Arial', size: 10, color: { argb: 'FF334155' } };
+                    cell.alignment = { vertical: 'middle', horizontal: (colNumber === 5) ? 'right' : 'left' };
+                    cell.border = { bottom: { style: 'hair', color: { argb: 'FFE2E8F0' } } };
+                    if (isEven) {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+                    }
+                });
             });
         } else {
             attendancesToRender.forEach((att, idx) => {
@@ -601,6 +673,8 @@ const LaboratorioRelatorios = () => {
                 <div className="print-summary" style={{ textAlign: 'left' }}>
                     {activeTab === 'origem' ? (
                         <><strong>{totalExamesOrigem}</strong> exames encontrados | <strong>{originReportData.length}</strong> tipos de exame | <strong>{distinctPatientsOrigem}</strong> pacientes distintos</>
+                    ) : activeTab === 'medico' ? (
+                        <><strong>{medicoReportData.reduce((acc, curr) => acc + curr.quantidade, 0)}</strong> exames vinculados | <strong>{new Set(medicoReportData.map(m=>m.medico)).size}</strong> médicos distintos</>
                     ) : (
                         <><strong>{attendancesToRender.length}</strong> registros encontrados | <strong>{activeTab === 'exames' ? distinctPatientsCount + ' pacientes distintos' : totalExames + ' exames vinculados'}</strong></>
                     )}
@@ -614,6 +688,14 @@ const LaboratorioRelatorios = () => {
                                 <th>EXAME</th>
                                 <th>DESCRIÇÃO</th>
                                 <th style={{ textAlign: 'right' }}>PACIENTES</th>
+                                <th style={{ textAlign: 'right' }}>QUANTIDADE</th>
+                            </tr>
+                        ) : activeTab === 'medico' ? (
+                            <tr>
+                                <th>MÉDICO</th>
+                                <th>CRM</th>
+                                <th>CÓDIGO</th>
+                                <th>EXAME</th>
                                 <th style={{ textAlign: 'right' }}>QUANTIDADE</th>
                             </tr>
                         ) : (
@@ -643,6 +725,18 @@ const LaboratorioRelatorios = () => {
                                     <td colSpan={4} style={{ borderTop: '2px solid #333' }}>TOTAL DE EXAMES</td>
                                     <td style={{ textAlign: 'right', borderTop: '2px solid #333' }}>{totalExamesOrigem.toLocaleString('pt-BR')}</td>
                                 </tr>
+                            </>
+                        ) : activeTab === 'medico' ? (
+                            <>
+                                {medicoReportData.map((item, idx) => (
+                                    <tr key={item.medico + item.crm + item.codigo}>
+                                        <td>{item.medico}</td>
+                                        <td>{item.crm}</td>
+                                        <td>{item.codigo}</td>
+                                        <td>{item.exame}</td>
+                                        <td style={{ textAlign: 'right' }}>{item.quantidade}</td>
+                                    </tr>
+                                ))}
                             </>
                         ) : (
                             attendancesToRender.map((att, idx) => {
@@ -676,10 +770,10 @@ const LaboratorioRelatorios = () => {
                         <p className="lab-subtitle">Consultas e exportação dos atendimentos realizados pelo laboratório</p>
                     </div>
                     <div className="lab-header-actions" style={{ display: 'flex', gap: '0.75rem' }}>
-                        <button className="lab-btn lab-btn-outline" onClick={handlePrint} disabled={activeTab === 'origem' ? originReportData.length === 0 : attendances.length === 0}>
+                        <button className="lab-btn lab-btn-outline" onClick={handlePrint} disabled={activeTab === 'origem' ? originReportData.length === 0 : (activeTab === 'medico' ? medicoReportData.length === 0 : attendances.length === 0)}>
                             <Printer size={16} /> Imprimir
                         </button>
-                        <button className="lab-btn lab-btn-success" onClick={handleExportExcel} disabled={activeTab === 'origem' ? originReportData.length === 0 : attendances.length === 0}>
+                        <button className="lab-btn lab-btn-success" onClick={handleExportExcel} disabled={activeTab === 'origem' ? originReportData.length === 0 : (activeTab === 'medico' ? medicoReportData.length === 0 : attendances.length === 0)}>
                             <Download size={16} /> Excel
                         </button>
                     </div>
@@ -710,6 +804,14 @@ const LaboratorioRelatorios = () => {
                     >
                         Total Exames por Origem
                     </button>
+                    <button 
+                        type="button"
+                        className={`lab-rel-tab ${activeTab === 'medico' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('medico')}
+                        style={{ padding: '0.75rem 1.5rem', border: 'none', background: 'none', borderBottom: activeTab === 'medico' ? '2px solid #2563eb' : '2px solid transparent', color: activeTab === 'medico' ? '#2563eb' : '#64748b', fontWeight: activeTab === 'medico' ? '600' : '500', cursor: 'pointer', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    >
+                        Exames por Médico
+                    </button>
                 </div>
             </header>
 
@@ -719,7 +821,8 @@ const LaboratorioRelatorios = () => {
                     <Search size={18} />
                     <h3 style={{ fontSize: '1rem', fontWeight: '700', margin: 0 }}>Filtros do relatório</h3>
                 </div>
-                <div className="lab-rel-filters-grid" style={{ gridTemplateColumns: activeTab === 'origem' ? 'minmax(180px, 1.2fr) minmax(180px, 1.2fr) minmax(220px, 2fr) 150px' : 'minmax(140px, 1.2fr) minmax(140px, 1.2fr) minmax(120px, 1fr) minmax(180px, 1.5fr) minmax(180px, 1.5fr) 130px', alignItems: 'end' }}>
+                <div className="lab-rel-filters-grid" style={{ gridTemplateColumns: activeTab === 'origem' || activeTab === 'medico' ? 'minmax(180px, 1.2fr) minmax(180px, 1.2fr) minmax(220px, 2fr) 150px' : 'minmax(140px, 1.2fr) minmax(140px, 1.2fr) minmax(120px, 1fr) minmax(180px, 1.5fr) minmax(180px, 1.5fr) 130px', alignItems: 'end' }}>
+
                     <div className="lab-filter-item">
                         <label>Data inicial</label>
                         <input 
@@ -737,7 +840,7 @@ const LaboratorioRelatorios = () => {
                         />
                     </div>
 
-                    {activeTab !== 'origem' && (
+                    {activeTab !== 'origem' && activeTab !== 'medico' && (
                         <div className="lab-filter-item">
                             <label>Cód. Paciente</label>
                             <input 
@@ -789,7 +892,7 @@ const LaboratorioRelatorios = () => {
                     </div>
 
                     {/* Filtro Exame */}
-                    {activeTab !== 'origem' && (
+                    {activeTab !== 'origem' && activeTab !== 'medico' && (
                         <div className="lab-filter-item" ref={examRef}>
                             <label>Exame</label>
                             <div className="lab-custom-dropdown">
@@ -854,6 +957,15 @@ const LaboratorioRelatorios = () => {
                                 {distinctPatientsOrigem.toLocaleString('pt-BR')} paciente{distinctPatientsOrigem !== 1 ? 's' : ''} distinto{distinctPatientsOrigem !== 1 ? 's' : ''}
                             </div>
                         </>
+                    ) : activeTab === 'medico' ? (
+                        <>
+                            <div style={{ background: '#eff6ff', color: '#1d4ed8', padding: '0.4rem 1rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '600' }}>
+                                {medicoReportData.reduce((acc, curr) => acc + curr.quantidade, 0).toLocaleString('pt-BR')} exame{medicoReportData.reduce((acc, curr) => acc + curr.quantidade, 0) !== 1 ? 's' : ''} vinculado{medicoReportData.reduce((acc, curr) => acc + curr.quantidade, 0) !== 1 ? 's' : ''}
+                            </div>
+                            <div style={{ background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', padding: '0.4rem 1rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '600' }}>
+                                {new Set(medicoReportData.map(m=>m.medico)).size.toLocaleString('pt-BR')} médico{new Set(medicoReportData.map(m=>m.medico)).size !== 1 ? 's' : ''} distinto{new Set(medicoReportData.map(m=>m.medico)).size !== 1 ? 's' : ''}
+                            </div>
+                        </>
                     ) : (
                         <>
                             <div style={{ background: '#eff6ff', color: '#1d4ed8', padding: '0.4rem 1rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '600' }}>
@@ -873,12 +985,12 @@ const LaboratorioRelatorios = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
                             <h2 className="lab-rel-panel-title">
-                                {activeTab === 'origem' ? 'Total de Exames por Origem' : 'Relatório de Atendimentos'}
+                                {activeTab === 'origem' ? 'Total de Exames por Origem' : (activeTab === 'medico' ? 'Exames Solicitados por Médico' : 'Relatório de Atendimentos')}
                             </h2>
                             <p className="lab-rel-panel-subtitle">
                                 {activeTab === 'origem' 
                                     ? 'Quantidade de exames realizados por tipo de procedimento.' 
-                                    : 'Pacientes atendidos e exames vinculados aos filtros selecionados.'}
+                                    : (activeTab === 'medico' ? 'Exames filtrados por médico solicitante e CRM.' : 'Pacientes atendidos e exames vinculados aos filtros selecionados.')}
                             </p>
                         </div>
                         {hasSearched && !loading && activeTab !== 'origem' && (
@@ -898,6 +1010,14 @@ const LaboratorioRelatorios = () => {
                                             <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>EXAME</th>
                                             <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc', width: '100%' }}>DESCRIÇÃO</th>
                                             <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc', textAlign: 'right' }}>PACIENTES</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc', textAlign: 'right' }}>QUANTIDADE</th>
+                                        </>
+                                    ) : activeTab === 'medico' ? (
+                                        <>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>MÉDICO</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>CRM</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>CÓDIGO</th>
+                                            <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc', width: '100%' }}>EXAME</th>
                                             <th style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc', textAlign: 'right' }}>QUANTIDADE</th>
                                         </>
                                     ) : (
@@ -923,9 +1043,9 @@ const LaboratorioRelatorios = () => {
                                                 </div>
                                             </td>
                                         </tr>
-                                    ) : hasSearched && ((activeTab === 'origem' && originReportData.length === 0) || (activeTab !== 'origem' && attendancesToRender.length === 0)) ? (
+                                    ) : hasSearched && ((activeTab === 'origem' && originReportData.length === 0) || (activeTab === 'medico' && medicoReportData.length === 0) || (activeTab !== 'origem' && activeTab !== 'medico' && attendancesToRender.length === 0)) ? (
                                         <tr>
-                                            <td colSpan={activeTab === 'origem' ? 5 : (activeTab === 'exames' ? 7 : 6)} style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>
+                                            <td colSpan={activeTab === 'origem' ? 5 : (activeTab === 'medico' ? 5 : (activeTab === 'exames' ? 7 : 6))} style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
                                                     <AlertCircle size={32} color="#94a3b8" />
                                                     <span style={{ fontSize: '1rem', fontWeight: '500' }}>Nenhum resultado encontrado.</span>
@@ -948,6 +1068,18 @@ const LaboratorioRelatorios = () => {
                                                     <td colSpan={4} style={{ borderTop: '2px solid #e2e8f0', paddingTop: '12px', paddingBottom: '12px' }}>TOTAL DE EXAMES</td>
                                                     <td style={{ textAlign: 'right', borderTop: '2px solid #e2e8f0', paddingTop: '12px', paddingBottom: '12px' }}>{totalExamesOrigem.toLocaleString('pt-BR')}</td>
                                                 </tr>
+                                            </>
+                                        ) : activeTab === 'medico' ? (
+                                            <>
+                                                {medicoReportData.map((item, idx) => (
+                                                    <tr key={item.medico + item.crm + item.codigo} className={idx % 2 === 0 ? 'lab-row-even' : 'lab-row-odd'}>
+                                                        <td style={{ fontWeight: '500', color: item.medico === 'NÃO INFORMADO' ? '#94a3b8' : '#1e293b' }}>{item.medico}</td>
+                                                        <td>{item.crm}</td>
+                                                        <td>{item.codigo}</td>
+                                                        <td style={{ fontWeight: '500' }}>{item.exame}</td>
+                                                        <td style={{ textAlign: 'right', fontWeight: '500' }}>{item.quantidade}</td>
+                                                    </tr>
+                                                ))}
                                             </>
                                         ) : (
                                             attendancesToRender.map((att, index) => {
