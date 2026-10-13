@@ -620,6 +620,188 @@ export function formatEritrogramaDecimal(value) {
     return num.toFixed(2).replace('.', ',');
 }
 
+/**
+ * Identifica se um parâmetro de determinado exame é calculado automaticamente.
+ */
+export function isCalculatedParameter(examCode, paramCode) {
+    const exam = String(examCode || '').trim().toUpperCase();
+    const code = String(paramCode || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+    
+    if (exam === 'HEMO') {
+        return code === 'HCM' || code === 'VCM' || code === 'CHCM';
+    }
+    if (exam === 'BIL') {
+        return code === 'BILIRRUBINA_INDIRETA' || code === 'BILIRRUBINA_IND';
+    }
+    return false;
+}
+
+/**
+ * Converte string ou número para float no contexto do exame de Bilirrubina.
+ */
+export function parseBilNumber(val) {
+    if (val === null || val === undefined || val === '') return null;
+    const str = String(val).trim().replace(',', '.');
+    if (str === '') return null;
+    const num = parseFloat(str);
+    return isNaN(num) || !isFinite(num) ? null : num;
+}
+
+/**
+ * Aplica os cálculos automáticos do Hemograma Completo (VCM, HCM, CHCM).
+ * Compatível tanto com formState em formato de objeto ({ [paramId]: paramObj })
+ * quanto com array de parâmetros ([paramObj1, paramObj2, ...]).
+ */
+export function applyHemoCalculations(formState) {
+    if (!formState) return formState;
+    const isArray = Array.isArray(formState);
+    const next = isArray ? [...formState] : { ...formState };
+    
+    const paramsByCode = {};
+    const paramKeysByCode = {};
+    
+    if (isArray) {
+        next.forEach((p, idx) => {
+            const code = String(p.parameter_code || p.code || '').toUpperCase().replace(/[^A-Z0-9_]/g, '');
+            paramsByCode[code] = p;
+            paramKeysByCode[code] = idx;
+        });
+    } else {
+        Object.entries(next).forEach(([key, p]) => {
+            const code = String(p.parameter_code || p.code || '').toUpperCase().replace(/[^A-Z0-9_]/g, '');
+            paramsByCode[code] = p;
+            paramKeysByCode[code] = key;
+        });
+    }
+    
+    const hema = paramsByCode['HEMACIAS'];
+    const hemo = paramsByCode['HEMOGLOBINA'];
+    const hemt = paramsByCode['HEMATOCRITO'];
+    
+    const vcmKey = paramKeysByCode['VCM'];
+    const hcmKey = paramKeysByCode['HCM'];
+    const chcmKey = paramKeysByCode['CHCM'];
+    
+    if (vcmKey !== undefined || hcmKey !== undefined || chcmKey !== undefined) {
+        const parseNum = (val) => {
+            if (val === null || val === undefined || val === '') return null;
+            const parsed = parseHemoNumber(val);
+            return parsed !== null && !isNaN(parsed) ? parsed : null;
+        };
+        
+        const valHema = parseNum(hema?.value_numeric);
+        const valHemo = parseNum(hemo?.value_numeric);
+        const valHemt = parseNum(hemt?.value_numeric);
+        
+        const formatResult = (val) => {
+            if (val === null || val === undefined || isNaN(val) || !isFinite(val)) return '';
+            return formatEritrogramaDecimal(val);
+        };
+        
+        if (vcmKey !== undefined) {
+            let vcmVal = null;
+            if (valHemt !== null && valHema !== null && valHema !== 0) {
+                vcmVal = (valHemt / valHema) * 10;
+            }
+            next[vcmKey] = {
+                ...next[vcmKey],
+                value_numeric: vcmVal !== null ? formatResult(vcmVal) : ''
+            };
+        }
+        
+        if (hcmKey !== undefined) {
+            let hcmVal = null;
+            if (valHemo !== null && valHema !== null && valHema !== 0) {
+                hcmVal = (valHemo / valHema) * 10;
+            }
+            next[hcmKey] = {
+                ...next[hcmKey],
+                value_numeric: hcmVal !== null ? formatResult(hcmVal) : ''
+            };
+        }
+        
+        if (chcmKey !== undefined) {
+            let chcmVal = null;
+            if (valHemo !== null && valHemt !== null && valHemt !== 0) {
+                chcmVal = (valHemo / valHemt) * 100;
+            }
+            next[chcmKey] = {
+                ...next[chcmKey],
+                value_numeric: chcmVal !== null ? formatResult(chcmVal) : ''
+            };
+        }
+    }
+    
+    return next;
+}
+
+/**
+ * Aplica os cálculos automáticos do exame Bilirrubina (Bilirrubina Indireta).
+ * Compatível tanto com formState em formato de objeto quanto com array.
+ */
+export function applyBilCalculations(formState) {
+    if (!formState) return formState;
+    const isArray = Array.isArray(formState);
+    const next = isArray ? [...formState] : { ...formState };
+    
+    const paramsByCode = {};
+    const paramKeysByCode = {};
+    
+    if (isArray) {
+        next.forEach((p, idx) => {
+            const code = String(p.parameter_code || p.code || '').toUpperCase().replace(/[^A-Z0-9_]/g, '');
+            paramsByCode[code] = p;
+            paramKeysByCode[code] = idx;
+        });
+    } else {
+        Object.entries(next).forEach(([key, p]) => {
+            const code = String(p.parameter_code || p.code || '').toUpperCase().replace(/[^A-Z0-9_]/g, '');
+            paramsByCode[code] = p;
+            paramKeysByCode[code] = key;
+        });
+    }
+    
+    const totalParam = paramsByCode['BILIRRUBINA_TOTAL'];
+    const diretaParam = paramsByCode['BILIRRUBINA_DIRETA'];
+    const indiretaKey = paramKeysByCode['BILIRRUBINA_INDIRETA'] !== undefined
+        ? paramKeysByCode['BILIRRUBINA_INDIRETA']
+        : paramKeysByCode['BILIRRUBINA_IND'];
+    
+    if (indiretaKey !== undefined) {
+        const valTotal = parseBilNumber(totalParam?.value_numeric);
+        const valDireta = parseBilNumber(diretaParam?.value_numeric);
+        
+        let calculatedIndireta = '';
+        if (valTotal !== null && valDireta !== null) {
+            if (valDireta <= valTotal) {
+                const diff = Math.round((valTotal - valDireta + Number.EPSILON) * 100) / 100;
+                calculatedIndireta = String(diff).replace('.', ',');
+            }
+        }
+        
+        next[indiretaKey] = {
+            ...next[indiretaKey],
+            value_numeric: calculatedIndireta
+        };
+    }
+    
+    return next;
+}
+
+/**
+ * Aplica os cálculos automáticos apropriados para o exame indicado.
+ */
+export function applyExamCalculations(examCode, formState) {
+    const code = String(examCode || '').trim().toUpperCase();
+    if (code === 'HEMO') {
+        return applyHemoCalculations(formState);
+    }
+    if (code === 'BIL') {
+        return applyBilCalculations(formState);
+    }
+    return formState;
+}
+
 export const gerarEImprimirProtocolo = (currentPatientData, attendanceData, examesSolicitados) => {
     return new Promise((resolve) => {
         const iframe = document.createElement('iframe');

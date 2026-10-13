@@ -20,7 +20,10 @@ import {
     expandHemogramaMorphologyAbbreviations, 
     resolveHemoReference, 
     formatHemoReferenceText, 
-    expandRcText 
+    expandRcText,
+    isCalculatedParameter,
+    applyExamCalculations,
+    normalizeLabNumericInput
 } from '../../utils/laboratorioHelpers';
 import { 
     isUriExam, 
@@ -579,6 +582,12 @@ const LaboratorioConferencia = () => {
             return;
         }
 
+        // Parâmetros calculados automaticamente não permitem edição manual
+        if (isCalculatedParameter(selectedExam.exameCodigo, param.parameter_code || param.code)) {
+            setEditingParam(null);
+            return;
+        }
+
         try {
             setSaving(true);
             const rawVal = editingParam.value;
@@ -602,14 +611,41 @@ const LaboratorioConferencia = () => {
                 updatedParam.value_text = rawVal || '';
                 updatedParam.value_numeric = null;
             }
-            
-            await laboratorioResultadosService.salvarResultados(selectedExam.id, [updatedParam]);
-            
-            setExamDetails(prev => prev.map(p => p.id === param.id ? { 
+
+            // 1. Atualiza lista com o parâmetro editado
+            const nextDetails = examDetails.map(p => p.id === param.id ? { 
                 ...p, 
                 value_numeric: updatedParam.value_numeric, 
                 value_text: updatedParam.value_text 
-            } : p));
+            } : p);
+
+            // 2. Aplica regras de cálculo centralizadas (HEMO -> HCM, VCM, CHCM; BIL -> BILIRRUBINA_INDIRETA)
+            const calculatedDetails = applyExamCalculations(selectedExam.exameCodigo, nextDetails);
+
+            // 3. Monta lista de parâmetros a persistir no banco e normaliza detalhes para estado da tela
+            const itemsToSave = [updatedParam];
+            const finalDetails = calculatedDetails.map(p => {
+                const isCalc = isCalculatedParameter(selectedExam.exameCodigo, p.parameter_code || p.code);
+                if (isCalc) {
+                    const normalizedNum = normalizeLabNumericInput(p.value_numeric);
+                    itemsToSave.push({
+                        ...p,
+                        value_id: p.id,
+                        value_numeric: normalizedNum,
+                        value_text: null
+                    });
+                    return {
+                        ...p,
+                        value_numeric: normalizedNum,
+                        value_text: null
+                    };
+                }
+                return p;
+            });
+            
+            await laboratorioResultadosService.salvarResultados(selectedExam.id, itemsToSave);
+            
+            setExamDetails(finalDetails);
             setEditingParam(null);
             setFeedbackMsg({ type: 'success', text: 'Valor atualizado com sucesso.' });
             setTimeout(() => setFeedbackMsg(null), 3000);
@@ -670,7 +706,7 @@ const LaboratorioConferencia = () => {
 
     const isAbnormal = (val_num, min, max) => {
         if (val_num === null || val_num === undefined || val_num === '') return false;
-        const num = parseFloat(val_num);
+        const num = typeof val_num === 'string' ? parseFloat(val_num.replace(',', '.')) : parseFloat(val_num);
         if (isNaN(num)) return false;
         
         if (min !== null && min !== undefined && num < parseFloat(min)) return 'below';
@@ -1273,7 +1309,8 @@ const SimpleExamView = ({ examDetails, selectedExam, editingParam, setEditingPar
                         : (param.value_numeric !== null && param.value_numeric !== undefined ? String(param.value_numeric) : (displayValue || ''));
                     
                     const abnormalStatus = isAbnormal(param.value_numeric, param.min_value, param.max_value);
-                    const isEditing = editingParam?.id === param.id;
+                    const isCalc = isCalculatedParameter(selectedExam?.exameCodigo, param.parameter_code || param.code);
+                    const isEditing = editingParam?.id === param.id && !isCalc;
 
                     let refDisplay = param.reference_text;
                     if (!refDisplay && (param.min_value !== null || param.max_value !== null)) {
@@ -1354,7 +1391,7 @@ const SimpleExamView = ({ examDetails, selectedExam, editingParam, setEditingPar
 
                             {/* AÇÃO (100px fixo, centralizado) */}
                             <div className="conf-simple-td col-action">
-                                {!isEditing && canWrite && (
+                                {!isEditing && canWrite && !isCalc && (
                                     <button 
                                         className="conf-btn-edit" 
                                         onClick={() => setEditingParam({ id: param.id, value: rawParamValue, isText: param.result_type === 'TEXTO' })}
@@ -1566,12 +1603,13 @@ const HemoExamView = ({ examDetails, selectedExam, selectedProtocol, editingPara
                     <div className="conf-hemo-box-rows">
                         {eritroParams.map(param => {
                             const code = normalizeCode(param.parameter_code || param.code);
+                            const isCalc = isCalculatedParameter('HEMO', code);
                             const displayVal = formatLabValue(code, param.result_type, param.value_numeric, param.value_text, 'HEMO', param.parameter_name);
                             const rawParamValue = param.value_text !== null && param.value_text !== undefined 
                                 ? param.value_text 
                                 : (param.value_numeric !== null && param.value_numeric !== undefined ? String(param.value_numeric) : (displayVal || ''));
                             const abnormal = isAbnormal(param.value_numeric, param.min_value, param.max_value);
-                            const isEditing = editingParam?.id === param.id;
+                            const isEditing = editingParam?.id === param.id && !isCalc;
                             const refText = renderHemoRef(param);
 
                             return (
@@ -1617,7 +1655,7 @@ const HemoExamView = ({ examDetails, selectedExam, selectedProtocol, editingPara
                                             </div>
 
                                             <div className="conf-hemo-col-action">
-                                                {canWrite && (
+                                                {canWrite && !isCalc && (
                                                     <button 
                                                         className="conf-compact-edit-btn" 
                                                         onClick={() => setEditingParam({ id: param.id, value: rawParamValue, isText: false })}

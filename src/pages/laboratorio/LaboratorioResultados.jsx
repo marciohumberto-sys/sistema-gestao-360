@@ -11,7 +11,13 @@ import { laboratorioResultadosService } from '../../services/api/laboratorioResu
 import LaboratorioGerenciarExamesModal from '../../components/laboratorio/LaboratorioGerenciarExamesModal';
 import { useAuth } from '../../context/AuthContext';
 import { canWriteLaboratorio, canAccessLaboratorio } from '../../utils/laboratorioAcl';
-import { ATTENDANCE_ORIGINS, POSTOS_UNIDADES_ORDENADOS, TODAS_ORIGENS, normalizeString, formatAttendanceOrigin, normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue, expandRcText, isHemoMorphologyParameter, isEritrogramaParameter, formatEritrogramaDecimal } from '../../utils/laboratorioHelpers';
+import { 
+    ATTENDANCE_ORIGINS, POSTOS_UNIDADES_ORDENADOS, TODAS_ORIGENS, normalizeString, formatAttendanceOrigin, 
+    normalizeLabNumericInput, isLabValueEmpty, HEMO_INTEGER_COUNT_CODES, normalizeIntegerCountInput, 
+    formatLabValue, resolveHemoReference, parseHemoNumber, formatHemoResultValue, expandRcText, 
+    isHemoMorphologyParameter, isEritrogramaParameter, formatEritrogramaDecimal,
+    isCalculatedParameter, parseBilNumber, applyHemoCalculations, applyBilCalculations, applyExamCalculations 
+} from '../../utils/laboratorioHelpers';
 import {
     isUriExam,
     getUriParameterDisplayName,
@@ -550,123 +556,6 @@ const LaboratorioResultados = () => {
         }
     };
 
-    const applyHemoCalculations = (formState) => {
-        const next = { ...formState };
-        
-        const paramsByCode = {};
-        const paramIdsByCode = {};
-        
-        Object.values(next).forEach(p => {
-            const code = String(p.parameter_code || p.code || '').toUpperCase();
-            paramsByCode[code] = p;
-            paramIdsByCode[code] = p.parameter_id || p.id || p.parameterId;
-        });
-        
-        const hema = paramsByCode['HEMACIAS'];
-        const hemo = paramsByCode['HEMOGLOBINA'];
-        const hemt = paramsByCode['HEMATOCRITO'];
-        
-        const vcmId = paramIdsByCode['VCM'];
-        const hcmId = paramIdsByCode['HCM'];
-        const chcmId = paramIdsByCode['CHCM'];
-        
-        if (vcmId || hcmId || chcmId) {
-            const parseNum = (val) => {
-                if (val === null || val === undefined || val === '') return null;
-                const parsed = parseHemoNumber(val);
-                return parsed !== null && !isNaN(parsed) ? parsed : null;
-            };
-            
-            const valHema = parseNum(hema?.value_numeric);
-            const valHemo = parseNum(hemo?.value_numeric);
-            const valHemt = parseNum(hemt?.value_numeric);
-            
-            const formatResult = (val) => {
-                if (val === null || val === undefined || isNaN(val) || !isFinite(val)) return '';
-                return formatEritrogramaDecimal(val);
-            };
-            
-            if (vcmId) {
-                let vcmVal = null;
-                if (valHemt !== null && valHema !== null && valHema !== 0) {
-                    vcmVal = (valHemt / valHema) * 10;
-                }
-                next[vcmId] = {
-                    ...next[vcmId],
-                    value_numeric: vcmVal !== null ? formatResult(vcmVal) : ''
-                };
-            }
-            
-            if (hcmId) {
-                let hcmVal = null;
-                if (valHemo !== null && valHema !== null && valHema !== 0) {
-                    hcmVal = (valHemo / valHema) * 10;
-                }
-                next[hcmId] = {
-                    ...next[hcmId],
-                    value_numeric: hcmVal !== null ? formatResult(hcmVal) : ''
-                };
-            }
-            
-            if (chcmId) {
-                let chcmVal = null;
-                if (valHemo !== null && valHemt !== null && valHemt !== 0) {
-                    chcmVal = (valHemo / valHemt) * 100;
-                }
-                next[chcmId] = {
-                    ...next[chcmId],
-                    value_numeric: chcmVal !== null ? formatResult(chcmVal) : ''
-                };
-            }
-        }
-        
-        return next;
-    };
-
-    const parseBilNumber = (val) => {
-        if (val === null || val === undefined || val === '') return null;
-        const str = String(val).trim().replace(',', '.');
-        if (str === '') return null;
-        const num = parseFloat(str);
-        return isNaN(num) || !isFinite(num) ? null : num;
-    };
-
-    const applyBilCalculations = (formState) => {
-        const next = { ...formState };
-        
-        const paramsByCode = {};
-        const paramIdsByCode = {};
-        
-        Object.values(next).forEach(p => {
-            const code = String(p.parameter_code || p.code || '').toUpperCase();
-            paramsByCode[code] = p;
-            paramIdsByCode[code] = p.parameter_id || p.id || p.parameterId;
-        });
-        
-        const totalParam = paramsByCode['BILIRRUBINA_TOTAL'];
-        const diretaParam = paramsByCode['BILIRRUBINA_DIRETA'];
-        const indiretaId = paramIdsByCode['BILIRRUBINA_INDIRETA'];
-        
-        if (indiretaId) {
-            const valTotal = parseBilNumber(totalParam?.value_numeric);
-            const valDireta = parseBilNumber(diretaParam?.value_numeric);
-            
-            let calculatedIndireta = '';
-            if (valTotal !== null && valDireta !== null) {
-                if (valDireta <= valTotal) {
-                    const diff = Math.round((valTotal - valDireta + Number.EPSILON) * 100) / 100;
-                    calculatedIndireta = String(diff).replace('.', ',');
-                }
-            }
-            
-            next[indiretaId] = {
-                ...next[indiretaId],
-                value_numeric: calculatedIndireta
-            };
-        }
-        
-        return next;
-    };
 
     const selecionarExame = (result) => {
         setSelectedExamId(result.id);
@@ -2297,13 +2186,9 @@ const LaboratorioResultados = () => {
                                                     }
                                                 }
                                             }
-                                            if (code === 'VCM' || code === 'HCM' || code === 'CHCM') {
-                                                isCalculatedIndex = true;
-                                            }
-                                        } else if (isBil) {
-                                            if (code === 'BILIRRUBINA_INDIRETA') {
-                                                isCalculatedIndex = true;
-                                            }
+                                        }
+                                        if (isCalculatedParameter(selectedResult?.exameCodigo, code)) {
+                                            isCalculatedIndex = true;
                                         }
 
                                         let sectionHeader = null;
