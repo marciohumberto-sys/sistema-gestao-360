@@ -248,6 +248,8 @@ export const laboratorioLaudosService = {
                     result_id: r.id,
                     resultId: r.id,
                     patient_id: pat.id,
+                    attendance_id: att.id,
+                    attendanceId: att.id,
                     protocolo: att.protocol_number,
                     pacienteCodigo: pat.code,
                     pacienteNome: pat.full_name,
@@ -575,6 +577,133 @@ export const laboratorioLaudosService = {
             return historico.slice(0, 3);
         } catch (error) {
             console.error('Erro ao buscar historico GLI:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Carrega a lista completa de exames do atendimento para visualização de status
+     * na tela de Laudos (distinguindo LIBERADOS de PENDENTES).
+     */
+    carregarExamesDoAtendimento: async (attendanceId, protocolNumber) => {
+        try {
+            let attId = attendanceId;
+            if (!attId && protocolNumber) {
+                const { data: att } = await supabase
+                    .from('lab_attendances')
+                    .select('id')
+                    .eq('protocol_number', protocolNumber)
+                    .maybeSingle();
+                attId = att?.id;
+            }
+            if (!attId) return [];
+
+            // 1. Buscar solicitações em lab_attendance_exams
+            const { data: attExams, error: attExErr } = await supabase
+                .from('lab_attendance_exams')
+                .select('id, exam_id, status')
+                .eq('attendance_id', attId)
+                .neq('status', 'CANCELADO');
+
+            if (attExErr) {
+                console.warn('[Laudos] Aviso ao buscar lab_attendance_exams:', attExErr);
+            }
+
+            // 2. Buscar resultados em lab_results
+            const { data: results, error: resErr } = await supabase
+                .from('lab_results')
+                .select('id, attendance_exam_id, exam_id, status')
+                .eq('attendance_id', attId)
+                .neq('status', 'CANCELADO');
+
+            if (resErr) throw resErr;
+
+            // Coletar IDs de exames únicos
+            const examIdSet = new Set();
+            (attExams || []).forEach(ae => { if (ae.exam_id) examIdSet.add(ae.exam_id); });
+            (results || []).forEach(r => { if (r.exam_id) examIdSet.add(r.exam_id); });
+            const examIds = [...examIdSet];
+
+            if (examIds.length === 0) return [];
+
+            // 3. Buscar dados cadastrais dos exames
+            const { data: exams, error: exErr } = await supabase
+                .from('lab_exams')
+                .select('id, code, name, print_order, prints_on_report')
+                .in('id', examIds);
+
+            if (exErr) throw exErr;
+
+            const examMap = {};
+            (exams || []).forEach(e => {
+                examMap[e.id] = e;
+            });
+
+            // Mapear resultados por attendance_exam_id e por exam_id
+            const resultsByExamId = {};
+            const resultsByAEId = {};
+            (results || []).forEach(r => {
+                if (r.attendance_exam_id) resultsByAEId[r.attendance_exam_id] = r;
+                if (r.exam_id && !resultsByExamId[r.exam_id]) resultsByExamId[r.exam_id] = r;
+            });
+
+            let unifiedList = [];
+
+            if (attExams && attExams.length > 0) {
+                unifiedList = attExams.map(ae => {
+                    const r = resultsByAEId[ae.id] || resultsByExamId[ae.exam_id] || null;
+                    const ex = examMap[ae.exam_id] || {};
+                    const rawStatus = String(r?.status || ae.status || 'PENDENTE').trim().toUpperCase();
+                    const isLiberado = rawStatus === 'LIBERADO';
+
+                    return {
+                        id: r?.id || ae.id,
+                        result_id: r?.id || null,
+                        attendance_exam_id: ae.id,
+                        exam_id: ae.exam_id,
+                        exameCodigo: ex.code || '',
+                        exameNome: ex.name || '',
+                        status: rawStatus,
+                        isLiberado,
+                        isPendente: !isLiberado,
+                        examePrintOrder: ex.print_order ?? 999,
+                        printsOnReport: ex.prints_on_report !== false
+                    };
+                });
+            } else if (results && results.length > 0) {
+                unifiedList = results.map(r => {
+                    const ex = examMap[r.exam_id] || {};
+                    const rawStatus = String(r.status || 'PENDENTE').trim().toUpperCase();
+                    const isLiberado = rawStatus === 'LIBERADO';
+
+                    return {
+                        id: r.id,
+                        result_id: r.id,
+                        attendance_exam_id: r.attendance_exam_id || null,
+                        exam_id: r.exam_id,
+                        exameCodigo: ex.code || '',
+                        exameNome: ex.name || '',
+                        status: rawStatus,
+                        isLiberado,
+                        isPendente: !isLiberado,
+                        examePrintOrder: ex.print_order ?? 999,
+                        printsOnReport: ex.prints_on_report !== false
+                    };
+                });
+            }
+
+            // Ordenar: print_order ASC → exameCodigo ASC → id ASC
+            unifiedList.sort((a, b) => {
+                const orderDiff = (a.examePrintOrder ?? 999) - (b.examePrintOrder ?? 999);
+                if (orderDiff !== 0) return orderDiff;
+                const codeDiff = (a.exameCodigo || '').localeCompare(b.exameCodigo || '');
+                if (codeDiff !== 0) return codeDiff;
+                return (a.id || '').localeCompare(b.id || '');
+            });
+
+            return unifiedList;
+        } catch (error) {
+            console.error('[Laudos] Erro ao carregar exames do atendimento:', error);
             return [];
         }
     }

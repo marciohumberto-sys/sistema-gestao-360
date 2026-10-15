@@ -25,16 +25,51 @@
    ============================================================ */
 .laudos-action-bar {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 8px 16px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 16px;
     background: #f8fafc;
     border-bottom: 1px solid #e2e8f0;
-    flex-wrap: wrap;
     position: sticky;
     top: 0;
     z-index: 10;
+}
+
+/* LINHA 1 — RESUMO E AÇÕES */
+.laudos-action-bar-row1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    flex-wrap: wrap;
+    min-height: 32px;
+}
+
+.laudos-summary-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.laudos-summary-text {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #475569;
+    white-space: nowrap;
+}
+
+.laudos-summary-text strong {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.laudos-summary-sub {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #64748b;
 }
 
 .laudos-action-bar-left {
@@ -59,6 +94,110 @@
     color: #475569;
     white-space: nowrap;
     flex-shrink: 0;
+}
+
+/* LINHA 2 — EXAMES (CHIPS) */
+.laudos-action-bar-row2 {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.laudos-chips-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    width: 100%;
+    padding: 2px 0 2px;
+}
+
+/* Base do Chip de Exame */
+.laudos-exam-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.25;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+    border: 1px solid transparent;
+    user-select: none;
+    box-sizing: border-box;
+}
+
+/* Chip Liberado - Neutro / Unselected */
+.laudos-exam-chip-liberado {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #334155;
+    cursor: pointer;
+}
+
+.laudos-exam-chip-liberado:hover {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+}
+
+/* Chip Liberado + Selecionado para Laudo/Impressão */
+.laudos-exam-chip-selected {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1d4ed8;
+    box-shadow: 0 1px 2px rgba(59, 130, 246, 0.08);
+}
+
+.laudos-exam-chip-selected:hover {
+    background: #dbeafe;
+    border-color: #2563eb;
+}
+
+/* Chip Liberado + Ativo na Prévia Atual */
+.laudos-exam-chip-active {
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+    font-weight: 800;
+}
+
+/* Chip Pendente */
+.laudos-exam-chip-pendente {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #94a3b8;
+    cursor: not-allowed;
+    opacity: 0.72;
+}
+
+.laudos-exam-chip-pendente:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #94a3b8;
+}
+
+/* Check Verde Sobreposto (Canto Superior Direito) */
+.laudos-chip-check-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #16a34a;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #ffffff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    pointer-events: none;
+    line-height: 1;
+}
+
+.laudos-chip-text {
+    white-space: nowrap;
 }
 
 /* chips dos códigos selecionados */

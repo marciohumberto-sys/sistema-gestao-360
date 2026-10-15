@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallba
 import { formatCpf } from '../../utils/formatters';
 import { 
     CheckCircle2, AlertTriangle, Search, RefreshCw, 
-    Activity, Clock, User, Loader2, FileText, Printer, Download, SlidersHorizontal, ChevronDown, ChevronUp
+    Activity, Clock, User, Loader2, FileText, Printer, Download, SlidersHorizontal, ChevronDown, ChevronUp, Check
 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import html2canvas from 'html2canvas';
@@ -2107,6 +2107,7 @@ const LaboratorioLaudos = () => {
         (filteredResults || []).forEach(ex => {
             if (!groups[ex.protocolo]) {
                 groups[ex.protocolo] = {
+                    attendance_id: ex.attendance_id || ex.attendanceId || null,
                     protocolo: ex.protocolo,
                     pacienteCode: ex.pacienteCodigo,
                     dataAtendimento: ex.dataAtendimento,
@@ -2204,6 +2205,58 @@ const LaboratorioLaudos = () => {
         );
         setSelectedExamIds(printable);
     }, [selectedProtocol?.protocolo]); // depende apenas do protocolo, não de selectedProtocol inteiro
+
+    // Lista completa de todos os exames do atendimento para visualização dos chips e status
+    const [attendanceAllExams, setAttendanceAllExams] = useState([]);
+    const attendanceAllExamsCacheRef = useRef({});
+
+    useEffect(() => {
+        if (!selectedProtocol) {
+            setAttendanceAllExams([]);
+            return;
+        }
+
+        const protoKey = selectedProtocol.protocolo;
+        if (attendanceAllExamsCacheRef.current[protoKey]) {
+            setAttendanceAllExams(attendanceAllExamsCacheRef.current[protoKey]);
+            return;
+        }
+
+        let isCancelled = false;
+        laboratorioLaudosService.carregarExamesDoAtendimento(selectedProtocol.attendance_id, selectedProtocol.protocolo)
+            .then(exams => {
+                if (isCancelled) return;
+                attendanceAllExamsCacheRef.current[protoKey] = exams;
+                setAttendanceAllExams(exams);
+            })
+            .catch(err => {
+                console.error('Erro ao carregar todos os exames do atendimento:', err);
+                if (!isCancelled) setAttendanceAllExams([]);
+            });
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [selectedProtocol?.protocolo, selectedProtocol?.attendance_id]);
+
+    const displayExams = useMemo(() => {
+        if (attendanceAllExams && attendanceAllExams.length > 0) {
+            return attendanceAllExams;
+        }
+        return (selectedProtocol?.exams || []).map(ex => ({
+            ...ex,
+            isLiberado: ex.status === 'LIBERADO',
+            isPendente: ex.status !== 'LIBERADO'
+        }));
+    }, [attendanceAllExams, selectedProtocol?.exams]);
+
+    const liberadosCount = useMemo(() => {
+        return displayExams.filter(e => e.isLiberado || e.status === 'LIBERADO').length;
+    }, [displayExams]);
+
+    const pendentesCount = useMemo(() => {
+        return displayExams.filter(e => !e.isLiberado && e.status !== 'LIBERADO').length;
+    }, [displayExams]);
 
     useEffect(() => {
         if (selectedExamIds.size <= 1 && previewMode !== 'individual') {
@@ -2434,6 +2487,7 @@ const LaboratorioLaudos = () => {
             setHasMore(true);
             setActiveFilters(searchFilters);
             setSelectedBatchExams(new Set());
+            attendanceAllExamsCacheRef.current = {};
             const { data, hasMore: more } = await laboratorioLaudosService.buscarLaudos({
                 ...searchFilters,
                 page: 0
@@ -2500,6 +2554,16 @@ const LaboratorioLaudos = () => {
                 };
                 setSelectedExam(updatedExam);
                 setSearchResults(prev => prev.map(ex => ex.id === updatedExam.id ? updatedExam : ex));
+            }
+
+            if (selectedProtocol?.protocolo) {
+                delete attendanceAllExamsCacheRef.current[selectedProtocol.protocolo];
+                laboratorioLaudosService.carregarExamesDoAtendimento(selectedProtocol.attendance_id, selectedProtocol.protocolo)
+                    .then(exams => {
+                        attendanceAllExamsCacheRef.current[selectedProtocol.protocolo] = exams;
+                        setAttendanceAllExams(exams);
+                    })
+                    .catch(() => {});
             }
 
             setTimeout(() => {
@@ -4341,9 +4405,15 @@ const LaboratorioLaudos = () => {
                                                     <div style={{ fontSize: '14.5px', fontWeight: '600', color: '#0f172a', lineHeight: '1.2', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', minWidth: '0' }}>
                                                         {group.pacienteNome}
                                                     </div>
-                                                    <span style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'nowrap', paddingTop: '1px' }}>
-                                                        {group.exams.length} {group.exams.length === 1 ? 'exame' : 'exames'}
-                                                    </span>
+                                                    {(() => {
+                                                        const totalExamsCount = Math.max(group.totalExams || 0, group.exams.length);
+                                                        const liberadosCount = group.exams.filter(e => e.status === 'LIBERADO').length || group.exams.length;
+                                                        return (
+                                                            <span style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', paddingTop: '1px', flexShrink: 0 }}>
+                                                                {liberadosCount} {liberadosCount === 1 ? 'liberado' : 'liberados'} • {totalExamsCount} total
+                                                            </span>
+                                                        );
+                                                    })()}
                                                 </div>
                                                 {(() => {
                                                     const totalExams = group.exams.length;
@@ -4438,20 +4508,6 @@ const LaboratorioLaudos = () => {
                                 </div>
                             )}
 
-                            {selectedProtocol && (selectedProtocol.totalExams - selectedProtocol.exams.length) > 0 && (
-                                <div className="no-print" style={{
-                                    background: '#fffbeb',
-                                    color: '#b45309',
-                                    border: '1px solid #fcd34d',
-                                    padding: '0.5rem 1rem', borderRadius: '8px',
-                                    fontWeight: '500', fontSize: '0.85rem', zIndex: 10,
-                                    marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px'
-                                }}>
-                                    <AlertTriangle size={16} />
-                                    Ainda { (selectedProtocol.totalExams - selectedProtocol.exams.length) === 1 ? 'existe 1 exame pendente' : `existem ${selectedProtocol.totalExams - selectedProtocol.exams.length} exames pendentes` } de conferência neste atendimento.
-                                </div>
-                            )}
-
                             {/* Laudo Final View */}
                             <div ref={laudoRef} className="lab-card lab-final-report laudo-print-area" style={{ 
                                 background: '#fff', 
@@ -4465,36 +4521,22 @@ const LaboratorioLaudos = () => {
                                 
                                 {/* BARRA DE AÇÕES SUPERIOR — no-print */}
                                 <div className="no-print laudos-action-bar">
-                                    {/* Esquerda: contador + chips */}
-                                    <div className="laudos-action-bar-left">
-                                        <span className="laudos-action-counter">
-                                            {selectedExamIds.size} de {selectedProtocol?.exams.length ?? 0} exame{(selectedProtocol?.exams.length ?? 0) !== 1 ? 's' : ''} selecionado{selectedExamIds.size !== 1 ? 's' : ''}
-                                        </span>
-                                        {/* Chips dos exames selecionados — máximo 4 visíveis */}
-                                        <div className="laudos-action-chips">
-                                            {(() => {
-                                                const selected = (selectedProtocol?.exams || []).filter(ex => selectedExamIds.has(ex.id));
-                                                const maxChips = 4;
-                                                const visible = selected.slice(0, maxChips);
-                                                const overflow = selected.length - maxChips;
-                                                return (
-                                                    <>
-                                                        {visible.map(ex => (
-                                                            <span key={ex.id} className="laudos-chip" onClick={() => handleSelectExam(ex)} title={ex.exameNome}>
-                                                                {ex.exameCodigo}
-                                                            </span>
-                                                        ))}
-                                                        {overflow > 0 && (
-                                                            <span className="laudos-chip laudos-chip-overflow">+{overflow}</span>
-                                                        )}
-                                                    </>
-                                                );
-                                            })()}
+                                    {/* LINHA 1 — RESUMO E AÇÕES */}
+                                    <div className="laudos-action-bar-row1">
+                                        {/* Esquerda: resumo discreto */}
+                                        <div className="laudos-summary-container">
+                                            <span className="laudos-summary-text">
+                                                <strong>{liberadosCount}</strong> {liberadosCount === 1 ? 'liberado' : 'liberados'}
+                                                {selectedExamIds.size < liberadosCount && (
+                                                    <span className="laudos-summary-sub"> ({selectedExamIds.size} selecionado{selectedExamIds.size !== 1 ? 's' : ''})</span>
+                                                )}
+                                                {' '}•{' '}
+                                                <strong>{pendentesCount}</strong> {pendentesCount === 1 ? 'pendente' : 'pendentes'}
+                                            </span>
                                         </div>
-                                    </div>
 
-                                    {/* Direita: botões de ação */}
-                                    <div className="laudos-action-bar-right">
+                                        {/* Direita: botões de ação */}
+                                        <div className="laudos-action-bar-right">
                                         {selectedExamIds.size > 1 && (
                                             <button
                                                 type="button"
@@ -4596,6 +4638,54 @@ const LaboratorioLaudos = () => {
                                         )}
                                     </div>
                                 </div>
+
+                                {/* LINHA 2 — EXAMES */}
+                                <div className="laudos-action-bar-row2 laudos-chips-line">
+                                    {displayExams.map(ex => {
+                                        const isLiberado = ex.isLiberado || ex.status === 'LIBERADO';
+                                        const isSelected = isLiberado && selectedExamIds.has(ex.id);
+                                        const isActive = isLiberado && selectedExam?.id === ex.id;
+
+                                        let chipClass = 'laudos-exam-chip';
+                                        if (isLiberado) {
+                                            chipClass += ' laudos-exam-chip-liberado';
+                                            if (isSelected) chipClass += ' laudos-exam-chip-selected';
+                                            if (isActive) chipClass += ' laudos-exam-chip-active';
+                                        } else {
+                                            chipClass += ' laudos-exam-chip-pendente';
+                                        }
+
+                                        const tooltipText = isLiberado
+                                            ? (ex.exameNome ? `${ex.exameCodigo} — ${ex.exameNome}` : ex.exameCodigo)
+                                            : `${ex.exameCodigo}${ex.exameNome ? ` — ${ex.exameNome}` : ''} (Aguardando conferência)`;
+
+                                        return (
+                                            <button
+                                                key={ex.id || ex.exam_id}
+                                                type="button"
+                                                className={chipClass}
+                                                onClick={() => {
+                                                    if (!isLiberado) return;
+                                                    const matchingExam = (selectedProtocol?.exams || []).find(e => e.id === ex.id) || ex;
+                                                    if (previewMode === 'complete') {
+                                                        setPreviewMode('individual');
+                                                    }
+                                                    handleSelectExam(matchingExam);
+                                                }}
+                                                disabled={!isLiberado}
+                                                title={tooltipText}
+                                            >
+                                                {isLiberado && (
+                                                    <span className="laudos-chip-check-badge" aria-hidden="true">
+                                                        <Check size={7} strokeWidth={3.5} />
+                                                    </span>
+                                                )}
+                                                <span className="laudos-chip-text">{ex.exameCodigo}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
 
                                 {/* DRAWER DE SELEÇÃO — no-print */}
                                 {drawerOpen && (
