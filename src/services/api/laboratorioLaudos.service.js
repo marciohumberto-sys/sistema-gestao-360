@@ -149,7 +149,7 @@ export const laboratorioLaudosService = {
                 const chunk = attIds.slice(i, i + 100);
                 let query = supabase
                     .from('lab_results')
-                    .select('id, attendance_id, exam_id, status, created_at, general_observation, typed_at, checked_at, released_at, responsible_name, responsible_crbm, responsible_signature_path, last_printed_at, last_downloaded_at')
+                    .select('id, attendance_id, exam_id, status, created_at, general_observation, typed_at, checked_at, released_at, responsible_name, responsible_crbm, responsible_signature_path, last_printed_at, last_downloaded_at, analyzer_name')
                     .in('attendance_id', chunk);
 
                 if (statusFilter === 'LIBERADO') {
@@ -269,7 +269,7 @@ export const laboratorioLaudosService = {
                     exameNome: ex.name,
                     exameMaterial: ex.material,
                     exameMetodo: ex.method,
-                    exameAnalisador: ex.analyzer_name,
+                    exameAnalisador: r.analyzer_name || ex.analyzer_name || null,
                     // campos de ordenação e seleção de impressão
                     examePrintOrder: ex.print_order ?? 999,
                     printsOnReport: ex.prints_on_report !== false,

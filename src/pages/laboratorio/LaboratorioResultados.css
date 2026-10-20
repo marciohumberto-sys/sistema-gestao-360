@@ -316,7 +316,61 @@
     border-bottom: 1px solid #e2e8f0;
     padding-bottom: 0.75rem;
     margin-bottom: 0.75rem;
+    gap: 1rem;
+    flex-wrap: wrap;
 }
+
+.lab-typing-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.lab-analyzer-selector-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+}
+
+.lab-analyzer-selector-label {
+    font-weight: 600;
+    color: #475569;
+    white-space: nowrap;
+    margin: 0;
+    cursor: default;
+}
+
+.lab-analyzer-select {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #0f172a;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.lab-analyzer-select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.lab-analyzer-select:disabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
 
 .lab-typing-title h2 {
     margin: 0 0 0.5rem 0;

@@ -468,6 +468,30 @@ class LaboratorioResultadosService {
 
         if (errParams) throw errParams;
 
+        // 5.1 Buscar equipamentos alternativos configurados para os exames
+        let examAnalyzers = [];
+        if (examIds.length > 0) {
+            const { data: eaData, error: errEA } = await supabase
+                .from('lab_exam_analyzers')
+                .select('*')
+                .in('exam_id', examIds)
+                .eq('is_active', true);
+            if (errEA) throw errEA;
+            examAnalyzers = eaData || [];
+        }
+
+        // 5.2 Buscar referências alternativas dos analisadores
+        let examAnalyzerRefs = [];
+        if (examIds.length > 0) {
+            const { data: earData, error: errEAR } = await supabase
+                .from('lab_exam_analyzer_references')
+                .select('*')
+                .in('exam_id', examIds)
+                .eq('is_active', true);
+            if (errEAR) throw errEAR;
+            examAnalyzerRefs = earData || [];
+        }
+
         // 6. Buscar valores dos resultados
         let values = [];
         if (resultIds.length > 0) {
@@ -497,7 +521,30 @@ class LaboratorioResultadosService {
                 .filter(r => r.attendance_id === att.id)
                 .map(r => {
                 const exame = examesMap[r.exam_id] || {};
-                
+                const defaultAnalyzer = exame.analyzer_name || null;
+
+                // Equipamentos alternativos ativos para este exame
+                const altAnalyzers = examAnalyzers
+                    .filter(ea => ea.exam_id === r.exam_id && ea.analyzer_name)
+                    .map(ea => ea.analyzer_name.trim());
+
+                // availableAnalyzers = equipamento padrão (se existir) + alternativos sem duplicidades
+                const availableAnalyzers = [];
+                if (defaultAnalyzer && defaultAnalyzer.trim()) {
+                    availableAnalyzers.push(defaultAnalyzer.trim());
+                }
+                altAnalyzers.forEach(a => {
+                    if (a && !availableAnalyzers.includes(a)) {
+                        availableAnalyzers.push(a);
+                    }
+                });
+
+                // Referências alternativas do exame
+                const analyzerReferences = examAnalyzerRefs.filter(ref => ref.exam_id === r.exam_id);
+
+                const savedAnalyzer = r.analyzer_name || null;
+                const selectedAnalyzer = savedAnalyzer || defaultAnalyzer || null;
+
                 // Juntar os valores preenchidos com a estrutura do parâmetro base
                 let exameParams = parameters.filter(p => p.exam_id === r.exam_id);
                 // Ordenar por display_order (garantindo que se mantenha a ordem estrutural)
@@ -508,14 +555,22 @@ class LaboratorioResultadosService {
 
                 const structuredValues = exameParams.map(param => {
                     const savedValue = resultValoresMap[param.id] || {};
+                    const effectiveReferenceText =
+                        savedValue.reference_text !== null &&
+                        savedValue.reference_text !== undefined
+                            ? savedValue.reference_text
+                            : param.reference_text;
+
                     return {
-                        ...param, // name, result_type, reference_text, display_order, etc
+                        ...param, // name, result_type, display_order, etc
                         value_id: savedValue.id || null,
                         result_id: r.id,
                         parameter_id: param.id,
                         value_numeric: savedValue.value_numeric ?? null,
                         value_text: savedValue.value_text || '',
-                        observation: savedValue.observation || ''
+                        observation: savedValue.observation || '',
+                        reference_text: effectiveReferenceText,
+                        catalog_reference_text: param.reference_text
                     };
                 });
                 return {
@@ -525,6 +580,11 @@ class LaboratorioResultadosService {
                     exameSetor: exame.lab_exam_sectors?.name || 'OUTROS',
                     examePrintOrder: exame.print_order || 999,
                     requires_conference: exame.requires_conference || false,
+                    defaultAnalyzer,
+                    savedAnalyzer,
+                    selectedAnalyzer,
+                    availableAnalyzers,
+                    analyzerReferences,
                     structuredValues
                 };
             });
@@ -598,7 +658,7 @@ class LaboratorioResultadosService {
         return `${months} meses`;
     }
 
-    async salvarResultados(resultId, updatedValues, generalObservation = undefined) {
+    async salvarResultados(resultId, updatedValues, generalObservation = undefined, analyzerOptions = {}) {
         // updatedValues = array de objetos formatados no componente UI
         if (!resultId || !updatedValues || updatedValues.length === 0) return;
 
@@ -606,7 +666,7 @@ class LaboratorioResultadosService {
         // A reabertura deve acontecer antes, pela RPC específica.
         const { data: currentResult, error: currentResultError } = await supabase
             .from('lab_results')
-            .select('status, tenant_id')
+            .select('status, tenant_id, typed_at, analyzer_name')
             .eq('id', resultId)
             .single();
 
@@ -642,6 +702,10 @@ class LaboratorioResultadosService {
                 }
                 
                 payload.observation = v.observation;
+
+                if (v.reference_text !== undefined) {
+                    payload.reference_text = v.reference_text;
+                }
 
                 if (operation === 'INSERT') {
                     if (!v.parameter_id) {
@@ -693,6 +757,35 @@ class LaboratorioResultadosService {
         };
         if (generalObservation !== undefined) {
             updatePayload.general_observation = generalObservation;
+        }
+
+        const selectedAnalyzer = (analyzerOptions && typeof analyzerOptions === 'object')
+            ? analyzerOptions.selectedAnalyzer
+            : (typeof analyzerOptions === 'string' ? analyzerOptions : undefined);
+        const isAnalyzerChanged = Boolean(analyzerOptions && typeof analyzerOptions === 'object' && analyzerOptions.isAnalyzerChanged);
+
+        const isNovoPendente = currentStatus === 'PENDENTE' && !currentResult?.typed_at;
+        const hasSavedAnalyzer = currentResult?.analyzer_name !== null && currentResult?.analyzer_name !== undefined;
+
+        if (isNovoPendente) {
+            // CASO A: resultado novo / pendente -> salva o equipamento selecionado (se fornecido)
+            if (selectedAnalyzer !== undefined) {
+                updatePayload.analyzer_name = selectedAnalyzer || null;
+            }
+        } else if (hasSavedAnalyzer) {
+            // CASO B: resultado existente com analyzer_name já preenchido
+            if (isAnalyzerChanged) {
+                updatePayload.analyzer_name = selectedAnalyzer || null;
+            } else {
+                updatePayload.analyzer_name = currentResult.analyzer_name;
+            }
+        } else {
+            // CASO C: resultado legado com analyzer_name NULL
+            if (isAnalyzerChanged) {
+                updatePayload.analyzer_name = selectedAnalyzer || null;
+            } else {
+                updatePayload.analyzer_name = null;
+            }
         }
 
         const { data: resData, error: errUpdateResult } = await supabase

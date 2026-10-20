@@ -206,6 +206,8 @@ const LaboratorioResultados = () => {
     const originRef = useRef(null);
     const [generalObservation, setGeneralObservation] = useState('');
     const [initialGeneralObservation, setInitialGeneralObservation] = useState('');
+    const [selectedAnalyzer, setSelectedAnalyzer] = useState(null);
+    const [isAnalyzerChanged, setIsAnalyzerChanged] = useState(false);
     const generalObsRef = useRef(null);
     const inputRefs = useRef([]);
     const lastFocusedExamRef = useRef(null);
@@ -561,6 +563,11 @@ const LaboratorioResultados = () => {
         setSelectedExamId(result.id);
         inputRefs.current = [];
         
+        // Equipamento inicial do resultado
+        const initialAnalyzer = result?.savedAnalyzer || result?.defaultAnalyzer || null;
+        setSelectedAnalyzer(initialAnalyzer);
+        setIsAnalyzerChanged(false);
+
         const initialForm = {};
         if (result && result.structuredValues) {
             result.structuredValues.forEach(v => {
@@ -621,9 +628,39 @@ const LaboratorioResultados = () => {
         setInitialFormValues(activeForm);
     };
 
-    
+    const handleAnalyzerChange = (newAnalyzer) => {
+        setSelectedAnalyzer(newAnalyzer);
+        setIsAnalyzerChanged(true);
+
+        const examRefs = selectedResult?.analyzerReferences || [];
+
+        setFormValues(prevForm => {
+            const nextForm = { ...prevForm };
+            Object.keys(nextForm).forEach(paramId => {
+                const currentParam = nextForm[paramId];
+                if (!currentParam) return;
+                const pId = currentParam.parameter_id || currentParam.id;
+
+                const override = examRefs.find(r => 
+                    String(r.parameter_id) === String(pId) && 
+                    String(r.analyzer_name || '').trim().toLowerCase() === String(newAnalyzer || '').trim().toLowerCase()
+                );
+
+                const newRefText = (override && override.reference_text !== null && override.reference_text !== undefined)
+                    ? override.reference_text
+                    : (currentParam.catalog_reference_text || currentParam.reference_text);
+
+                nextForm[paramId] = {
+                    ...currentParam,
+                    reference_text: newRefText
+                };
+            });
+            return nextForm;
+        });
+    };
+
     const checkUnsavedChanges = () => {
-        return JSON.stringify(formValues) !== JSON.stringify(initialFormValues) || generalObservation !== initialGeneralObservation;
+        return JSON.stringify(formValues) !== JSON.stringify(initialFormValues) || generalObservation !== initialGeneralObservation || isAnalyzerChanged;
     };
 
     const executePatientNavigation = async (targetAttendance, targetExamCode) => {
@@ -1198,12 +1235,21 @@ const LaboratorioResultados = () => {
                 setGeneralObservation(finalGeneralObs);
             }
 
-            await laboratorioResultadosService.salvarResultados(selectedExamId, valuesToSave, finalGeneralObs);
+            await laboratorioResultadosService.salvarResultados(
+                selectedExamId, 
+                valuesToSave, 
+                finalGeneralObs,
+                {
+                    selectedAnalyzer,
+                    isAnalyzerChanged
+                }
+            );
             
             const protocolToReload = selectedAttendance?.protocol_number || currentAttendance?.protocol_number;
             const updatedData = await carregarDados(protocolToReload, selectedExamId);
             
             setSaveStatus('success');
+            setIsAnalyzerChanged(false);
 
             const results = updatedData && updatedData.length > 0 && updatedData[0].resultados ? updatedData[0].resultados : [];
             const isPendingStatus = (st) => String(st || 'PENDENTE').trim().toUpperCase() === 'PENDENTE';
@@ -2067,10 +2113,32 @@ const LaboratorioResultados = () => {
                                         <span className="lab-badge lab-badge-gray">Parâmetros: {selectedResult.structuredValues?.length || 0}</span>
                                     </div>
                                 </div>
-                                <div className="lab-typing-status">
-                                    <span className={`lab-status-tag ${EXAM_STATUS_CONFIG[String(selectedResult.status || 'PENDENTE').toUpperCase()]?.className || 'status-pendente'}`}>
-                                        {selectedResult.status}
-                                    </span>
+                                <div className="lab-typing-header-right">
+                                    {selectedResult.availableAnalyzers && selectedResult.availableAnalyzers.length > 1 && (
+                                        <div className="lab-analyzer-selector-group">
+                                            <label htmlFor="lab-exam-analyzer-select" className="lab-analyzer-selector-label">
+                                                Equipamento:
+                                            </label>
+                                            <select
+                                                id="lab-exam-analyzer-select"
+                                                className="lab-analyzer-select"
+                                                value={selectedAnalyzer || ''}
+                                                disabled={isReadOnly || saving}
+                                                onChange={(e) => handleAnalyzerChange(e.target.value)}
+                                            >
+                                                {selectedResult.availableAnalyzers.map((analyzer) => (
+                                                    <option key={analyzer} value={analyzer}>
+                                                        {analyzer}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                    <div className="lab-typing-status">
+                                        <span className={`lab-status-tag ${EXAM_STATUS_CONFIG[String(selectedResult.status || 'PENDENTE').toUpperCase()]?.className || 'status-pendente'}`}>
+                                            {selectedResult.status}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -2416,30 +2484,37 @@ const LaboratorioResultados = () => {
                                                             </div>
                                                         </div>
 
-                                                        {param.reference_text && !isCompactRef && !isObservation && (
-                                                            <div className="lab-typing-ref-box" style={{ flex: 1, minWidth: '250px', background: '#f8fafc', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                                                <span className="lab-ref-label" style={{ display: 'block', fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem', fontWeight: 600 }}>VALOR DE REFERÊNCIA:</span>
-                                                                <div className="lab-ref-value" style={{ fontSize: '0.85rem', color: '#334155', whiteSpace: 'pre-wrap' }}>
-                                                                    {param.reference_text}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        
-                                                        {isCompactRef && !isObservation && (
-                                                            <div 
-                                                                className="lab-typing-ref-compact lab-ref-tooltip-trigger" 
-                                                                onMouseEnter={(e) => handleTooltipEnter(e, param.name, compactRefText, param.reference_text)}
-                                                                onMouseLeave={handleTooltipLeave}
-                                                                onFocus={(e) => handleTooltipEnter(e, param.name, compactRefText, param.reference_text)}
-                                                                onBlur={handleTooltipLeave}
-                                                                tabIndex={0}
-                                                                style={{ flex: '1 1 40%', minWidth: '150px', display: 'flex', alignItems: 'center', background: '#f8fafc', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', height: '36px', cursor: 'help', outline: 'none', transition: 'all 0.2s' }}
-                                                            >
-                                                                <span style={{ fontSize: '0.85rem', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                                    {compactRefText}
-                                                                </span>
-                                                            </div>
-                                                        )}
+                                                        {(() => {
+                                                            const currentRefText = formState.reference_text !== undefined ? formState.reference_text : param.reference_text;
+                                                            return (
+                                                                <>
+                                                                    {currentRefText && !isCompactRef && !isObservation && (
+                                                                        <div className="lab-typing-ref-box" style={{ flex: 1, minWidth: '250px', background: '#f8fafc', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                                                            <span className="lab-ref-label" style={{ display: 'block', fontSize: '0.75rem', color: '#64748b', marginBottom: '0.25rem', fontWeight: 600 }}>VALOR DE REFERÊNCIA:</span>
+                                                                            <div className="lab-ref-value" style={{ fontSize: '0.85rem', color: '#334155', whiteSpace: 'pre-wrap' }}>
+                                                                                {currentRefText}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {isCompactRef && !isObservation && (
+                                                                        <div 
+                                                                            className="lab-typing-ref-compact lab-ref-tooltip-trigger" 
+                                                                            onMouseEnter={(e) => handleTooltipEnter(e, param.name, compactRefText, currentRefText)}
+                                                                            onMouseLeave={handleTooltipLeave}
+                                                                            onFocus={(e) => handleTooltipEnter(e, param.name, compactRefText, currentRefText)}
+                                                                            onBlur={handleTooltipLeave}
+                                                                            tabIndex={0}
+                                                                            style={{ flex: '1 1 40%', minWidth: '150px', display: 'flex', alignItems: 'center', background: '#f8fafc', padding: '0 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', height: '36px', cursor: 'help', outline: 'none', transition: 'all 0.2s' }}
+                                                                        >
+                                                                            <span style={{ fontSize: '0.85rem', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                                {compactRefText}
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+                                                                </>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </div>
                                             </React.Fragment>

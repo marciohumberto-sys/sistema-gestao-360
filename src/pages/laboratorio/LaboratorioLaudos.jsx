@@ -916,14 +916,111 @@ const LaudoPAR = ({ selectedExam, examDetails, formatDateTimeH, patientCode, for
 
 const resolveGLIReferenceRange = (referenceText, patient) => {
     if (!referenceText) return null;
-    const regex = /crian[çc]as\s+e\s+adultos\s*:\s*([\d.,]+)\s*[-–a]\s*([\d.,]+)/i;
-    const match = String(referenceText).match(regex);
-    if (match) {
+
+    // 1. Preservar o formato antigo combinado: "Crianças e adultos: X - Y" (ou com "a")
+    const regexCombined = /crian[çc]as?\s+e\s+adultos?\s*:\s*([\d.,]+)\s*(?:[-–—a]|at[eé])\s*([\d.,]+)/i;
+    const matchCombined = String(referenceText).match(regexCombined);
+    if (matchCombined) {
         return {
-            min: parseFloat(match[1].replace(',', '.')),
-            max: parseFloat(match[2].replace(',', '.'))
+            min: parseFloat(matchCombined[1].replace(',', '.')),
+            max: parseFloat(matchCombined[2].replace(',', '.'))
         };
     }
+
+    // 2. Determinar a idade real do paciente
+    let age = null;
+    if (typeof patient === 'number' && !isNaN(patient)) {
+        age = patient;
+    } else if (typeof patient === 'string') {
+        const clean = patient.trim().toLowerCase();
+        if (clean.includes('dia') || clean.includes('mês') || clean.includes('mes')) {
+            age = 0;
+        } else {
+            const m = clean.match(/\d+/);
+            if (m) age = parseInt(m[0], 10);
+        }
+    } else if (patient && typeof patient === 'object') {
+        const rawBirth = patient.pacienteDataNascimento || patient.birth_date || patient.data_nascimento;
+        if (rawBirth) {
+            let bDate = null;
+            if (typeof rawBirth === 'string' && rawBirth.includes('/')) {
+                const parts = rawBirth.trim().split('/');
+                if (parts.length === 3) {
+                    bDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
+                }
+            } else {
+                bDate = new Date(rawBirth);
+            }
+
+            if (bDate && !isNaN(bDate.getTime())) {
+                let refDate = new Date();
+                const rawRef = patient.dataAtendimentoRaw || patient.attendance_date || patient.collection_date || patient.dataAtendimento;
+                if (rawRef) {
+                    let rDate = null;
+                    if (typeof rawRef === 'string' && rawRef.includes('/')) {
+                        const parts = rawRef.trim().split('/');
+                        if (parts.length === 3) {
+                            rDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
+                        }
+                    } else {
+                        rDate = new Date(rawRef);
+                    }
+                    if (rDate && !isNaN(rDate.getTime())) {
+                        refDate = rDate;
+                    }
+                }
+
+                let diff = refDate.getFullYear() - bDate.getFullYear();
+                const m = refDate.getMonth() - bDate.getMonth();
+                if (m < 0 || (m === 0 && refDate.getDate() < bDate.getDate())) {
+                    diff--;
+                }
+                if (!isNaN(diff) && diff >= 0) {
+                    age = diff;
+                }
+            }
+        }
+
+        if (age === null) {
+            const rawAge = patient.pacienteIdade ?? patient.idade ?? patient.patient_age ?? patient.age;
+            if (rawAge !== undefined && rawAge !== null) {
+                if (typeof rawAge === 'number' && !isNaN(rawAge)) {
+                    age = rawAge;
+                } else {
+                    const strAge = String(rawAge).trim().toLowerCase();
+                    if (strAge.includes('dia') || strAge.includes('mês') || strAge.includes('mes')) {
+                        age = 0;
+                    } else {
+                        const m = strAge.match(/\d+/);
+                        if (m) age = parseInt(m[0], 10);
+                    }
+                }
+            }
+        }
+    }
+
+    // Regra 5: Não assumir adulto quando a idade não puder ser determinada
+    if (age === null) return null;
+
+    // 3. Faixas separadas por idade (>= 18 adulto, < 18 criança)
+    if (age >= 18) {
+        const matchAdult = String(referenceText).match(/adultos?\s*:\s*([\d.,]+)\s*(?:[-–—a]|at[eé])\s*([\d.,]+)/i);
+        if (matchAdult) {
+            return {
+                min: parseFloat(matchAdult[1].replace(',', '.')),
+                max: parseFloat(matchAdult[2].replace(',', '.'))
+            };
+        }
+    } else {
+        const matchChild = String(referenceText).match(/crian[çc]as?\s*:\s*([\d.,]+)\s*(?:[-–—a]|at[eé])\s*([\d.,]+)/i);
+        if (matchChild) {
+            return {
+                min: parseFloat(matchChild[1].replace(',', '.')),
+                max: parseFloat(matchChild[2].replace(',', '.'))
+            };
+        }
+    }
+
     return null;
 };
 
