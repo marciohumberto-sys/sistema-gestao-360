@@ -117,34 +117,41 @@ const LaboratorioMapas = () => {
             }
             try {
                 const snap = typeof lote.document_snapshot === 'string' ? JSON.parse(lote.document_snapshot) : lote.document_snapshot;
-                if (!snap || !snap.patients || snap.patients.length === 0) return;
-                
-                const codes = [...new Set(snap.patients.map(p => p.code).filter(c => c))];
-                if (codes.length === 0) return;
-
-                const { data, error } = await supabase
-                    .from('lab_patients')
-                    .select('code, notes')
-                    .eq('tenant_id', currentTenantId)
-                    .in('code', codes);
-
-                if (error) throw error;
-                
-                if (data) {
-                    const notesMap = {};
-                    data.forEach(p => {
-                        if (p.notes && p.notes.trim()) {
-                            notesMap[String(p.code).trim()] = p.notes.trim();
-                        }
-                    });
-                    setPatientNotesMap(notesMap);
+                if (!snap || !snap.patients || snap.patients.length === 0) {
+                    setPatientNotesMap({});
+                    return;
                 }
+
+                const { byCode } = await laboratorioMapasService.buscarObservacoesDoLote(
+                    currentTenantId,
+                    selectedLoteId,
+                    snap,
+                    lote.reference_date
+                );
+                setPatientNotesMap(byCode || {});
             } catch (error) {
-                console.error("[Mapas] Erro ao buscar notas dos pacientes do lote:", error);
+                console.error("[Mapas] Erro ao buscar observações dos atendimentos do lote:", error);
             }
         };
         fetchNotes();
     }, [selectedLoteId, lotes, currentTenantId]);
+
+    const getPatientObservation = (pat) => {
+        const lookupCode = pat?.code ? String(pat.code).trim() : '';
+        const candidates = [
+            pat?.observations,
+            lookupCode ? patientNotesMap[lookupCode] : null,
+            pat?.observation,
+            pat?.obs,
+            pat?.observacao
+        ];
+        for (const c of candidates) {
+            if (typeof c === 'string' && c.trim() !== '') {
+                return c.trim();
+            }
+        }
+        return '';
+    };
 
     const normalizeString = (str) => {
         if (!str) return '';
@@ -172,7 +179,12 @@ const LaboratorioMapas = () => {
         setLoadingList(true);
         try {
             const data = await laboratorioMapasService.listarLotes(currentTenantId);
-            setLotes(data || []);
+            setLotes(listaAtual => {
+                const snapById = new globalThis.Map(
+                    (listaAtual || []).filter(l => l.document_snapshot).map(l => [l.id, l.document_snapshot])
+                );
+                return (data || []).map(l => snapById.has(l.id) ? { ...l, document_snapshot: snapById.get(l.id) } : l);
+            });
             
             const idToSelect = preservedId || selectedLoteId;
             if (idToSelect && data) {
@@ -194,7 +206,7 @@ const LaboratorioMapas = () => {
         if (!id || !currentTenantId) return;
         
         const loteExistente = lotes.find(l => l.id === id);
-        if (loteExistente && !loteExistente.document_snapshot) {
+        if (!loteExistente || !loteExistente.document_snapshot) {
             setLoadingPreview(true);
             try {
                 const detalhes = await laboratorioMapasService.buscarDetalhesLote(currentTenantId, id);
@@ -243,6 +255,9 @@ const LaboratorioMapas = () => {
                 }
                 
                 const consPat = consolidatedPatients.get(pKey);
+                if (!consPat.observations && pat.observations) {
+                    consPat.observations = pat.observations;
+                }
                 for (const ex of (pat.exams || [])) {
                     const normalize = (str) => (str || '').toString().trim().toUpperCase();
                     const exKey = ex.exam_id || `${normalize(ex.code)}::${normalize(ex.name)}`;
@@ -611,9 +626,24 @@ const LaboratorioMapas = () => {
                 border-left: 3px solid #64748b;
                 font-weight: bold;
                 display: flex;
-                flex-wrap: wrap;
-                gap: 8px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
                 background: #f8fafc;
+            }
+            .patient-obs {
+                font-size: 10.5px;
+                line-height: 1.3;
+                color: #334155;
+                font-weight: 400;
+                width: 100%;
+                word-break: break-word;
+                overflow-wrap: anywhere;
+                white-space: normal;
+            }
+            .patient-obs strong {
+                font-weight: 700;
+                color: #1e293b;
             }
             
             .lab-patient-exams { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
@@ -671,6 +701,8 @@ const LaboratorioMapas = () => {
             .u-name { font-weight: 700; font-size: 9.5px; color: #111827; white-space: normal; overflow-wrap: anywhere; }
             .u-age, .u-sex { font-weight: 600; font-size: 9.5px; color: #111827; }
             .u-header-sub { font-size: 8.5px; line-height: 1.25; color: #475569; display: flex; flex-wrap: wrap; gap: 8px; font-weight: 400; }
+            .u-header-obs { font-size: 8.5px; line-height: 1.25; color: #334155; font-weight: 400; width: 100%; word-break: break-word; overflow-wrap: anywhere; white-space: normal; }
+            .u-header-obs strong { font-weight: 700; color: #111827; }
             .u-sep { color: #cbd5e1; }
             .u-exam-title { font-weight: 700; font-size: 10.5px; text-align: center; margin-bottom: 6px; color: #111827; }
             .u-exam-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 12px; row-gap: 4px; }
@@ -708,8 +740,7 @@ const LaboratorioMapas = () => {
 
             const deduplicatedExams = deduplicateExamsForPrint(examesVisiveis);
             
-            const lookupCode = pat.code ? String(pat.code).trim() : '';
-            const resolvedObs = (pat.notes || (lookupCode && patientNotesMap[lookupCode]) || pat.observation || pat.obs || pat.observacao || '').trim();
+            const resolvedObs = getPatientObservation(pat);
 
             if (isUrinalise) {
                 const obsText = resolvedObs;
@@ -794,8 +825,8 @@ const LaboratorioMapas = () => {
                                 <span>Médico: ${escapeHtml(pat.doctor || 'NÃO INFORMADO')}</span>
                             </div>
                             ${obsText ? `
-                            <div style="margin-top: 4px; font-size: 0.85rem; color: #334155;">
-                                <span style="font-weight: 700;">Observação:</span> ${escapeHtml(obsText)}
+                            <div class="u-header-obs">
+                                <strong>Observação:</strong> ${escapeHtml(obsText)}
                             </div>
                             ` : ''}
                         </div>
@@ -854,7 +885,7 @@ const LaboratorioMapas = () => {
                             <div style="word-break: break-word; color: #1e293b; width: 100%;">
                                 <span style="font-weight: 800;">CÓD. ${escapeHtml(pat.code)}</span> — <span>${escapeHtml(pat.name)}</span>
                             </div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: #475569;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: #475569; width: 100%;">
                                 <span>${escapeHtml(pat.age_at_generation)}</span>
                                 <span style="color: #94a3b8;">|</span>
                                 <span>${escapeHtml(pat.sex)}</span>
@@ -864,8 +895,8 @@ const LaboratorioMapas = () => {
                                 <span>Médico: ${escapeHtml(pat.doctor || 'NÃO INFORMADO')}</span>
                             </div>
                             ${resolvedObs ? `
-                            <div style="margin-top: 4px; font-size: 0.85rem; color: #334155;">
-                                <span style="font-weight: 700;">Observação:</span> ${escapeHtml(resolvedObs)}
+                            <div class="patient-obs">
+                                <strong>Observação:</strong> ${escapeHtml(resolvedObs)}
                             </div>
                             ` : ''}
                         </div>
@@ -953,7 +984,7 @@ const LaboratorioMapas = () => {
     useEffect(() => {
         if (pendingAutoPrintBatchId && selectedLoteId === pendingAutoPrintBatchId) {
             const batchToPrint = lotes.find(l => l.id === pendingAutoPrintBatchId);
-            if (batchToPrint && previewRef.current) {
+            if (batchToPrint && batchToPrint.document_snapshot && previewRef.current) {
                 setPendingAutoPrintBatchId(null);
                 requestAnimationFrame(() => {
                     setTimeout(() => {
@@ -1355,14 +1386,14 @@ const LaboratorioMapas = () => {
                                                 <button className="lab-icon-btn lab-text-primary" title="Visualizar" onClick={(e) => { e.stopPropagation(); handleSelectLote(lote.id); }}><Eye size={16} /></button>
                                                 {lote.status === 'PENDING' && (
                                                     <>
-                                                        <button className="lab-icon-btn lab-text-gray" title="Imprimir" onClick={(e) => { e.stopPropagation(); handleSelectLote(lote.id); handleImprimirDocumento(lote); }}><Printer size={16} /></button>
+                                                        <button className="lab-icon-btn lab-text-gray" title="Imprimir" onClick={(e) => { e.stopPropagation(); handleSelectLote(lote.id); if (lote.document_snapshot) handleImprimirDocumento(lote); else setPendingAutoPrintBatchId(lote.id); }}><Printer size={16} /></button>
                                                         {canWriteLaboratorio(tenantLink?.role) && (
                                                             <button className="lab-icon-btn lab-text-gray" title="Cancelar Lote" onClick={(e) => { e.stopPropagation(); handleSolicitarCancelamento(lote.id); }}><XCircle size={16} /></button>
                                                         )}
                                                     </>
                                                 )}
                                                 {lote.status === 'PRINTED' && (
-                                                    <button className="lab-icon-btn lab-text-success" title="Reimprimir" onClick={(e) => { e.stopPropagation(); handleSelectLote(lote.id); handleImprimirDocumento(lote); }}><Printer size={16} /></button>
+                                                    <button className="lab-icon-btn lab-text-success" title="Reimprimir" onClick={(e) => { e.stopPropagation(); handleSelectLote(lote.id); if (lote.document_snapshot) handleImprimirDocumento(lote); else setPendingAutoPrintBatchId(lote.id); }}><Printer size={16} /></button>
                                                 )}
                                             </div>
                                         </div>
@@ -1435,8 +1466,7 @@ const LaboratorioMapas = () => {
                                     const isHematologia = (previewSnap.metadata?.sector?.name || '').trim().toUpperCase() === 'HEMATOLOGIA';
 
                                     return previewSnap.patients.map((pat, idx) => {
-                                        const lookupCode = pat.code ? String(pat.code).trim() : '';
-                                        const resolvedObs = (pat.notes || (lookupCode && patientNotesMap[lookupCode]) || pat.observation || pat.obs || pat.observacao || '').trim();
+                                        const resolvedObs = getPatientObservation(pat);
                                         
                                         const examesVisiveis = isHematologia
                                             ? (pat.exams || []).filter(exam => String(exam.code || '').trim().toUpperCase() !== 'HEMO')
@@ -1467,8 +1497,8 @@ const LaboratorioMapas = () => {
                                                             <span>Médico: {pat.doctor || 'NÃO INFORMADO'}</span>
                                                         </div>
                                                         {resolvedObs && (
-                                                            <div style={{ marginTop: '4px', fontSize: '0.85rem', color: '#334155' }}>
-                                                                <span style={{ fontWeight: 700 }}>Observação:</span> {resolvedObs}
+                                                            <div className="u-header-obs">
+                                                                <strong>Observação:</strong> {resolvedObs}
                                                             </div>
                                                         )}
                                                     </div>
@@ -1554,11 +1584,11 @@ const LaboratorioMapas = () => {
                                                         <span style={{ color: '#94a3b8' }}>|</span>
                                                         <span>Origem: {pat.origin}</span>
                                                         <span style={{ color: '#94a3b8' }}>|</span>
-                                                        <span>Médico: {pat.doctor}</span>
+                                                        <span>Médico: {pat.doctor || 'NÃO INFORMADO'}</span>
                                                     </div>
                                                     {resolvedObs && (
-                                                        <div style={{ marginTop: '2px', fontSize: '0.85rem', color: '#334155' }}>
-                                                            <span style={{ fontWeight: 700 }}>Observação:</span> {resolvedObs}
+                                                        <div className="lab-patient-obs">
+                                                            <strong>Observação:</strong> {resolvedObs}
                                                         </div>
                                                     )}
                                                 </div>

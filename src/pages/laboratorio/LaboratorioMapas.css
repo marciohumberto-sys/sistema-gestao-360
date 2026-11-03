@@ -788,3 +788,35 @@
     }
 }
 
+
+.laboratorio-mapas .lab-patient-obs {
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: #334155;
+    font-weight: 400;
+    width: 100%;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.laboratorio-mapas .lab-patient-obs strong {
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.laboratorio-mapas .u-header-obs {
+    font-size: 8.5px;
+    line-height: 1.25;
+    color: #334155;
+    font-weight: 400;
+    width: 100%;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.laboratorio-mapas .u-header-obs strong {
+    font-weight: 700;
+    color: #111827;
+}
