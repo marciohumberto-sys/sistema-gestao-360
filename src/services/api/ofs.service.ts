@@ -177,7 +177,7 @@ class OFsService {
                 ), 
                 secretariat:secretariats(name), 
                 items:of_items(*, contract_item:contract_items(item_number, marca)), 
-                commitment:commitments(id, number, current_balance, status)
+                commitment:commitments(id, number, current_balance, status, notes)
             `)
             .eq('id', id);
 

@@ -156,6 +156,32 @@ const OfPreview = () => {
         ? ofData.notes 
         : `COLOCAR NO CAMPO DE OBSERVAÇÃO DA NOTA FISCAL - CONTA CORRENTE, AGÊNCIA, NOME DO BANCO, DESTINADO À SECRETARIA DE ${secretariat?.name?.toUpperCase() || '_____'}, REFERENTE AO CONTRATO Nº ${(contract?.number || '_____').toUpperCase()}, ${referenciaCompetencia}. EMPENHO: ${commitment?.number || '_____'}.`;
 
+    const linkedCommitments = [
+        ...(Array.isArray(ofData.commitments) ? ofData.commitments : []),
+        ...(commitment ? [commitment] : []),
+        ...items.map((item) => item?.commitment).filter(Boolean)
+    ];
+
+    const seenCommitmentKeys = new Set();
+    const empenhoObservations = [];
+
+    linkedCommitments.forEach((emp) => {
+        if (!emp || typeof emp !== 'object') return;
+        const trimmedNotes = typeof emp.notes === 'string' ? emp.notes.trim() : '';
+        if (!trimmedNotes) return;
+
+        const empNumber = emp.number ? String(emp.number).trim() : '';
+        const dedupeKey = emp.id ? `id:${emp.id}` : `num:${empNumber}|notes:${trimmedNotes}`;
+        if (seenCommitmentKeys.has(dedupeKey)) return;
+        seenCommitmentKeys.add(dedupeKey);
+
+        empenhoObservations.push({
+            key: dedupeKey,
+            number: empNumber,
+            notes: trimmedNotes
+        });
+    });
+
     return (
         <div className="of-preview-container">
             <div className="of-preview-controls">
@@ -334,6 +360,23 @@ const OfPreview = () => {
                             <td colSpan="6" style={{ textAlign: 'right', fontWeight: 'bold' }}>TOTAL GERAL</td>
                             <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(ofData.total_amount)}</td>
                         </tr>
+                        {empenhoObservations.length > 0 && (
+                            <tr className="of-empenho-obs-row">
+                                <td colSpan="7" style={{ border: 'none', padding: 0 }}>
+                                    <div className="info-block border-full of-empenho-obs-block">
+                                        <div className="of-empenho-obs-title">OBSERVAÇÕES DO EMPENHO</div>
+                                        {empenhoObservations.map((empObs) => (
+                                            <div key={empObs.key} className="of-empenho-obs-item">
+                                                <span className="of-empenho-obs-label">
+                                                    {empObs.number ? `Empenho nº ${empObs.number}: ` : 'Empenho: '}
+                                                </span>
+                                                <span className="of-empenho-obs-text">{empObs.notes}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </td>
+                            </tr>
+                        )}
                         <tr>
                             <td colSpan="7" style={{ border: 'none', padding: 0 }}>
                                 <div style={{ paddingTop: '30px' }}>

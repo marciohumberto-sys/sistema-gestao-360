@@ -215,6 +215,48 @@ body.of-preview-body {
     font-size: 9pt;
 }
 
+.of-empenho-obs-block {
+    margin-top: 10px;
+    margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    overflow-wrap: anywhere;
+    word-wrap: break-word;
+    word-break: break-word;
+}
+
+.of-empenho-obs-title {
+    font-weight: 800;
+    font-size: 8.5pt;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.of-empenho-obs-item {
+    font-size: 8pt;
+    line-height: 1.4;
+    text-align: justify;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-wrap: break-word;
+    word-break: break-word;
+}
+
+.of-empenho-obs-item + .of-empenho-obs-item {
+    margin-top: 4px;
+}
+
+.of-empenho-obs-label {
+    font-weight: 800;
+}
+
+.of-empenho-obs-text {
+    font-weight: 400;
+}
+
 .date-location {
     text-align: center;
     font-size: 10pt;
